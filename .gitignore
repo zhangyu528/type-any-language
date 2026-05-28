@@ -1,0 +1,42 @@
+# Environment
+.env
+.env.dev
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+.claude/
+
+# Docker
+.docker/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+ENV/
+.pytest_cache/
+
+# Node
+node_modules/
+npm-debug.log*
+frontend/build/
+
+# Audio (generated)
+backend/audio/
+
+# Logs
+*.log
+logs/

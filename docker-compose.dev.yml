@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: english_db
+    env_file:
+      - .env.dev
+    volumes:
+      - type: volume
+        source: postgres_data
+        target: /var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: english_backend_dev
+    env_file:
+      - .env.dev
+    volumes:
+      - ./backend:/app
+      - ./backend/audio:/app/audio
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    command:
+      - sh
+      - -c
+      - pip install -r requirements.txt -q && python scripts/seed_vocabulary.py && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: english_frontend_dev
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=1000
+      - WATCHPACK_POLLING=true
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3000:3000"
+    stdin_open: true
+    tty: true
+
+volumes:
+  postgres_data:

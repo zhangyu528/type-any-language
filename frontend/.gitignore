@@ -1,0 +1,18 @@
+# React build
+build/
+
+# Node modules
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# ESLint
+.eslintcache
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
