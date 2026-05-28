@@ -206,12 +206,12 @@ if [ -z "$(grep "^AI_API_KEY=" .env.dev | cut -d'=' -f2-)" ]; then
     [ "$confirm" != "y" ] && [ "$confirm" != "Y" ] && exit 0
 fi
 
-# ============ Step 3: Build images ============
+# ============ Step 4: Build images ============
 echo ""
-echo "[3/4] 构建 Docker 镜像..."
+echo "[4/4] 构建 Docker 镜像..."
 $DOCKER_COMPOSE_CMD -f docker-compose.dev.yml build
 
-# ============ Step 4: Done ============
+# ============ Done ============
 echo ""
 echo -e "${GREEN}==========================================${NC}"
 echo -e "${GREEN}部署完成!${NC}"
