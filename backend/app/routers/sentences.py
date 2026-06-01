@@ -1,9 +1,7 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List
-import os
 
 from app.database import get_db
 from app.models.vocabulary import VocabularyWord
@@ -16,11 +14,8 @@ from app.schemas.sentence import (
     AnswerCheckResponse
 )
 from app.services.ai_service import get_ai_service
-from app.services.tts_service import get_tts_service
-from app.config import get_settings
 
 router = APIRouter(prefix="/api/sentences", tags=["sentences"])
-settings = get_settings()
 
 
 @router.post("/generate", response_model=SentenceGenerateResponse)
@@ -46,25 +41,27 @@ def generate_sentences(
         )
 
         if len(cached) >= request.count:
-            # 更新使用次数
-            for s in cached:
-                s.use_count += 1
-            db.commit()
-
-            return SentenceGenerateResponse(
-                session_id=session_id,
-                sentences=[
-                    SentenceResponse(
-                        id=s.id,
-                        text=s.text,
-                        chinese_text=s.chinese_text or '',
-                        target_words=s.target_words,
-                        difficulty=s.difficulty,
-                        audio_url=s.audio_url,
-                        is_cached=True
-                    ) for s in cached
-                ]
-            )
+            # Check if all cached sentences have chinese_text
+            cached_with_translation = [s for s in cached if s.chinese_text]
+            if len(cached_with_translation) >= request.count:
+                # Update usage count
+                for s in cached_with_translation:
+                    s.use_count += 1
+                db.commit()
+                return SentenceGenerateResponse(
+                    session_id=session_id,
+                    sentences=[
+                        SentenceResponse(
+                            id=s.id,
+                            text=s.text,
+                            chinese_text=s.chinese_text or '',
+                            target_words=s.target_words,
+                            difficulty=s.difficulty,
+                            audio_url=s.audio_url,
+                            is_cached=True
+                        ) for s in cached_with_translation
+                    ]
+                )
 
     # 2. 需要生成新句子
     # 获取随机词汇
@@ -87,8 +84,7 @@ def generate_sentences(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI 生成失败: {str(e)}")
 
-    # 3. 生成音频并保存
-    tts_service = get_tts_service()
+    # 3. 保存到数据库（使用 Web Speech，前端处理音频）
     sentences = []
 
     for item in generated:
@@ -99,20 +95,13 @@ def generate_sentences(
         if not text:
             continue
 
-        # 生成音频
-        try:
-            audio_url = tts_service.generate_audio(text)
-        except Exception:
-            audio_url = ""
-
-        # 保存到数据库
         sentence = Sentence(
             lib_id=request.lib_id,
             text=text,
             chinese_text=chinese_text,
             target_words=target_words,
             difficulty=request.difficulty,
-            audio_url=audio_url,
+            audio_url="",  # Web Speech handles audio on frontend
             is_cached=True,
             use_count=1
         )
@@ -138,30 +127,6 @@ def generate_sentences(
                 is_cached=s.is_cached
             ) for s in sentences
         ]
-    )
-
-
-@router.get("/{sentence_id}/audio")
-def get_audio(sentence_id: uuid.UUID, db: Session = Depends(get_db)):
-    """获取句子音频"""
-    sentence = db.query(Sentence).filter(Sentence.id == sentence_id).first()
-    if not sentence:
-        raise HTTPException(status_code=404, detail="句子不存在")
-
-    if not sentence.audio_url:
-        raise HTTPException(status_code=404, detail="音频不存在")
-
-    # 构建音频文件路径
-    filename = os.path.basename(sentence.audio_url)
-    filepath = os.path.join(settings.audio_dir, filename)
-
-    if not os.path.exists(filepath):
-        raise HTTPException(status_code=404, detail="音频文件不存在")
-
-    return FileResponse(
-        filepath,
-        media_type="audio/wav",
-        filename=filename
     )
 
 

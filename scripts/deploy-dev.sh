@@ -195,11 +195,7 @@ prompt "AI_BASE_URL" "API 基础URL" "https://api.minimaxi.com/anthropic"
 prompt "AI_MODEL" "AI 模型" "MiniMax-M2.7"
 
 echo ""
-echo "--- 腾讯云 TTS 配置 (可选) ---"
-prompt "TENCENT_SECRET_ID" "SecretId" ""
-prompt "TENCENT_SECRET_KEY" "SecretKey" ""
-prompt "TENCENT_APP_ID" "AppId" "0"
-
+echo "--- 检查配置 ---"
 if [ -z "$(grep "^AI_API_KEY=" .env.dev | cut -d'=' -f2-)" ]; then
     echo -e "${YELLOW}警告: AI_API_KEY 未配置，句子生成功能将不可用${NC}"
     read -p "是否继续? (y/N): " confirm

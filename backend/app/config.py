@@ -15,12 +15,7 @@ class Settings(BaseSettings):
     ai_base_url: str = "https://api.openai.com/v1"
     ai_model: str = "gpt-3.5-turbo"
 
-    # Tencent Cloud TTS
-    tencent_secret_id: str = ""
-    tencent_secret_key: str = ""
-    tencent_app_id: int = 0
-
-    # Audio
+    # Audio (for reference, not used with Web Speech)
     audio_dir: str = "/app/audio"
 
     class Config:

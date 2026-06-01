@@ -40,11 +40,7 @@ services:
       - AI_API_KEY=${AI_API_KEY}
       - AI_BASE_URL=${AI_BASE_URL}
       - AI_MODEL=${AI_MODEL}
-      - TENCENT_SECRET_ID=${TENCENT_SECRET_ID}
-      - TENCENT_SECRET_KEY=${TENCENT_SECRET_KEY}
-      - TENCENT_APP_ID=${TENCENT_APP_ID}
     volumes:
-      - ./backend/audio:/app/audio
       - ./seed/vocabulary:/app/seed/vocabulary
     depends_on:
       db:

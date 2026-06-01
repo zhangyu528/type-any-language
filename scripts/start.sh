@@ -48,11 +48,7 @@ prompt "AI_BASE_URL" "API 基础URL" "https://api.openai.com/v1"
 prompt "AI_MODEL" "AI 模型" "gpt-3.5-turbo"
 
 echo ""
-echo "--- 腾讯云 TTS 配置 (可选，直接回车跳过) ---"
-prompt "TENCENT_SECRET_ID" "腾讯云 SecretId" ""
-prompt "TENCENT_SECRET_KEY" "腾讯云 SecretKey" ""
-prompt "TENCENT_APP_ID" "腾讯云 AppId" "0"
-
+echo "--- 检查配置 ---"
 AI_API_KEY=$(grep "^AI_API_KEY=" .env | cut -d'=' -f2-)
 if [ -z "$AI_API_KEY" ]; then
     echo "警告: AI_API_KEY 未配置，句子生成功能将不可用"
