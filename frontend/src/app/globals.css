@@ -569,12 +569,19 @@ body {
   margin-top: 4px;
 }
 
-/* 激活词 - 琥珀色发光下划线 */
+/* 激活词 - 琥珀色发光下划线 + 背景高亮 */
 .line-word--active::after {
   height: 3px;
   background: linear-gradient(90deg, var(--color-accent), #fbbf24);
   box-shadow: 0 0 12px rgba(245, 158, 11, 0.6);
   opacity: 1;
+}
+
+.line-word--active {
+  background: rgba(245, 158, 11, 0.15);
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin: -2px -4px;
 }
 
 /* 字符输入框 */
@@ -598,7 +605,7 @@ body {
   text-align: center;
 }
 
-.line-char--correct { color: var(--color-success); }
+.line-char--correct { color: var(--color-accent); }
 .line-char--wrong { color: var(--color-error); }
 .line-char--pending { color: var(--color-text-muted); }
 
@@ -625,6 +632,11 @@ body {
 .line-word--correct .line-word-text {
   color: var(--color-success);
   font-weight: 600;
+}
+
+/* 光标 - 琥珀色 */
+.line-cursor {
+  background: var(--color-accent);
 }
 
 /* 单词间距 */

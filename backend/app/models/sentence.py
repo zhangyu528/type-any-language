@@ -19,5 +19,8 @@ class Sentence(Base):
     is_cached = Column(Boolean, default=True)
     use_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
+    last_used_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_stale = Column(Boolean, default=False)
+    refresh_count = Column(Integer, default=0)
 
     lib = relationship("VocabularyLib")

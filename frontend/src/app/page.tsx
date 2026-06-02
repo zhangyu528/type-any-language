@@ -17,7 +17,6 @@ export default function PracticePage() {
   const [showNav, setShowNav] = useState(false);
   const [showScore, setShowScore] = useState(false);
   const [score, setScore] = useState({ correct: 0, total: 0 });
-  const [speechSupported, setSpeechSupported] = useState(true);
   const [spaceHintActive, setSpaceHintActive] = useState(false);
   const [justErred, setJustErred] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -26,7 +25,6 @@ export default function PracticePage() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setSpeechSupported('speechSynthesis' in window);
     initPractice();
   }, []);
 
@@ -90,24 +88,30 @@ export default function PracticePage() {
     }
   }, [currentWordIndex, isCorrect, currentIndex]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (sentences[currentIndex]?.text) {
-        playAudio();
-      }
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [sentences[currentIndex]?.id]);
+  // Audio playback on user interaction only (browsers block auto-play without user gesture)
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setShowScore(true);
       }
+      // Space: play audio
+      if (e.key === ' ') {
+        e.preventDefault();
+        playAudio();
+      }
+      // Tab: toggle answer hint
+      if (e.key === 'Tab') {
+        const activeTag = document.activeElement?.tagName;
+        if (activeTag === 'INPUT' && isCorrect === null) {
+          e.preventDefault();
+          setSpaceHintActive(prev => !prev);
+        }
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [isCorrect]);
 
   const handleWordChange = (index: number, value: string) => {
     if (spaceHintActive && value.length > 0) {
@@ -191,9 +195,7 @@ export default function PracticePage() {
   const handleTypewriterKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === ' ') {
       e.preventDefault();
-      if (!wordResults[currentWordIndex] && isCorrect === null) {
-        setSpaceHintActive(prev => !prev);
-      }
+      playAudio();
     } else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey) {
       // Close hint when user starts typing
       if (spaceHintActive) {
@@ -239,21 +241,13 @@ export default function PracticePage() {
   const playAudio = useCallback(() => {
     if (!sentences[currentIndex]?.text) return;
 
-    const text = sentences[currentIndex].text;
+    const audioUrl = sentences[currentIndex]?.audio_url;
+    if (!audioUrl) return;
 
-    // Use Web Speech API
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'en-US';
-      utterance.rate = 0.9;
-
-      utterance.onstart = () => setIsPlaying(true);
-      utterance.onend = () => setIsPlaying(false);
-      utterance.onerror = () => setIsPlaying(false);
-
-      window.speechSynthesis.speak(utterance);
+    const fullUrl = getAudioUrl(audioUrl);
+    if (audioRef.current) {
+      audioRef.current.src = fullUrl;
+      audioRef.current.play().catch(() => {});
     }
   }, [sentences, currentIndex]);
 
@@ -343,6 +337,11 @@ export default function PracticePage() {
       className={`immersive-container ${isCorrect === true ? 'feedback-correct' : ''} ${isCorrect === false ? 'feedback-incorrect' : ''}`}
       onClick={handleContainerClick}
     >
+      <audio
+        ref={audioRef}
+        onPlay={() => setIsPlaying(true)}
+        onEnded={() => setIsPlaying(false)}
+      />
       <div className="immersive-content">
         {currentSentence && (
           <>
@@ -423,7 +422,7 @@ export default function PracticePage() {
               )}
 
               <div className="tips-area">
-                <span className="tip-text">Hover or click audio icon to play • Press Space to reveal answer</span>
+                <span className="tip-text">Space: Play audio • Tab: Show/Hide answer</span>
               </div>
 
               <div className="progress-dots">

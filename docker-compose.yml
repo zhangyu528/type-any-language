@@ -25,6 +25,7 @@ services:
       - "80:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./seed/audio:/usr/share/nginx/html/audio:ro
     depends_on:
       - frontend
       - backend
@@ -42,6 +43,7 @@ services:
       - AI_MODEL=${AI_MODEL}
     volumes:
       - ./seed/vocabulary:/app/seed/vocabulary
+      - ./seed/audio:/app/audio
     depends_on:
       db:
         condition: service_healthy

@@ -18,6 +18,18 @@ class Settings(BaseSettings):
     # Audio (for reference, not used with Web Speech)
     audio_dir: str = "/app/audio"
 
+    # Tencent Cloud TTS
+    tencent_secret_id: str = ""
+    tencent_secret_key: str = ""
+    tencent_app_id: int = 0
+
+    # Cache settings
+    cache_max_age_days: int = 30
+    cache_min_use_count: int = 2
+    cache_eviction_batch_size: int = 50
+    cache_prewarm_enabled: bool = True
+    cache_target_size: int = 200
+
     class Config:
         env_file = ".env"
         case_sensitive = False

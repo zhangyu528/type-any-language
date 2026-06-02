@@ -8,6 +8,7 @@ class SentenceGenerateRequest(BaseModel):
     count: int = 10
     difficulty: str = "beginner"
     force_new: bool = False
+    allow_stale: bool = False
 
 
 class SentenceResponse(BaseModel):
@@ -36,3 +37,31 @@ class AnswerCheckRequest(BaseModel):
 class AnswerCheckResponse(BaseModel):
     is_correct: bool
     correct_answer: str
+
+
+class CacheStatsResponse(BaseModel):
+    total: int
+    stale: int
+    non_stale: int
+    low_use: int
+
+
+class CacheEvictRequest(BaseModel):
+    lib_id: Optional[UUID] = None
+    difficulty: Optional[str] = None
+    dry_run: bool = True
+
+
+class CacheEvictResponse(BaseModel):
+    evicted_count: int
+    dry_run: bool
+
+
+class PrewarmRequest(BaseModel):
+    lib_id: UUID
+    difficulty: str = "beginner"
+    target_count: int = 50
+
+
+class PrewarmResponse(BaseModel):
+    generated_count: int
