@@ -19,10 +19,16 @@ export default function PracticePage() {
   const [score, setScore] = useState({ correct: 0, total: 0 });
   const [spaceHintActive, setSpaceHintActive] = useState(false);
   const [justErred, setJustErred] = useState(false);
+  const [showPhonetics, setShowPhonetics] = useState(false);
+  const [showSentence, setShowSentence] = useState(false);
+  const [isOptionsOpen, setIsOptionsOpen] = useState(false);
+  const [isToolsOpen, setIsToolsOpen] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const navTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const sentenceSnapshotRef = useRef<{userInputs: string[]; wordResults: boolean[]} | null>(null);
 
   useEffect(() => {
     initPractice();
@@ -61,6 +67,8 @@ export default function PracticePage() {
       setShowNav(false);
       setShowScore(false);
       setSpaceHintActive(false);
+      setShowSentence(false);
+      sentenceSnapshotRef.current = null;
     }
   }, [sentences, currentIndex]);
 
@@ -278,6 +286,73 @@ export default function PracticePage() {
     inputRefs.current[0]?.focus();
   };
 
+  // Close dropdowns when clicking outside the toolbar
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (toolbarRef.current && !toolbarRef.current.contains(e.target as Node)) {
+        setIsOptionsOpen(false);
+        setIsToolsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSettings = () => {
+    setIsToolsOpen(false);
+    alert('设置功能待实现');
+  };
+
+  const handleTheme = () => {
+    setIsToolsOpen(false);
+    alert('主题切换待实现');
+  };
+
+  const handleTour = () => {
+    setIsToolsOpen(false);
+    alert('功能引导待实现');
+  };
+
+  const handleShowSentenceChange = (checked: boolean) => {
+    if (!currentSentence) return;
+
+    if (checked) {
+      // 保存当前状态，以便取消时恢复
+      sentenceSnapshotRef.current = {
+        userInputs: [...userInputs],
+        wordResults: [...wordResults],
+      };
+      // 显示完整正确答案
+      const words = currentSentence.text.split(/\s+/);
+      setUserInputs([...words]);
+      setWordResults(new Array(words.length).fill(true));
+    } else {
+      // 从 snapshot 恢复到"上一个正确单词之后"的状态
+      const snap = sentenceSnapshotRef.current;
+      if (snap) {
+        const words = currentSentence.text.split(/\s+/);
+
+        // 找到最后一个连续正确的单词
+        let lastCorrect = -1;
+        for (let i = 0; i < snap.wordResults.length; i++) {
+          if (snap.wordResults[i]) lastCorrect = i;
+          else break;
+        }
+
+        // 恢复输入：保留已正确输入的，清空后续
+        const newInputs: string[] = new Array(words.length).fill('');
+        for (let i = 0; i <= lastCorrect; i++) {
+          newInputs[i] = snap.userInputs[i] || words[i];
+        }
+
+        setUserInputs(newInputs);
+        setWordResults(new Array(words.length).fill(false).map((_, i) => i <= lastCorrect));
+        setCurrentWordIndex(Math.min(lastCorrect + 1, words.length - 1));
+      }
+    }
+    setShowSentence(checked);
+  };
+
   const currentSentence = sentences[currentIndex];
   const allWordsFilled = userInputs.every((inp, i) => {
     const expected = currentSentence?.text.split(/\s+/)[i]?.toLowerCase().replace(/[.,!?;:'"]/g, '');
@@ -342,6 +417,89 @@ export default function PracticePage() {
         onPlay={() => setIsPlaying(true)}
         onEnded={() => setIsPlaying(false)}
       />
+
+      {/* Top-right toolbar */}
+      <div className="toolbar" ref={toolbarRef}>
+        {/* 1. 音频播放 */}
+        <button
+          type="button"
+          className="toolbar__btn"
+          onClick={(e) => { e.stopPropagation(); playAudio(); }}
+          title="播放音频"
+        >
+          <span className="toolbar__icon" aria-hidden>🔊</span>
+          <span>音频播放</span>
+        </button>
+
+        {/* 2. 显示选项 */}
+        <div className="toolbar__dropdown">
+          <button
+            type="button"
+            className={`toolbar__btn ${isOptionsOpen ? 'toolbar__btn--active' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsOptionsOpen(v => !v);
+              setIsToolsOpen(false);
+            }}
+            aria-haspopup="true"
+            aria-expanded={isOptionsOpen}
+          >
+            <span>显示选项</span>
+            <span className="toolbar__caret" aria-hidden>▾</span>
+          </button>
+          {isOptionsOpen && (
+            <div className="toolbar__menu" role="menu" onClick={(e) => e.stopPropagation()}>
+              <div className="toolbar__menu-header">显示选项</div>
+              <label className="toolbar__menu-item toolbar__menu-item--check">
+                <input
+                  type="checkbox"
+                  checked={showPhonetics}
+                  onChange={(e) => setShowPhonetics(e.target.checked)}
+                />
+                <span className="toolbar__checkbox" aria-hidden></span>
+                <span>显示音标</span>
+              </label>
+              <label className="toolbar__menu-item toolbar__menu-item--check">
+                <input
+                  type="checkbox"
+                  checked={showSentence}
+                  onChange={(e) => handleShowSentenceChange(e.target.checked)}
+                />
+                <span className="toolbar__checkbox" aria-hidden></span>
+                <span>显示句子</span>
+              </label>
+            </div>
+          )}
+        </div>
+
+        {/* 3. 页面工具 */}
+        <div className="toolbar__dropdown">
+          <button
+            type="button"
+            className={`toolbar__btn toolbar__btn--icon ${isToolsOpen ? 'toolbar__btn--active' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsToolsOpen(v => !v);
+              setIsOptionsOpen(false);
+            }}
+            aria-haspopup="true"
+            aria-expanded={isToolsOpen}
+            aria-label="页面工具"
+            title="页面工具"
+          >
+            …
+          </button>
+          {isToolsOpen && (
+            <div className="toolbar__menu" role="menu" onClick={(e) => e.stopPropagation()}>
+              <div className="toolbar__menu-header">页面工具</div>
+              <button type="button" className="toolbar__menu-item" onClick={handleSettings} role="menuitem">设置</button>
+              <button type="button" className="toolbar__menu-item" onClick={handleTheme} role="menuitem">主题</button>
+              <button type="button" className="toolbar__menu-item" onClick={handleTour} role="menuitem">功能引导</button>
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="immersive-content">
         {currentSentence && (
           <>

@@ -644,3 +644,203 @@ body {
   display: inline-block;
   width: 0.7em;
 }
+
+/* ========================================
+   Top-right Toolbar
+   ======================================== */
+.toolbar {
+  position: fixed;
+  top: var(--space-6);
+  right: var(--space-6);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: background 0.18s, border-color 0.18s, color 0.18s, transform 0.1s;
+  user-select: none;
+}
+
+.toolbar__btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(245, 158, 11, 0.5);
+  color: #FFFFFF;
+}
+
+.toolbar__btn:active {
+  transform: scale(0.97);
+}
+
+.toolbar__btn--active {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.toolbar__btn--icon {
+  padding: 0 12px;
+  font-size: 1.125rem;
+  letter-spacing: 1px;
+  font-weight: 600;
+}
+
+.toolbar__icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.toolbar__caret {
+  font-size: 0.7rem;
+  line-height: 1;
+  margin-left: 2px;
+  opacity: 0.75;
+}
+
+.toolbar__dropdown {
+  position: relative;
+}
+
+.toolbar__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 200px;
+  padding: 6px;
+  background: rgba(20, 20, 20, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: toolbarMenuIn 0.16s ease-out;
+}
+
+@keyframes toolbarMenuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.toolbar__menu-header {
+  padding: 8px 12px 6px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  letter-spacing: 0.02em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 4px;
+}
+
+.toolbar__menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.toolbar__menu-item:hover {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--color-accent);
+}
+
+.toolbar__menu-item--check {
+  cursor: pointer;
+  user-select: none;
+}
+
+.toolbar__menu-item--check input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+}
+
+.toolbar__checkbox {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.toolbar__menu-item--check:hover .toolbar__checkbox {
+  border-color: rgba(245, 158, 11, 0.6);
+}
+
+.toolbar__menu-item--check input[type="checkbox"]:checked + .toolbar__checkbox {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.toolbar__menu-item--check input[type="checkbox"]:checked + .toolbar__checkbox::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid #000;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.toolbar__menu-item--check input[type="checkbox"]:checked ~ span:last-child {
+  color: var(--color-accent);
+}
+
+@media (max-width: 640px) {
+  .toolbar {
+    top: var(--space-4);
+    right: var(--space-4);
+    gap: 6px;
+  }
+  .toolbar__btn {
+    height: 32px;
+    padding: 0 10px;
+    font-size: 0.8125rem;
+  }
+  .toolbar__menu {
+    min-width: 180px;
+  }
+}
