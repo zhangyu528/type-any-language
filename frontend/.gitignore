@@ -16,3 +16,7 @@ npm-debug.log*
 .idea/
 *.swp
 *.swo
+
+# TypeScript incremental build cache
+tsconfig.tsbuildinfo
+*.tsbuildinfo
