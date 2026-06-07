@@ -119,10 +119,20 @@ export default function PracticePage() {
           setSpaceHintActive(prev => !prev);
         }
       }
+      // Shift+P: toggle phonetics
+      if (e.key === 'P' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        e.preventDefault();
+        handleShowPhoneticsChange(!showPhonetics);
+      }
+      // Shift+S: toggle sentence display
+      if (e.key === 'S' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        e.preventDefault();
+        handleShowSentenceChange(!showSentence);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isCorrect]);
+  }, [isCorrect, showPhonetics, showSentence]);
 
   const handleWordChange = (index: number, value: string) => {
     if (spaceHintActive && value.length > 0) {
@@ -543,6 +553,19 @@ export default function PracticePage() {
         </div>
       </div>
 
+      {/* 快捷键面板（右侧） */}
+      <aside className="shortcuts-panel" aria-label="快捷键列表">
+        <div className="shortcuts-panel__title">快捷键</div>
+        <ul className="shortcuts-panel__list">
+          <li><kbd>Space</kbd><span>播放音频</span></li>
+          <li><kbd>Tab</kbd><span>显示/隐藏答案</span></li>
+          <li><kbd>Shift</kbd>+<kbd>P</kbd><span>显示/隐藏音标</span></li>
+          <li><kbd>Shift</kbd>+<kbd>S</kbd><span>显示/隐藏句子</span></li>
+          <li><kbd>Esc</kbd><span>查看得分</span></li>
+          <li><kbd>←</kbd><kbd>→</kbd><span>上一句/下一句</span></li>
+        </ul>
+      </aside>
+
       <div className="immersive-content">
         {currentSentence && (
           <>
@@ -636,10 +659,6 @@ export default function PracticePage() {
                   </span>
                 </div>
               )}
-
-              <div className="tips-area">
-                <span className="tip-text">Space: Play audio • Tab: Show/Hide answer</span>
-              </div>
 
               <div className="progress-dots">
                 {sentences.map((_, i) => (
