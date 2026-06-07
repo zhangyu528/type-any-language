@@ -10,3 +10,4 @@ python-dotenv==1.0.0
 aiofiles==23.2.1
 APScheduler==3.10.4
 tencentcloud-sdk-python==3.1.102
+cmudict==1.1.3

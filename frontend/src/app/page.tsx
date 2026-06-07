@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getVocabularyLibs, generateSentences, checkAnswer, getAudioUrl, Sentence } from './api';
+import { getVocabularyLibs, generateSentences, checkAnswer, getAudioUrl, getPhonetics, Sentence } from './api';
 
 export default function PracticePage() {
   const [loading, setLoading] = useState(true);
@@ -29,6 +29,9 @@ export default function PracticePage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const sentenceSnapshotRef = useRef<{userInputs: string[]; wordResults: boolean[]} | null>(null);
+  const phoneticsMap = useRef<Record<string, string>>({});
+  const showPhoneticsRef = useRef(false);
+  const [phoneticsVersion, setPhoneticsVersion] = useState(0);
 
   useEffect(() => {
     initPractice();
@@ -315,7 +318,6 @@ export default function PracticePage() {
 
   const handleShowSentenceChange = (checked: boolean) => {
     if (!currentSentence) return;
-
     if (checked) {
       // 保存当前状态，以便取消时恢复
       sentenceSnapshotRef.current = {
@@ -353,12 +355,45 @@ export default function PracticePage() {
     setShowSentence(checked);
   };
 
+  const handleShowPhoneticsChange = async (checked: boolean) => {
+    setShowPhonetics(checked);
+    showPhoneticsRef.current = checked;
+    if (checked) {
+      await loadPhonetics();
+    }
+  };
+
   const currentSentence = sentences[currentIndex];
+
+  const loadPhonetics = useCallback(async () => {
+    if (!currentSentence) return;
+    const allWords = currentSentence.text.split(/\s+/).map(w => w.toLowerCase().replace(/[^a-zA-Z0-9']/g, '')).filter(Boolean);
+    const unique = Array.from(new Set(allWords));
+    const missing = unique.filter(w => !phoneticsMap.current[w]);
+    if (missing.length === 0) {
+      setPhoneticsVersion(v => v + 1);
+      return;
+    }
+    try {
+      const result = await getPhonetics(missing);
+      phoneticsMap.current = { ...phoneticsMap.current, ...result };
+      setPhoneticsVersion(v => v + 1);
+    } catch (err) {
+      console.error('Failed to load phonetics:', err);
+    }
+  }, [currentSentence]);
   const allWordsFilled = userInputs.every((inp, i) => {
     const expected = currentSentence?.text.split(/\s+/)[i]?.toLowerCase().replace(/[.,!?;:'"]/g, '');
     const actual = inp.toLowerCase().replace(/[.,!?;:'"]/g, '');
     return actual === expected;
   });
+
+  // 当句子切换或 phonetics 开关为开时，自动加载音标
+  useEffect(() => {
+    if (showPhoneticsRef.current) {
+      loadPhonetics();
+    }
+  }, [currentIndex, showPhonetics]);
 
   if (loading) {
     return (
@@ -419,7 +454,15 @@ export default function PracticePage() {
       />
 
       {/* Top-right toolbar */}
-      <div className="toolbar" ref={toolbarRef}>
+      <div
+        className="toolbar"
+        ref={toolbarRef}
+        onKeyDown={(e) => {
+          // 阻止键盘事件冒泡到 window listener（避免字母/空格被菜单 checkbox 误捕获）
+          e.stopPropagation();
+          e.nativeEvent.stopImmediatePropagation();
+        }}
+      >
         {/* 1. 音频播放 */}
         <button
           type="button"
@@ -454,7 +497,7 @@ export default function PracticePage() {
                 <input
                   type="checkbox"
                   checked={showPhonetics}
-                  onChange={(e) => setShowPhonetics(e.target.checked)}
+                  onChange={(e) => handleShowPhoneticsChange(e.target.checked)}
                 />
                 <span className="toolbar__checkbox" aria-hidden></span>
                 <span>显示音标</span>
@@ -529,33 +572,48 @@ export default function PracticePage() {
                 e.stopPropagation();
                 inputRefs.current[0]?.focus();
               }}>
-                {/* Single continuous line for all words */}
-              <div className="sentence-line">
-                {currentSentence.text.split(/\s+/).map((word, index) => {
-                  const isCorrectWord = wordResults[index];
-                  const isActive = currentWordIndex === index && isCorrect === null;
-                  const input = userInputs[index] || '';
+                {/* 所有 cell 共享一个 flex 容器，wrap 边界物理同步 */}
+                <div className="sentence-line" data-phonetics-version={phoneticsVersion}>
+                  {currentSentence.text.split(/\s+/).map((word, index) => {
+                    const isCorrectWord = wordResults[index];
+                    const isActive = currentWordIndex === index && isCorrect === null;
+                    const input = userInputs[index] || '';
+                    const wordKey = word.toLowerCase().replace(/[^a-zA-Z0-9']/g, '');
+                    const phonetic = showPhonetics ? phoneticsMap.current[wordKey] || '' : '';
 
-                  return (
-                    <span key={index} className={`line-word ${isCorrectWord ? 'line-word--correct' : ''} ${isActive ? 'line-word--active' : ''}`}>
-                      {isCorrectWord ? (
-                        <span className="line-word-text">{word}</span>
-                      ) : isActive ? (
-                        <span className="line-word-input">
-                          {input.split('').map((char, i) => {
-                            const status = char?.toLowerCase() === word[i]?.toLowerCase() ? 'correct' : 'wrong';
-                            return <span key={i} className={`line-char line-char--${status}`}>{char}</span>;
-                          })}
-                          <span className="line-cursor">|</span>
+                    return (
+                      <span key={`cell-${index}`} className="sentence-cell">
+                        {/* 单词行（带下划线） */}
+                        <span
+                          className={`line-word ${isCorrectWord ? 'line-word--correct' : ''} ${isActive ? 'line-word--active' : ''}`}
+                        >
+                          <span className="line-word-ghost" aria-hidden>{word}</span>
+                          {isCorrectWord ? (
+                            <span className="line-word-text">{word}</span>
+                          ) : isActive ? (
+                            <span className="line-word-input">
+                              {input.split('').map((char, i) => {
+                                const status = char?.toLowerCase() === word[i]?.toLowerCase() ? 'correct' : 'wrong';
+                                return <span key={i} className={`line-char line-char--${status}`}>{char}</span>;
+                              })}
+                              <span className="line-cursor">|</span>
+                            </span>
+                          ) : (
+                            <span className="line-word-empty"></span>
+                          )}
                         </span>
-                      ) : (
-                        <span className="line-word-empty" style={{ width: (word.length + 2) * 0.65 + 'em' }}></span>
-                      )}
-                      {index < currentSentence.text.split(/\s+/).length - 1 && <span className="line-space"></span>}
-                    </span>
-                  );
-                })}
-              </div>
+
+                        {/* 音标行 */}
+                        {showPhonetics && (
+                          <span className="phonetic-cell">
+                            <span className="phonetic-ghost" aria-hidden>{word}</span>
+                            {phonetic ? <span className="phonetic-text">{phonetic}</span> : <span className="phonetic-placeholder">·</span>}
+                          </span>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Hidden input for typewriter - captures all keystrokes */}

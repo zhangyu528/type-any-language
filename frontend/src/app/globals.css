@@ -534,11 +534,19 @@ body {
    ======================================== */
 .sentence-line {
   display: flex;
-  align-items: center;
+  align-items: flex-start;  /* 顶端对齐——所有 cell 顶部对齐 */
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0;
+  gap: 2em;  /* 单词间距——大幅扩大 */
   line-height: 2.5;
+}
+
+/* 单个 cell（包含单词 + 音标）—— 物理上同时包含两层，确保 wrap 同步 */
+.sentence-cell {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4em;  /* 单词与音标之间的垂直间距 */
 }
 
 /* 单词单元 */
@@ -546,15 +554,46 @@ body {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
-  padding: 8px 4px;
+  justify-content: flex-start;
+  padding: 0 0 4px 0;  /* 仅底部 4px 留给下划线 margin-top */
   position: relative;
+  text-align: center;
 }
 
-/* 单词空白占位 */
+/* Ghost 占位：撑出 cell 宽度（不可见） */
+.line-word-ghost {
+  visibility: hidden;
+  font-family: var(--font-body);  /* 与 .line-word-text 一致 */
+  font-size: 1.25rem;
+  line-height: 1;  /* 必须与 .line-word-input/line-word-text 一致，否则 cell 高度被撑开 */
+  font-weight: 400;
+  padding: 0 4px;  /* 与 .line-word-input padding 同步——保证水平中心一致 */
+  pointer-events: none;
+  user-select: none;
+  display: inline-block;
+}
+
+/* 已正确词 - ghost 与 word-text 都用 font-weight 400，保持 cell 宽度不变 */
+.line-word--correct .line-word-ghost {
+  font-weight: 400;
+}
+
+/* 已正确词 - 真实文本覆盖在 ghost 上（绝对定位） */
+.line-word--correct .line-word-text,
+.line-word--active .line-word-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 单词空白占位 - 不撑出空间，下划线紧贴 ghost 下方 */
 .line-word-empty {
   display: block;
-  height: 1.25rem;
-  min-width: 3em;
+  height: 0;
 }
 
 /* 所有单词的下划线 - 统一样式 */
@@ -580,17 +619,20 @@ body {
 .line-word--active {
   background: rgba(245, 158, 11, 0.15);
   border-radius: 4px;
-  padding: 2px 4px;
-  margin: -2px -4px;
+  /* 不再使用 padding/margin 扩展——用 box-shadow 模拟高亮，避免 cell 宽度变化 */
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.15);
 }
 
 /* 字符输入框 */
 .line-word-input {
   display: flex;
   align-items: center;
-  min-width: 2em;
-  font-family: var(--font-mono);
+  justify-content: flex-start;  /* 左对齐——字符和光标按输入顺序排列 */
+  width: 100%;
+  padding: 0 4px;  /* 与 ghost 水平 padding 同步 */
+  font-family: var(--font-body);  /* 与 ghost 一致——避免宽度漂移 */
   font-size: 1.25rem;
+  line-height: 1;  /* 必须与 ghost 一致——否则 cell 高度被撑开导致字符偏移 */
   color: transparent;
   border: none;
   background: transparent;
@@ -599,9 +641,10 @@ body {
 }
 
 .line-char {
-  font-family: var(--font-mono);
+  display: inline-block;
+  font-family: var(--font-body);  /* 与 ghost 一致 */
   font-size: 1.25rem;
-  min-width: 0.6em;
+  width: 0.625em;  /* 等宽占位（与 ghost 单字符宽度一致） */
   text-align: center;
 }
 
@@ -632,6 +675,10 @@ body {
 .line-word--correct .line-word-text {
   color: var(--color-success);
   font-weight: 600;
+  font-size: 1.25rem;
+  line-height: 1;  /* 与 ghost 一致 */
+  width: 100%;
+  text-align: center;
 }
 
 /* 光标 - 琥珀色 */
@@ -843,4 +890,56 @@ body {
   .toolbar__menu {
     min-width: 180px;
   }
+}
+
+/* ========================================
+   Phonetic Cell (音标 cell - 在 .sentence-cell 内)
+   ======================================== */
+.phonetic-cell {
+  position: relative;
+  display: inline-block;
+  padding: 0;
+  text-align: center;
+  line-height: 1.1;
+  color: var(--color-text-muted);
+  opacity: 0.85;
+  letter-spacing: 0.02em;
+}
+
+/* Ghost 占位：撑出 cell 宽度 */
+.phonetic-ghost {
+  visibility: hidden;
+  font-family: var(--font-body);
+  font-size: 1.25rem;
+  line-height: 1;
+  font-weight: 400;  /* 与 .line-word-ghost 同步——保证 wrap 边界一致 */
+  padding: 0 4px;  /* 与 .line-word-ghost padding 同步 */
+  display: inline-block;
+}
+
+/* 音标文本覆盖在 ghost 上 */
+.phonetic-text {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.1;
+  text-align: center;
+  white-space: nowrap;  /* 禁止折行 */
+  overflow: visible;  /* 允许溢出——避免音标被切 */
+}
+
+.phonetic-placeholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.1;
+  opacity: 0.25;
+  text-align: center;
+  white-space: nowrap;
 }
