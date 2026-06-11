@@ -963,7 +963,63 @@ body {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   user-select: none;
-  pointer-events: none;  /* 不拦截点击 */
+  /* 面板本身不拦截点击——但内部的 checkbox 需要可点击 */
+}
+
+/* 分隔线（快捷键 ↔ 显示选项） */
+.shortcuts-panel__divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: var(--space-4) 0;  /* 上下间距扩大，避免拥挤 */
+}
+
+/* checkbox 容器——只对 checkbox 区域可点击 */
+.shortcuts-panel__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.shortcuts-panel__check input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+}
+
+.shortcuts-panel__checkbox {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.04);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.shortcuts-panel__check:hover .shortcuts-panel__checkbox {
+  border-color: rgba(245, 158, 11, 0.6);
+}
+
+.shortcuts-panel__check input[type="checkbox"]:checked + .shortcuts-panel__checkbox {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.shortcuts-panel__check input[type="checkbox"]:checked + .shortcuts-panel__checkbox::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0px;
+  width: 4px;
+  height: 8px;
+  border: solid #000;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 
 .shortcuts-panel__title {
