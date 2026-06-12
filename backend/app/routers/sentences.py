@@ -1,3 +1,4 @@
+import time
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -63,13 +64,25 @@ def generate_sentences_for_words(db: Session, lib_id: UUID, words: list[str], di
     db.commit()
     for s in sentences:
         db.refresh(s)
-        # Generate audio via Tencent Cloud TTS
-        try:
-            filename = text_to_audio_filename(s.text)
-            generate_audio(s.text, filename)
-            s.audio_url = f"/audio/{filename}"
-        except Exception as e:
-            print(f"[TTS] Failed to generate audio for sentence {s.id}: {e}")
+        # Generate audio via Tencent Cloud TTS (retry up to 3 times)
+        audio_url = ""
+        last_err = None
+        for attempt in range(3):
+            try:
+                filename = text_to_audio_filename(s.text)
+                generate_audio(s.text, filename)
+                audio_url = f"/audio/{filename}"
+                break
+            except Exception as e:
+                last_err = e
+                print(f"[TTS] attempt {attempt + 1}/3 failed for sentence {s.id}: {e}")
+                time.sleep(1)
+        if not audio_url:
+            # 3 次都失败：不入缓存池，下次会被淘汰/重生成
+            s.is_cached = False
+            print(f"[TTS] 最终失败，sentence {s.id} 不入缓存: {last_err}")
+        else:
+            s.audio_url = audio_url
     db.commit()
     return sentences
 

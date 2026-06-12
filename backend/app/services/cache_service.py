@@ -40,6 +40,7 @@ class CacheService:
                 Sentence.difficulty == difficulty,
                 Sentence.is_cached == True,
                 Sentence.is_stale == False,
+                Sentence.audio_url != "",  # 兜底：排除历史脏数据
             )
             .order_by(Sentence.use_count)
             .limit(count)
