@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getVocabularyLibs, generateSentences, checkAnswer, getAudioUrl, getPhonetics, Sentence } from './api';
+import AudioPlayerBar from './AudioPlayerBar';
 
 export default function PracticePage() {
   const [loading, setLoading] = useState(true);
@@ -267,6 +268,15 @@ export default function PracticePage() {
     }
   }, [sentences, currentIndex]);
 
+  const handleTogglePlay = useCallback(() => {
+    if (!audioRef.current) return;
+    if (audioRef.current.paused) {
+      playAudio();
+    } else {
+      audioRef.current.pause();
+    }
+  }, [playAudio]);
+
   const handleNext = () => {
     if (currentIndex < sentences.length - 1) {
       setCurrentIndex(currentIndex + 1);
@@ -455,6 +465,7 @@ export default function PracticePage() {
       <audio
         ref={audioRef}
         onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
       />
 
@@ -571,24 +582,14 @@ export default function PracticePage() {
       <div className="immersive-content">
         {currentSentence && (
           <>
-            <div className="waveform-container" title="Click or hover to play audio">
-              <button
-                type="button"
-                className="waveform-button"
-                title="Click or hover to play audio"
-                onClick={(e) => {
-                e.stopPropagation();
-                playAudio();
-                setTimeout(() => {
-                  inputRefs.current[currentWordIndex]?.focus();
-                }, 50);
-              }} onMouseEnter={() => playAudio()}>
-                <div className={`waveform ${isPlaying ? 'playing' : ''}`}>
-                  <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-                </div>
-              </button>
-              <span className="progress-text">{currentIndex + 1} / {sentences.length}</span>
-            </div>
+            <AudioPlayerBar
+              isPlaying={isPlaying}
+              currentIndex={currentIndex}
+              totalCount={sentences.length}
+              onPlay={playAudio}
+              onTogglePlay={handleTogglePlay}
+            />
+
 
             <div className="sentence-area" onClick={() => inputRefs.current[0]?.focus()}>
               <p className="sentence-hint">{currentSentence.chinese_text || 'Listen and type the sentence'}</p>

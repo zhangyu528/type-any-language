@@ -191,58 +191,9 @@ body {
 }
 
 /* ========================================
-   Waveform
+   Waveform（已废弃：旧波形图被 AudioPlayerBar 替换）
+   .progress-text 仍保留给题号用
    ======================================== */
-.waveform-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.waveform-button {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: var(--space-4);
-}
-
-.waveform {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  height: 48px;
-}
-
-.waveform span {
-  display: block;
-  width: 4px;
-  height: 12px;
-  background: var(--color-accent);
-  border-radius: 2px;
-  opacity: 0.4;
-  transition: height 0.2s, opacity 0.2s;
-}
-
-.waveform.playing span {
-  opacity: 1;
-  animation: wave 0.8s ease-in-out infinite;
-}
-
-.waveform span:nth-child(1) { animation-delay: 0s; height: 16px; }
-.waveform span:nth-child(2) { animation-delay: 0.1s; height: 24px; }
-.waveform span:nth-child(3) { animation-delay: 0.2s; height: 32px; }
-.waveform span:nth-child(4) { animation-delay: 0.3s; height: 40px; }
-.waveform span:nth-child(5) { animation-delay: 0.4s; height: 32px; }
-.waveform span:nth-child(6) { animation-delay: 0.5s; height: 24px; }
-.waveform span:nth-child(7) { animation-delay: 0.6s; height: 16px; }
-
-@keyframes wave {
-  0%, 100% { transform: scaleY(1); }
-  50% { transform: scaleY(1.5); }
-}
-
 .progress-text {
   font-size: 0.875rem;
   color: var(--color-text-muted);
@@ -1073,4 +1024,154 @@ body {
   .shortcuts-panel kbd {
     font-size: 0.7rem;
   }
+}
+
+/* ============================================================
+   AudioPlayerBar (播放控制条) — 纯 UI 占位
+   ============================================================ */
+.audio-player-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  margin: 0 auto 16px;
+  max-width: 960px;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.audio-player-bar__waveform {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 640px;
+  height: 36px;
+  color: rgba(255, 255, 255, 0.65);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.audio-player-bar__waveform:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.audio-player-bar__waveform:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.audio-player-bar__waveform svg {
+  width: 100%;
+  height: 100%;
+}
+
+.audio-player-bar__controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 4px 0;
+}
+
+.apb__group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.apb__divider {
+  display: inline-block;
+  width: 1px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.15);
+  flex: 0 0 auto;
+}
+
+.apb__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  font-family: inherit;
+}
+
+.apb__btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.apb__btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.apb__btn--text {
+  font-size: 12px;
+  min-width: 56px;
+  height: 32px;
+}
+
+.apb__btn--play {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  background: rgba(245, 158, 11, 0.25);
+  color: #fff;
+  font-size: 16px;
+  border-radius: 8px;
+}
+
+.apb__btn--play:hover {
+  background: rgba(245, 158, 11, 0.45);
+}
+
+/* ============================================================
+   AudioPlayerBar 波形动画（播放时）
+   ============================================================ */
+.apb-bars {
+  display: block;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.apb-bar {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: opacity 0.2s;
+}
+
+/* hover 波形：持续轻微动画（不触播放，纯视觉） */
+.audio-player-bar__waveform:hover .apb-bar {
+  animation: apb-bar-hover 1.2s ease-in-out infinite;
+}
+
+.apb-bars--playing .apb-bar {
+  animation: apb-bar-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes apb-bar-hover {
+  0%, 100% { transform: scaleY(0.85); opacity: 0.7; }
+  50%      { transform: scaleY(1.15); opacity: 1;   }
+}
+
+@keyframes apb-bar-pulse {
+  0%, 100% { transform: scaleY(0.5); opacity: 0.5; }
+  50%      { transform: scaleY(1.4); opacity: 1;   }
 }
