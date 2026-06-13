@@ -24,6 +24,7 @@ export default function PracticePage() {
   const [showSentence, setShowSentence] = useState(false);
   const [isOptionsOpen, setIsOptionsOpen] = useState(false);
   const [isToolsOpen, setIsToolsOpen] = useState(false);
+  const [isLooping, setIsLooping] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const navTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -312,6 +313,10 @@ export default function PracticePage() {
     }
   }, []);
 
+  const handleToggleLoop = useCallback(() => {
+    setIsLooping((prev) => !prev);
+  }, []);
+
   const handleNext = () => {
     if (currentIndex < sentences.length - 1) {
       setCurrentIndex(currentIndex + 1);
@@ -499,6 +504,7 @@ export default function PracticePage() {
     >
       <audio
         ref={audioRef}
+        loop={isLooping}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
@@ -623,6 +629,8 @@ export default function PracticePage() {
               totalCount={sentences.length}
               speed={speed}
               onSpeedChange={handleSpeedChange}
+              isLooping={isLooping}
+              onToggleLoop={handleToggleLoop}
               onPlay={playAudio}
               onTogglePlay={handleTogglePlay}
             />

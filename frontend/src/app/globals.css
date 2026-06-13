@@ -1268,4 +1268,23 @@ body {
     min-width: 56px;
     min-height: 56px;
   }
+  .apb__btn--loop {
+    min-width: 48px;
+    min-height: 48px;
+  }
+}
+
+/* ============================================================
+   AudioPlayerBar 循环按钮（🔁）
+   ============================================================ */
+
+/* 循环按钮激活态：复用 .apb__speed-option.is-active 的橙色 0.18 */
+.apb__btn--loop[aria-pressed="true"] {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fff;
+  font-weight: 600;
+}
+
+.apb__btn--loop[aria-pressed="true"]:hover {
+  background: rgba(245, 158, 11, 0.28);
 }

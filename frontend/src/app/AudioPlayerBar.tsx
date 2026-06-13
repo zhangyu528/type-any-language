@@ -8,6 +8,8 @@ interface AudioPlayerBarProps {
   totalCount: number;       // 总题数
   speed: number;            // 0.5 | 1 | 2
   onSpeedChange: (speed: number) => void;
+  isLooping: boolean;       // 循环播放开关
+  onToggleLoop: () => void;
   onPlay: () => void;       // 波形点击/hover 回调：总是播放
   onTogglePlay: () => void; // ▶ 按钮：智能切换播放/暂停
 }
@@ -28,6 +30,8 @@ export default function AudioPlayerBar({
   totalCount,
   speed,
   onSpeedChange,
+  isLooping,
+  onToggleLoop,
   onPlay,
   onTogglePlay,
 }: AudioPlayerBarProps) {
@@ -183,8 +187,10 @@ export default function AudioPlayerBar({
         <div className="apb__group">
           <button
             type="button"
-            className="apb__btn"
-            aria-label="循环播放"
+            className="apb__btn apb__btn--loop"
+            aria-label={isLooping ? '关闭循环' : '循环播放'}
+            aria-pressed={isLooping}
+            onClick={onToggleLoop}
           >
             🔁
           </button>
