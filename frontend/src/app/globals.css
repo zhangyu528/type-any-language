@@ -1086,6 +1086,7 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  position: relative;       /* 给 .apb__speed-menu 提供定位上下文 */
 }
 
 .apb__divider {
@@ -1174,4 +1175,97 @@ body {
 @keyframes apb-bar-pulse {
   0%, 100% { transform: scaleY(0.5); opacity: 0.5; }
   50%      { transform: scaleY(1.4); opacity: 1;   }
+}
+
+/* ============================================================
+   AudioPlayerBar 倍速下拉弹层
+   ============================================================ */
+
+/* 倍速下拉触发器：弹层打开时的激活态 */
+.apb__btn--speed-trigger[aria-expanded="true"] {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+/* 触发器里的下拉小箭头 */
+.apb__btn--speed-trigger .apb__caret {
+  margin-left: 4px;
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+/* 弹层：浮在触发器下方，不挤占布局 */
+.apb__speed-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 50;
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  min-width: 80px;
+  background: #1f2937;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* 弹层里的选项按钮 */
+.apb__speed-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-width: 72px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  font-family: inherit;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  text-align: left;
+}
+
+.apb__speed-option:hover,
+.apb__speed-option:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+  outline: none;
+}
+
+.apb__speed-option.is-active {
+  color: #fff;
+  font-weight: 600;
+  background: rgba(245, 158, 11, 0.18);
+}
+
+.apb__speed-option-check {
+  margin-left: 12px;
+  color: var(--color-accent, #f59e0b);
+}
+
+/* 倍速触发器 与 "文A 原始" 之间加 8px 间距（防误触） */
+.apb__btn--speed-trigger + .apb__btn--text {
+  margin-left: 8px;
+}
+
+/* ============================================================
+   触屏设备：触摸目标拉大到 WCAG AAA（48px）
+   ============================================================ */
+@media (hover: none) and (pointer: coarse) {
+  .apb__speed-option {
+    min-height: 48px;
+    font-size: 15px;
+    padding: 0 16px;
+  }
+  .apb__btn--speed-trigger {
+    min-height: 48px;
+  }
+  .apb__btn--play {
+    min-width: 56px;
+    min-height: 56px;
+  }
 }

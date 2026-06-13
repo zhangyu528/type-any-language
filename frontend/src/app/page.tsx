@@ -34,6 +34,15 @@ export default function PracticePage() {
   const showPhoneticsRef = useRef(false);
   const [phoneticsVersion, setPhoneticsVersion] = useState(0);
 
+  const SPEED_OPTIONS = [0.5, 1, 2] as const;
+  type Speed = (typeof SPEED_OPTIONS)[number];
+  const [speed, setSpeed] = useState<Speed>(() => {
+    if (typeof window === 'undefined') return 1;
+    const saved = window.localStorage.getItem('aplayer.speed');
+    const n = saved ? Number(saved) : 1;
+    return (SPEED_OPTIONS as readonly number[]).includes(n) ? (n as Speed) : 1;
+  });
+
   useEffect(() => {
     initPractice();
   }, []);
@@ -79,6 +88,22 @@ export default function PracticePage() {
   useEffect(() => {
     setIsPlaying(false);
   }, [currentIndex]);
+
+  // 持久化倍速
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('aplayer.speed', String(speed));
+    } catch {
+      /* localStorage 满 / 隐私模式：静默忽略 */
+    }
+  }, [speed]);
+
+  // speed 变化时同步到 audio 元素（不重置 src / currentTime，不打断播放）
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = speed;
+    }
+  }, [speed]);
 
   // Focus first input when sentences first load
   useEffect(() => {
@@ -264,9 +289,10 @@ export default function PracticePage() {
     const fullUrl = getAudioUrl(audioUrl);
     if (audioRef.current) {
       audioRef.current.src = fullUrl;
+      audioRef.current.playbackRate = speed;
       audioRef.current.play().catch(() => {});
     }
-  }, [sentences, currentIndex]);
+  }, [sentences, currentIndex, speed]);
 
   const handleTogglePlay = useCallback(() => {
     if (!audioRef.current) return;
@@ -276,6 +302,15 @@ export default function PracticePage() {
       audioRef.current.pause();
     }
   }, [playAudio]);
+
+  const handleSpeedChange = useCallback((next: number) => {
+    const safe: Speed = (SPEED_OPTIONS as readonly number[]).includes(next) ? (next as Speed) : 1;
+    setSpeed(safe);
+    // 立即同步到 audio 元素（不等 React effect 排队，避免体感延迟）
+    if (audioRef.current) {
+      audioRef.current.playbackRate = safe;
+    }
+  }, []);
 
   const handleNext = () => {
     if (currentIndex < sentences.length - 1) {
@@ -586,6 +621,8 @@ export default function PracticePage() {
               isPlaying={isPlaying}
               currentIndex={currentIndex}
               totalCount={sentences.length}
+              speed={speed}
+              onSpeedChange={handleSpeedChange}
               onPlay={playAudio}
               onTogglePlay={handleTogglePlay}
             />
