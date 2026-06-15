@@ -637,7 +637,7 @@ export default function PracticePage() {
 
 
             <div className="sentence-area" onClick={() => inputRefs.current[0]?.focus()}>
-              <p className="sentence-hint">{currentSentence.chinese_text || 'Listen and type the sentence'}</p>
+              <p className="sentence-hint" lang="zh-CN">{currentSentence.chinese_text || 'Listen and type the sentence'}</p>
 
               <div className="sentence-display typewriter-mode" onClick={(e) => {
                 e.stopPropagation();
@@ -689,7 +689,7 @@ export default function PracticePage() {
 
               {/* Hidden input for typewriter - captures all keystrokes */}
               <input
-                ref={el => inputRefs.current[0] = el}
+                ref={el => { inputRefs.current[0] = el; }}
                 type="text"
                 className="typewriter-input"
                 value={userInputs[currentWordIndex] || ''}

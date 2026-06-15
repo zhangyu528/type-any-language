@@ -1,4 +1,4 @@
-import Home from './home';
+import Home from './page';
 import './globals.css';
 
 export default function RootLayout({
