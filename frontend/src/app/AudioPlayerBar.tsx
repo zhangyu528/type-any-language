@@ -172,7 +172,7 @@ export default function AudioPlayerBar({
 
         <span className="apb__divider" aria-hidden />
 
-        {/* 主操作：▶/⏸（SVG 图标） */}
+        {/* 主操作：▶/⏸（stroke SVG，居中布局） */}
         <button
           type="button"
           className="apb__btn apb__btn--play"
@@ -180,20 +180,20 @@ export default function AudioPlayerBar({
           aria-label={isPlaying ? '暂停' : '播放'}
         >
           {isPlaying ? (
-            <svg className="apb__btn--play-icon" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-              <rect x="6" y="5" width="4" height="14" rx="1" />
-              <rect x="14" y="5" width="4" height="14" rx="1" />
+            <svg className="apb__btn--play-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+              <line x1="9"  y1="6" x2="9"  y2="18" />
+              <line x1="15" y1="6" x2="15" y2="18" />
             </svg>
           ) : (
-            <svg className="apb__btn--play-icon" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-              <path d="M8 5 L19 12 L8 19 Z" />
+            <svg className="apb__btn--play-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M8 6 L18 12 L8 18 Z" />
             </svg>
           )}
         </button>
 
         <span className="apb__divider" aria-hidden />
 
-        {/* 右组：🔁（C 方案：两段 180° 弧 + 两 polyline 箭头） */}
+        {/* 右组：🔁（C 方案：两段 180° 弧 + 两 polyline 箭头，激活时中心加 "1"） */}
         <div className="apb__group">
           <button
             type="button"
@@ -218,6 +218,20 @@ export default function AudioPlayerBar({
               <path d="M21 12 a9 9 0 0 1 -15.5 6.3" />
               <polyline points="21 4 21 9 16 9" />
               <polyline points="3 20 3 15 8 15" />
+              {isLooping && (
+                <text
+                  x="12"
+                  y="15.5"
+                  textAnchor="middle"
+                  fontSize="9"
+                  fontWeight="700"
+                  fill="currentColor"
+                  stroke="none"
+                  fontFamily="ui-monospace, 'SF Mono', Menlo, monospace"
+                >
+                  1
+                </text>
+              )}
             </svg>
           </button>
         </div>

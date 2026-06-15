@@ -1,6 +1,9 @@
 # React build
 build/
 
+# Next.js
+.next/
+
 # Node modules
 node_modules/
 

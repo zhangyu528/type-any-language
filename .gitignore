@@ -33,6 +33,7 @@ ENV/
 node_modules/
 npm-debug.log*
 frontend/build/
+frontend/.next/
 
 # Audio (generated)
 backend/audio/
