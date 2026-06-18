@@ -532,7 +532,7 @@ button:focus-visible {
 .line-word-ghost {
   visibility: hidden;
   font-family: var(--font-body);  /* 与 .line-word-text 一致 */
-  font-size: 1.25rem;
+  font-size: 2.5rem;
   line-height: 1;  /* 必须与 .line-word-input/line-word-text 一致，否则 cell 高度被撑开 */
   font-weight: 400;
   padding: 0 4px;  /* 与 .line-word-input padding 同步——保证水平中心一致 */
@@ -599,7 +599,7 @@ button:focus-visible {
   width: 100%;
   padding: 0 4px;  /* 与 ghost 水平 padding 同步 */
   font-family: var(--font-body);  /* 与 ghost 一致——避免宽度漂移 */
-  font-size: 1.25rem;
+  font-size: 2.5rem;
   line-height: 1;  /* 必须与 ghost 一致——否则 cell 高度被撑开导致字符偏移 */
   color: transparent;
   border: none;
@@ -611,7 +611,7 @@ button:focus-visible {
 .line-char {
   display: inline-block;
   font-family: var(--font-body);  /* 与 ghost 一致 */
-  font-size: 1.25rem;
+  font-size: 2.5rem;
   width: 0.625em;  /* 等宽占位（与 ghost 单字符宽度一致） */
   text-align: center;
 }
@@ -643,7 +643,7 @@ button:focus-visible {
 .line-word--correct .line-word-text {
   color: var(--color-success);
   font-weight: 600;
-  font-size: 1.25rem;
+  font-size: 2.5rem;
   line-height: 1;  /* 与 ghost 一致 */
   width: 100%;
   text-align: center;
@@ -878,7 +878,7 @@ button:focus-visible {
 .phonetic-ghost {
   visibility: hidden;
   font-family: var(--font-body);
-  font-size: 1.25rem;
+  font-size: 2.5rem;
   line-height: 1;
   font-weight: 400;  /* 与 .line-word-ghost 同步——保证 wrap 边界一致 */
   padding: 0 4px;  /* 与 .line-word-ghost padding 同步 */
