@@ -35,6 +35,10 @@ export default function PracticePage() {
   const phoneticsMap = useRef<Record<string, string>>({});
   const showPhoneticsRef = useRef(false);
   const [phoneticsVersion, setPhoneticsVersion] = useState(0);
+  // IME 中文输入法状态：composition 期间不污染 userInputs，避免 IME 半挂起导致 Backspace 失效
+  const isComposingRef = useRef(false);
+  // IME 半挂起兜底：macOS Enter 静默丢弃拼音不触发 compositionend，3 秒后强制 reset
+  const compositionTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const SPEED_OPTIONS = [0.5, 1, 2] as const;
   type Speed = (typeof SPEED_OPTIONS)[number];
@@ -84,6 +88,12 @@ export default function PracticePage() {
       setSpaceHintActive(false);
       setShowSentence(false);
       sentenceSnapshotRef.current = null;
+      // IME 兜底 timer 也清掉，避免句子间状态污染
+      if (compositionTimerRef.current) {
+        clearTimeout(compositionTimerRef.current);
+        compositionTimerRef.current = null;
+      }
+      isComposingRef.current = false;
     }
   }, [sentences, currentIndex]);
 
@@ -197,6 +207,11 @@ export default function PracticePage() {
   }, [isCorrect, showSentence, shortcutsOpen]);
 
   const handleWordChange = (index: number, value: string) => {
+    // IME composition 期间：onChange 的 value 是临时拼音，不写入 state
+    if (isComposingRef.current) {
+      return;
+    }
+
     if (spaceHintActive && value.length > 0) {
       setSpaceHintActive(false);
     }
@@ -276,6 +291,21 @@ export default function PracticePage() {
   };
 
   const handleTypewriterKeyDown = (e: React.KeyboardEvent) => {
+    // IME composition 期间：让 IME 独占处理（Enter = 选词、Backspace = 删拼音...）
+    // React keydown 此时是噪音，统一不响应，避免 IME 半挂起
+    if (e.nativeEvent.isComposing || e.keyCode === 229) {
+      return;
+    }
+    // macOS IME 半挂起兜底：第一个非 composition 键 = 立即脱困
+    // （macOS 中文拼音 Enter 静默丢弃拼音不触发 compositionend，ref 卡在 true）
+    if (isComposingRef.current) {
+      isComposingRef.current = false;
+      if (compositionTimerRef.current) {
+        clearTimeout(compositionTimerRef.current);
+        compositionTimerRef.current = null;
+      }
+    }
+
     if (e.key === ' ') {
       e.preventDefault();
       playAudio();
@@ -742,7 +772,28 @@ export default function PracticePage() {
                 value={userInputs[currentWordIndex] || ''}
                 onChange={(e) => handleWordChange(currentWordIndex, e.target.value)}
                 onKeyDown={(e) => handleTypewriterKeyDown(e)}
+                onCompositionStart={() => {
+                  isComposingRef.current = true;
+                  // 兜底：macOS IME Enter 静默丢弃拼音不触发 compositionend → 3 秒后强制 reset
+                  if (compositionTimerRef.current) clearTimeout(compositionTimerRef.current);
+                  compositionTimerRef.current = setTimeout(() => {
+                    isComposingRef.current = false;
+                    compositionTimerRef.current = null;
+                  }, 3000);
+                }}
+                onCompositionEnd={(e) => {
+                  isComposingRef.current = false;
+                  if (compositionTimerRef.current) {
+                    clearTimeout(compositionTimerRef.current);
+                    compositionTimerRef.current = null;
+                  }
+                  // 用 IME commit 后的最终值同步一次（React 接管 input）
+                  const finalValue = (e.target as HTMLInputElement).value;
+                  handleWordChange(currentWordIndex, finalValue);
+                }}
                 autoFocus
+                autoComplete="off"
+                spellCheck={false}
               />
 
               {/* Answer hint box - only shows when Space pressed */}
