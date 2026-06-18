@@ -25,6 +25,7 @@ export default function PracticePage() {
   const [isOptionsOpen, setIsOptionsOpen] = useState(false);
   const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const navTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -106,6 +107,39 @@ export default function PracticePage() {
     }
   }, [speed]);
 
+  // 快捷键面板折叠状态：启动时从 localStorage 读
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('prefs.shortcutsOpen');
+      if (saved === 'true') setShortcutsOpen(true);
+    } catch {
+      /* 隐私模式静默 */
+    }
+  }, []);
+
+  // 持久化折叠状态
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('prefs.shortcutsOpen', String(shortcutsOpen));
+    } catch {
+      /* 静默 */
+    }
+  }, [shortcutsOpen]);
+
+  // 点击 panel 外关闭
+  useEffect(() => {
+    if (!shortcutsOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      const panel = document.getElementById('shortcuts-panel');
+      const toggle = document.querySelector('.shortcuts-toggle');
+      if (panel?.contains(e.target as Node)) return;
+      if (toggle?.contains(e.target as Node)) return;
+      setShortcutsOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [shortcutsOpen]);
+
   // Focus first input when sentences first load
   useEffect(() => {
     if (sentences.length > 0) {
@@ -130,6 +164,12 @@ export default function PracticePage() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // 优先级 1：panel 打开时按 Esc 关闭 panel（不打开得分）
+      if (e.key === 'Escape' && shortcutsOpen) {
+        e.preventDefault();
+        setShortcutsOpen(false);
+        return;
+      }
       if (e.key === 'Escape') {
         setShowScore(true);
       }
@@ -154,7 +194,7 @@ export default function PracticePage() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isCorrect, showSentence]);
+  }, [isCorrect, showSentence, shortcutsOpen]);
 
   const handleWordChange = (index: number, value: string) => {
     if (spaceHintActive && value.length > 0) {
@@ -520,48 +560,8 @@ export default function PracticePage() {
           e.nativeEvent.stopImmediatePropagation();
         }}
       >
-        {/* 1. 音频播放 */}
-        <button
-          type="button"
-          className="toolbar__btn"
-          onClick={(e) => { e.stopPropagation(); playAudio(); }}
-          title="播放音频"
-        >
-          <span className="toolbar__icon" aria-hidden>🔊</span>
-          <span>音频播放</span>
-        </button>
-
-        {/* 2. 显示选项 */}
-        <div className="toolbar__dropdown">
-          <button
-            type="button"
-            className={`toolbar__btn ${isOptionsOpen ? 'toolbar__btn--active' : ''}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsOptionsOpen(v => !v);
-              setIsToolsOpen(false);
-            }}
-            aria-haspopup="true"
-            aria-expanded={isOptionsOpen}
-          >
-            <span>显示选项</span>
-            <span className="toolbar__caret" aria-hidden>▾</span>
-          </button>
-          {isOptionsOpen && (
-            <div className="toolbar__menu" role="menu" onClick={(e) => e.stopPropagation()}>
-              <div className="toolbar__menu-header">显示选项</div>
-              <label className="toolbar__menu-item toolbar__menu-item--check">
-                <input
-                  type="checkbox"
-                  checked={showSentence}
-                  onChange={(e) => handleShowSentenceChange(e.target.checked)}
-                />
-                <span className="toolbar__checkbox" aria-hidden></span>
-                <span>显示句子</span>
-              </label>
-            </div>
-          )}
-        </div>
+        {/* 1. 音频播放（UI 已删除，playAudio() 由 AudioPlayerBar 调用，逻辑保留） */}
+        {/* 2. 显示选项（UI 已删除，showSentence 仍由 shortcuts-panel 的"显示句子"复选框控制，逻辑保留） */}
 
         {/* 3. 页面工具 */}
         <div className="toolbar__dropdown">
@@ -591,8 +591,44 @@ export default function PracticePage() {
         </div>
       </div>
 
+      {/* 折叠触发器：右下角浮动齿轮按钮 */}
+      <button
+        type="button"
+        className="shortcuts-toggle"
+        aria-label={shortcutsOpen ? '关闭快捷键面板' : '打开快捷键面板'}
+        aria-expanded={shortcutsOpen}
+        aria-controls="shortcuts-panel"
+        onClick={() => setShortcutsOpen((v) => !v)}
+      >
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.75"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          {shortcutsOpen ? (
+            <path d="M6 6 L18 18 M6 18 L18 6" />
+          ) : (
+            <>
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 2 L12 5 M12 19 L12 22 M2 12 L5 12 M19 12 L22 12 M4.93 4.93 L7.05 7.05 M16.95 16.95 L19.07 19.07 M4.93 19.07 L7.05 16.95 M16.95 7.05 L19.07 4.93" />
+            </>
+          )}
+        </svg>
+      </button>
+
       {/* 右侧面板：快捷键 + 显示选项 */}
-      <aside className="shortcuts-panel" aria-label="快捷键和选项">
+      <aside
+        id="shortcuts-panel"
+        className={`shortcuts-panel ${shortcutsOpen ? 'is-open' : ''}`}
+        aria-label="快捷键和选项"
+        aria-hidden={!shortcutsOpen}
+      >
         <div className="shortcuts-panel__title">快捷键</div>
         <ul className="shortcuts-panel__list">
           <li><kbd>Space</kbd><span>播放音频</span></li>
@@ -606,6 +642,17 @@ export default function PracticePage() {
 
         <div className="shortcuts-panel__title">显示选项</div>
         <ul className="shortcuts-panel__list">
+          <li>
+            <label className="shortcuts-panel__check">
+              <input
+                type="checkbox"
+                checked={showSentence}
+                onChange={(e) => handleShowSentenceChange(e.target.checked)}
+              />
+              <span className="shortcuts-panel__checkbox" aria-hidden></span>
+              <span>显示句子</span>
+            </label>
+          </li>
           <li>
             <label className="shortcuts-panel__check">
               <input

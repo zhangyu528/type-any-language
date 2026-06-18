@@ -919,19 +919,68 @@ button:focus-visible {
   position: fixed;
   top: 50%;
   right: var(--space-6);
-  transform: translateY(-50%);
   z-index: 40;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   padding: var(--space-6);
-  background: rgba(20, 20, 20, 0.6);
+  background: rgba(20, 20, 20, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   user-select: none;
-  /* 面板本身不拦截点击——但内部的 checkbox 需要可点击 */
+
+  /* 折叠动画：默认收起（位移 20px + 透明），展开时归位 */
+  transform: translate(20px, -50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+}
+
+.shortcuts-panel.is-open {
+  transform: translate(0, -50%);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 折叠触发器：右下角浮动按钮（48×48 ghost 风） */
+.shortcuts-toggle {
+  position: fixed;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  z-index: 41;
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(20, 20, 20, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.shortcuts-toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+
+.shortcuts-toggle[aria-expanded="true"] {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #fff;
+}
+
+.shortcuts-toggle:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 /* 分隔线（快捷键 ↔ 显示选项） */
@@ -1346,10 +1395,11 @@ button:focus-visible {
 }
 
 /* ============================================================
-   手机（≤480px）彻底隐藏快捷键面板：先放满主内容
+   手机（≤480px）彻底隐藏快捷键面板 + 齿轮按钮
    ============================================================ */
 @media (max-width: 480px) {
-  .shortcuts-panel {
+  .shortcuts-panel,
+  .shortcuts-toggle {
     display: none;
   }
 }
