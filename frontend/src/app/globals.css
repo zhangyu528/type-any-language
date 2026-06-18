@@ -2,18 +2,18 @@
    Type Any Language - Immersive Focus Theme
    ======================================== */
 :root {
-  /* Colors - Pure Black Immersive */
-  --color-bg-primary: #000000;
+  /* Colors - Immersive Focus (深炭灰 + 中心微暖光晕，告别纯黑疲劳) */
+  --color-bg-primary: #0A0A0A;
   --color-text-primary: #E5E5E5;
   --color-text-muted: #71717A;
   --color-accent: #F59E0B;
   --color-success: #22C55E;
-  --color-error: #EF4444;
+  --color-error: #F87171;             /* red-500 → red-400：柔和但仍醒目 */
 
   /* Typography */
   --font-display: 'Fraunces', Georgia, serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
-  --font-body: 'DM Sans', -apple-system, sans-serif;
+  --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 
   /* Spacing */
   --space-4: 1rem;
@@ -44,6 +44,9 @@ body {
   color: var(--color-text-primary);
   min-height: 100vh;
   overflow: hidden;
+  font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 ::selection {
@@ -71,12 +74,12 @@ button:focus-visible {
   overflow: hidden;
 }
 
-/* Vignette Effect */
+/* Vignette Effect - 中心微暖光晕 + 边缘暗角 */
 .immersive-container::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.8) 100%);
+  background: radial-gradient(ellipse at center, rgba(245, 158, 11, 0.04) 0%, transparent 50%, rgba(0,0,0,0.8) 100%);
   pointer-events: none;
   z-index: 1;
 }
@@ -219,10 +222,13 @@ button:focus-visible {
 
 .sentence-hint {
   font-size: 1.5rem;
-  color: var(--color-text-muted);
-  opacity: 0.75;
+  color: #D4D4D8;             /* zinc-300：对比度 13:1，远超 WCAG AAA，仍比主文 #E5E5E5 略灰 */
+  opacity: 1;                  /* 颜色已亮，不再叠 opacity */
   font-style: italic;
   text-align: center;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  margin-bottom: 12px;
 }
 
 .sentence-display {
@@ -336,6 +342,16 @@ button:focus-visible {
   opacity: 0.6;
 }
 
+.dot--correct {
+  background: var(--color-success);
+  opacity: 0.9;
+}
+
+.dot--incorrect {
+  background: var(--color-error);
+  opacity: 0.9;
+}
+
 /* ========================================
    Action Area
    ======================================== */
@@ -394,9 +410,24 @@ button:focus-visible {
   color: #fff;
 }
 
+.feedback__header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .feedback__title {
   font-size: 1.25rem;
   font-weight: 600;
+}
+
+.feedback__time {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  font-weight: 400;
+  font-style: italic;
+  font-variant-numeric: tabular-nums;
 }
 
 .feedback--correct .feedback__title {
@@ -526,6 +557,7 @@ button:focus-visible {
   padding: 0 0 4px 0;  /* 仅底部 4px 留给下划线 margin-top */
   position: relative;
   text-align: center;
+  letter-spacing: 0.01em;  /* 英文小间距，连字更协调 */
 }
 
 /* Ghost 占位：撑出 cell 宽度（不可见） */

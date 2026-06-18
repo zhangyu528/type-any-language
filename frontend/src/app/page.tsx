@@ -20,6 +20,8 @@ export default function PracticePage() {
   const [score, setScore] = useState({ correct: 0, total: 0 });
   const [spaceHintActive, setSpaceHintActive] = useState(false);
   const [justErred, setJustErred] = useState(false);
+  const [sentenceResults, setSentenceResults] = useState<(boolean | null)[]>([]);
+  const [sentenceStartTime, setSentenceStartTime] = useState<number>(Date.now());
   const [showPhonetics, setShowPhonetics] = useState(false);
   const [showSentence, setShowSentence] = useState(false);
   const [isOptionsOpen, setIsOptionsOpen] = useState(false);
@@ -67,6 +69,8 @@ export default function PracticePage() {
       setSentences(data.sentences);
       setCurrentIndex(0);
       setScore({ correct: 0, total: data.sentences.length });
+      setSentenceResults(new Array(data.sentences.length).fill(null));
+      setSentenceStartTime(Date.now());
     } catch (err) {
       setError('Failed to load practice');
     } finally {
@@ -88,6 +92,7 @@ export default function PracticePage() {
       setSpaceHintActive(false);
       setShowSentence(false);
       sentenceSnapshotRef.current = null;
+      setSentenceStartTime(Date.now());
       // IME 兜底 timer 也清掉，避免句子间状态污染
       if (compositionTimerRef.current) {
         clearTimeout(compositionTimerRef.current);
@@ -250,6 +255,11 @@ export default function PracticePage() {
             checkAnswer(sentences[currentIndex].id, fullInput).then(result => {
               setIsCorrect(result.is_correct);
               setCorrectAnswer(result.correct_answer);
+              setSentenceResults(prev => {
+                const next = [...prev];
+                next[currentIndex] = result.is_correct;
+                return next;
+              });
               if (result.is_correct) {
                 setScore(prev => ({ ...prev, correct: prev.correct + 1 }));
               }
@@ -342,6 +352,11 @@ export default function PracticePage() {
       const result = await checkAnswer(sentences[currentIndex].id, fullInput);
       setIsCorrect(result.is_correct);
       setCorrectAnswer(result.correct_answer);
+      setSentenceResults(prev => {
+        const next = [...prev];
+        next[currentIndex] = result.is_correct;
+        return next;
+      });
 
       if (result.is_correct) {
         setScore(prev => ({ ...prev, correct: prev.correct + 1 }));
@@ -558,6 +573,7 @@ export default function PracticePage() {
             setShowScore(false);
             setCurrentIndex(0);
             setScore({ correct: 0, total: sentences.length });
+            setSentenceResults([]);
             initPractice();
           }}>
             Try Again
@@ -807,9 +823,18 @@ export default function PracticePage() {
               )}
 
               <div className="progress-dots">
-                {sentences.map((_, i) => (
-                  <span key={i} className={`dot ${i === currentIndex ? 'dot--current' : ''} ${i < currentIndex ? 'dot--done' : ''}`} />
-                ))}
+                {sentences.map((_, i) => {
+                  const result = sentenceResults[i];
+                  const doneClass = i < currentIndex
+                    ? (result === true ? 'dot--correct' : result === false ? 'dot--incorrect' : 'dot--done')
+                    : '';
+                  return (
+                    <span
+                      key={i}
+                      className={`dot ${doneClass} ${i === currentIndex ? 'dot--current' : ''}`}
+                    />
+                  );
+                })}
               </div>
             </div>
 
@@ -822,7 +847,10 @@ export default function PracticePage() {
 
               {isCorrect !== null && (
                 <div className={`feedback ${isCorrect ? 'feedback--correct' : 'feedback--incorrect'}`}>
-                  <span className="feedback__title">{isCorrect ? 'Correct!' : 'Incorrect'}</span>
+                  <div className="feedback__header">
+                    <span className="feedback__title">{isCorrect ? 'Correct!' : 'Incorrect'}</span>
+                    <span className="feedback__time">用了 {Math.round((Date.now() - sentenceStartTime) / 1000)}s</span>
+                  </div>
                   {!isCorrect && <p className="feedback__answer">{correctAnswer}</p>}
                   <button className="next-btn" onClick={handleNext}>
                     {currentIndex < sentences.length - 1 ? 'Next →' : 'Finish'}
