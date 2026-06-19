@@ -28,7 +28,9 @@ export default function PracticePage() {
   const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [correctSoundEnabled, setCorrectSoundEnabled] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const navTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -140,6 +142,25 @@ export default function PracticePage() {
       /* 静默 */
     }
   }, [shortcutsOpen]);
+
+  // 答对提示音偏好：启动时从 localStorage 读
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('prefs.correctSound');
+      if (saved === 'false') setCorrectSoundEnabled(false);
+    } catch {
+      /* 隐私模式静默 */
+    }
+  }, []);
+
+  // 持久化答对提示音开关
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('prefs.correctSound', String(correctSoundEnabled));
+    } catch {
+      /* 静默 */
+    }
+  }, [correctSoundEnabled]);
 
   // 点击 panel 外关闭
   useEffect(() => {
@@ -253,24 +274,25 @@ export default function PracticePage() {
           const fullInput = newInputs.join(' ');
           if (fullInput.trim()) {
             checkAnswer(sentences[currentIndex].id, fullInput).then(result => {
-              setIsCorrect(result.is_correct);
-              setCorrectAnswer(result.correct_answer);
               setSentenceResults(prev => {
                 const next = [...prev];
                 next[currentIndex] = result.is_correct;
                 return next;
               });
               if (result.is_correct) {
+                playCorrectChime();
                 setScore(prev => ({ ...prev, correct: prev.correct + 1 }));
-              }
-              // Move to next question after a short delay
-              setTimeout(() => {
+                // 答对立即切下一题（不显示 feedback、不延时）
                 if (currentIndex < sentences.length - 1) {
                   setCurrentIndex(currentIndex + 1);
                 } else {
                   setShowScore(true);
                 }
-              }, 1000);
+              } else {
+                // 答错：显示 feedback，等用户按 Next
+                setIsCorrect(false);
+                setCorrectAnswer(result.correct_answer);
+              }
             });
           }
         }, 300);
@@ -350,8 +372,6 @@ export default function PracticePage() {
 
     try {
       const result = await checkAnswer(sentences[currentIndex].id, fullInput);
-      setIsCorrect(result.is_correct);
-      setCorrectAnswer(result.correct_answer);
       setSentenceResults(prev => {
         const next = [...prev];
         next[currentIndex] = result.is_correct;
@@ -359,7 +379,17 @@ export default function PracticePage() {
       });
 
       if (result.is_correct) {
+        playCorrectChime();
         setScore(prev => ({ ...prev, correct: prev.correct + 1 }));
+        // 答对立即切下一题
+        if (currentIndex < sentences.length - 1) {
+          setCurrentIndex(currentIndex + 1);
+        } else {
+          setShowScore(true);
+        }
+      } else {
+        setIsCorrect(false);
+        setCorrectAnswer(result.correct_answer);
       }
     } catch (err) {
       setError('Check failed');
@@ -379,6 +409,49 @@ export default function PracticePage() {
       audioRef.current.play().catch(() => {});
     }
   }, [sentences, currentIndex, speed]);
+
+  // 答对提示音：C 大调三音连奏上行 E5 → G5 → C6（Web Audio API 程序化生成，零依赖）
+  const playCorrectChime = useCallback(() => {
+    if (!correctSoundEnabled) return;
+
+    if (!audioCtxRef.current) {
+      try {
+        audioCtxRef.current = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+      } catch {
+        return;
+      }
+    }
+    const ctx = audioCtxRef.current;
+    if (ctx.state === 'suspended') ctx.resume();
+
+    const notes = [
+      { freq: 659.25, start: 0,    dur: 0.11 },
+      { freq: 783.99, start: 0.10, dur: 0.11 },
+      { freq: 1046.5, start: 0.20, dur: 0.18 },
+    ];
+
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = 0.25;
+    masterGain.connect(ctx.destination);
+
+    const now = ctx.currentTime;
+    for (const note of notes) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = note.freq;
+      const t = now + note.start;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(1, t + 0.01);
+      gain.gain.linearRampToValueAtTime(0.4, t + 0.03);
+      gain.gain.setValueAtTime(0.4, t + note.dur - 0.07);
+      gain.gain.linearRampToValueAtTime(0, t + note.dur);
+      osc.connect(gain);
+      gain.connect(masterGain);
+      osc.start(t);
+      osc.stop(t + note.dur + 0.01);
+    }
+  }, [correctSoundEnabled]);
 
   const handleTogglePlay = useCallback(() => {
     if (!audioRef.current) return;
@@ -708,6 +781,17 @@ export default function PracticePage() {
               />
               <span className="shortcuts-panel__checkbox" aria-hidden></span>
               <span>显示音标</span>
+            </label>
+          </li>
+          <li>
+            <label className="shortcuts-panel__check">
+              <input
+                type="checkbox"
+                checked={correctSoundEnabled}
+                onChange={(e) => setCorrectSoundEnabled(e.target.checked)}
+              />
+              <span className="shortcuts-panel__checkbox" aria-hidden></span>
+              <span>答对提示音</span>
             </label>
           </li>
         </ul>
