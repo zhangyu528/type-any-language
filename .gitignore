@@ -34,8 +34,18 @@ node_modules/
 npm-debug.log*
 frontend/build/
 
-# Audio (generated)
-backend/audio/
+# Audio (generated TTS MP3s — staging area for bake.sh, NOT bind-mounted
+# at runtime. dev/prod both read audio from the `shared_audio` named volume
+# which the content-baked db image seeds on first start.)
+audio/
+
+# db-image build inputs — populated by scripts/cms/bake_image.sh build.
+# Only the Dockerfile + init/99-audio.sh + README.md are committed.
+cms/db-image/init/01-content.sql
+cms/db-image/seed/
+
+# bake staging
+.bake-staging/
 
 # Logs
 *.log
