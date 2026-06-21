@@ -1,53 +1,96 @@
-services:
-  db:
-    image: postgres:15-alpine
-    container_name: english_db
-    env_file:
-      - .env.dev
-    volumes:
-      - type: volume
-        source: postgres_data
-        target: /var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+# ---------------------------------------------------------------------------
+# Development docker-compose for type-any-language.
+#
+# Same secret flow as docker-compose.yml (POSTGRES_PASSWORD_FILE /
+# DATABASE_URL_FILE, identity from image labels), but:
+#   • Source bind-mounts for hot-reload.
+#   • No nginx — backend is exposed directly on :8000.
+#   • Different image names (english_backend_dev, english_frontend_dev).
+#   • Dev compose file points at ./backend/Dockerfile.dev etc.
+#
+# Run via:  ./scripts/dev/run.sh start
+# ---------------------------------------------------------------------------
 
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password
+  database_url:
+    file: ./secrets/database_url
+
+services:
+  # -------------------------------------------------------------------------
+  # Database — same content-baked image as prod (dev = prod unification
+  # for content; only the runtime wrapper differs)
+  # -------------------------------------------------------------------------
+  db:
+    image: ${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DB_IMAGE:-english_db_content}:${DB_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:?DB_USER not set — run.sh did not export it from image labels}
+      POSTGRES_DB:   ${DB_NAME:?DB_NAME not set — run.sh did not export it from image labels}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - shared-audio:/audio
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -------------------------------------------------------------------------
+  # Backend — hot-reload via ./backend bind-mount + uvicorn --reload
+  # -------------------------------------------------------------------------
   backend:
+    image: english_backend_dev
     build:
       context: ./backend
       dockerfile: Dockerfile.dev
-    container_name: english_backend_dev
-    env_file:
-      - .env.dev
+    restart: unless-stopped
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY not set}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?ALLOWED_ORIGINS not set}
+      DATABASE_URL_FILE: /run/secrets/database_url
+    secrets:
+      - database_url
     volumes:
+      # Hot-reload source mount
       - ./backend:/app
-      - ./backend/audio:/app/audio
+      # shared-audio is also read by the dev backend
+      - shared-audio:/audio:ro
     ports:
+      # Expose backend directly on :8000 (no nginx in dev)
       - "8000:8000"
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     depends_on:
-      - db
-    command:
-      - sh
-      - -c
-      - pip install -r requirements.txt -q && python scripts/seed_vocabulary.py && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      db:
+        condition: service_healthy
 
+  # -------------------------------------------------------------------------
+  # Frontend — CRA dev server (HMR) on :3000
+  # -------------------------------------------------------------------------
   frontend:
+    image: english_frontend_dev
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
-    container_name: english_frontend_dev
+    restart: unless-stopped
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
-      - CHOKIDAR_USEPOLLING=true
-      - CHOKIDAR_INTERVAL=1000
-      - WATCHPACK_POLLING=true
+      # In dev, the React app talks to the backend on the host directly
+      # (no nginx in the path). NEXT_PUBLIC_API_URL is build-time.
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     volumes:
+      # Hot-reload source mount — node_modules is kept in-container
       - ./frontend:/app
       - /app/node_modules
-      - /app/.next
     ports:
       - "3000:3000"
-    stdin_open: true
-    tty: true
+    command: ["npm", "start"]
+    depends_on:
+      - backend
 
 volumes:
-  postgres_data:
+  db-data:
+  shared-audio:

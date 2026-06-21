@@ -1,66 +1,124 @@
-version: '3.8'
+# ---------------------------------------------------------------------------
+# Production docker-compose for type-any-language.
+#
+# Key flow:
+#   • DB image:  content-baked by ./scripts/cms/bake_image.sh with labels
+#                (type-any-language.db.user, .db.name, .content.version, ...).
+#                prod/run.sh `docker inspect`s those labels at start time
+#                and exports DB_USER / DB_NAME for compose env.
+#   • Secrets:  POSTGRES_PASSWORD lives on the host (chmod 600 file) and is
+#                passed to the db container via POSTGRES_PASSWORD_FILE.
+#                DATABASE_URL is assembled host-side and passed to the
+#                backend via DATABASE_URL_FILE. Nothing in the .env file
+#                ends up as a container env var for these.
+#   • DB_USER / DB_NAME: NOT in .env. Set by run.sh from image labels.
+#   • DOCKER_REGISTRY / DB_IMAGE_TAG: NOT in .env. Set by CI / wrapper /
+#     .env.cms on the CMS host. When DOCKER_REGISTRY is set, run.sh
+#     auto-pulls the latest baked db image on every start/restart.
+#
+# Run via:  ./scripts/prod/run.sh start
+# ---------------------------------------------------------------------------
+
+# Top-level `secrets:` block — secrets are FILES on the host, mounted
+# into containers at /run/secrets/<name>. The host files are written by
+# prod/run.sh's write_secrets() (chmod 600).
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password
+  database_url:
+    file: ./secrets/database_url
 
 services:
+  # -------------------------------------------------------------------------
+  # Database — content-baked image with type-any-language.* labels
+  # -------------------------------------------------------------------------
   db:
-    image: postgres:15-alpine
-    container_name: english_db
+    image: ${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DB_IMAGE:-english_db_content}:${DB_IMAGE_TAG:-latest}
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      # Identity comes from image labels (DB_USER / DB_NAME exported by
+      # run.sh from `docker inspect`). Compose substitutes ${DB_USER}
+      # / ${DB_NAME} from the env that run.sh set.
+      POSTGRES_USER: ${DB_USER:?DB_USER not set — run.sh did not export it from image labels}
+      POSTGRES_DB:   ${DB_NAME:?DB_NAME not set — run.sh did not export it from image labels}
+      # Password is delivered via file mount, NOT env var. This keeps
+      # the secret out of `docker inspect container` output.
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+      - db-data:/var/lib/postgresql/data
+      # The cms/db-image Dockerfile copies audio seed into /seed/audio;
+      # the init/99-audio.sh init script (run by postgres on first start)
+      # copies it into a shared volume that nginx can serve.
+      - shared-audio:/audio
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
       timeout: 5s
       retries: 5
 
+  # -------------------------------------------------------------------------
+  # Backend — FastAPI / SQLAlchemy
+  # -------------------------------------------------------------------------
+  backend:
+    image: english_backend
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      # Runtime / app config from .env
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY not set}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?ALLOWED_ORIGINS not set}
+      # DB connection assembled host-side by run.sh and read from file
+      DATABASE_URL_FILE: /run/secrets/database_url
+    secrets:
+      - database_url
+    volumes:
+      # shared-audio is read-only here; backend serves /audio/* via
+      # the /audio mount.
+      - shared-audio:/audio:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/vocabulary/libs"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # -------------------------------------------------------------------------
+  # Frontend — React (CRA build), served by nginx
+  # -------------------------------------------------------------------------
+  frontend:
+    image: english_frontend
+    build: ./frontend
+    restart: unless-stopped
+    environment:
+      # Build-time var baked into the JS bundle at image-build time.
+      # If you change this, rebuild the frontend image.
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/}
+    volumes:
+      - shared-audio:/audio:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # -------------------------------------------------------------------------
+  # nginx — reverse proxy
+  # -------------------------------------------------------------------------
   nginx:
     image: nginx:alpine
-    container_name: english_nginx
+    restart: unless-stopped
     ports:
       - "80:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./seed/audio:/usr/share/nginx/html/audio:ro
+      - shared-audio:/audio:ro
     depends_on:
       - frontend
       - backend
 
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: english_backend
-    environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      - SECRET_KEY=${SECRET_KEY}
-      - AI_API_KEY=${AI_API_KEY}
-      - AI_BASE_URL=${AI_BASE_URL}
-      - AI_MODEL=${AI_MODEL}
-    volumes:
-      - ./seed/vocabulary:/app/seed/vocabulary
-      - ./seed/audio:/app/audio
-    depends_on:
-      db:
-        condition: service_healthy
-    command: >
-      sh -c "python scripts/seed_vocabulary.py && uvicorn app.main:app --host 0.0.0.0 --port 8000"
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: english_frontend
-    environment:
-      - NEXT_PUBLIC_API_URL=http://localhost/api
-    expose:
-      - "3000"
-    depends_on:
-      - backend
-
 volumes:
-  postgres_data:
+  db-data:
+  shared-audio:
