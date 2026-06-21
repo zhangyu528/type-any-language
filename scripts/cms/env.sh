@@ -1,7 +1,11 @@
 #!/bin/bash
 #
-# cms/init.sh — first-time env setup + ongoing config management for the
-# CMS content-production host.
+# cms/env.sh — manage .env.cms on the CMS content-production host.
+#
+# This is the unified entry point for .env.cms lifecycle: first-time
+# creation, ongoing updates, masked inspection, and config validation.
+# Default behaviour is `init` (backward-compatible — old users who just
+# run `./scripts/cms/env.sh` get the bootstrap flow they expect).
 #
 # Subcommands:
 #   (no args)  init      Create .env.cms from template + inject smart defaults.
@@ -18,6 +22,12 @@
 #   - `init` only runs on first creation; existing .env.cms is left alone.
 #   - `update` changes only the keys you specify; everything else is preserved.
 #   - `show` and `doctor` are read-only.
+#
+# Why "env.sh" (not "init.sh"):
+#   The script started as init-only (mirroring prod/init.sh, dev/init.sh),
+#   but grew init/update/show/doctor subcommands. The name "init.sh" became
+#   misleading. The new name "env.sh" reflects its real job: manage the
+#   .env.cms file. prod/init.sh and dev/init.sh remain init-only by design.
 #
 # Smart defaults injected on first init:
 #   - POSTGRES_USER, POSTGRES_DB    = english_user / english_learning
@@ -114,7 +124,7 @@ cmd_init() {
     if file_exists "$TARGET"; then
         ok "$TARGET 已存在（跳过）"
         info "  → 想重新生成请先 rm $TARGET"
-        info "  → 想改某一项请用: ./scripts/cms/init.sh update KEY=VALUE"
+        info "  → 想改某一项请用: ./scripts/cms/env.sh update KEY=VALUE"
         return 0
     fi
 
@@ -158,19 +168,19 @@ cmd_init() {
     grep -E "^(POSTGRES_USER|POSTGRES_DB|DB_IMAGE|DB_IMAGE_TAG|DOCKER_REGISTRY|AI_BASE_URL|AI_MODEL|AUDIO_DIR|DEFAULT_BUCKET_TARGET_SIZE)=" \
         "$TARGET" | sed 's/^/  /'
     echo ""
-    warn "以下 secret 必须你手动填 (init.sh 不会自动 inject):"
+    warn "以下 secret 必须你手动填 (env.sh 不会自动 inject):"
     echo "  - DATABASE_URL       (你的 host-side db password)"
     echo "  - AI_API_KEY         (OpenAI / 提供方密钥)"
     echo "  - TENCENT_SECRET_ID  (腾讯云 TTS — 三件套 all-or-nothing)"
     echo "  - TENCENT_SECRET_KEY"
     echo "  - TENCENT_APP_ID"
     echo ""
-    info "填好后跑: ./scripts/cms/init.sh doctor 验证"
-    info "或者用: ./scripts/cms/init.sh update KEY=VALUE 改某一项"
+    info "填好后跑: ./scripts/cms/env.sh doctor 验证"
+    info "或者用: ./scripts/cms/env.sh update KEY=VALUE 改某一项"
     echo ""
     echo "下一步:"
     echo -e "  ${_LIB_BLUE}nano $TARGET${_LIB_NC}   # 填上面那 5 个 secret"
-    echo -e "  ${_LIB_BLUE}./scripts/cms/init.sh doctor${_LIB_NC}"
+    echo -e "  ${_LIB_BLUE}./scripts/cms/env.sh doctor${_LIB_NC}"
 }
 
 # ---------------------------------------------------------------------------
@@ -178,7 +188,7 @@ cmd_init() {
 # ---------------------------------------------------------------------------
 cmd_update() {
     if ! file_exists "$TARGET"; then
-        err "$TARGET 不存在 — 先跑 ./scripts/cms/init.sh 引导"
+        err "$TARGET 不存在 — 先跑 ./scripts/cms/env.sh 引导"
         exit 1
     fi
 
@@ -197,10 +207,18 @@ cmd_update() {
             fi
             local key="${kv%%=*}"
             local value="${kv#*=}"
-            # Only update if the key is actually present in .env.cms.
+            # Three cases, in order of preference:
+            #   1. Active line `^KEY=`  → replace in place
+            #   2. Commented line `^# KEY=` → uncomment + set (common for
+            #      DOCKER_REGISTRY which starts commented in the template)
+            #   3. Not present at all → warn and skip
             if grep -qE "^${key}=" "$TARGET"; then
                 sed_inplace "s|^${key}=.*|${key}=${value}|" "$TARGET"
                 ok "  $key = $value"
+                changed=$((changed + 1))
+            elif grep -qE "^#[[:space:]]*${key}=" "$TARGET"; then
+                sed_inplace "s|^#[[:space:]]*${key}=.*|${key}=${value}|" "$TARGET"
+                ok "  $key = $value  (从注释行启用)"
                 changed=$((changed + 1))
             else
                 warn "  $key 不在 $TARGET 里 — 跳过"
@@ -250,7 +268,7 @@ cmd_update() {
     echo ""
     if [ "$changed" -gt 0 ]; then
         ok "已更新 $changed 项"
-        info "  跑 ./scripts/cms/init.sh doctor 验证"
+        info "  跑 ./scripts/cms/env.sh doctor 验证"
     fi
     if [ "$skipped" -gt 0 ]; then
         warn "跳过 $skipped 项 (key 不存在)"
@@ -262,7 +280,7 @@ cmd_update() {
 # ---------------------------------------------------------------------------
 cmd_show() {
     if ! file_exists "$TARGET"; then
-        err "$TARGET 不存在 — 先跑 ./scripts/cms/init.sh 引导"
+        err "$TARGET 不存在 — 先跑 ./scripts/cms/env.sh 引导"
         exit 1
     fi
     echo "=== $TARGET ==="
@@ -294,7 +312,7 @@ cmd_show() {
 cmd_doctor() {
     local failed=0
     if ! file_exists "$TARGET"; then
-        err "$TARGET 不存在 — 先跑 ./scripts/cms/init.sh 引导"
+        err "$TARGET 不存在 — 先跑 ./scripts/cms/env.sh 引导"
         return 1
     fi
 
@@ -317,7 +335,7 @@ cmd_doctor() {
             echo "  - $k"
         done
         echo ""
-        info "  填法: ./scripts/cms/init.sh update KEY=VALUE"
+        info "  填法: ./scripts/cms/env.sh update KEY=VALUE"
         info "  或:   nano $TARGET"
         failed=1
     else
@@ -372,7 +390,7 @@ cmd_doctor() {
 
 usage() {
     cat <<EOF
-用法: ./scripts/cms/init.sh <command> [args]
+用法: ./scripts/cms/env.sh <command> [args]
 
 命令:
   (无参数)     init      首次创建 .env.cms + 注入 smart defaults (idempotent: 已存在则跳过)
@@ -387,11 +405,11 @@ usage() {
   - show / doctor 纯只读
 
 典型工作流:
-  ./scripts/cms/init.sh            # 首次: 引导 + smart defaults
+  ./scripts/cms/env.sh            # 首次: 引导 + smart defaults
   nano .env.cms                    # 填 5 个 secret (DATABASE_URL / AI_API_KEY / TENCENT_*)
-  ./scripts/cms/init.sh doctor     # 验证
-  ./scripts/cms/init.sh update DOCKER_REGISTRY=ghcr.io/myorg  # 改某一项
-  ./scripts/cms/init.sh show       # 看一眼当前配置 (secret 脱敏)
+  ./scripts/cms/env.sh doctor     # 验证
+  ./scripts/cms/env.sh update DOCKER_REGISTRY=ghcr.io/myorg  # 改某一项
+  ./scripts/cms/env.sh show       # 看一眼当前配置 (secret 脱敏)
 EOF
 }
 

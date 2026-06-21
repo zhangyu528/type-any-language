@@ -38,11 +38,11 @@ source "$SCRIPT_DIR/../lib.sh"
 
 # Load .env.cms so $DB_IMAGE / $DB_IMAGE_TAG / $DOCKER_REGISTRY / $DATABASE_URL
 # / $POSTGRES_USER / $POSTGRES_DB resolve. Refuses to continue if .env.cms is
-# missing — run scripts/cms/init.sh first.
+# missing — run scripts/cms/env.sh first.
 if [ -f .env.cms ]; then
     set -a; . ./.env.cms; set +a
 else
-    echo "[ERR] .env.cms 不存在 — 跑 ./scripts/cms/init.sh 先引导一份" >&2
+    echo "[ERR] .env.cms 不存在 — 跑 ./scripts/cms/env.sh 先引导一份" >&2
     exit 1
 fi
 
@@ -89,7 +89,7 @@ cmd_doctor() {
     fi
 
     if [ ! -d "cms/content" ]; then
-        err "cms/content/ directory missing — run ./scripts/cms/init.sh"
+        err "cms/content/ directory missing — run ./scripts/cms/env.sh"
         ok=0
     else
         ok "cms/content/ present"

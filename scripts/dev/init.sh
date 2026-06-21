@@ -19,7 +19,7 @@
 #                                   .env.cms on the CMS host
 #
 # If you also intend to do content work on this machine, run
-# `scripts/cms/init.sh` to create .env.cms.
+# `scripts/cms/env.sh` to create .env.cms.
 #
 # Two ways to get the dev images up:
 #   A. With registry (recommended for new dev onboarding):
