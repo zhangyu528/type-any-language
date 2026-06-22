@@ -260,11 +260,6 @@ export default function PracticePage() {
       if (e.key === 'Escape') {
         setShowScore(true);
       }
-      // Space: play audio
-      if (e.key === ' ') {
-        e.preventDefault();
-        playAudio();
-      }
       // Tab: toggle answer hint
       if (e.key === 'Tab') {
         const activeTag = document.activeElement?.tagName;
@@ -408,7 +403,25 @@ export default function PracticePage() {
 
     if (e.key === ' ') {
       e.preventDefault();
-      playAudio();
+      const expectedWords = currentSentence.text.split(/\s+/);
+      const isLast = currentWordIndex === expectedWords.length - 1;
+      const currentWord = expectedWords[currentWordIndex];
+      const target = currentWord?.toLowerCase().replace(/[.,!?;:'"]/g, '');
+      const input = userInputs[currentWordIndex]?.toLowerCase().replace(/[.,!?;:'"]/g, '');
+      const isCorrectCell = input && input === target;
+
+      if (isCorrectCell && isLast) {
+        // 末位答对：提交整句
+        handleSubmit();
+      } else if (isCorrectCell && inputMode === 'free') {
+        // 自由模式 + 答对非末位：跳下一 cell
+        setCurrentWordIndex(currentWordIndex + 1);
+      } else {
+        // 答错（或 input 为空）：震动当前 cell
+        setJustErred(true);
+        setTimeout(() => setJustErred(false), 300);
+      }
+      return;
     } else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey) {
       // Close hint when user starts typing
       if (spaceHintActive) {
@@ -952,7 +965,7 @@ export default function PracticePage() {
                       <span key={`cell-${index}`} className="sentence-cell">
                         {/* 单词行（带下划线） */}
                         <span
-                          className={`line-word ${isCorrectWord ? 'line-word--correct' : ''} ${isActive ? 'line-word--active' : ''} ${inputMode === 'free' ? 'line-word--clickable' : ''}`}
+                          className={`line-word ${isCorrectWord ? 'line-word--correct' : ''} ${isActive ? 'line-word--active' : ''} ${inputMode === 'free' ? 'line-word--clickable' : ''} ${justErred && isActive ? 'line-word--shake' : ''}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             if (inputMode === 'free' && !isComposingRef.current) {
