@@ -1,60 +1,57 @@
-from contextlib import asynccontextmanager
+"""
+type-any-language backend — pure read-layer.
 
+The runtime is intentionally minimal: serve cached vocabulary, words, and
+pre-generated sentences that the CMS host baked into the db image. No AI,
+no TTS, no scheduler — those run at bake time on the CMS host.
+
+Why this is so thin:
+  • Content (vocab_libs, vocab_words, sentences) ships inside the db image.
+  • Schema is created at bake time (cms/db-image/init/01-content.sql).
+  • The backend only mounts the static audio dir and exposes GET endpoints.
+"""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.database import engine, Base
-from app.routers import vocabulary, sentences
+
 from app.config import get_settings
-from app.services.scheduler import start_scheduler, stop_scheduler
-from app.auto_migrate import run_auto_migrate
+from app.database import engine, Base
+from app.routers import sentences, vocabulary
 
 settings = get_settings()
 
-# Auto-migrate missing columns before creating tables
-run_auto_migrate()
-
-# 创建数据库表
+# Schema is owned by the baked db image (cms/db-image/init/01-content.sql).
+# create_all() is a safety net for tests / when running against an empty
+# DB — it never alters an existing table.
 Base.metadata.create_all(bind=engine)
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup
-    if settings.cache_prewarm_enabled:
-        start_scheduler()
-    yield
-    # Shutdown
-    stop_scheduler()
-
-
 app = FastAPI(
-    title="英语学习 API",
-    description="听音写句 - 英语句子学习后端服务",
+    title="type-any-language API",
     version="0.1.0",
-    lifespan=lifespan
+    description=(
+        "Read-layer API over the content-baked db image. "
+        "No AI/TTS calls happen here — those are baked in at build time."
+    ),
 )
 
-# Serve audio files (Tencent Cloud TTS generated MP3s)
-app.mount("/audio", StaticFiles(directory=settings.audio_dir), name="audio")
+# Serve MP3s from the shared-audio volume that the db image seeds.
+app.mount("/audio", StaticFiles(directory="/audio"), name="audio")
 
-# CORS 配置
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.allowed_origins_list(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 注册路由
-app.include_router(vocabulary.router)
-app.include_router(sentences.router)
+app.include_router(content.router)
 
 
 @app.get("/")
 def root():
-    return {"message": "英语学习 API v0.1.0", "docs": "/docs"}
+    return {"message": "type-any-language API v0.1.0", "docs": "/docs"}
 
 
 @app.get("/health")

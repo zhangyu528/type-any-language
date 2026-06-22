@@ -4,7 +4,8 @@ from app.config import get_settings
 
 settings = get_settings()
 
-engine = create_engine(settings.database_url)
+# resolved_database_url() honours DATABASE_URL_FILE indirection (see config.py).
+engine = create_engine(settings.resolved_database_url())
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
