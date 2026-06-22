@@ -9,8 +9,8 @@ const INPUT_MODES = ['linear', 'free'] as const;
 type InputMode = (typeof INPUT_MODES)[number];
 
 const MODE_METADATA: Record<InputMode, { label: string; icon: string; desc: string }> = {
-  linear: { label: '顺序', icon: '▤', desc: '按听到的顺序依次填写' },
-  free:   { label: '自由', icon: '⤢', desc: '可任意切换 cell' },
+  linear: { label: '按序输入', icon: '▤', desc: '按听到的顺序依次填写' },
+  free:   { label: '自由点选', icon: '⤢', desc: '可任意切换 cell 输入' },
 };
 
 export default function PracticePage() {
@@ -921,7 +921,10 @@ export default function PracticePage() {
                           title={MODE_METADATA[m].desc}
                         >
                           <span className="mode-selector__option-icon" aria-hidden>{MODE_METADATA[m].icon}</span>
-                          <span className="mode-selector__option-label">{MODE_METADATA[m].label}</span>
+                          <span className="mode-selector__option-body">
+                            <span className="mode-selector__option-label">{MODE_METADATA[m].label}</span>
+                            <span className="mode-selector__option-desc">{MODE_METADATA[m].desc}</span>
+                          </span>
                           {inputMode === m && <span className="mode-selector__option-check" aria-hidden>✓</span>}
                         </button>
                       </li>
