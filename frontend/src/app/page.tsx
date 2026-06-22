@@ -4,6 +4,15 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { getVocabularyLibs, generateSentences, checkAnswer, getAudioUrl, getPhonetics, Sentence } from './api';
 import AudioPlayerBar from './AudioPlayerBar';
 
+// 输入模式枚举 + 元数据：未来加模式只改 INPUT_MODES 和 MODE_METADATA 两处
+const INPUT_MODES = ['linear', 'free'] as const;
+type InputMode = (typeof INPUT_MODES)[number];
+
+const MODE_METADATA: Record<InputMode, { label: string; icon: string; desc: string }> = {
+  linear: { label: '顺序', icon: '▤', desc: '按听到的顺序依次填写' },
+  free:   { label: '自由', icon: '⤢', desc: '可任意切换 cell' },
+};
+
 export default function PracticePage() {
   const [loading, setLoading] = useState(true);
   const [sentences, setSentences] = useState<Sentence[]>([]);
@@ -29,12 +38,16 @@ export default function PracticePage() {
   const [isLooping, setIsLooping] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [correctSoundEnabled, setCorrectSoundEnabled] = useState(true);
+  const [inputMode, setInputMode] = useState<InputMode>('linear');
+  const [modeMenuOpen, setModeMenuOpen] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const navTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
+  const modeBtnRef = useRef<HTMLButtonElement>(null);
+  const modeMenuRef = useRef<HTMLUListElement>(null);
   const sentenceSnapshotRef = useRef<{userInputs: string[]; wordResults: boolean[]} | null>(null);
   const phoneticsMap = useRef<Record<string, string>>({});
   const showPhoneticsRef = useRef(false);
@@ -162,6 +175,44 @@ export default function PracticePage() {
     }
   }, [correctSoundEnabled]);
 
+  // 输入模式：启动时从 localStorage 读
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('prefs.inputMode');
+      if (saved === 'free') setInputMode('free');
+    } catch {
+      /* 隐私模式静默 */
+    }
+  }, []);
+
+  // 持久化输入模式
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('prefs.inputMode', inputMode);
+    } catch {
+      /* 静默 */
+    }
+  }, [inputMode]);
+
+  // 输入模式弹层：点击外部 / Esc 关闭
+  useEffect(() => {
+    if (!modeMenuOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (modeBtnRef.current?.contains(e.target as Node)) return;
+      if (modeMenuRef.current?.contains(e.target as Node)) return;
+      setModeMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setModeMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [modeMenuOpen]);
+
   // 点击 panel 外关闭
   useEffect(() => {
     if (!shortcutsOpen) return;
@@ -267,7 +318,10 @@ export default function PracticePage() {
       setUserInputs(newInputs);
 
       if (index < expectedWords.length - 1) {
-        setCurrentWordIndex(index + 1);
+        if (inputMode === 'linear') {
+          setCurrentWordIndex(index + 1);
+        }
+        // 自由模式：不跳，保持当前
       } else {
         // All words filled correctly - auto submit
         setTimeout(() => {
@@ -310,7 +364,7 @@ export default function PracticePage() {
       e.preventDefault();
       if (!wordResults[index]) return;
       const expectedWords = currentSentence.text.split(/\s+/);
-      if (index < expectedWords.length - 1) {
+      if (index < expectedWords.length - 1 && inputMode === 'linear') {
         setCurrentWordIndex(index + 1);
         inputRefs.current[0]?.focus();
       }
@@ -336,6 +390,20 @@ export default function PracticePage() {
         clearTimeout(compositionTimerRef.current);
         compositionTimerRef.current = null;
       }
+    }
+
+    // 自由模式：Tab 切下一 cell、Shift+Tab 切上一 cell
+    if (inputMode === 'free' && e.key === 'Tab') {
+      e.preventDefault();
+      const expectedWords = currentSentence?.text.split(/\s+/) || [];
+      if (e.shiftKey) {
+        if (currentWordIndex > 0) setCurrentWordIndex(currentWordIndex - 1);
+      } else {
+        if (currentWordIndex < expectedWords.length - 1) {
+          setCurrentWordIndex(currentWordIndex + 1);
+        }
+      }
+      return;
     }
 
     if (e.key === ' ') {
@@ -814,6 +882,54 @@ export default function PracticePage() {
 
 
             <div className="sentence-area" onClick={() => inputRefs.current[0]?.focus()}>
+              {/* 输入模式选择器：sentence-area 右上角触发按钮 + 弹层 */}
+              <div className="mode-selector">
+                <button
+                  ref={modeBtnRef}
+                  type="button"
+                  className="mode-selector__btn"
+                  aria-label="选择输入模式"
+                  aria-haspopup="listbox"
+                  aria-expanded={modeMenuOpen}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setModeMenuOpen((v) => !v);
+                  }}
+                >
+                  <span aria-hidden>{MODE_METADATA[inputMode].icon}</span>
+                  <span>{MODE_METADATA[inputMode].label}</span>
+                  <span className="apb__caret" aria-hidden>▾</span>
+                </button>
+                {modeMenuOpen && (
+                  <ul
+                    ref={modeMenuRef}
+                    className="mode-selector__menu"
+                    role="listbox"
+                    aria-label="选择输入模式"
+                  >
+                    {INPUT_MODES.map((m) => (
+                      <li key={m} role="presentation">
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={inputMode === m}
+                          className={`mode-selector__option ${inputMode === m ? 'is-active' : ''}`}
+                          onClick={() => {
+                            setInputMode(m);
+                            setModeMenuOpen(false);
+                          }}
+                          title={MODE_METADATA[m].desc}
+                        >
+                          <span className="mode-selector__option-icon" aria-hidden>{MODE_METADATA[m].icon}</span>
+                          <span className="mode-selector__option-label">{MODE_METADATA[m].label}</span>
+                          {inputMode === m && <span className="mode-selector__option-check" aria-hidden>✓</span>}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
               <p className="sentence-hint" lang="zh-CN">{currentSentence.chinese_text || 'Listen and type the sentence'}</p>
 
               <div className="sentence-display typewriter-mode" onClick={(e) => {
@@ -833,7 +949,13 @@ export default function PracticePage() {
                       <span key={`cell-${index}`} className="sentence-cell">
                         {/* 单词行（带下划线） */}
                         <span
-                          className={`line-word ${isCorrectWord ? 'line-word--correct' : ''} ${isActive ? 'line-word--active' : ''}`}
+                          className={`line-word ${isCorrectWord ? 'line-word--correct' : ''} ${isActive ? 'line-word--active' : ''} ${inputMode === 'free' ? 'line-word--clickable' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (inputMode === 'free' && !isComposingRef.current) {
+                              setCurrentWordIndex(index);
+                            }
+                          }}
                         >
                           <span className="line-word-ghost" aria-hidden>{word}</span>
                           {isCorrectWord ? (
