@@ -40,8 +40,11 @@ source "$SCRIPT_DIR/../lib.sh"
 # to work, cms/ must be on PYTHONPATH.
 export PYTHONPATH="${PROJECT_DIR}/cms${PYTHONPATH:+:$PYTHONPATH}"
 
-# Pick a python interpreter. lib.sh's py_cmd prints the chosen one.
-PY="$(py_cmd)"
+# Pick a python interpreter. Lazy: only resolved when a subcommand actually
+# needs it. This way `content.sh -h` and `content.sh` (usage) work even on
+# hosts without python3 (e.g. on a target host that only needs prod/dev
+# scripts, not CMS).
+py() { py_cmd; }
 
 
 # ---------------------------------------------------------------------------
@@ -62,30 +65,47 @@ cmd_doctor() {
     # Source .env.cms quietly to peek at required keys.
     set -a; . ./.env.cms; set +a
 
+    # Hard requirements (every subcommand needs these).
     local missing=()
-    [ -z "$DATABASE_URL" ]            && missing+=("DATABASE_URL")
-    [ -z "$AI_API_KEY" ]              && missing+=("AI_API_KEY")
-    [ -z "$TENCENT_SECRET_ID" ]       && missing+=("TENCENT_SECRET_ID")
-    [ -z "$TENCENT_SECRET_KEY" ]      && missing+=("TENCENT_SECRET_KEY")
-    [ -z "$TENCENT_APP_ID" ]          && missing+=("TENCENT_APP_ID")
-    [ -z "$AUDIO_DIR" ]               && missing+=("AUDIO_DIR")
+    [ -z "$DATABASE_URL" ]   && missing+=("DATABASE_URL")
+    [ -z "$AI_API_KEY" ]     && missing+=("AI_API_KEY")
+    [ -z "$AUDIO_DIR" ]      && missing+=("AUDIO_DIR")
 
     if [ ${#missing[@]} -gt 0 ]; then
         err "以下 .env.cms key 缺失:"
         for k in "${missing[@]}"; do echo "  - $k"; done
         ok=0
     else
-        ok "所有 required .env.cms key 都有值"
+        ok "核心 .env.cms key 都有值 (DATABASE_URL / AI_API_KEY / AUDIO_DIR)"
     fi
 
-    # Python deps — check via a quick import.
-    if ! "$PY" -c "import psycopg2, openai" 2>/dev/null; then
-        err "Python 依赖缺失 (psycopg2 / openai)"
-        info "  → pip install psycopg2-binary openai"
-        info "  → (Tencent SDK 在 audio 子命令跑的时候才需要)"
-        ok=0
+    # TENCENT_* — all-or-nothing, but 0 is OK (only audio subcommand needs them).
+    local t_count=0
+    [ -n "$TENCENT_SECRET_ID" ]  && t_count=$((t_count + 1))
+    [ -n "$TENCENT_SECRET_KEY" ] && t_count=$((t_count + 1))
+    [ -n "$TENCENT_APP_ID" ] && [ "$TENCENT_APP_ID" != "0" ] && t_count=$((t_count + 1))
+    case "$t_count" in
+        0) warn "TENCENT_* 都没填 — audio 子命令会失败, sentences 仍可工作" ;;
+        3) ok "TENCENT_* 三件套齐全" ;;
+        *) err "TENCENT_* 部分设置 (${t_count}/3) — 必须 all-or-nothing"
+           ok=0 ;;
+    esac
+
+    # Python deps — check via a quick import. Skip if no python3 at all.
+    local py
+    if py="$(py_cmd 2>/dev/null)"; then
+        if ! "$py" -c "import psycopg2, openai" 2>/dev/null; then
+            err "Python 依赖缺失 (psycopg2 / openai)"
+            info "  → pip install psycopg2-binary openai"
+            info "  → (Tencent SDK 在 audio 子命令跑的时候才需要)"
+            ok=0
+        else
+            ok "Python deps (psycopg2, openai) 已装"
+        fi
     else
-        ok "Python deps (psycopg2, openai) 已装"
+        warn "未发现 python3 — 跳过 Python 依赖检查"
+        info "  → CMS host 需要装 python3 + pip install psycopg2-binary openai"
+        ok=0
     fi
 
     # DB reachability.
@@ -109,15 +129,15 @@ cmd_doctor() {
 }
 
 cmd_sync() {
-    "$PY" -m data_pipeline.import_vocab "$@"
+    "$(py)" -m data_pipeline.import_vocab "$@"
 }
 
 cmd_sentences() {
-    "$PY" -m data_pipeline.generate_sentences "$@"
+    "$(py)" -m data_pipeline.generate_sentences "$@"
 }
 
 cmd_audio() {
-    "$PY" -m data_pipeline.generate_audio "$@"
+    "$(py)" -m data_pipeline.generate_audio "$@"
 }
 
 cmd_publish() {
@@ -132,7 +152,7 @@ cmd_export() {
     # The actual staging-bundle export is done by bake_image.sh. This
     # subcommand just exposes it standalone so you can inspect the bundle
     # without re-baking.
-    "$PY" -m data_pipeline.export_bundle "$@"
+    "$(py)" -m data_pipeline.export_bundle "$@"
 }
 
 usage() {
@@ -164,7 +184,7 @@ EOF
 }
 
 case "${1:-}" in
-    doctor)     cmd_doctor ;;
+    doctor)     cmd_doctor || exit 1 ;;
     sync)       shift; cmd_sync "$@" ;;
     sentences)  shift; cmd_sentences "$@" ;;
     audio)      shift; cmd_audio "$@" ;;
