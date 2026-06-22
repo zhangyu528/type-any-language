@@ -13,7 +13,7 @@
 #   type-any-language.content.baked-at  <UTC timestamp>
 #
 # Subcommands:
-#   (default)  Bake: export content from DB → stage into cms/db-image/ → docker build
+#   (default)  Bake: export content from DB → stage into db/ → docker build
 #   doctor     Pre-flight: docker installed? source content present?
 #
 # Image naming:
@@ -23,7 +23,7 @@
 #
 # This script does NOT modify content. It only packages whatever is
 # currently in the DB + ./audio/. To update content, run
-# `scripts/cms/content.sh {sync,sentences,audio,publish}` first.
+# `scripts/db/content.sh {sync,sentences,audio,publish}` first.
 #
 # This script does NOT push. Pushing is a separate, intentional step:
 # you might bake many times locally and only push when ready.
@@ -57,8 +57,8 @@ REMOTE_IMAGE="${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${FULL_IMAGE}"
 POSTGRES_USER="${POSTGRES_USER:-english_user}"
 POSTGRES_DB="${POSTGRES_DB:-english_learning}"
 
-DB_IMAGE_DIR="cms/db-image"
-DATA_PIPELINE_DIR="cms/data_pipeline"
+DB_IMAGE_DIR="db"
+DATA_PIPELINE_DIR="db/pipeline"
 STAGING_DIR=".bake-staging"
 
 # Cross-platform stat for "size in bytes". Linux uses -c%s, macOS uses -f%z.
@@ -88,11 +88,11 @@ cmd_doctor() {
         ok "Docker daemon running"
     fi
 
-    if [ ! -d "cms/content" ]; then
-        err "cms/content/ directory missing — run ./scripts/cms/env.sh"
+    if [ ! -d "db/content" ]; then
+        err "db/content/ directory missing — run ./scripts/cms/env.sh"
         ok=0
     else
-        ok "cms/content/ present"
+        ok "db/content/ present"
     fi
 
     if [ ! -f "$DATA_PIPELINE_DIR/export_bundle.py" ]; then
@@ -202,7 +202,7 @@ usage() {
     cat <<EOF
 Usage: $0 [doctor]
 
-  (no args)   Bake: export content from DB → stage into cms/db-image/ → docker build
+  (no args)   Bake: export content from DB → stage into db/ → docker build
   doctor      Pre-flight environment check
 
 Push is a separate step: ./scripts/cms/push_image.sh

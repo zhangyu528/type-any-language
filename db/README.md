@@ -1,4 +1,4 @@
-# cms/db-image — content-baked Postgres image
+# db — content-baked Postgres image
 
 This directory is the **Docker build context** for the content-baked db image
 that every target host (`prod` / `dev`) pulls via `run.sh`.
@@ -6,7 +6,7 @@ that every target host (`prod` / `dev`) pulls via `run.sh`.
 ## Layout
 
 ```
-cms/db-image/
+db/
 ├── Dockerfile                    postgres:15-alpine wrapper, OCI labels
 ├── README.md                     (this file)
 ├── init/
@@ -24,16 +24,16 @@ baked MP3 collection. They are gitignored — only `Dockerfile`,
 ## Build flow
 
 ```
-cms/content/vocabulary/*.csv                     (source)
-        ↓  scripts/cms/content.sh sync
-        ↓  scripts/cms/content.sh sentences       (OpenAI)
-        ↓  scripts/cms/content.sh audio           (Tencent TTS)
+db/content/vocabulary/*.csv                     (source)
+        ↓  scripts/db/content.sh sync
+        ↓  scripts/db/content.sh sentences       (OpenAI)
+        ↓  scripts/db/content.sh audio           (Tencent TTS)
 PostgreSQL (content_items + audio/*.mp3)
         ↓  scripts/cms/bake_image.sh
         ↓    export_bundle.py → .bake-staging/data-bundle-v.../
-        ↓    cp dump.sql   → cms/db-image/init/01-content.sql
-        ↓    cp audio/     → cms/db-image/seed/audio/
-        ↓  docker build cms/db-image/
+        ↓    cp dump.sql   → db/init/01-content.sql
+        ↓    cp audio/     → db/seed/audio/
+        ↓  docker build db/
 docker image english_db_content:vX.Y.Z          (with OCI labels)
         ↓  scripts/cms/push_image.sh
 registry/english_db_content:vX.Y.Z

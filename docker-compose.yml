@@ -48,7 +48,7 @@ services:
       - postgres_password
     volumes:
       - db-data:/var/lib/postgresql/data
-      # The cms/db-image Dockerfile copies audio seed into /seed/audio;
+      # The db/ Dockerfile copies audio seed into /seed/audio;
       # the init/99-audio.sh init script (run by postgres on first start)
       # copies it into a shared volume that nginx can serve.
       - shared-audio:/audio

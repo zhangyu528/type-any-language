@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-import_vocab.py — read cms/content/vocabulary/*.csv → populate vocabulary_libs
+import_vocab.py — read db/content/vocabulary/*.csv → populate vocabulary_libs
 + vocabulary_words tables.
 
 Idempotent:
@@ -15,10 +15,10 @@ CSV format (header required):
 Each lib (level) has its own CSV: beginner.csv, cet4.csv, cet6.csv, ielts.csv.
 
 Usage:
-    python -m data_pipeline.import_vocab                # import all CSVs
-    python -m data_pipeline.import_vocab beginner       # one lib only
-    python -m data_pipeline.import_vocab --force        # truncate + re-import
-    python -m data_pipeline.import_vocab --dry-run      # show plan, no writes
+    python -m pipeline.import_vocab                # import all CSVs
+    python -m pipeline.import_vocab beginner       # one lib only
+    python -m pipeline.import_vocab --force        # truncate + re-import
+    python -m pipeline.import_vocab --dry-run      # show plan, no writes
 """
 import argparse
 import csv
@@ -28,10 +28,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # Allow running this file directly (python import_vocab.py) AND as
-# `python -m data_pipeline.import_vocab` from the project root.
+# `python -m pipeline.import_vocab` from the project root.
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-    from data_pipeline.env import setup_env, load_config
+    from pipeline.env import setup_env, load_config
 else:
     from .env import setup_env, load_config
 
@@ -59,14 +59,14 @@ LIB_DEFS = {
 
 
 def find_vocab_dir() -> Path:
-    """Locate cms/content/vocabulary/. Walks up to find the project root."""
+    """Locate db/content/vocabulary/. Walks up to find the project root."""
     here = Path(__file__).resolve().parent
     while here != here.parent:
         candidate = here / "cms" / "content" / "vocabulary"
         if candidate.is_dir():
             return candidate
         here = here.parent
-    sys.exit("cms/content/vocabulary/ not found — are you running from the project root?")
+    sys.exit("db/content/vocabulary/ not found — are you running from the project root?")
 
 
 def upsert_lib(conn, level: str, display: str, word_count: int, force: bool) -> str:

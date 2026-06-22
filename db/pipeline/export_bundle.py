@@ -42,7 +42,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 # Schema decision: keep the 3 tables (vocabulary_libs / vocabulary_words /
-# sentences). See cms/db-image/README.md for rationale. The cms host's
+# sentences). See db/README.md for rationale. The cms host's
 # import_vocab.py populates them; export_bundle.py dumps them; the
 # runtime serves them read-only.
 CONTENT_TABLES = ["vocabulary_libs", "vocabulary_words", "sentences"]

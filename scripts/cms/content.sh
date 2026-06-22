@@ -1,14 +1,14 @@
 #!/bin/bash
 #
-# cms/content.sh — orchestrate the content production pipeline.
+# db/content.sh — orchestrate the content production pipeline.
 #
 # Subcommands (all idempotent; safe to re-run):
 #   sync       Import vocabulary CSVs → vocabulary_libs / vocabulary_words.
-#              (data_pipeline/import_vocab.py)
+#              (pipeline/import_vocab.py)
 #   sentences  Bulk-generate practice sentences via OpenAI.
-#              (data_pipeline/generate_sentences.py)
+#              (pipeline/generate_sentences.py)
 #   audio      Bulk-generate MP3s via Tencent Cloud TTS.
-#              (data_pipeline/generate_audio.py)
+#              (pipeline/generate_audio.py)
 #   publish    Mark the current snapshot ready for bake (no-op for now —
 #              schema has no published_at column; this is a documentation
 #              hook for future use).
@@ -19,10 +19,10 @@
 #   -h|help    Show usage.
 #
 # Typical workflow (CMS host):
-#   ./scripts/cms/content.sh sync        # csv → DB
-#   ./scripts/cms/content.sh sentences   # OpenAI fills buckets
-#   ./scripts/cms/content.sh audio       # Tencent TTS fills mp3s
-#   ./scripts/cms/content.sh export      # (optional) inspect staging bundle
+#   ./scripts/db/content.sh sync        # csv → DB
+#   ./scripts/db/content.sh sentences   # OpenAI fills buckets
+#   ./scripts/db/content.sh audio       # Tencent TTS fills mp3s
+#   ./scripts/db/content.sh export      # (optional) inspect staging bundle
 #   ./scripts/cms/bake_image.sh          # build image
 #   ./scripts/cms/push_image.sh          # ship to registry
 #
@@ -36,9 +36,9 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
 source "$SCRIPT_DIR/../lib.sh"
 
-# data_pipeline/ lives at cms/data_pipeline/. For `python -m data_pipeline.X`
-# to work, cms/ must be on PYTHONPATH.
-export PYTHONPATH="${PROJECT_DIR}/cms${PYTHONPATH:+:$PYTHONPATH}"
+# pipeline/ lives at db/pipeline/. For `python -m pipeline.X`
+# to work, db/ must be on PYTHONPATH.
+export PYTHONPATH="${PROJECT_DIR}/db${PYTHONPATH:+:$PYTHONPATH}"
 
 # Pick a python interpreter. Lazy: only resolved when a subcommand actually
 # needs it. This way `content.sh -h` and `content.sh` (usage) work even on
@@ -53,7 +53,7 @@ py() { py_cmd; }
 cmd_doctor() {
     local ok=1
 
-    echo "=== cms/content.sh pre-flight ==="
+    echo "=== db/content.sh pre-flight ==="
     echo ""
 
     if [ ! -f .env.cms ]; then
@@ -129,15 +129,15 @@ cmd_doctor() {
 }
 
 cmd_sync() {
-    "$(py)" -m data_pipeline.import_vocab "$@"
+    "$(py)" -m pipeline.import_vocab "$@"
 }
 
 cmd_sentences() {
-    "$(py)" -m data_pipeline.generate_sentences "$@"
+    "$(py)" -m pipeline.generate_sentences "$@"
 }
 
 cmd_audio() {
-    "$(py)" -m data_pipeline.generate_audio "$@"
+    "$(py)" -m pipeline.generate_audio "$@"
 }
 
 cmd_publish() {
@@ -152,7 +152,7 @@ cmd_export() {
     # The actual staging-bundle export is done by bake_image.sh. This
     # subcommand just exposes it standalone so you can inspect the bundle
     # without re-baking.
-    "$(py)" -m data_pipeline.export_bundle "$@"
+    "$(py)" -m pipeline.export_bundle "$@"
 }
 
 usage() {
@@ -160,7 +160,7 @@ usage() {
 用法: $0 <command> [args]
 
 命令:
-  sync       把 cms/content/vocabulary/*.csv 灌进 vocabulary_libs / vocabulary_words
+  sync       把 db/content/vocabulary/*.csv 灌进 vocabulary_libs / vocabulary_words
   sentences  调 OpenAI 批量生成 sentences (填到 DEFAULT_BUCKET_TARGET_SIZE)
   audio      调 Tencent TTS 批量烤 MP3 (跳过 audio_url 已设的句子)
   publish    no-op (schema 没有 published 标志)
@@ -168,7 +168,7 @@ usage() {
   doctor     前置检查 (.env.cms + Python deps + db 可达)
   -h|help    显示本帮助
 
-每个子命令都透传给 cms/data_pipeline/ 下的 Python 模块。子命令自身的
+每个子命令都透传给 db/pipeline/ 下的 Python 模块。子命令自身的
 参数透传，flags 见各自 --help:
   $0 sync --help
   $0 sentences --help

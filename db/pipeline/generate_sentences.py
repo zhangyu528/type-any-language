@@ -13,9 +13,9 @@ Idempotent on rerun:
     are skipped on the next pass.
 
 Usage:
-    python -m data_pipeline.generate_sentences
-    python -m data_pipeline.generate_sentences --lib cet4 --target-size 50
-    python -m data_pipeline.generate_sentences --dry-run
+    python -m pipeline.generate_sentences
+    python -m pipeline.generate_sentences --lib cet4 --target-size 50
+    python -m pipeline.generate_sentences --dry-run
 """
 import argparse
 import json
@@ -27,7 +27,7 @@ from pathlib import Path
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-    from data_pipeline.env import setup_env, load_config
+    from pipeline.env import setup_env, load_config
 else:
     from .env import setup_env, load_config
 

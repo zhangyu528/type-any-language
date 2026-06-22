@@ -1,20 +1,20 @@
 """
-cms/data_pipeline/env.py — shared .env.cms loader for the data pipeline.
+db/pipeline/env.py — shared .env.cms loader for the data pipeline.
 
 Reads .env.cms from the project root and exposes a typed `Config` object
 to the other pipeline modules. Centralising the env-loading logic here
 means individual scripts (import_vocab, generate_sentences, ...) can just
-do `from data_pipeline.env import load_config; cfg = load_config()` and
+do `from pipeline.env import load_config; cfg = load_config()` and
 get validated settings.
 
 Why a dedicated loader (not os.environ directly):
   - Fail loudly if .env.cms is missing or required keys are unset.
   - Single place to do type coercion + default handling.
-  - Other scripts can `from data_pipeline.env import setup_env` to mirror
+  - Other scripts can `from pipeline.env import setup_env` to mirror
     the .env.cms → os.environ copy that bake_image.sh does via `set -a`.
 
 Usage from a CLI script:
-    from data_pipeline.env import setup_env, load_config
+    from pipeline.env import setup_env, load_config
     setup_env()                 # copies .env.cms into os.environ (idempotent)
     cfg = load_config()         # typed, validated config
     print(cfg.ai_api_key)       # str (raises if missing)
@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-# Project root = parent of cms/. Caller passes an absolute path or we
+# Project root = parent of db/. Caller passes an absolute path or we
 # fall back to a walk-up from this file.
 def _project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent
