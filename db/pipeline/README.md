@@ -1,7 +1,7 @@
 # db/pipeline — content production Python modules
 
 These are the **Python tools** that the CMS host runs to produce content.
-They're invoked via `scripts/cms/content.sh <subcommand>` (which sets up
+They're invoked via `scripts/ops/db/content.sh <subcommand>` (which sets up
 `PYTHONPATH=db` and a `python3` interpreter).
 
 ## Modules
@@ -73,5 +73,5 @@ during development or in notebooks. Same file, both work.
 1. Drop a `<name>.py` next to the existing ones.
 2. Add an `if __package__ in (None, "")` block at the top (copy from
    `import_vocab.py`).
-3. Add a `cmd_<name>()` wrapper in `scripts/db/content.sh`.
+3. Add a `cmd_<name>()` wrapper in `scripts/ops/db/content.sh`.
 4. Update `content.sh` usage doc + this README.

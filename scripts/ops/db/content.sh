@@ -19,12 +19,12 @@
 #   -h|help    Show usage.
 #
 # Typical workflow (CMS host):
-#   ./scripts/db/content.sh sync        # csv → DB
-#   ./scripts/db/content.sh sentences   # OpenAI fills buckets
-#   ./scripts/db/content.sh audio       # Tencent TTS fills mp3s
-#   ./scripts/db/content.sh export      # (optional) inspect staging bundle
-#   ./scripts/cms/bake_image.sh          # build image
-#   ./scripts/cms/push_image.sh          # ship to registry
+#   ./scripts/ops/db/content.sh sync        # csv → DB
+#   ./scripts/ops/db/content.sh sentences   # OpenAI fills buckets
+#   ./scripts/ops/db/content.sh audio       # Tencent TTS fills mp3s
+#   ./scripts/ops/db/content.sh export      # (optional) inspect staging bundle
+#   ./scripts/ops/db/bake_image.sh          # build image
+#   ./scripts/ops/db/push_image.sh          # ship to registry
 #
 # Each subcommand just wraps the underlying python module. Pass `--help`
 # to the wrapped CLI for the full flag list.
@@ -57,7 +57,7 @@ cmd_doctor() {
     echo ""
 
     if [ ! -f .env.cms ]; then
-        err ".env.cms 不存在 — 跑 ./scripts/cms/env.sh 先引导"
+        err ".env.cms 不存在 — 跑 ./scripts/ops/db/env.sh 先引导"
         return 1
     fi
     ok ".env.cms 存在"
@@ -145,7 +145,7 @@ cmd_publish() {
     # are baked once, served forever. If/when we add a published_at column
     # or a per-sentence status field, wire it here.
     info "publish: no-op (schema 没有 published 标志 — sentences 烤进去即最终态)"
-    info "  下一步: ./scripts/cms/bake_image.sh"
+    info "  下一步: ./scripts/ops/db/bake_image.sh"
 }
 
 cmd_export() {
@@ -178,8 +178,8 @@ usage() {
   $0 sync              # csv → DB
   $0 sentences         # OpenAI 填句子
   $0 audio             # TTS 烤 MP3
-  ./scripts/cms/bake_image.sh    # 烤 image
-  ./scripts/cms/push_image.sh    # 推 registry
+  ./scripts/ops/db/bake_image.sh    # 烤 image
+  ./scripts/ops/db/push_image.sh    # 推 registry
 EOF
 }
 

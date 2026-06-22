@@ -17,7 +17,7 @@ db/
 ```
 
 `init/01-content.sql` and `seed/audio/` are **build inputs** that
-`scripts/cms/bake_image.sh` produces from the live CMS database and the
+`scripts/ops/db/bake_image.sh` produces from the live CMS database and the
 baked MP3 collection. They are gitignored — only `Dockerfile`,
 `init/99-audio.sh`, and this `README.md` are committed.
 
@@ -25,17 +25,17 @@ baked MP3 collection. They are gitignored — only `Dockerfile`,
 
 ```
 db/content/vocabulary/*.csv                     (source)
-        ↓  scripts/db/content.sh sync
-        ↓  scripts/db/content.sh sentences       (OpenAI)
-        ↓  scripts/db/content.sh audio           (Tencent TTS)
+        ↓  scripts/ops/db/content.sh sync
+        ↓  scripts/ops/db/content.sh sentences       (OpenAI)
+        ↓  scripts/ops/db/content.sh audio           (Tencent TTS)
 PostgreSQL (content_items + audio/*.mp3)
-        ↓  scripts/cms/bake_image.sh
+        ↓  scripts/ops/db/bake_image.sh
         ↓    export_bundle.py → .bake-staging/data-bundle-v.../
         ↓    cp dump.sql   → db/init/01-content.sql
         ↓    cp audio/     → db/seed/audio/
         ↓  docker build db/
 docker image english_db_content:vX.Y.Z          (with OCI labels)
-        ↓  scripts/cms/push_image.sh
+        ↓  scripts/ops/db/push_image.sh
 registry/english_db_content:vX.Y.Z
         ↓  target host's scripts/{prod,dev}/run.sh
 docker compose up -d

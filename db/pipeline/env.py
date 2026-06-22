@@ -47,7 +47,7 @@ def setup_env(env_file: str | os.PathLike | None = None) -> dict[str, str]:
     path = Path(env_file) if env_file else _project_root() / ".env.cms"
     if not path.is_file():
         sys.exit(
-            f".env.cms 不存在 ({path}) — 跑 ./scripts/cms/env.sh 先引导"
+            f".env.cms 不存在 ({path}) — 跑 ./scripts/ops/db/env.sh 先引导"
         )
 
     loaded: dict[str, str] = {}

@@ -139,7 +139,7 @@ def _require_secrets(settings: "Settings") -> None:
     if not settings.SECRET_KEY or settings.SECRET_KEY == _SECRET_KEY_PLACEHOLDER:
         raise RuntimeError(
             "SECRET_KEY is missing or still at the default placeholder. "
-            "Run ./scripts/prod/init.sh (or ./scripts/dev/init.sh) to generate one, "
+            "Run ./scripts/ops/prod-host/env.sh (or ./scripts/ops/dev-host/env.sh) to generate one, "
             "or set it in .env."
         )
     if len(settings.SECRET_KEY) < _SECRET_KEY_MIN_LEN:

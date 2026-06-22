@@ -20,6 +20,7 @@
 #   - warn_port_in_use           (prints warning if in use)
 #   - gen_secret                 (random URL-safe string)
 #   - detect_default_registry    (docker.io/$USER or empty)
+#   - sed_inplace                (portable sed -i; GNU vs BSD/macOS)
 #
 
 # ---------------------------------------------------------------------------
@@ -180,6 +181,20 @@ detect_default_registry() {
         # No usable username (root, container, no whoami): leave empty so
         # the user picks one explicitly. Empty = local-only mode.
         echo ""
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Portable sed -i
+# ---------------------------------------------------------------------------
+# sed_inplace PATTERN FILE — in-place edit, compatible with GNU sed (Linux)
+# and BSD sed (macOS). BSD requires an explicit empty argument after -i.
+# Used by every env.sh to inject smart defaults into .env.*.
+sed_inplace() {
+    if sed --version >/dev/null 2>&1; then
+        sed -i "$1" "$2"
+    else
+        sed -i '' "$1" "$2"
     fi
 }
 

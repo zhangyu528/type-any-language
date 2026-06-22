@@ -5,7 +5,7 @@
 # This is the unified entry point for .env.cms lifecycle: first-time
 # creation, ongoing updates, masked inspection, and config validation.
 # Default behaviour is `init` (backward-compatible — old users who just
-# run `./scripts/cms/env.sh` get the bootstrap flow they expect).
+# run `./scripts/ops/db/env.sh` get the bootstrap flow they expect).
 #
 # Subcommands:
 #   (no args)  init      Create .env.cms from template + inject smart defaults.
@@ -78,15 +78,7 @@ REQUIRED_KEYS=(
     AUDIO_DIR
 )
 
-# Portable sed -i (GNU vs BSD).
-sed_inplace() {
-    # $1 = pattern, $2 = file
-    if sed --version >/dev/null 2>&1; then
-        sed -i "$1" "$2"
-    else
-        sed -i '' "$1" "$2"
-    fi
-}
+# Portable sed -i (GNU vs BSD) lives in lib.sh; sourced above.
 
 # Echo a value with sensitive keys masked.
 mask_value() {
@@ -124,7 +116,7 @@ cmd_init() {
     if file_exists "$TARGET"; then
         ok "$TARGET 已存在（跳过）"
         info "  → 想重新生成请先 rm $TARGET"
-        info "  → 想改某一项请用: ./scripts/cms/env.sh update KEY=VALUE"
+        info "  → 想改某一项请用: ./scripts/ops/db/env.sh update KEY=VALUE"
         return 0
     fi
 
@@ -175,12 +167,12 @@ cmd_init() {
     echo "  - TENCENT_SECRET_KEY"
     echo "  - TENCENT_APP_ID"
     echo ""
-    info "填好后跑: ./scripts/cms/env.sh doctor 验证"
-    info "或者用: ./scripts/cms/env.sh update KEY=VALUE 改某一项"
+    info "填好后跑: ./scripts/ops/db/env.sh doctor 验证"
+    info "或者用: ./scripts/ops/db/env.sh update KEY=VALUE 改某一项"
     echo ""
     echo "下一步:"
     echo -e "  ${_LIB_BLUE}nano $TARGET${_LIB_NC}   # 填上面那 5 个 secret"
-    echo -e "  ${_LIB_BLUE}./scripts/cms/env.sh doctor${_LIB_NC}"
+    echo -e "  ${_LIB_BLUE}./scripts/ops/db/env.sh doctor${_LIB_NC}"
 }
 
 # ---------------------------------------------------------------------------
@@ -188,7 +180,7 @@ cmd_init() {
 # ---------------------------------------------------------------------------
 cmd_update() {
     if ! file_exists "$TARGET"; then
-        err "$TARGET 不存在 — 先跑 ./scripts/cms/env.sh 引导"
+        err "$TARGET 不存在 — 先跑 ./scripts/ops/db/env.sh 引导"
         exit 1
     fi
 
@@ -268,7 +260,7 @@ cmd_update() {
     echo ""
     if [ "$changed" -gt 0 ]; then
         ok "已更新 $changed 项"
-        info "  跑 ./scripts/cms/env.sh doctor 验证"
+        info "  跑 ./scripts/ops/db/env.sh doctor 验证"
     fi
     if [ "$skipped" -gt 0 ]; then
         warn "跳过 $skipped 项 (key 不存在)"
@@ -280,7 +272,7 @@ cmd_update() {
 # ---------------------------------------------------------------------------
 cmd_show() {
     if ! file_exists "$TARGET"; then
-        err "$TARGET 不存在 — 先跑 ./scripts/cms/env.sh 引导"
+        err "$TARGET 不存在 — 先跑 ./scripts/ops/db/env.sh 引导"
         exit 1
     fi
     echo "=== $TARGET ==="
@@ -312,7 +304,7 @@ cmd_show() {
 cmd_doctor() {
     local failed=0
     if ! file_exists "$TARGET"; then
-        err "$TARGET 不存在 — 先跑 ./scripts/cms/env.sh 引导"
+        err "$TARGET 不存在 — 先跑 ./scripts/ops/db/env.sh 引导"
         return 1
     fi
 
@@ -335,7 +327,7 @@ cmd_doctor() {
             echo "  - $k"
         done
         echo ""
-        info "  填法: ./scripts/cms/env.sh update KEY=VALUE"
+        info "  填法: ./scripts/ops/db/env.sh update KEY=VALUE"
         info "  或:   nano $TARGET"
         failed=1
     else
@@ -390,7 +382,7 @@ cmd_doctor() {
 
 usage() {
     cat <<EOF
-用法: ./scripts/cms/env.sh <command> [args]
+用法: ./scripts/ops/db/env.sh <command> [args]
 
 命令:
   (无参数)     init      首次创建 .env.cms + 注入 smart defaults (idempotent: 已存在则跳过)
@@ -405,11 +397,11 @@ usage() {
   - show / doctor 纯只读
 
 典型工作流:
-  ./scripts/cms/env.sh            # 首次: 引导 + smart defaults
+  ./scripts/ops/db/env.sh            # 首次: 引导 + smart defaults
   nano .env.cms                    # 填 5 个 secret (DATABASE_URL / AI_API_KEY / TENCENT_*)
-  ./scripts/cms/env.sh doctor     # 验证
-  ./scripts/cms/env.sh update DOCKER_REGISTRY=ghcr.io/myorg  # 改某一项
-  ./scripts/cms/env.sh show       # 看一眼当前配置 (secret 脱敏)
+  ./scripts/ops/db/env.sh doctor     # 验证
+  ./scripts/ops/db/env.sh update DOCKER_REGISTRY=ghcr.io/myorg  # 改某一项
+  ./scripts/ops/db/env.sh show       # 看一眼当前配置 (secret 脱敏)
 EOF
 }
 

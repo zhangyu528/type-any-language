@@ -2,7 +2,7 @@
 # Production docker-compose for type-any-language.
 #
 # Key flow:
-#   • DB image:  content-baked by ./scripts/cms/bake_image.sh with labels
+#   • DB image:  content-baked by ./scripts/ops/db/bake_image.sh with labels
 #                (type-any-language.db.user, .db.name, .content.version, ...).
 #                prod/run.sh `docker inspect`s those labels at start time
 #                and exports DB_USER / DB_NAME for compose env.
@@ -16,7 +16,7 @@
 #     .env.cms on the CMS host. When DOCKER_REGISTRY is set, run.sh
 #     auto-pulls the latest baked db image on every start/restart.
 #
-# Run via:  ./scripts/prod/run.sh start
+# Run via:  ./scripts/ops/prod-host/run.sh start
 # ---------------------------------------------------------------------------
 
 # Top-level `secrets:` block — secrets are FILES on the host, mounted

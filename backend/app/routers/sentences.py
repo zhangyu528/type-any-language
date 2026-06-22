@@ -2,7 +2,7 @@
 Sentences router — read-layer only.
 
 Sentences are pre-generated and baked into the db image by the CMS host
-(`scripts/cms/content.sh sentences`). This router only serves them. No
+(`scripts/ops/db/content.sh sentences`). This router only serves them. No
 generation, no AI, no TTS, no cache eviction — all of that is bake-time.
 
 Endpoints:

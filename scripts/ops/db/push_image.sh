@@ -2,7 +2,7 @@
 #
 # cms/push_image.sh — push the baked db image to $DOCKER_REGISTRY.
 #
-# Run this AFTER ./scripts/cms/bake_image.sh has produced the image
+# Run this AFTER ./scripts/ops/db/bake_image.sh has produced the image
 # locally. Push is a deliberate, separate step: you might bake many
 # times locally before you're ready to publish.
 #
@@ -25,9 +25,9 @@
 #                                       empty; that's local-only mode).
 #
 # Examples:
-#   ./scripts/cms/push_image.sh             # interactive
-#   ./scripts/cms/push_image.sh -y          # CI
-#   ./scripts/cms/push_image.sh doctor      # check prereqs
+#   ./scripts/ops/db/push_image.sh             # interactive
+#   ./scripts/ops/db/push_image.sh -y          # CI
+#   ./scripts/ops/db/push_image.sh doctor      # check prereqs
 #
 # Requires: shell + docker. NO python.
 
@@ -42,7 +42,7 @@ source "$SCRIPT_DIR/../lib.sh"
 if [ -f .env.cms ]; then
     set -a; . ./.env.cms; set +a
 else
-    err ".env.cms 不存在 — 跑 ./scripts/cms/env.sh 先引导"
+    err ".env.cms 不存在 — 跑 ./scripts/ops/db/env.sh 先引导"
     exit 1
 fi
 
@@ -68,7 +68,7 @@ cmd_doctor() {
 
     if [ -z "$DOCKER_REGISTRY" ]; then
         err "DOCKER_REGISTRY 未设置 — push 需要 registry"
-        info "  → ./scripts/cms/env.sh update DOCKER_REGISTRY=docker.io/youruser"
+        info "  → ./scripts/ops/db/env.sh update DOCKER_REGISTRY=docker.io/youruser"
         ok=0
     else
         ok "DOCKER_REGISTRY=$DOCKER_REGISTRY"
@@ -90,7 +90,7 @@ cmd_doctor() {
 
     if ! image_exists "$LOCAL_IMAGE"; then
         err "本地 image $LOCAL_IMAGE 不存在"
-        info "  → 先跑 ./scripts/cms/bake_image.sh"
+        info "  → 先跑 ./scripts/ops/db/bake_image.sh"
         ok=0
     else
         ok "本地 image $LOCAL_IMAGE 存在"
@@ -126,13 +126,13 @@ cmd_push() {
 
     if [ -z "$DOCKER_REGISTRY" ]; then
         err "DOCKER_REGISTRY 未设置 — push 需要 registry"
-        info "  → ./scripts/cms/env.sh update DOCKER_REGISTRY=docker.io/youruser"
+        info "  → ./scripts/ops/db/env.sh update DOCKER_REGISTRY=docker.io/youruser"
         exit 1
     fi
 
     if ! image_exists "$LOCAL_IMAGE"; then
         err "本地 image $LOCAL_IMAGE 不存在"
-        info "  → 先跑 ./scripts/cms/bake_image.sh"
+        info "  → 先跑 ./scripts/ops/db/bake_image.sh"
         exit 1
     fi
 
@@ -193,9 +193,9 @@ usage() {
   DOCKER_REGISTRY  registry 命名空间 (REQUIRED for push)
 
 示例:
-  ./scripts/cms/push_image.sh            # 交互
-  ./scripts/cms/push_image.sh -y         # CI
-  ./scripts/cms/push_image.sh doctor     # 前置检查
+  ./scripts/ops/db/push_image.sh            # 交互
+  ./scripts/ops/db/push_image.sh -y         # CI
+  ./scripts/ops/db/push_image.sh doctor     # 前置检查
 
 退出码:
   0  成功 (或用户取消)

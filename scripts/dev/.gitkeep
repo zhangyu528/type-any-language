@@ -1,0 +1,19 @@
+# scripts/dev/ — developer tools (lint, test, generate, reset-db, ...)
+#
+# This directory is intentionally separate from scripts/ops/, which holds
+# host-operations scripts (configure env, build images, run containers).
+#
+# What's the difference?
+#   scripts/ops/<X>/<script>.sh   operates on a host (CMS / dev target /
+#                                  prod target) — produces or consumes images
+#                                  and containers.
+#   scripts/dev/<script>.sh       runs on the developer's machine as part of
+#                                  their inner loop — lint, format, test,
+#                                  seed data, reset local DB, etc.
+#
+# Convention:
+#   - Every script here must be runnable WITHOUT docker (no compose, no
+#     container lifecycle).
+#   - Output is local-only (developer machine state, not any host).
+#   - Add a .gitkeep-less file when you add your first tool — remove this
+#     stub at that point.

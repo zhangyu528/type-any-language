@@ -2,7 +2,7 @@
 """
 export_bundle.py — dump CMS content + audio into a staging bundle.
 
-Used by ./scripts/cms/bake_image.sh to stage db-image build inputs.
+Used by ./scripts/ops/db/bake_image.sh to stage db-image build inputs.
 Staging is a plain directory (no tar — keeps `docker build` inputs
 inspectable). Output layout:
 

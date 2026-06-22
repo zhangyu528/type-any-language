@@ -5,7 +5,7 @@
 # ─── What this is ─────────────────────────────────────────────────────────
 # Runs **pre-compiled** prod images as-is:
 #   • Images come from either:
-#       - local builds via ./scripts/prod/build_image.sh (backend + frontend), or
+#       - local builds via ./scripts/ops/prod-host/build_image.sh (backend + frontend), or
 #       - the registry (the content-baked db image — start/restart auto-pulls
 #         it when DOCKER_REGISTRY is set, no separate pull step needed).
 #   • No bind-mounts. No hot-reload. Whatever's in the image at build time
@@ -13,7 +13,7 @@
 #   • Frontend requests are routed through nginx on :80.
 #
 # ─── Database identity from image labels ─────────────────────────────────
-# The db image is baked by ./scripts/cms/bake_image.sh with these labels:
+# The db image is baked by ./scripts/ops/db/bake_image.sh with these labels:
 #   type-any-language.db.user       (e.g. english_user)
 #   type-any-language.db.name       (e.g. english_learning)
 #   type-any-language.content.version
@@ -27,24 +27,24 @@
 #
 # ─── What this isn't ──────────────────────────────────────────────────────
 # Does NOT build images, does NOT edit .env, does NOT bake/push content.
-#   • To build backend + frontend images: ./scripts/prod/build_image.sh
-#   • To bake content into db image:     ./scripts/cms/bake_image.sh
-#   • To push baked image to registry:   ./scripts/cms/push_image.sh
-#   • To init .env:                      ./scripts/prod/init.sh
-#   • To reload .env:                    ./scripts/prod/run.sh restart
+#   • To build backend + frontend images: ./scripts/ops/prod-host/build_image.sh
+#   • To bake content into db image:     ./scripts/ops/db/bake_image.sh
+#   • To push baked image to registry:   ./scripts/ops/db/push_image.sh
+#   • To init .env:                      ./scripts/ops/prod-host/env.sh
+#   • To reload .env:                    ./scripts/ops/prod-host/run.sh restart
 #
 # ─── Usage ────────────────────────────────────────────────────────────────
-#   ./scripts/prod/run.sh doctor   # run pre-flight environment checks
-#   ./scripts/prod/run.sh start    # auto-pull (if DOCKER_REGISTRY) + docker compose up -d
-#   ./scripts/prod/run.sh stop     # docker compose down
-#   ./scripts/prod/run.sh restart  # auto-pull (if DOCKER_REGISTRY) + force-recreate
-#   ./scripts/prod/run.sh reload   # alias for restart
-#   ./scripts/prod/run.sh logs     # docker compose logs -f
-#   ./scripts/prod/run.sh status   # docker compose ps
+#   ./scripts/ops/prod-host/run.sh doctor   # run pre-flight environment checks
+#   ./scripts/ops/prod-host/run.sh start    # auto-pull (if DOCKER_REGISTRY) + docker compose up -d
+#   ./scripts/ops/prod-host/run.sh stop     # docker compose down
+#   ./scripts/ops/prod-host/run.sh restart  # auto-pull (if DOCKER_REGISTRY) + force-recreate
+#   ./scripts/ops/prod-host/run.sh reload   # alias for restart
+#   ./scripts/ops/prod-host/run.sh logs     # docker compose logs -f
+#   ./scripts/ops/prod-host/run.sh status   # docker compose ps
 #
 # Quick reference — when to use what:
-#   • Edit .env → ./scripts/prod/run.sh restart (no rebuild, ≈5s).
-#   • Edit code or Dockerfile → ./scripts/prod/build_image.sh && restart.
+#   • Edit .env → ./scripts/ops/prod-host/run.sh restart (no rebuild, ≈5s).
+#   • Edit code or Dockerfile → ./scripts/ops/prod-host/build_image.sh && restart.
 #   • New content version baked on CMS host → just `restart`. If DOCKER_REGISTRY
 #     is set, run.sh auto-pulls the latest baked db image before recreating.
 #   • Edit nginx/nginx.conf → rebuild frontend image, then restart.
@@ -112,7 +112,7 @@ inspect_db_image_labels() {
 # ---------------------------------------------------------------------------
 write_secrets() {
     if [ -z "${POSTGRES_PASSWORD:-}" ]; then
-        err "POSTGRES_PASSWORD 未设置 — 在 .env 里跑 ./scripts/prod/init.sh 重新生成"
+        err "POSTGRES_PASSWORD 未设置 — 在 .env 里跑 ./scripts/ops/prod-host/env.sh 重新生成"
         return 1
     fi
     if [ -z "${DB_USER:-}" ] || [ -z "${DB_NAME:-}" ]; then
@@ -147,15 +147,15 @@ write_secrets() {
 # ---------------------------------------------------------------------------
 gate_preflight() {
     require_docker
-    require_file "$ENV_FILE" "运行 ./scripts/prod/init.sh"
+    require_file "$ENV_FILE" "运行 ./scripts/ops/prod-host/env.sh"
     if ! image_exists "$BACKEND_IMAGE"; then
         err "image $BACKEND_IMAGE 未构建"
-        info "  → 运行 ./scripts/prod/build_image.sh"
+        info "  → 运行 ./scripts/ops/prod-host/build_image.sh"
         exit 1
     fi
     if ! image_exists "$FRONTEND_IMAGE"; then
         err "image $FRONTEND_IMAGE 未构建"
-        info "  → 运行 ./scripts/prod/build_image.sh"
+        info "  → 运行 ./scripts/ops/prod-host/build_image.sh"
         exit 1
     fi
     if ! image_exists "$DB_FULL_IMAGE"; then
@@ -163,7 +163,7 @@ gate_preflight() {
         if [ -n "$DOCKER_REGISTRY" ]; then
             info "  → 设置 DB_IMAGE_TAG 后由 run.sh 拉取，或: docker pull $DB_FULL_IMAGE"
         else
-            info "  → 运行 ./scripts/cms/bake_image.sh（可用 --tag v1.0.0 标记）"
+            info "  → 运行 ./scripts/ops/db/bake_image.sh（可用 --tag v1.0.0 标记）"
         fi
         exit 1
     fi
@@ -201,19 +201,19 @@ cmd_doctor() {
     if file_exists "$ENV_FILE"; then
         ok "$ENV_FILE 存在"
     else
-        err "$ENV_FILE 缺失 → 运行 ./scripts/prod/init.sh"; failed=1
+        err "$ENV_FILE 缺失 → 运行 ./scripts/ops/prod-host/env.sh"; failed=1
     fi
 
     if check_docker_installed && check_docker_daemon_running; then
         if image_exists "$BACKEND_IMAGE"; then
             ok "image $BACKEND_IMAGE 存在"
         else
-            warn "image $BACKEND_IMAGE 缺失 → 运行 ./scripts/prod/build_image.sh"
+            warn "image $BACKEND_IMAGE 缺失 → 运行 ./scripts/ops/prod-host/build_image.sh"
         fi
         if image_exists "$FRONTEND_IMAGE"; then
             ok "image $FRONTEND_IMAGE 存在"
         else
-            warn "image $FRONTEND_IMAGE 缺失 → 运行 ./scripts/prod/build_image.sh"
+            warn "image $FRONTEND_IMAGE 缺失 → 运行 ./scripts/ops/prod-host/build_image.sh"
         fi
         if image_exists "$DB_FULL_IMAGE"; then
             ok "db image $DB_FULL_IMAGE 存在"
@@ -226,9 +226,9 @@ cmd_doctor() {
                 warn "  db image 缺少 type-any-language.* labels — 重新 bake？"
             fi
         elif [ -n "$DOCKER_REGISTRY" ]; then
-            warn "db image $DB_FULL_IMAGE 缺失 → ./scripts/prod/run.sh restart"
+            warn "db image $DB_FULL_IMAGE 缺失 → ./scripts/ops/prod-host/run.sh restart"
         else
-            warn "db image $DB_FULL_IMAGE 缺失 → ./scripts/cms/bake_image.sh"
+            warn "db image $DB_FULL_IMAGE 缺失 → ./scripts/ops/db/bake_image.sh"
         fi
     fi
 
@@ -266,7 +266,7 @@ auto_pull_from_registry() {
 cmd_start() {
     gate_preflight
     if ! inspect_db_image_labels; then
-        err "db image 缺少 type-any-language.* labels — 用 ./scripts/cms/bake_image.sh 重新烘焙"
+        err "db image 缺少 type-any-language.* labels — 用 ./scripts/ops/db/bake_image.sh 重新烘焙"
         exit 1
     fi
     write_secrets
@@ -292,7 +292,7 @@ cmd_stop() {
 cmd_restart() {
     gate_preflight
     if ! inspect_db_image_labels; then
-        err "db image 缺少 type-any-language.* labels — 用 ./scripts/cms/bake_image.sh 重新烘焙"
+        err "db image 缺少 type-any-language.* labels — 用 ./scripts/ops/db/bake_image.sh 重新烘焙"
         exit 1
     fi
     write_secrets
@@ -309,11 +309,11 @@ cmd_restart() {
 
     if [ -n "$BACKEND_BEFORE" ] && [ "$BACKEND_BEFORE" != "$BACKEND_AFTER" ]; then
         warn "$BACKEND_IMAGE image ID 变化了 — 你是改了 Dockerfile？"
-        warn "  这种情况请用 ./scripts/prod/build_image.sh 重 build 后再 restart"
+        warn "  这种情况请用 ./scripts/ops/prod-host/build_image.sh 重 build 后再 restart"
     fi
     if [ -n "$FRONTEND_BEFORE" ] && [ "$FRONTEND_BEFORE" != "$FRONTEND_AFTER" ]; then
         warn "$FRONTEND_IMAGE image ID 变化了 — 你是改了 Dockerfile？"
-        warn "  这种情况请用 ./scripts/prod/build_image.sh 重 build 后再 restart"
+        warn "  这种情况请用 ./scripts/ops/prod-host/build_image.sh 重 build 后再 restart"
     fi
 
     ok "服务已重启（$ENV_FILE + secrets 已重读）"
@@ -333,7 +333,7 @@ cmd_status() {
 
 usage() {
     cat <<EOF
-用法: ./scripts/prod/run.sh <command>
+用法: ./scripts/ops/prod-host/run.sh <command>
 
 命令:
   doctor   跑完整环境检查（不修改任何东西，纯只读）
@@ -345,12 +345,12 @@ usage() {
   status   查看容器状态
 
 典型工作流:
-  ./scripts/prod/run.sh doctor        # 跑一遍检查，看环境是否就绪
-  ./scripts/prod/run.sh start         # 启动 (DOCKER_REGISTRY 配了会先 pull)
-  ./scripts/prod/run.sh restart       # 改 $ENV_FILE 后用这个，5 秒生效
-  ./scripts/prod/build_image.sh && \\
-    ./scripts/prod/run.sh restart     # 改代码 / Dockerfile 后
-  ./scripts/prod/run.sh logs backend  # 跟踪 backend 日志
+  ./scripts/ops/prod-host/run.sh doctor        # 跑一遍检查，看环境是否就绪
+  ./scripts/ops/prod-host/run.sh start         # 启动 (DOCKER_REGISTRY 配了会先 pull)
+  ./scripts/ops/prod-host/run.sh restart       # 改 $ENV_FILE 后用这个，5 秒生效
+  ./scripts/ops/prod-host/build_image.sh && \\
+    ./scripts/ops/prod-host/run.sh restart     # 改代码 / Dockerfile 后
+  ./scripts/ops/prod-host/run.sh logs backend  # 跟踪 backend 日志
 EOF
 }
 

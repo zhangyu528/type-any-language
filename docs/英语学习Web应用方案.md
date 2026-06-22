@@ -1,6 +1,6 @@
 # 英语学习 Web 应用方案
 
-**版本：v2.0.0**
+**版本：v3.0.0**
 
 ---
 
@@ -8,57 +8,128 @@
 
 开发一个英语学习 Web 应用，核心功能：**听音写句** —— 播放句子音频，用户根据音频输入完整句子。
 
+**v3 重大变更**：引入 **CMS 主机 + 目标主机** 的双角色架构。所有 AI 句子生成、TTS 音频合成都在 CMS 主机离线完成，最终成果（词库 + 句子 + 音频）烤进 db image。dev / prod 目标主机只跑容器，零 AI、零 TTS、零 Python。
+
 ---
 
 ## 2. 系统架构
 
+### 2.1 总体拓扑
+
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Frontend  │────▶│   Backend   │────▶│  AI API     │
-│   (React)   │◀────│   (FastAPI) │◀────│ (OpenAI等)  │
-└─────────────┘     └─────────────┘     └─────────────┘
-                          │
-                    ┌─────▼─────┐     ┌─────────────┐
-                    │ Database  │────▶│  Tencent TTS│
-                    │(PostgreSQL)│     │            │
-                    └───────────┘     └─────────────┘
+┌─────────────────────────────── CMS 主机 ───────────────────────────────┐
+│                                                                        │
+│  db/content/vocabulary/*.csv                                           │
+│        │                                                               │
+│        ▼  content.sh sync (import_vocab.py)                           │
+│  PostgreSQL ◀── content.sh sentences (OpenAI)                          │
+│        │                                                               │
+│        ├── content.sh audio (Tencent TTS)                             │
+│        ▼                                                               │
+│  AUDIO_DIR/*.mp3 + sentences.audio_url                                │
+│        │                                                               │
+│        ▼  bake_image.sh (pg_dump + audio copy)                         │
+│  docker build db/                                                      │
+│        │                                                               │
+│        ▼  push_image.sh                                                │
+│  DOCKER_REGISTRY/<DB_IMAGE>:<TAG>                                     │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    │  docker pull
+                                    ▼
+┌──────────────────────────── dev / prod 目标机 ─────────────────────────┐
+│                                                                        │
+│  scripts/ops/{dev-host,prod-host}/run.sh start                         │
+│        │                                                               │
+│        ▼                                                               │
+│  ┌────────┐    ┌────────┐    ┌────────┐    ┌─────────┐                 │
+│  │ frontend│───▶│ nginx  │───▶│backend │───▶│  db     │                 │
+│  │ (React) │    │ (:80)  │    │(FastAPI)│    │(content │                 │
+│  └────────┘    └────────┘    │read-   │    │ baked)  │                 │
+│                              │layer)  │    └─────────┘                 │
+│                              └────┬───┘                                │
+│                                   │                                    │
+│                                   ▼                                    │
+│                            /audio/*.mp3  ←  baked into db image         │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
 ```
+
+### 2.2 角色对比
+
+| 维度 | CMS 主机 | dev / prod 目标机 |
+|---|---|---|
+| 主要任务 | 烤内容到 db image | 跑容器服务用户 |
+| 配置文件 | `.env.cms` | `.env.dev` / `.env` |
+| 入口脚本 | `scripts/ops/db/*.sh` | `scripts/ops/{dev-host,prod-host}/*.sh` |
+| 需要 Python | 是 | 否 |
+| 需要 AI key | 是 | 否 |
+| 需要 TTS key | 是 | 否 |
+| 写入 DB | 是 | 否（只读） |
+| 写入文件系统 | 是（AUDIO_DIR） | 否 |
 
 ---
 
 ## 3. 技术栈
 
 | 层级 | 选型 |
-|------|------|
+|---|---|
 | 前端 | React + TypeScript + TailwindCSS |
-| 后端 | Python/FastAPI + SQLAlchemy |
-| 数据库 | PostgreSQL |
+| 后端 | Python/FastAPI + SQLAlchemy（v3 改为纯读层） |
+| 数据库 | PostgreSQL 15（v3 改为内容烤入模式） |
+| CMS 工具链 | psycopg2-binary + openai + tencentcloud-sdk-python |
 | AI 服务 | OpenAI API / Claude API（可配置） |
-| TTS | 腾讯云 TTS（首 200 万次/月免费） |
+| TTS | 腾讯云 TTS |
 | 部署 | Docker Compose |
 
 ---
 
 ## 4. 核心流程
 
+### 4.1 烤内容流程（CMS 主机，离线）
+
 ```
-1. 用户选择词库（如 CET-4）
+1. 操作员提交新词库 CSV 到 db/content/vocabulary/
        │
        ▼
-2. 系统从词库随机选取词汇
+2. content.sh sync → vocabulary_libs / vocabulary_words
        │
        ▼
-3. AI 根据词汇生成句子（首次需生成，后续走缓存）
+3. content.sh sentences → OpenAI 批量生成句子
+       │  （按 (词库, 难度) 桶填到 DEFAULT_BUCKET_TARGET_SIZE）
+       ▼
+4. content.sh audio → 腾讯云 TTS 烤 MP3
+       │  （sha1[:16] 文件名，跳过 audio_url 已设的句子）
+       ▼
+5. bake_image.sh → pg_dump + audio 拷贝 → docker build
        │
        ▼
-4. 腾讯云 TTS 生成音频（首次需生成，后续走缓存）
+6. push_image.sh → DOCKER_REGISTRY
+```
+
+### 4.2 运行时流程（目标机）
+
+```
+1. 用户打开前端 → 选择词库 → 拉随机 N 个词
        │
        ▼
-5. 用户开始练习：
-   - 播放音频
-   - 输入句子
-   - 提交答案
-   - 获得反馈
+2. 前端请求 /api/sentences/generate
+       │
+       ▼
+3. 后端查 sentences 表（已烤入）→ 返回一条
+       │  （缓存命中；未命中才走 AI 生成 + 持久化，但生产环境几乎都命中）
+       ▼
+4. 前端拿到 audio_url（如 /audio/abc123.mp3）
+       │  → 通过 nginx → backend StaticFiles → /audio 共享卷
+       ▼
+5. 浏览器播放音频，用户输入整句
+       │
+       ▼
+6. /api/sentences/check → 校验（小写、去标点空格）
+       │
+       ▼
+7. 即时反馈（✅ 正确 / ❌ 错误）
 ```
 
 ---
@@ -68,7 +139,7 @@
 ### 5.1 词库表 (vocabulary_libs)
 
 | 字段 | 类型 | 说明 |
-|------|------|------|
+|---|---|---|
 | id | UUID | 主键 |
 | name | VARCHAR(100) | 词库名称 |
 | level | VARCHAR(20) | beginner/cet4/cet6/ielts |
@@ -78,7 +149,7 @@
 ### 5.2 词汇表 (vocabulary_words)
 
 | 字段 | 类型 | 说明 |
-|------|------|------|
+|---|---|---|
 | id | UUID | 主键 |
 | lib_id | UUID | 外键，关联词库 |
 | word | VARCHAR(100) | 英文单词 |
@@ -90,16 +161,20 @@
 ### 5.3 句子表 (sentences)
 
 | 字段 | 类型 | 说明 |
-|------|------|------|
+|---|---|---|
 | id | UUID | 主键 |
 | lib_id | UUID | 外键，关联词库 |
 | text | TEXT | 完整句子 |
 | target_words | TEXT[] | 包含的目标词汇 |
 | difficulty | VARCHAR(20) | 难度级别 |
-| audio_url | VARCHAR(500) | 音频文件路径 |
-| is_cached | BOOLEAN | 是否已缓存 |
+| audio_url | VARCHAR(500) | 音频文件路径（如 `/audio/abc123.mp3`） |
+| is_cached | BOOLEAN | 是否已缓存（v3：保留兼容字段，新写入默认 true） |
 | use_count | INT | 被使用次数 |
 | created_at | TIMESTAMP | 创建时间 |
+
+### 5.4 schema 初始化
+
+`db/init/01-content.sql` 是 bake 时生成的，由 postgres 镜像的 `/docker-entrypoint-initdb.d/` 在首次启动时执行。schema 内容由 `db/pipeline/export_bundle.py` 的 `pg_dump --clean --if-exists` 输出保证幂等。
 
 ---
 
@@ -108,15 +183,17 @@
 ### 按考试等级筛选（基于 Zipf 词频）
 
 | 等级 | Zipf 范围 | 词汇量 |
-|------|-----------|--------|
+|---|---|---|
 | 初中基础 | 6.5 - 8.5 | ~1500 |
 | CET-4 | 5.0 - 7.0 | ~2500 |
 | CET-6 | 4.0 - 5.5 | ~2500 |
 | IELTS | 3.0 - 4.5 | ~3000 |
 
-### 生成脚本
+### 生成 / 导入
 
-使用 `scripts/generate_vocab.py` 生成 CSV 文件，再用 `scripts/seed_vocabulary.py` 导入数据库。
+CSV 文件位于 `db/content/vocabulary/*.csv`（已提交到仓库，运维同学维护）。通过 `scripts/ops/db/content.sh sync`（底层 `db/pipeline/import_vocab.py`）导入数据库。
+
+> v2 的 `scripts/generate_vocab.py` / `scripts/seed_vocabulary.py` 已在 v3 重构中移除。
 
 ---
 
@@ -125,17 +202,17 @@
 ### 7.1 词库相关
 
 | 端点 | 方法 | 说明 |
-|------|------|------|
+|---|---|---|
 | `/api/vocabulary/libs` | GET | 获取所有词库 |
 | `/api/vocabulary/libs/{id}/random` | GET | 随机获取 N 个词汇 |
 
 ### 7.2 句子相关
 
 | 端点 | 方法 | 说明 |
-|------|------|------|
-| `/api/sentences/generate` | POST | 生成练习句子 |
-| `/api/sentences/{id}/audio` | GET | 获取音频文件 |
+|---|---|---|
+| `/api/sentences/generate` | POST | 生成练习句子（缓存优先） |
 | `/api/sentences/check` | POST | 校验答案 |
+| `/audio/{filename}` | GET | 静态音频文件（v3 新增，由 backend `StaticFiles` mount 暴露） |
 
 ---
 
@@ -167,24 +244,39 @@
 
 ## 9. 部署
 
-### 一键部署
+### 9.1 CMS 主机
 
 ```bash
-./start.sh
+./scripts/ops/db/env.sh                    # 第一次：引导 .env.cms
+./scripts/ops/db/content.sh doctor         # 前置检查
+./scripts/ops/db/content.sh sync           # csv → 词库表
+./scripts/ops/db/content.sh sentences      # OpenAI 填句子
+./scripts/ops/db/content.sh audio          # 腾讯云 TTS 烤 MP3
+./scripts/ops/db/bake_image.sh             # 烤 db image
+./scripts/ops/db/push_image.sh             # 推 registry
 ```
 
-### 环境变量
+### 9.2 开发目标机
 
 ```bash
-# .env 配置
-DATABASE_URL=postgresql://user:pass@host:5432/db
-AI_API_KEY=sk-xxx
-AI_BASE_URL=https://api.openai.com/v1
-AI_MODEL=gpt-3.5-turbo
-TENCENT_SECRET_ID=xxx
-TENCENT_SECRET_KEY=xxx
-TENCENT_APP_ID=123456789
+./scripts/ops/dev-host/env.sh                   # 第一次：引导 .env.dev
+./scripts/ops/dev-host/run.sh doctor
+./scripts/ops/dev-host/run.sh start
 ```
+
+### 9.3 生产目标机
+
+```bash
+./scripts/ops/prod-host/env.sh                  # 第一次：引导 .env
+./scripts/ops/prod-host/run.sh doctor
+./scripts/ops/prod-host/run.sh start
+```
+
+### 9.4 密钥安全约定
+
+- `.env.cms` / `.env.dev` / `.env` 全部 gitignore，仅 `.env.example.cms` / `.env.example.runtime` 入库。
+- `POSTGRES_PASSWORD`（目标机）通过 `init.sh` 写到 `.secrets/postgres_password`（chmod 600），由 compose 的 `secrets:` block + `*_FILE` 环境变量注入容器，**不会出现在 image 层或环境变量列表里**。
+- db image 通过 OCI label 携带 `db.user` / `db.name` / `content.version` / `content.baked-at`，目标机启动时由 `run.sh` 用 `docker inspect` 读出。
 
 ---
 
@@ -192,22 +284,21 @@ TENCENT_APP_ID=123456789
 
 ```
 project/
-├── docker-compose.yml           # Docker 编排配置
-├── docker-compose.dev.yml       # 开发环境配置
-├── .env                         # 环境变量（不提交）
-├── .env.example                 # 环境变量模板
-├── start.sh                     # 一键部署脚本
+├── docker-compose.yml               # 目标机容器编排
+├── docker-compose.dev.yml           # 开发编排（hot-reload）
+├── .env.example                     # 旧模板（保留兼容）
+├── .env.example.runtime             # v3 目标机模板
+├── .env.example.cms                 # v3 CMS 模板
 │
-├── backend/
+├── backend/                         # FastAPI 纯读层
 │   ├── app/
-│   │   ├── main.py              # FastAPI 主入口
-│   │   ├── config.py            # 配置管理
-│   │   ├── database.py          # 数据库连接
-│   │   ├── models/              # SQLAlchemy 模型
-│   │   ├── routers/             # API 路由
-│   │   ├── schemas/             # Pydantic 模型
-│   │   └── services/           # AI / TTS 服务
-│   ├── audio/                   # 音频文件
+│   │   ├── main.py                  # FastAPI 主入口 + /audio 静态挂载
+│   │   ├── config.py                # 配置（支持 _FILE indirection）
+│   │   ├── database.py              # SQLAlchemy
+│   │   ├── models/                  # 模型
+│   │   ├── routers/                 # 路由
+│   │   └── schemas/                 # Pydantic
+│   ├── seed/vocabulary/             # 历史词库 CSV（保留兼容）
 │   ├── requirements.txt
 │   └── Dockerfile
 │
@@ -216,19 +307,37 @@ project/
 │   ├── package.json
 │   └── Dockerfile
 │
+├── db/                              # v3 新增 — db 服务（content-baked image）
+│   ├── Dockerfile                   # postgres:15-alpine wrapper
+│   ├── init/
+│   │   ├── 01-content.sql           # bake 时生成，gitignored
+│   │   └── 99-audio.sh              # /seed/audio → /audio 一次性拷贝
+│   ├── content/
+│   │   └── vocabulary/              # 词库 CSV（已提交）
+│   └── pipeline/                    # CMS 工具（不入 image）
+│       ├── env.py
+│       ├── import_vocab.py
+│       ├── generate_sentences.py
+│       ├── generate_audio.py
+│       └── export_bundle.py
+│
 ├── scripts/
-│   ├── generate_vocab.py        # 生成词库 CSV
-│   ├── seed_vocabulary.py       # 导入词库到数据库
-│   ├── deploy-dev.sh           # 开发环境部署
-│   └── dev.sh                  # 开发服务控制
+│   ├── lib.sh                       # 共享工具（ok/warn/err、docker 检测）
+│   ├── ops/                         # 主机运维脚本（配环境 / 烤 image / 跑容器）
+│   │   ├── db/                      # CMS 主机 — 操作 db 服务
+│   │   │   ├── env.sh                   # .env.cms 生命周期
+│   │   │   ├── content.sh               # 烤内容子命令编排
+│   │   │   ├── bake_image.sh            # 烤 db image
+│   │   │   └── push_image.sh            # 推 registry
+│   │   ├── dev-host/                 # dev 目标机
+│   │   │   ├── init.sh
+│   │   │   └── run.sh
+│   │   └── prod-host/                # prod 目标机
+│   │       ├── init.sh
+│   │       └── run.sh
+│   └── dev/                         # 开发者工具（lint/test/generate/...）— 当前为空
 │
-├── seed/
-│   └── vocabulary/             # 词库 CSV
-│       ├── beginner.csv
-│       ├── cet4.csv
-│       ├── cet6.csv
-│       └── ielts.csv
-│
-├── nginx/                       # Nginx 配置
-└── docs/                        # 方案文档
+├── nginx/                           # Nginx 反向代理
+└── docs/
+    └── 英语学习Web应用方案.md        # 本文件
 ```

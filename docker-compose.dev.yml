@@ -8,7 +8,7 @@
 #   • Different image names (english_backend_dev, english_frontend_dev).
 #   • Dev compose file points at ./backend/Dockerfile.dev etc.
 #
-# Run via:  ./scripts/dev/run.sh start
+# Run via:  ./scripts/ops/dev-host/run.sh start
 # ---------------------------------------------------------------------------
 
 secrets:

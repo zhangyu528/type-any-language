@@ -19,25 +19,25 @@
 #
 # ─── What this isn't ──────────────────────────────────────────────────────
 # Does NOT build images, does NOT edit .env.dev.
-#   • To build dev images:    ./scripts/dev/build_image.sh
-#   • To init .env.dev:        ./scripts/dev/init.sh
-#   • To reload .env.dev:      ./scripts/dev/run.sh restart   (≈5s, no rebuild)
+#   • To build dev images:    ./scripts/ops/dev-host/build_image.sh
+#   • To init .env.dev:        ./scripts/ops/dev-host/env.sh
+#   • To reload .env.dev:      ./scripts/ops/dev-host/run.sh restart   (≈5s, no rebuild)
 #
 # ─── Usage ────────────────────────────────────────────────────────────────
-#   ./scripts/dev/run.sh doctor   # run pre-flight environment checks
-#   ./scripts/dev/run.sh start    # docker compose up -d (dev compose)
-#   ./scripts/dev/run.sh stop     # docker compose down
-#   ./scripts/dev/run.sh restart  # hard restart (recreate + re-read .env.dev)
-#   ./scripts/dev/run.sh reload   # alias for restart
-#   ./scripts/dev/run.sh logs     # docker compose logs -f
-#   ./scripts/dev/run.sh status   # docker compose ps
+#   ./scripts/ops/dev-host/run.sh doctor   # run pre-flight environment checks
+#   ./scripts/ops/dev-host/run.sh start    # docker compose up -d (dev compose)
+#   ./scripts/ops/dev-host/run.sh stop     # docker compose down
+#   ./scripts/ops/dev-host/run.sh restart  # hard restart (recreate + re-read .env.dev)
+#   ./scripts/ops/dev-host/run.sh reload   # alias for restart
+#   ./scripts/ops/dev-host/run.sh logs     # docker compose logs -f
+#   ./scripts/ops/dev-host/run.sh status   # docker compose ps
 #
 # Quick reference — when to use what:
 #   • Edit backend/*.py / frontend/src/* → just save. Hot-reload handles it.
 #   • Edit backend/requirements.txt or frontend/package.json → just save.
 #     entrypoint.sh picks it up on next container recreate (use `restart`).
-#   • Edit Dockerfile / .dockerignore → ./scripts/dev/build_image.sh && restart.
-#   • Edit .env.dev → ./scripts/dev/run.sh restart (no rebuild).
+#   • Edit Dockerfile / .dockerignore → ./scripts/ops/dev-host/build_image.sh && restart.
+#   • Edit .env.dev → ./scripts/ops/dev-host/run.sh restart (no rebuild).
 #   • Edit nginx/* → not applicable (dev has no nginx).
 #
 
@@ -91,7 +91,7 @@ inspect_db_image_labels() {
 # ---------------------------------------------------------------------------
 write_secrets() {
     if [ -z "${POSTGRES_PASSWORD:-}" ]; then
-        err "POSTGRES_PASSWORD 未设置 — 在 .env.dev 里跑 ./scripts/dev/init.sh 重新生成"
+        err "POSTGRES_PASSWORD 未设置 — 在 .env.dev 里跑 ./scripts/ops/dev-host/env.sh 重新生成"
         return 1
     fi
     if [ -z "${DB_USER:-}" ] || [ -z "${DB_NAME:-}" ]; then
@@ -120,15 +120,15 @@ write_secrets() {
 # ---------------------------------------------------------------------------
 gate_preflight() {
     require_docker
-    require_file "$ENV_FILE" "运行 ./scripts/dev/init.sh"
+    require_file "$ENV_FILE" "运行 ./scripts/ops/dev-host/env.sh"
     if ! image_exists "$BACKEND_IMAGE"; then
         err "image $BACKEND_IMAGE 未构建"
-        info "  → 运行 ./scripts/dev/build_image.sh"
+        info "  → 运行 ./scripts/ops/dev-host/build_image.sh"
         exit 1
     fi
     if ! image_exists "$FRONTEND_IMAGE"; then
         err "image $FRONTEND_IMAGE 未构建"
-        info "  → 运行 ./scripts/dev/build_image.sh"
+        info "  → 运行 ./scripts/ops/dev-host/build_image.sh"
         exit 1
     fi
     if ! image_exists "$DB_FULL_IMAGE"; then
@@ -136,8 +136,8 @@ gate_preflight() {
         if [ -n "$DOCKER_REGISTRY" ]; then
             info "  → 设置 DB_IMAGE_TAG 后由 dev/run.sh 拉取，或: docker pull $DB_FULL_IMAGE"
         else
-            info "  → 运行 ./scripts/cms/bake_image.sh（可用 --tag dev 标记）"
-            info "  → 之后再次运行 ./scripts/dev/run.sh start"
+            info "  → 运行 ./scripts/ops/db/bake_image.sh（可用 --tag dev 标记）"
+            info "  → 之后再次运行 ./scripts/ops/dev-host/run.sh start"
         fi
         exit 1
     fi
@@ -175,19 +175,19 @@ cmd_doctor() {
     if file_exists "$ENV_FILE"; then
         ok "$ENV_FILE 存在"
     else
-        err "$ENV_FILE 缺失 → 运行 ./scripts/dev/init.sh"; failed=1
+        err "$ENV_FILE 缺失 → 运行 ./scripts/ops/dev-host/env.sh"; failed=1
     fi
 
     if check_docker_installed && check_docker_daemon_running; then
         if image_exists "$BACKEND_IMAGE"; then
             ok "image $BACKEND_IMAGE 存在"
         else
-            warn "image $BACKEND_IMAGE 缺失 → 运行 ./scripts/dev/build_image.sh"
+            warn "image $BACKEND_IMAGE 缺失 → 运行 ./scripts/ops/dev-host/build_image.sh"
         fi
         if image_exists "$FRONTEND_IMAGE"; then
             ok "image $FRONTEND_IMAGE 存在"
         else
-            warn "image $FRONTEND_IMAGE 缺失 → 运行 ./scripts/dev/build_image.sh"
+            warn "image $FRONTEND_IMAGE 缺失 → 运行 ./scripts/ops/dev-host/build_image.sh"
         fi
         if image_exists "$DB_FULL_IMAGE"; then
             ok "db image $DB_FULL_IMAGE 存在"
@@ -202,7 +202,7 @@ cmd_doctor() {
         elif [ -n "$DOCKER_REGISTRY" ]; then
             warn "db image $DB_FULL_IMAGE 缺失 → docker pull $DB_FULL_IMAGE"
         else
-            warn "db image $DB_FULL_IMAGE 缺失 → ./scripts/cms/bake_image.sh"
+            warn "db image $DB_FULL_IMAGE 缺失 → ./scripts/ops/db/bake_image.sh"
         fi
     fi
 
@@ -233,7 +233,7 @@ auto_pull_from_registry() {
 cmd_start() {
     gate_preflight
     if ! inspect_db_image_labels; then
-        err "db image 缺少 type-any-language.* labels — 用 ./scripts/cms/bake_image.sh 重新烘焙"
+        err "db image 缺少 type-any-language.* labels — 用 ./scripts/ops/db/bake_image.sh 重新烘焙"
         exit 1
     fi
     write_secrets
@@ -257,7 +257,7 @@ cmd_stop() {
 cmd_restart() {
     gate_preflight
     if ! inspect_db_image_labels; then
-        err "db image 缺少 type-any-language.* labels — 用 ./scripts/cms/bake_image.sh 重新烘焙"
+        err "db image 缺少 type-any-language.* labels — 用 ./scripts/ops/db/bake_image.sh 重新烘焙"
         exit 1
     fi
     write_secrets
@@ -274,11 +274,11 @@ cmd_restart() {
 
     if [ -n "$BACKEND_BEFORE" ] && [ "$BACKEND_BEFORE" != "$BACKEND_AFTER" ]; then
         warn "$BACKEND_IMAGE image ID 变化了 — 你是改了 Dockerfile？"
-        warn "  这种情况请用 ./scripts/dev/build_image.sh 重 build 后再 restart"
+        warn "  这种情况请用 ./scripts/ops/dev-host/build_image.sh 重 build 后再 restart"
     fi
     if [ -n "$FRONTEND_BEFORE" ] && [ "$FRONTEND_BEFORE" != "$FRONTEND_AFTER" ]; then
         warn "$FRONTEND_IMAGE image ID 变化了 — 你是改了 Dockerfile？"
-        warn "  这种情况请用 ./scripts/dev/build_image.sh 重 build 后再 restart"
+        warn "  这种情况请用 ./scripts/ops/dev-host/build_image.sh 重 build 后再 restart"
     fi
 
     ok "服务已重启（$ENV_FILE + secrets 已重读）"
@@ -298,7 +298,7 @@ cmd_status() {
 
 usage() {
     cat <<EOF
-用法: ./scripts/dev/run.sh <command>
+用法: ./scripts/ops/dev-host/run.sh <command>
 
 命令:
   doctor   跑完整环境检查（不修改任何东西，纯只读）
@@ -310,12 +310,12 @@ usage() {
   status   查看容器状态
 
 典型工作流:
-  ./scripts/dev/run.sh doctor        # 跑一遍检查，看环境是否就绪
-  ./scripts/dev/run.sh start         # 启动 (DOCKER_REGISTRY 配了会先 auto-pull)
-  ./scripts/dev/run.sh restart       # 改 ${ENV_FILE} 后用这个
-  ./scripts/dev/build_image.sh && \\
-    ./scripts/dev/run.sh restart     # 改代码 / Dockerfile 后
-  ./scripts/dev/run.sh logs backend  # 跟踪 backend 日志
+  ./scripts/ops/dev-host/run.sh doctor        # 跑一遍检查，看环境是否就绪
+  ./scripts/ops/dev-host/run.sh start         # 启动 (DOCKER_REGISTRY 配了会先 auto-pull)
+  ./scripts/ops/dev-host/run.sh restart       # 改 ${ENV_FILE} 后用这个
+  ./scripts/ops/dev-host/build_image.sh && \\
+    ./scripts/ops/dev-host/run.sh restart     # 改代码 / Dockerfile 后
+  ./scripts/ops/dev-host/run.sh logs backend  # 跟踪 backend 日志
 EOF
 }
 

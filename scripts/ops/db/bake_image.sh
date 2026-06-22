@@ -23,11 +23,11 @@
 #
 # This script does NOT modify content. It only packages whatever is
 # currently in the DB + ./audio/. To update content, run
-# `scripts/db/content.sh {sync,sentences,audio,publish}` first.
+# `scripts/ops/db/content.sh {sync,sentences,audio,publish}` first.
 #
 # This script does NOT push. Pushing is a separate, intentional step:
 # you might bake many times locally and only push when ready.
-# Use ./scripts/cms/push_image.sh for that.
+# Use ./scripts/ops/db/push_image.sh for that.
 
 set -e
 
@@ -38,11 +38,11 @@ source "$SCRIPT_DIR/../lib.sh"
 
 # Load .env.cms so $DB_IMAGE / $DB_IMAGE_TAG / $DOCKER_REGISTRY / $DATABASE_URL
 # / $POSTGRES_USER / $POSTGRES_DB resolve. Refuses to continue if .env.cms is
-# missing — run scripts/cms/env.sh first.
+# missing — run scripts/ops/db/env.sh first.
 if [ -f .env.cms ]; then
     set -a; . ./.env.cms; set +a
 else
-    echo "[ERR] .env.cms 不存在 — 跑 ./scripts/cms/env.sh 先引导一份" >&2
+    echo "[ERR] .env.cms 不存在 — 跑 ./scripts/ops/db/env.sh 先引导一份" >&2
     exit 1
 fi
 
@@ -89,7 +89,7 @@ cmd_doctor() {
     fi
 
     if [ ! -d "db/content" ]; then
-        err "db/content/ directory missing — run ./scripts/cms/env.sh"
+        err "db/content/ directory missing — run ./scripts/ops/db/env.sh"
         ok=0
     else
         ok "db/content/ present"
@@ -194,7 +194,7 @@ cmd_bake() {
     echo
     ok "Built: ${FULL_IMAGE}"
     if [ -n "$DOCKER_REGISTRY" ]; then
-        echo "  To push: ./scripts/cms/push_image.sh"
+        echo "  To push: ./scripts/ops/db/push_image.sh"
     fi
 }
 
@@ -205,7 +205,7 @@ Usage: $0 [doctor]
   (no args)   Bake: export content from DB → stage into db/ → docker build
   doctor      Pre-flight environment check
 
-Push is a separate step: ./scripts/cms/push_image.sh
+Push is a separate step: ./scripts/ops/db/push_image.sh
 
 Environment (sourced from .env.cms):
   DB_IMAGE        Image name (default: english_db_content)
