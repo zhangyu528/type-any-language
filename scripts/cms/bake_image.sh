@@ -178,6 +178,10 @@ cmd_bake() {
     info "  labels: db.user=$POSTGRES_USER  db.name=$POSTGRES_DB  version=$DB_IMAGE_TAG  baked_at=$baked_at"
     docker build \
         --tag "${FULL_IMAGE}" \
+        --build-arg "DB_USER=${POSTGRES_USER}" \
+        --build-arg "DB_NAME=${POSTGRES_DB}" \
+        --build-arg "CONTENT_VERSION=${DB_IMAGE_TAG}" \
+        --build-arg "BAKED_AT=${baked_at}" \
         --label "org.opencontainers.image.source=https://github.com/zhangyu528/type-any-language" \
         --label "org.opencontainers.image.created=${baked_at}" \
         --label "type-any-language.role=content-baked-db" \
