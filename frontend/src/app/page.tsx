@@ -301,12 +301,6 @@ export default function PracticePage() {
     newResults[index] = isWordCorrect;
     setWordResults(newResults);
 
-    if (!isWordCorrect && value.length > 0) {
-      // Trigger error feedback
-      setJustErred(true);
-      setTimeout(() => setJustErred(false), 300);
-    }
-
     if (isWordCorrect) {
       // Auto-complete with correct case
       newInputs[index] = expectedWords[index];
@@ -409,6 +403,12 @@ export default function PracticePage() {
       const target = currentWord?.toLowerCase().replace(/[.,!?;:'"]/g, '');
       const input = userInputs[currentWordIndex]?.toLowerCase().replace(/[.,!?;:'"]/g, '');
       const isCorrectCell = input && input === target;
+      const isComplete = input && input.length === target?.length;
+
+      if (!isComplete) {
+        // 未输完或 input 为空：空格不响应（避免输入途中被震）
+        return;
+      }
 
       if (isCorrectCell && isLast) {
         // 末位答对：提交整句
@@ -417,7 +417,7 @@ export default function PracticePage() {
         // 自由模式 + 答对非末位：跳下一 cell
         setCurrentWordIndex(currentWordIndex + 1);
       } else {
-        // 答错（或 input 为空）：震动当前 cell
+        // 答错（输入完整但与 target 不符）：震动当前 cell
         setJustErred(true);
         setTimeout(() => setJustErred(false), 300);
       }
