@@ -163,6 +163,8 @@ IMAGE_TAG=v1.2.3 ./scripts/ops/db/bake_image.sh
 DB_IMAGE_TAG=v0.5.0 ./scripts/ops/db/bake_image.sh
 ```
 
+For a full release (bump + build + push), use `scripts/release.sh dev|prod X.Y.Z` instead of running these individually — see "Release flow" below.
+
 The dev/prod `run.sh` reads the same tags at start time, so what gets pulled from the registry matches what was built. `push_image.sh` uses the same convention.
 
 ### Drift detection
@@ -171,43 +173,47 @@ Every image carries the `type-any-language.app.version` LABEL (sourced from `APP
 
 ### Release flow
 
-`scripts/release.sh` is the single point of version management. It updates the right VERSION file(s), commits, and prints the per-host build+push commands.
+`scripts/release.sh` is the single point of release orchestration. It updates the right VERSION file, commits, then **builds and pushes** the relevant images — local-only when `DOCKER_REGISTRY` is unset, registry-push when it's set.
 
-| Subcommand | Touches | When |
+| Subcommand | Bumps | Builds + pushes |
 |---|---|---|
-| `bump dev  X.Y.Z`  | `VERSION.dev` only             | dev-only changes (hot-reload bug fix, dev-only feature) |
-| `bump prod X.Y.Z`  | `VERSION.prod` only            | CMS db re-bake (new content) without touching dev apps |
-| `bump all  X.Y.Z`  | both files (same value)        | normal release: dev apps + CMS db + prod apps all move together |
+| `show`              | — | — (print current VERSION.dev / VERSION.prod) |
+| `dev  [X.Y.Z]`      | `VERSION.dev`  | `english_{backend,frontend}_dev` |
+| `prod [X.Y.Z]`      | `VERSION.prod` | db (content-baked) + `english_{backend,frontend}` |
 
-The full release flow (using `bump all` as the example):
+`X.Y.Z` is optional: omit it to publish the current VERSION without bumping. Add `-y` to skip the bump-confirmation prompt.
+
+Local vs remote is controlled by the shell env:
 
 ```bash
-# On the dev workstation (after merging all changes to master):
-./scripts/release.sh bump all v0.3.0
-git push
+# Local mode — build images, no push
+./scripts/release.sh dev v0.3.0
 
-# On the CMS host (content-baked db image):
-git pull
-IMAGE_TAG=v0.3.0 ./scripts/ops/db/bake_image.sh
-IMAGE_TAG=v0.3.0 ./scripts/ops/db/push_image.sh -y
+# Remote mode — build + tag + push to your registry
+export DOCKER_REGISTRY=docker.io/youruser
+./scripts/release.sh prod v0.3.0 -y
 
-# On the dev target host:
-git pull
-IMAGE_TAG=v0.3.0 ./scripts/ops/dev-host/build_image.sh
-IMAGE_TAG=v0.3.0 ./scripts/ops/dev-host/push_image.sh -y
-
-# On the prod target host:
-git pull
-IMAGE_TAG=v0.3.0 ./scripts/ops/prod-host/build_image.sh
-IMAGE_TAG=v0.3.0 ./scripts/ops/prod-host/push_image.sh -y
-
-# Verify on each target host:
-./scripts/ops/<host>/run.sh doctor    # should show "drift OK (version=v0.3.0)" for all 3 services
+# Re-publish current VERSION (no bump)
+./scripts/release.sh dev
 ```
 
-For asymmetric cases (e.g. dev hot-fix while prod stays put), use `bump dev` only — the script will print just the dev-host commands and skip the CMS / prod lines.
+The full release flow with the new `release.sh` (one command per host):
 
-> Asymmetric case in practice: if you `bump dev` for a dev-only bug fix, prod continues to pull whatever `VERSION.prod` says, including a potentially-newer CMS db image. This is intentional — dev can always point at the latest db content. If you need prod to pin to an older db, use `DB_IMAGE_TAG=v0.2.5 ./scripts/ops/prod-host/run.sh start`.
+```bash
+# On the workstation — after merging changes to master:
+./scripts/release.sh dev v0.3.0       # bump VERSION.dev + build + push dev b/f
+./scripts/release.sh prod v0.3.0 -y    # bump VERSION.prod + bake db + push db + build + push prod b/f
+git push
+
+# On each target host — just verify, the images are already in the registry:
+./scripts/ops/<host>/run.sh doctor    # should show "drift OK (version=v0.3.0)" for all 3 services
+./scripts/ops/<host>/run.sh restart   # pull new image and recreate
+```
+
+Architecture notes:
+- `release.sh dev` only touches the dev app images. The db image is prod-bound and reads `VERSION.prod`; if you want dev to see new content, run `release.sh prod` first (or just push a new db with `VERSION.prod`).
+- `release.sh prod` includes the db bake. That step needs `.env.db`, so `prod` must run on the CMS host (or a single-machine CMS+prod setup). On a dedicated prod target host without `.env.db`, run `scripts/ops/db/bake_image.sh` on the CMS host first, then run `scripts/ops/prod-host/build_image.sh` + `push_image.sh` on the prod host.
+- For multi-machine deployments, run each subcommand on its respective host. The script is self-contained per host.
 
 ## Migration from pre-VERSION release
 
