@@ -1,67 +1,58 @@
 # backend/
 
-FastAPI read-layer for type-any-language. The runtime is intentionally thin:
-serve cached vocabulary + pre-baked sentences + static MP3s. No AI, no TTS,
-no scheduler — those run at bake time on the CMS host.
+type-any-language 的 FastAPI 读层。运行时有意做得很薄:提供已缓存的词库 + 预烤好的句子 + 静态 MP3。没有 AI、没有 TTS、没有调度器 —— 这些都在 CMS 主机的烘焙阶段跑。
 
-The full two-host architecture (CMS produces content, target hosts consume it)
-is described in [`../CLAUDE.md`](../CLAUDE.md).
+完整的双主机架构(CMS 生产内容、目标机消费)在 [`../CLAUDE.md`](../CLAUDE.md) 里有说明。
 
-## Stack
+## 技术栈
 
 - Python 3 / FastAPI / SQLAlchemy / pydantic-settings
-- Pure read-layer — every query lands on tables pre-populated by
-  `db/init/01-content.sql`, which the CMS host's `bake_image.sh` ships inside
-  the db image. `Base.metadata.create_all()` in `main.py` is a safety net
-  for tests, not the source of truth.
+- 纯读层 —— 每次查询都落在 CMS 主机 `bake_image.sh` 烤进 db image 的 `db/init/01-content.sql` 预填的表上。`main.py` 里的 `Base.metadata.create_all()` 只是测试用的兜底,不是事实源。
 
-## Layout
+## 目录结构
 
 ```
 backend/
 ├── Dockerfile         # prod image
-├── Dockerfile.dev     # dev image (uvicorn --reload, hash-aware entrypoint)
+├── Dockerfile.dev     # dev image(uvicorn --reload,hash-aware entrypoint)
 ├── requirements.txt
 ├── app/
-│   ├── main.py        # FastAPI app, CORS, /audio StaticFiles mount
-│   ├── config.py      # pydantic-settings (DATABASE_URL[_FILE], ALLOWED_ORIGINS)
+│   ├── main.py        # FastAPI 应用,CORS,挂载 /audio StaticFiles
+│   ├── config.py      # pydantic-settings(DATABASE_URL[_FILE], ALLOWED_ORIGINS)
 │   ├── database.py    # SQLAlchemy engine + Base
-│   ├── models/        # SQLAlchemy ORM (vocabulary, sentence)
-│   ├── routers/       # APIRouter definitions
-│   └── schemas/       # pydantic request/response models
+│   ├── models/        # SQLAlchemy ORM(vocabulary, sentence)
+│   ├── routers/       # APIRouter 定义
+│   └── schemas/       # pydantic 请求/响应模型
 ```
 
-## Endpoints
+## 接口
 
-| Method | Path | Purpose |
+| Method | Path | 用途 |
 |---|---|---|
-| `GET` | `/api/vocabulary/libs` | list all vocabulary libraries |
-| `GET` | `/api/vocabulary/libs/{id}` | one library |
-| `GET` | `/api/vocabulary/libs/{id}/words` | words in a library |
-| `GET` | `/api/vocabulary/libs/{id}/random?n=10` | N random words |
-| `GET` | `/api/sentences` | pre-baked sentences (filterable) |
-| `GET` | `/api/sentences/random` | one random sentence |
-| `GET` | `/api/sentences/{id}` | one sentence |
-| `GET` | `/audio/{filename}` | static MP3 from `/audio` volume (baked into db image) |
-| `GET` | `/` | version banner |
-| `GET` | `/health` | liveness probe |
-| `GET` | `/docs` | Swagger UI (FastAPI auto-generated) |
+| `GET` | `/api/vocabulary/libs` | 列出所有词库 |
+| `GET` | `/api/vocabulary/libs/{id}` | 单个词库 |
+| `GET` | `/api/vocabulary/libs/{id}/words` | 词库里的单词 |
+| `GET` | `/api/vocabulary/libs/{id}/random?n=10` | 随机 N 个单词 |
+| `GET` | `/api/sentences` | 预烤好的句子(可筛选) |
+| `GET` | `/api/sentences/random` | 随机一个句子 |
+| `GET` | `/api/sentences/{id}` | 单个句子 |
+| `GET` | `/audio/{filename}` | 静态 MP3(从 `/audio` 卷里取,烤在 db image 里) |
+| `GET` | `/` | 版本 banner |
+| `GET` | `/health` | 存活探针 |
+| `GET` | `/docs` | Swagger UI(FastAPI 自动生成) |
 
-## Config
+## 配置
 
-All config comes from env vars, resolved by `app.config.get_settings()`.
+所有配置都从环境变量来,由 `app.config.get_settings()` 解析。
 
-| Var | Source | Notes |
+| 变量 | 来源 | 说明 |
 |---|---|---|
-| `DATABASE_URL` | compose secret (`DATABASE_URL_FILE`) | `postgresql://...` connection URL |
-| `ALLOWED_ORIGINS` | shell env | comma-separated CORS allowlist, e.g. `https://my.domain`. Dev default: `http://localhost,http://localhost:3000` |
+| `DATABASE_URL` | compose secret(`DATABASE_URL_FILE`) | `postgresql://...` 连接串 |
+| `ALLOWED_ORIGINS` | shell env | 逗号分隔的 CORS 白名单,例如 `https://my.domain`。Dev 默认 `http://localhost,http://localhost:3000` |
 
-`DATABASE_URL` prefers the `*_FILE` indirection (compose's `secrets:` block)
-so the password never appears in `docker inspect` output. Resolution order is
-in `config.py:resolved_database_url()`. Target hosts need no `.env` file —
-`run.sh` writes `.secrets/database_url` (chmod 600) and compose mounts it.
+`DATABASE_URL` 优先用 `*_FILE` 间接方式(compose 的 `secrets:` 块),这样密码不会出现在 `docker inspect` 输出里。解析顺序见 `config.py:resolved_database_url()`。目标机不需要 `.env` 文件 —— `run.sh` 写 `.secrets/database_url`(chmod 600)然后 compose 挂载进去。
 
-## Local dev (without docker)
+## 本地开发(不用 docker)
 
 ```bash
 cd backend
@@ -74,26 +65,20 @@ export ALLOWED_ORIGINS=http://localhost,http://localhost:3000
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-You need a Postgres reachable at `$DATABASE_URL` with the schema already
-loaded. Easiest path: run the full dev stack once via `./dev.sh start`, then
-just point uvicorn at the same DB.
+需要有一个能通过 `$DATABASE_URL` 访问的 Postgres,且 schema 已经加载好了。最简单的路径:先用 `./dev.sh start` 把整个 dev 栈起来,然后让 uvicorn 指同一个 DB。
 
-## Hot reload (in dev)
+## 热重载(dev)
 
-In `docker-compose.dev.yml`, the backend service bind-mounts `./backend` and
-runs `uvicorn --reload`. Edit a `.py` file → FastAPI auto-restarts. No
-container restart needed.
+`docker-compose.dev.yml` 把 backend 服务 bind-mount 进去,跑 `uvicorn --reload`。改 `.py` 文件 → FastAPI 自动重启。无需重启容器。
 
-For dependency changes (`requirements.txt`), `entrypoint.sh` is hash-aware:
-it re-runs `pip install` only when the SHA256 changes. So you do need
-`./dev.sh restart` to recreate the container — but not a full image rebuild.
+依赖改动(`requirements.txt`)会被 `entrypoint.sh` 哈希感知:只有 SHA256 变了才重跑 `pip install`。所以确实需要 `./dev.sh restart` 重建容器 —— 但不需要重新 build image。
 
-## Tests
+## 测试
 
-No automated tests yet. Manual smoke test:
+还没有自动化测试。手动冒烟测试:
 
 ```bash
-# After the dev stack is up:
+# dev 栈起来之后:
 curl http://localhost:8000/health
 curl http://localhost:8000/api/vocabulary/libs
 curl http://localhost:8000/api/sentences/random

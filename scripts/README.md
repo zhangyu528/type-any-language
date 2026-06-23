@@ -1,53 +1,50 @@
 # scripts/
 
-Host-operations entry points and shared helpers. Almost everything an
-operator needs to manage the system lives under here.
+主机运维入口和共享 helper。运维需要的几乎所有东西都在这里。
 
-## Layout
+## 目录结构
 
 ```
 scripts/
-├── README.md           this file
-├── lib.sh              shared helpers — source from every script
-├── release.sh          release orchestrator (bump + build + push)
+├── README.md           本文件
+├── lib.sh              共享 helper —— 每个脚本都 source 它
+├── release.sh          release 编排器(bump + build + push)
 ├── ops/
-│   ├── db/             CMS host: content production + db image bake
-│   │   ├── env.sh        .env.db lifecycle (init/update/show/doctor)
+│   ├── db/             CMS 主机:内容生产 + db image 烘焙
+│   │   ├── env.sh        .env.db 生命周期(init/update/show/doctor)
 │   │   ├── content.sh    sync / sentences / audio / publish / export / doctor
-│   │   ├── bake_image.sh dump + audio copy + docker build
-│   │   └── push_image.sh push to $DOCKER_REGISTRY
-│   ├── dev-host/       dev target host (hot-reload)
-│   │   ├── run.sh        compose lifecycle (start/stop/restart/logs/doctor)
-│   │   ├── build_image.sh local backend+frontend image build
-│   │   └── push_image.sh  push backend+frontend to $DOCKER_REGISTRY
-│   └── prod-host/      prod target host (pre-compiled)
-│       ├── run.sh        compose lifecycle (start/stop/restart/logs/doctor)
-│       ├── build_image.sh local backend+frontend image build
-│       └── push_image.sh  push backend+frontend to $DOCKER_REGISTRY
-└── dev/                developer tools (lint/test/generate/...) — empty for now
+│   │   ├── bake_image.sh dump + audio 拷贝 + docker build
+│   │   └── push_image.sh 推到 $DOCKER_REGISTRY
+│   ├── dev-host/       dev 目标主机(热重载)
+│   │   ├── run.sh        compose 生命周期(start/stop/restart/logs/doctor)
+│   │   ├── build_image.sh 本地 build backend+frontend image
+│   │   └── push_image.sh  推到 $DOCKER_REGISTRY
+│   └── prod-host/      prod 目标主机(预编译)
+│       ├── run.sh        compose 生命周期(start/stop/restart/logs/doctor)
+│       ├── build_image.sh 本地 build backend+frontend image
+│       └── push_image.sh  推到 $DOCKER_REGISTRY
+└── dev/                开发者工具(lint/test/generate/...)—— 暂为空
 ```
 
-The two-host architecture (CMS host produces content, dev/prod targets
-serve it) is described in the project-root `CLAUDE.md`. This README
-focuses on the scripts themselves.
+双主机架构(CMS 主机生产内容,dev/prod 目标机消费)在仓库根的 `CLAUDE.md` 里有完整说明。本 README 聚焦在脚本本身。
 
-## Common entry points
+## 常用入口
 
-| You want to... | Run |
+| 想做的事 | 命令 |
 |---|---|
-| Release a new version | `./scripts/release.sh dev\|prod [X.Y.Z] [-y]` |
-| Show current versions | `./scripts/release.sh show` |
-| Inspect host readiness | `./scripts/ops/<host>/run.sh doctor` |
-| Start / stop / restart containers | `./scripts/ops/<host>/run.sh start\|stop\|restart` |
-| Bake + push a db image (CMS) | `./scripts/ops/db/bake_image.sh && ./scripts/ops/db/push_image.sh -y` |
-| Build + push app images (target) | `./scripts/ops/<host>/build_image.sh && ./scripts/ops/<host>/push_image.sh -y` |
-| Manage .env.db (CMS) | `./scripts/ops/db/env.sh [init\|update\|show\|doctor]` |
+| 发版 | `./scripts/release.sh dev\|prod [X.Y.Z] [-y]` |
+| 查看当前版本 | `./scripts/release.sh show` |
+| 检查主机就绪状态 | `./scripts/ops/<host>/run.sh doctor` |
+| 启动 / 停止 / 重启容器 | `./scripts/ops/<host>/run.sh start\|stop\|restart` |
+| 烘焙 + 推送 db image(CMS) | `./scripts/ops/db/bake_image.sh && ./scripts/ops/db/push_image.sh -y` |
+| Build + 推送应用镜像(目标机) | `./scripts/ops/<host>/build_image.sh && ./scripts/ops/<host>/push_image.sh -y` |
+| 管理 .env.db(CMS) | `./scripts/ops/db/env.sh [init\|update\|show\|doctor]` |
 
-`<host>` is `dev-host` or `prod-host`. The CMS scripts are under `db/`.
+`<host>` 是 `dev-host` 或 `prod-host`。CMS 脚本在 `db/` 下。
 
-## `lib.sh` — shared helpers
+## `lib.sh` —— 共享 helper
 
-Source it from every script:
+每个脚本都 source 它:
 ```bash
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
@@ -55,115 +52,99 @@ cd "$PROJECT_DIR"
 source "$SCRIPT_DIR/../../lib.sh"
 ```
 
-`lib.sh` provides:
+`lib.sh` 提供:
 
-| Helper | Purpose |
+| Helper | 用途 |
 |---|---|
-| `ok / warn / err / info`     | Colored printers (stdout / stderr-aware). Use these — never `echo` for status. |
-| `gen_secret <len>`           | URL-safe random string (used by run.sh to seed POSTGRES_PASSWORD). |
-| `detect_default_registry`    | `docker.io/$USER` if available, else empty. |
-| `find_repo_root`             | Walk up to `.git` or any `VERSION*` file. |
-| `read_version_file [path]`   | First non-empty/non-comment line of a VERSION file, or `v0.0.0`. |
-| `resolve_image_tag VAR [path]` | Per-image env > `IMAGE_TAG` > version file > `v0.0.0`. |
-| `warn_if_version_default <tag> [path]` | One-shot warn when VERSION is missing/empty. |
-| `sed_inplace PAT FILE`       | Portable in-place edit (GNU vs BSD/macOS sed). |
-| `check_docker_installed`     | Silent boolean. |
-| `check_docker_daemon_running`| Silent boolean (5s timeout to bound Docker Desktop startup). |
-| `require_docker`             | Exits 1 with friendly error if docker or compose missing. |
-| `image_exists NAME`          | `docker image inspect` — silent boolean. |
-| `require_image NAME [hint]`  | Exits 1 with friendly error + fix hint. |
-| `port_in_use PORT`           | Silent boolean. |
-| `warn_port_in_use PORT DESC` | Warn-only (never fails under `set -e`). |
-| `detect_compose_cmd`         | Sets `DOCKER_COMPOSE_CMD` (docker-compose vs `docker compose`). |
-| `file_exists / require_file` | File existence helpers. |
+| `ok / warn / err / info`     | 彩色打印(stdout/stderr 区分)。请用这些,不要用 `echo` 写状态。 |
+| `gen_secret <len>`           | URL-safe 随机串(run.sh 用它生成 POSTGRES_PASSWORD)。 |
+| `detect_default_registry`    | `docker.io/$USER` 或空(取得到的)。 |
+| `find_repo_root`             | 向上找到 `.git` 或任何 `VERSION*` 文件。 |
+| `read_version_file [path]`   | VERSION 文件的首个非空非注释行,或 `v0.0.0`。 |
+| `resolve_image_tag VAR [path]` | per-image env > `IMAGE_TAG` > version file > `v0.0.0`。 |
+| `warn_if_version_default <tag> [path]` | VERSION 缺失时的一次性 warn。 |
+| `sed_inplace PAT FILE`       | 跨平台原地编辑(GNU vs BSD/macOS sed)。 |
+| `check_docker_installed`     | 静默布尔。 |
+| `check_docker_daemon_running`| 静默布尔(5s 超时,Docker Desktop 启动时不会假死)。 |
+| `require_docker`             | docker / compose 缺失时友好报错并 exit 1。 |
+| `image_exists NAME`          | `docker image inspect` —— 静默布尔。 |
+| `require_image NAME [hint]`  | 缺失时友好报错并给出修复提示。 |
+| `port_in_use PORT`           | 静默布尔。 |
+| `warn_port_in_use PORT DESC` | 仅警告(`set -e` 下不会失败)。 |
+| `detect_compose_cmd`         | 设置 `DOCKER_COMPOSE_CMD`(docker-compose vs `docker compose`)。 |
+| `file_exists / require_file` | 文件存在性 helper。 |
 
-Two conventions to internalise:
-- **Status messages go through `ok/warn/err/info`** — never bare `echo` for them. The printers handle color, TTY detection, and `[OK]/[WARN]/[ERR]/[INFO]` prefixes consistently.
-- **When returning a value via stdout** (e.g. `tag="$(resolve_image_tag ...)"`), make sure the function's log messages go to **stderr** (`>&2`), so they don't get captured into the return value.
+两条约定请记住:
+- **状态消息一律走 `ok/warn/err/info`** —— 永远不要裸 `echo`。这些打印函数统一处理颜色、TTY 检测和 `[OK]/[WARN]/[ERR]/[INFO]` 前缀。
+- **函数通过 stdout 返回值时**(比如 `tag="$(resolve_image_tag ...)"`),日志必须走 **stderr**(`>&2`),否则会被一起捕获进返回值。
 
-## Conventions for new scripts
+## 新脚本的约定
 
-Every shell script in this repo follows the same skeleton:
+本仓库的每个 shell 脚本都遵循同一骨架:
 
 ```bash
 #!/bin/bash
 #
-# <path>/<name>.sh — <one-line summary>.
+# <path>/<name>.sh — <一行摘要>。
 #
-# <Multi-line description of what the script does, when to use it,
-#  what it doesn't do, and what env it reads.>
+# <多行说明:脚本做什么、何时用、不做什么、读什么环境变量。>
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Project root is the repo root, NOT scripts/. Go up enough levels
-# to land at the repo root regardless of nesting depth.
-#   scripts/<name>.sh                  → 1 level  (../)
-#   scripts/ops/<host>/<name>.sh       → 3 levels (../../..)
-PROJECT_DIR="$(cd "$SCRIPT_DIR/<correct/relative/path>" && pwd)"
+# PROJECT_DIR 必须是仓库根,不是 scripts/。往上走足够的层数落到仓库根,
+# 跟嵌套深度无关。
+#   scripts/<name>.sh                  → 1 层  (../)
+#   scripts/ops/<host>/<name>.sh       → 3 层 (../../..)
+PROJECT_DIR="$(cd "$SCRIPT_DIR/<正确的相对路径>" && pwd)"
 cd "$PROJECT_DIR"
 # shellcheck disable=SC1091
-source "$SCRIPT_DIR/<lib.sh path relative to SCRIPT_DIR>"
+source "$SCRIPT_DIR/<lib.sh 相对 SCRIPT_DIR 的路径>"
 
-require_docker    # if the script touches docker
+require_docker    # 脚本用到 docker 时
 
-# 1. Resolve config (env > VERSION file > default).
-# 2. Implement cmd_doctor / cmd_<action>.
-# 3. case "${1:-}" in ... esac — match subcommands.
+# 1. 解析配置(env > VERSION 文件 > 默认值)。
+# 2. 实现 cmd_doctor / cmd_<action>。
+# 3. case "${1:-}" in ... esac —— 路由 subcommand。
 ```
 
-Notes:
-- **`PROJECT_DIR` must be the repo root.** All compose files, VERSION
-  files, `.env`, `db/`, etc. live there. A common bug is going up one
-  level too few (lands in `scripts/` instead of repo root) — every
-  `scripts/ops/*/` script uses `$SCRIPT_DIR/../../..` for that reason.
-- **`set -e` from the top.** Fail fast; let `lib.sh`'s `require_*`
-  helpers handle the friendly error path.
-- **Subcommand API**: `cmd_<subcommand>` functions, dispatched via
-  `case "${1:-}" in`. `usage()` for help. Exit codes:
-  - 0 = success or user-cancelled
-  - 1 = prerequisite missing
-  - 2 = docker / push failure
-- **No Python in ops scripts.** The CMS pipeline uses Python
-  (`db/pipeline/*.py`), but `scripts/ops/` is shell-only. Target hosts
-  shouldn't even have Python.
-- **`source "$SCRIPT_DIR/../../lib.sh"`** is the import. Don't `source
-  ./lib.sh` — paths break if the operator cd's around.
+注意:
+- **`PROJECT_DIR` 必须是仓库根。** 所有 compose 文件、VERSION 文件、`.env`、`db/` 等都在那里。常见 bug 是少走一层(落在 `scripts/` 而不是仓库根)—— 每个 `scripts/ops/*/` 脚本用 `$SCRIPT_DIR/../../..` 就是为了避开这个坑。
+- **顶部 `set -e`**。fail fast;让 `lib.sh` 的 `require_*` 处理友好报错。
+- **Subcommand API**: `cmd_<subcommand>` 函数,通过 `case "${1:-}" in` 路由。`usage()` 出 help。退出码:
+  - 0 = 成功或用户取消
+  - 1 = 前置条件缺失
+  - 2 = docker / push 失败
+- **ops 脚本不要用 Python。** CMS 流水线用 Python(`db/pipeline/*.py`),但 `scripts/ops/` 全 shell。目标机甚至不应该装 Python。
+- **`source "$SCRIPT_DIR/../../lib.sh"`** 是引入方式。不要 `source ./lib.sh` —— 操作员切了目录就找不到。
 
-## Versioning model
+## 版本模型
 
-Two root files control image tags:
+仓库根两个文件控制 image tag:
 
-| File | Tags |
+| 文件 | 管哪些 image |
 |---|---|
-| `VERSION.dev`  | `english_backend_dev`, `english_frontend_dev` |
-| `VERSION.prod` | `english_db_content`, `english_backend`, `english_frontend` |
+| `VERSION.dev`  | `english_backend_dev`、`english_frontend_dev` |
+| `VERSION.prod` | `english_db_content`、`english_backend`、`english_frontend` |
 
-`VERSION.prod` is read by the dev target's `run.sh` for `DB_IMAGE_TAG`
-(because db is "prod-bound" content, shared by both targets). See the
-project-root `CLAUDE.md` → "Image version tags" for the resolution
-chain and override precedence.
+dev 目标机的 `run.sh` 也会读 `VERSION.prod` 来取 `DB_IMAGE_TAG`(因为 db 是 "prod-bound" 内容,两边共享)。完整的解析链和覆盖优先级见仓库根 `CLAUDE.md` 的 "Image version tags" 段。
 
-`scripts/release.sh` is the single point of version management —
-prefer it over editing VERSION files by hand.
+`scripts/release.sh` 是版本管理的唯一入口 —— 优先用它,别手改 VERSION 文件。
 
-## Adding a new script
+## 新增脚本流程
 
-1. Pick the right subdir:
-   - Affects a single host's container lifecycle → `scripts/ops/<host>/`
-   - Operates on the db image / .env.db → `scripts/ops/db/`
-   - Cross-cutting orchestrator → `scripts/`
-   - Developer tooling (lint, test, generate) → `scripts/dev/`
-2. Copy an existing same-shape script as a template (the `run.sh` /
-   `bake_image.sh` patterns are the canonical examples).
-3. Use the `SCRIPT_DIR / PROJECT_DIR` skeleton above — verify
-   `PROJECT_DIR` lands at the repo root.
-4. Source `lib.sh` and use its printers + helpers.
-5. Add a `usage()` function and route subcommands via `case`.
-6. If the new script is user-facing, add it to the "Common entry points"
-   table above and to the project-root `CLAUDE.md`.
+1. 选对子目录:
+   - 影响某台主机的容器生命周期 → `scripts/ops/<host>/`
+   - 操作 db image / .env.db → `scripts/ops/db/`
+   - 跨切面编排 → `scripts/`
+   - 开发者工具(lint、test、generate)→ `scripts/dev/`
+2. 复制一个相同形状的现有脚本作模板(`run.sh` / `bake_image.sh` 是最规范的例子)。
+3. 用上面那个 `SCRIPT_DIR / PROJECT_DIR` 骨架 —— 确认 `PROJECT_DIR` 落在仓库根。
+4. source `lib.sh`,用它提供的打印函数和 helper。
+5. 写 `usage()`,用 `case` 路由 subcommand。
+6. 如果是面向用户的脚本,加到上面的 "常用入口" 表,并补到仓库根 `CLAUDE.md`。
 
-## See also
+## 参见
 
-- `../CLAUDE.md` — project overview, two-host architecture, full command reference
-- `../db/pipeline/README.md` — Python content-production pipeline (CMS only)
+- `../CLAUDE.md` —— 项目总览、双主机架构、完整命令参考
+- `../db/pipeline/README.md` —— Python 内容生产流水线(仅 CMS)

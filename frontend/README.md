@@ -1,73 +1,62 @@
 # frontend/
 
-Next.js 14 (App Router) client for type-any-language. Single page that lets
-the user pick a vocabulary library, play a sentence's audio, and type the
-full sentence. Talks to the backend over a single `NEXT_PUBLIC_API_URL`.
+type-any-language 的 Next.js 14(App Router)客户端。单页:用户选词库,听句子音频,输入完整句子。通过唯一的 `NEXT_PUBLIC_API_URL` 跟 backend 通信。
 
-The full two-host architecture (CMS produces content, target hosts consume it)
-is described in [`../CLAUDE.md`](../CLAUDE.md).
+完整的双主机架构(CMS 生产内容、目标机消费)在 [`../CLAUDE.md`](../CLAUDE.md) 里有说明。
 
-## Stack
+## 技术栈
 
-- Next.js 14 (App Router, standalone output mode)
+- Next.js 14(App Router,standalone 输出模式)
 - React 18 / TypeScript 5
-- Plain CSS (Tailwind not in use)
-- `NEXT_PUBLIC_*` env vars are inlined at **build time** — the URL the
-  browser sees is baked into the JS bundle.
+- 原生 CSS(没用 Tailwind)
+- `NEXT_PUBLIC_*` 类环境变量在 **build 时**内联 —— 浏览器看到的是写死在 JS bundle 里的 URL
 
-## Layout
+## 目录结构
 
 ```
 frontend/
-├── Dockerfile         # prod image (next build + standalone server)
-├── Dockerfile.dev     # dev image (next dev, HMR, hot-reload)
-├── entrypoint.sh      # hash-aware npm ci (skips if package*.json unchanged)
+├── Dockerfile         # prod image(next build + standalone server)
+├── Dockerfile.dev     # dev image(next dev,HMR,热重载)
+├── entrypoint.sh      # 哈希感知的 npm ci(如果 package*.json 没变就跳过)
 ├── next.config.js     # output: 'standalone' + NEXT_PUBLIC_API_URL
 ├── package.json
-├── public/            # static assets served from /
+├── public/            # / 路径下的静态资源
 └── src/
     └── app/           # App Router
-        ├── layout.tsx # root layout
-        ├── page.tsx   # <PracticePage /> — the only page
-        ├── api.ts     # typed client: getVocabularyLibs / generateSentences / checkAnswer / getAudioUrl
+        ├── layout.tsx # 根布局
+        ├── page.tsx   # <PracticePage /> —— 唯一的页面
+        ├── api.ts     # 类型化客户端:getVocabularyLibs / generateSentences / checkAnswer / getAudioUrl
         └── globals.css
 ```
 
-## Config
+## 配置
 
-| Var | Build/Runtime | Default | Notes |
+| 变量 | build/runtime | 默认值 | 说明 |
 |---|---|---|---|
-| `NEXT_PUBLIC_API_URL` | build | `http://localhost:8000` (dev compose) / `/api` (prod compose) | Base URL the browser fetches from. **Build-time only** — change requires a rebuild (`./scripts/ops/{dev,prod}-host/build_image.sh`). |
+| `NEXT_PUBLIC_API_URL` | build | dev compose `http://localhost:8000` / prod compose `/api` | 浏览器访问的 base URL。**仅 build 时生效** —— 改了要重新 build(`./scripts/ops/{dev,prod}-host/build_image.sh`)。 |
 
-The value comes from compose's `${NEXT_PUBLIC_API_URL:-default}` substitution,
-which in turn can be set by the host's shell env (`export NEXT_PUBLIC_API_URL=...
-./dev.sh start`). See `docker-compose.dev.yml` and `docker-compose.yml`.
+值来自 compose 的 `${NEXT_PUBLIC_API_URL:-default}` 替换,而这个变量又可以被主机的 shell env 覆盖(`export NEXT_PUBLIC_API_URL=... ./dev.sh start`)。详见 `docker-compose.dev.yml` 和 `docker-compose.yml`。
 
-## Local dev (without docker)
+## 本地开发(不用 docker)
 
 ```bash
 cd frontend
 npm install
 export NEXT_PUBLIC_API_URL=http://localhost:8000
-npm run dev          # Next dev server on http://localhost:3000
+npm run dev          # Next dev server 在 http://localhost:3000
 ```
 
-Hot reload is on by default. The page calls the backend at
-`$NEXT_PUBLIC_API_URL` — make sure the backend is up at that address.
+默认开了热重载。页面会调 `$NEXT_PUBLIC_API_URL` 指向的 backend —— 确保那个地址 backend 是好的。
 
-## Hot reload (in dev)
+## 热重载(dev)
 
-In `docker-compose.dev.yml`, the frontend service bind-mounts `./frontend`
-(except `node_modules`) and runs `npm run dev`. HMR works out of the box.
+`docker-compose.dev.yml` 把 frontend 服务 bind-mount 进去(`node_modules` 除外),跑 `npm run dev`。HMR 开箱即用。
 
-For dependency changes (`package.json` / `package-lock.json`),
-`entrypoint.sh` is hash-aware: it re-runs `npm ci` only when the file
-SHA256 changes. You do need `./dev.sh restart` to recreate the container.
+依赖改动(`package.json` / `package-lock.json`)会被 `entrypoint.sh` 哈希感知:只有文件 SHA256 变了才重跑 `npm ci`。确实需要 `./dev.sh restart` 重建容器。
 
-## Production build
+## 生产 build
 
-`Dockerfile` runs `npm run build` (with `output: 'standalone'` in
-`next.config.js`) and starts the standalone server:
+`Dockerfile` 跑 `npm run build`(`next.config.js` 里配了 `output: 'standalone'`),然后启动 standalone server:
 
 ```bash
 docker build \
@@ -76,11 +65,8 @@ docker build \
   ./frontend
 ```
 
-The standalone server defaults to port 3000. The main nginx container in
-`docker-compose.yml` proxies host :80 → `frontend:3000`.
+standalone server 默认 3000 端口。`docker-compose.yml` 里的 nginx 容器把宿主机 :80 代理到 `frontend:3000`。
 
-## Notes
+## 备注
 
-- `frontend/nginx.conf` exists but is **not referenced by any compose file or
-  Dockerfile** (the project-level `nginx/nginx.conf` is what runs). It's
-  leftover from an earlier CRA-based setup and safe to delete.
+- `frontend/nginx.conf` 存在但 **没有任何 compose 文件或 Dockerfile 引用它**(跑的是项目级 `nginx/nginx.conf`)。是早期 CRA 时代的遗留,删了也没事。
