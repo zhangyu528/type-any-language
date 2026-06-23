@@ -25,6 +25,7 @@
 #                                or any VERSION* under repo root; falls back to "v0.0.0")
 #   - resolve_image_tag VAR [path] (per-image env > IMAGE_TAG > version file > "v0.0.0")
 #   - warn_if_version_default    (one-shot warn when VERSION file is missing/empty)
+#   - resolve_docker_registry    (shell env > REGISTRY file > detect_default_registry())
 #   - sed_inplace                (portable sed -i; GNU vs BSD/macOS)
 #
 
@@ -328,6 +329,83 @@ warn_if_version_default() {
         fi
         _LIB_VERSION_WARNED=1
     fi
+}
+
+# ---------------------------------------------------------------------------
+# Registry resolution
+# ---------------------------------------------------------------------------
+# DOCKER_REGISTRY is the shared project-wide namespace prefix used for
+# `docker push` / `docker pull` (e.g. docker.io/zhangyu528, ghcr.io/myorg).
+# Unlike POSTGRES_PASSWORD or AI_API_KEY, it is NOT a personal secret — it
+# is project config that the whole team shares. It therefore lives in a
+# committed REGISTRY file at the repo root (symmetric with VERSION.dev /
+# VERSION.prod), not in the gitignored .env.db.
+#
+# Resolution order (highest priority first):
+#   1. Shell env:    export DOCKER_REGISTRY=docker.io/youruser
+#   2. REGISTRY file at repo root (first non-empty/non-comment DOCKER_REGISTRY= line)
+#   3. Auto-detect:  detect_default_registry() (docker.io/$USER or "")
+#   4. ""           (local-only mode — push is disabled)
+#
+# An empty/unset result is NOT an error: target hosts in local-only mode
+# (no DOCKER_REGISTRY anywhere) work fine — they just skip the push /
+# skip the auto-pull. Push scripts treat empty as a hard fail (since
+# pushing with no namespace is meaningless), but the resolver itself
+# always succeeds.
+
+# read_registry_file [path]  → echoes the first non-empty/non-comment
+# DOCKER_REGISTRY= value found in $path (strips `DOCKER_REGISTRY=` prefix,
+# surrounding whitespace, CR, and any inline comment after a `#`).
+# Echoes "" if the file is missing or has no usable line.
+read_registry_file() {
+    local path="${1:-}"
+    if [ -z "$path" ] || [ ! -f "$path" ]; then
+        echo ""
+        return 0
+    fi
+    local v
+    v="$(awk 'NF && substr($0,1,1) != "#" {
+            if (match($0, /^[[:space:]]*DOCKER_REGISTRY[[:space:]]*=/)) {
+                val = substr($0, RSTART + RLENGTH);
+                gsub(/\r/, "", val);
+                sub(/[[:space:]]*#.*/, "", val);
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", val);
+                print val;
+                exit
+            }
+        }' "$path")"
+    echo "${v:-}"
+}
+
+# resolve_docker_registry  → sets $DOCKER_REGISTRY in the caller's scope
+# (and exports it) following the chain above. Always succeeds; an empty
+# result means "local-only mode".
+#
+# Usage:
+#   source lib.sh
+#   resolve_docker_registry
+#   echo "$DOCKER_REGISTRY"
+resolve_docker_registry() {
+    # 1. Shell env wins.
+    if [ -n "${DOCKER_REGISTRY:-}" ]; then
+        export DOCKER_REGISTRY
+        return 0
+    fi
+    # 2. REGISTRY file at repo root.
+    local root registry_path file_val
+    root="$(find_repo_root)"
+    if [ -n "$root" ]; then
+        registry_path="$root/REGISTRY"
+        file_val="$(read_registry_file "$registry_path")"
+        if [ -n "$file_val" ]; then
+            DOCKER_REGISTRY="$file_val"
+            export DOCKER_REGISTRY
+            return 0
+        fi
+    fi
+    # 3. Auto-detect (best effort).
+    DOCKER_REGISTRY="$(detect_default_registry)"
+    export DOCKER_REGISTRY
 }
 
 # ---------------------------------------------------------------------------

@@ -23,10 +23,15 @@
 # Configuration is read from the shell env (target hosts have no .env):
 #   DOCKER_REGISTRY  namespace prefix  (REQUIRED — push is disabled when
 #                                       empty; that's local-only mode).
+#                      Source precedence:
+#                        1. shell env:   export DOCKER_REGISTRY=...
+#                        2. REGISTRY file at repo root (committed shared config)
+#                        3. auto-detect: detect_default_registry()
+#                                        (docker.io/$USER or "")
 #
-# Pushes (tag = latest by default):
-#   english_backend_dev   → ${DOCKER_REGISTRY}/english_backend_dev:latest
-#   english_frontend_dev  → ${DOCKER_REGISTRY}/english_frontend_dev:latest
+# Pushes (tag = VERSION.dev by default):
+#   english_backend_dev   → ${DOCKER_REGISTRY}/english_backend_dev:vX.Y.Z
+#   english_frontend_dev  → ${DOCKER_REGISTRY}/english_frontend_dev:vX.Y.Z
 #
 # The db image is NOT pushed here — CMS host's scripts/ops/db/push_image.sh
 # is the source of truth for that image (it's content-baked, not built here).
@@ -46,7 +51,9 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 cd "$PROJECT_DIR"
 source "$SCRIPT_DIR/../../lib.sh"
 
-DOCKER_REGISTRY="${DOCKER_REGISTRY:-}"
+# DOCKER_REGISTRY: shell env > ./REGISTRY file > detect_default_registry().
+# Symmetric with db/push_image.sh and prod-host/push_image.sh.
+resolve_docker_registry
 
 COMPOSE_FILE="docker-compose.dev.yml"
 BACKEND_IMAGE="english_backend_dev"
@@ -68,6 +75,7 @@ cmd_doctor() {
     if [ -z "$DOCKER_REGISTRY" ]; then
         err "DOCKER_REGISTRY 未设置 — push 需要 registry"
         info "  → export DOCKER_REGISTRY=docker.io/youruser"
+        info "  → 或在仓库根的 REGISTRY 文件里设置 (commit 后全队共享)"
         ok=0
     else
         ok "DOCKER_REGISTRY=$DOCKER_REGISTRY"
@@ -136,6 +144,7 @@ cmd_push() {
     if [ -z "$DOCKER_REGISTRY" ]; then
         err "DOCKER_REGISTRY 未设置 — push 需要 registry"
         info "  → export DOCKER_REGISTRY=docker.io/youruser"
+        info "  → 或在仓库根的 REGISTRY 文件里设置 (commit 后全队共享)"
         exit 1
     fi
 
@@ -218,6 +227,7 @@ usage() {
 
 配置 (shell env):
   DOCKER_REGISTRY         registry 命名空间 (REQUIRED for push)
+                          解析: shell env > ./REGISTRY 文件 > detect_default_registry()
   BACKEND_IMAGE_TAG       backend  image tag (默认: VERSION.dev)
   FRONTEND_IMAGE_TAG      frontend image tag (默认: VERSION.dev)
   IMAGE_TAG               通用 tag 覆盖 (CI 用，一次性给所有 image 设同 tag)

@@ -24,6 +24,7 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generat
 ```
 ├── VERSION.dev           # tag for english_backend_dev / english_frontend_dev (dev stream)
 ├── VERSION.prod          # tag for english_db_content / english_backend / english_frontend (prod stream + CMS db)
+├── REGISTRY              # DOCKER_REGISTRY namespace for push/pull (committed shared config)
 ├── backend/              # FastAPI + SQLAlchemy — pure read-layer
 │   ├── app/
 │   │   ├── main.py      # FastAPI entry, CORS, /audio static mount
@@ -127,6 +128,26 @@ No `.env` is needed. `ALLOWED_ORIGINS` defaults to `http://localhost` in the pro
 
 **Image registry model**: CMS host pushes the content-baked `db` image; each target host pushes its own `backend + frontend` images. Target hosts `docker pull` all 3 from `$DOCKER_REGISTRY` when `DOCKER_REGISTRY` is set (auto-pulled by `run.sh start`).
 
+The registry namespace (e.g. `docker.io/zhangyu528`) is **shared project config** that the whole team uses. It is **not** a personal secret, so it lives in the committed `REGISTRY` file at the repo root (symmetric with `VERSION.dev` / `VERSION.prod`), not in `.env.db` (gitignored). See [Image registry namespace](#image-registry-namespace) below.
+
+## Image registry namespace
+
+The `DOCKER_REGISTRY` shell variable is the namespace prefix prepended to `image:tag` for `docker push` / `docker pull`. The chain (`scripts/lib.sh` → `resolve_docker_registry`) is, in order of decreasing precedence:
+
+1. **Shell env** — `export DOCKER_REGISTRY=docker.io/youruser` (highest priority; CI / one-off override)
+2. **`./REGISTRY` file at repo root** — committed, shared project config (typical default)
+3. **`detect_default_registry()`** — `docker.io/$USER` (best-effort guess; useful for solo dev work)
+4. **Empty** — local-only mode; push scripts fail with a clear error, run scripts just skip the auto-pull
+
+The `REGISTRY` file's format: first non-empty, non-comment line starting with `DOCKER_REGISTRY=`. It ships with the `DOCKER_REGISTRY=` line **commented out** — fill it in and uncomment to publish the team's shared namespace.
+
+```bash
+# REGISTRY
+DOCKER_REGISTRY=docker.io/zhangyu528   # ← uncomment + edit
+```
+
+> Why committed and not `.env`? Like `VERSION.dev` / `VERSION.prod`, this is shared project config that the whole team should agree on — putting it in a gitignored `.env` means every operator has to set it themselves, and the same value gets typed in N places. Personal secrets (postgres password, AI keys, TTS keys) stay in `.env.db` (gitignored); shared config lives at the repo root.
+
 ## Image version tags
 
 All 5 images (`db`, `english_backend{,_dev}`, `english_frontend{,_dev}`) carry an explicit tag. Defaults come from two root files — dev and prod can drift independently:
@@ -185,14 +206,14 @@ Every image carries the `type-any-language.app.version` LABEL (sourced from `APP
 
 `X.Y.Z` is optional: omit it to publish the current VERSION without bumping. Add `-y` to skip the bump-confirmation prompt.
 
-Local vs remote is controlled by the shell env:
+Local vs remote is controlled by `DOCKER_REGISTRY` (chain: shell env → `./REGISTRY` file → auto-detect → empty):
 
 ```bash
 # Local mode — build images, no push
 ./scripts/release.sh dev v0.3.0
 
-# Remote mode — build + tag + push to your registry
-export DOCKER_REGISTRY=docker.io/youruser
+# Remote mode — uses REGISTRY file (committed, shared team namespace)
+# (or override via shell env if pushing to a one-off namespace)
 ./scripts/release.sh prod v0.3.0 -y
 
 # Re-publish current VERSION (no bump)
@@ -286,14 +307,14 @@ Required:
 - `AUDIO_DIR` — where `generate_audio.py` writes MP3s and `bake_image.sh` reads them from
 - `POSTGRES_USER`, `POSTGRES_DB` — db identity (baked into image labels)
 - `DB_IMAGE` — image name (default: `english_db_content`)
-- `DB_IMAGE_TAG` — image tag (default: root `VERSION.prod`; `.env.db` / shell env override)
 
-> `DOCKER_REGISTRY` is **not** in `.env.db` — push is a separate concern. Set it in the shell before running `push_image.sh`:
-> ```bash
-> export DOCKER_REGISTRY=docker.io/youruser
-> ./scripts/ops/db/push_image.sh
-> ```
-> (Symmetric with dev/prod `push_image.sh`.)
+The image tag (`DB_IMAGE_TAG`) comes from the root `VERSION.prod` file (resolved by `scripts/lib.sh` → `resolve_image_tag`); shell env can override it for one-off builds. It is **not** a `.env.db` field.
+
+`DOCKER_REGISTRY` is **not** in `.env.db` either — it is shared project config that lives in the committed `REGISTRY` file at the repo root (see [Image registry namespace](#image-registry-namespace) above). Override at push time via shell env if you need a one-off namespace:
+```bash
+export DOCKER_REGISTRY=docker.io/youruser   # overrides REGISTRY file
+./scripts/ops/db/push_image.sh
+```
 
 Optional:
 - `DEFAULT_BUCKET_TARGET_SIZE` — sentences per (lib, difficulty) bucket (default 200)
@@ -306,7 +327,8 @@ Runtime configuration is via shell env (passed to `run.sh` via `KEY=value run.sh
   ```bash
   ALLOWED_ORIGINS=https://my.domain ./scripts/ops/prod-host/run.sh start
   ```
-- `DOCKER_REGISTRY`, `DB_IMAGE_TAG` — which baked db image to pull (default: `VERSION.prod`; when `DOCKER_REGISTRY` is set, `run.sh start` auto-pulls on every start/restart)
+- `DOCKER_REGISTRY` — registry namespace to push to / pull from. Comes from the committed `REGISTRY` file at the repo root; shell env wins. When set, `run.sh start` auto-pulls the db image (and on dev, the backend + frontend images) on every start/restart. Empty = local-only mode.
+- `DB_IMAGE_TAG` — which baked db image to pull. Default: `VERSION.prod`.
 - `BACKEND_IMAGE_TAG`, `FRONTEND_IMAGE_TAG` — image tag for backend/frontend. Default: `VERSION.dev` on dev hosts, `VERSION.prod` on prod hosts (resolved by `scripts/lib.sh`). Override per image, or set `IMAGE_TAG` to bump all images at once (CI use):
   ```bash
   IMAGE_TAG=v1.2.3 ./scripts/ops/prod-host/run.sh start

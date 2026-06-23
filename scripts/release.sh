@@ -33,6 +33,9 @@
 #                              that namespace. Set it in the shell:
 #                                export DOCKER_REGISTRY=docker.io/you
 #                                ./scripts/release.sh dev v0.3.0
+#                              Or commit it to ./REGISTRY at the repo root
+#                              (see REGISTRY file header for the rationale —
+#                              shared project config, not a personal secret).
 #
 # Architecture notes:
 #   - `dev` touches ONLY the dev app images. The db image is prod-bound
@@ -68,6 +71,16 @@ VERSION_DEV="VERSION.dev"
 VERSION_PROD="VERSION.prod"
 YES=0
 
+# Resolve DOCKER_REGISTRY once at startup. The chain is:
+#   shell env > ./REGISTRY file > detect_default_registry() (auto-detect).
+# publish_one() later checks $DOCKER_REGISTRY to decide push vs local-only.
+resolve_docker_registry
+if [ -n "$DOCKER_REGISTRY" ]; then
+    info "DOCKER_REGISTRY=$DOCKER_REGISTRY (push mode)"
+else
+    info "DOCKER_REGISTRY 未设置 (local-only mode — 只 build, 不 push)"
+fi
+
 # ---------------------------------------------------------------------------
 # Tiny arg helpers
 # ---------------------------------------------------------------------------
@@ -89,6 +102,7 @@ Flags:
 环境:
   DOCKER_REGISTRY     留空 = 本地模式 (只 build, 不 push)
                       设置 = remote 模式 (build + tag + push 到该 namespace)
+                      解析顺序: shell env > ./REGISTRY 文件 > 自动检测 (docker.io/$USER)
 
 示例:
   $0 show

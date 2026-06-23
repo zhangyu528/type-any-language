@@ -1,0 +1,25 @@
+# Project-wide registry namespace for `docker push` / `docker pull`.
+#
+# Used by scripts/release.sh, scripts/ops/db/push_image.sh, and the
+# dev / prod target host run.sh + push_image.sh — anywhere the docker
+# images need to be published or pulled.
+#
+# Resolution chain (highest priority first):
+#   1. Shell env: `export DOCKER_REGISTRY=docker.io/youruser`
+#   2. This file (REGISTRY) — first non-empty, non-comment DOCKER_REGISTRY= line
+#   3. Auto-detect (lib.sh → detect_default_registry) — docker.io/$USER or empty
+#
+# Format: a namespace prefix prepended to `image:tag` for push/pull.
+#   docker.io/zhangyu528
+#   ghcr.io/myorg
+#   registry.gitlab.com/mygroup
+#
+# This file is COMMITTED to git. It is shared project config, not a
+# personal secret. Personal secrets (postgres password, AI keys, TTS
+# keys) live in `.env.db` (gitignored) on the CMS host.
+#
+# Leave this file empty (no uncommented DOCKER_REGISTRY= line) to fall
+# back to detect_default_registry() (docker.io/$USER on most dev hosts).
+# Uncomment + edit the line below to pin a shared registry for the team.
+
+# DOCKER_REGISTRY=docker.io/youruser

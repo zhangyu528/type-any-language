@@ -51,9 +51,15 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 cd "$PROJECT_DIR"
 source "$SCRIPT_DIR/../../lib.sh"
 
-# DOCKER_REGISTRY may be set in the shell env (CI / wrapper). Default to
-# "auto-pull off" (local-only mode) when unset.
-DOCKER_REGISTRY="${DOCKER_REGISTRY:-}"
+# DOCKER_REGISTRY: shell env > ./REGISTRY file > detect_default_registry().
+# Empty (after the chain) means "local-only mode" — auto-pull from registry
+# is disabled, but the dev compose still works (it pulls the local image).
+resolve_docker_registry
+if [ -n "$DOCKER_REGISTRY" ]; then
+    info "DOCKER_REGISTRY=$DOCKER_REGISTRY (auto-pull on)"
+else
+    info "DOCKER_REGISTRY 未设置 (auto-pull off, local-only mode)"
+fi
 DB_IMAGE="${DB_IMAGE:-english_db_content}"
 # *_IMAGE_TAG resolve to:
 #   DB_IMAGE_TAG       ← VERSION.prod (db is "prod-bound" content shared by both targets)

@@ -29,7 +29,8 @@
 #                                      empty; that's local-only mode).
 #                      Source precedence:
 #                        1. shell env:   export DOCKER_REGISTRY=...
-#                        2. auto-detect: detect_default_registry()
+#                        2. REGISTRY file at repo root (committed shared config)
+#                        3. auto-detect: detect_default_registry()
 #                                        (docker.io/$USER or "")
 #   DB_IMAGE         image name        (default: english_db_content,
 #                                        shell env override)
@@ -63,9 +64,9 @@ source "$SCRIPT_DIR/../../lib.sh"
 DB_IMAGE="${DB_IMAGE:-english_db_content}"
 resolve_image_tag DB_IMAGE_TAG VERSION.prod
 warn_if_version_default "$DB_IMAGE_TAG" VERSION.prod
-# DOCKER_REGISTRY is push-only concern. Shell env wins; falls back to a
-# best-effort auto-detect. Symmetric with dev/prod push_image.sh.
-DOCKER_REGISTRY="${DOCKER_REGISTRY:-$(detect_default_registry)}"
+# DOCKER_REGISTRY is push-only concern. Symmetric with dev/prod push_image.sh.
+# Chain: shell env > ./REGISTRY file > detect_default_registry().
+resolve_docker_registry
 
 LOCAL_IMAGE="${DB_IMAGE}:${DB_IMAGE_TAG}"
 if [ -n "$DOCKER_REGISTRY" ]; then
@@ -86,6 +87,7 @@ cmd_doctor() {
     if [ -z "$DOCKER_REGISTRY" ]; then
         err "DOCKER_REGISTRY 未设置 — push 需要 registry"
         info "  → export DOCKER_REGISTRY=docker.io/youruser"
+        info "  → 或在仓库根的 REGISTRY 文件里设置 (commit 后全队共享)"
         ok=0
     else
         ok "DOCKER_REGISTRY=$DOCKER_REGISTRY"
@@ -144,6 +146,7 @@ cmd_push() {
     if [ -z "$DOCKER_REGISTRY" ]; then
         err "DOCKER_REGISTRY 未设置 — push 需要 registry"
         info "  → export DOCKER_REGISTRY=docker.io/youruser"
+        info "  → 或在仓库根的 REGISTRY 文件里设置 (commit 后全队共享)"
         exit 1
     fi
 
@@ -206,7 +209,7 @@ usage() {
 
 配置:
   DOCKER_REGISTRY  registry 命名空间 (REQUIRED for push)
-                   来源: shell env > detect_default_registry()
+                   来源: shell env > ./REGISTRY 文件 > detect_default_registry()
                          export DOCKER_REGISTRY=docker.io/youruser
   DB_IMAGE         image 名字  (默认: english_db_content; shell env 覆盖)
   DB_IMAGE_TAG     image tag   (默认: VERSION.prod; shell env 覆盖)
