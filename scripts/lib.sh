@@ -20,9 +20,10 @@
 #   - warn_port_in_use           (prints warning if in use)
 #   - gen_secret                 (random URL-safe string)
 #   - detect_default_registry    (docker.io/$USER or empty)
-#   - find_repo_root             (walk up to .git or VERSION; echoes "" if neither)
-#   - read_version_file          (echo first non-empty/non-comment line of ./VERSION, or "v0.0.0")
-#   - resolve_image_tag VAR      (per-image env > IMAGE_TAG > VERSION file > "v0.0.0")
+#   - find_repo_root             (walk up to .git or any VERSION* file; "" if neither)
+#   - read_version_file [path]   (echo first non-empty/non-comment line of path,
+#                                or any VERSION* under repo root; falls back to "v0.0.0")
+#   - resolve_image_tag VAR [path] (per-image env > IMAGE_TAG > version file > "v0.0.0")
 #   - warn_if_version_default    (one-shot warn when VERSION file is missing/empty)
 #   - sed_inplace                (portable sed -i; GNU vs BSD/macOS)
 #
@@ -192,40 +193,82 @@ detect_default_registry() {
 # Version resolution
 # ---------------------------------------------------------------------------
 # The project's image tags (db + backend + frontend) all default to the
-# contents of the root VERSION file, with shell-env overrides. The dev and
-# prod run scripts also call resolve_image_tag so the image they pull
-# matches the one that was built.
+# contents of a VERSION file in the repo root, with shell-env overrides.
+# The dev and prod run scripts also call resolve_image_tag so the image
+# they pull matches the one that was built.
+#
+# The repo now carries TWO version files so dev and prod can drift
+# independently:
+#   VERSION.dev   → tag for english_backend_dev / english_frontend_dev
+#   VERSION.prod  → tag for english_db_content / english_backend / english_frontend
+# (db is "prod-bound" content: it's shared by both targets, so dev always
+# reads db's tag from VERSION.prod.)
 #
 # Resolution order (highest priority first):
 #   1. Per-image env var, e.g. BACKEND_IMAGE_TAG=v1.2.3
-#   2. Generic IMAGE_TAG env var (CI convenience — bumps all 5 images)
-#   3. Root ./VERSION file: first non-empty, non-comment line, trimmed
+#   2. Generic IMAGE_TAG env var (CI convenience — bumps all images at once)
+#   3. The VERSION file path passed in (resolved by read_version_file)
 #   4. Literal "v0.0.0" fallback (won't break a build, but warns once)
 
 # find_repo_root [start] → echoes the absolute path of the repo root, or "".
 # Walks up from $start (default: dir of BASH_SOURCE) until it finds a .git
-# directory or a VERSION file. Returns "" if neither is found.
+# directory or any VERSION* file. Returns "" if neither is found.
 find_repo_root() {
     local start="${1:-$(dirname "${BASH_SOURCE[0]}")}"
-    local dir
+    local dir f
     dir="$(cd "$start" 2>/dev/null && pwd)" || return 0
     while [ -n "$dir" ] && [ "$dir" != "/" ]; do
-        if [ -d "$dir/.git" ] || [ -f "$dir/VERSION" ]; then
+        if [ -d "$dir/.git" ]; then
             echo "$dir"
             return 0
         fi
+        # Match any VERSION* file (VERSION, VERSION.dev, VERSION.prod, ...).
+        # nullglob means an empty expansion doesn't produce a literal pattern.
+        local _saved; _saved="$(shopt -p nullglob 2>/dev/null || true)"
+        shopt -s nullglob
+        for f in "$dir"/VERSION*; do
+            if [ -f "$f" ]; then
+                # shellcheck disable=SC2164
+                [ -n "$_saved" ] && eval "$_saved" || shopt -u nullglob
+                echo "$dir"
+                return 0
+            fi
+        done
+        # shellcheck disable=SC2164
+        [ -n "$_saved" ] && eval "$_saved" || shopt -u nullglob
         dir="$(dirname "$dir")"
     done
     echo ""
 }
 
-# read_version_file → echoes the first non-empty, non-comment line of the
-# root VERSION file, stripped of BOM / CR / surrounding whitespace. Falls
-# back to "v0.0.0" when the file is missing or contains no usable content.
+# read_version_file [path]  → echoes the first non-empty, non-comment line
+# of $path (stripped of BOM / CR / surrounding whitespace), or "v0.0.0" if
+# the file is missing or contains no usable content.
+#
+# If $path is empty/unset, falls back to scanning the repo root for any
+# VERSION* file (priority: VERSION → VERSION.prod → VERSION.dev) — this is
+# the back-compat path for callers that haven't been updated yet.
 read_version_file() {
-    local repo_root
-    repo_root="$(find_repo_root)"
-    if [ -z "$repo_root" ] || [ ! -f "$repo_root/VERSION" ]; then
+    local path="${1:-}"
+    if [ -z "$path" ]; then
+        local root
+        root="$(find_repo_root)"
+        if [ -z "$root" ]; then
+            echo "v0.0.0"
+            return 0
+        fi
+        # Priority order for the implicit lookup. New callers should always
+        # pass the path explicitly; this is purely a safety net.
+        for path in "$root/VERSION" "$root/VERSION.prod" "$root/VERSION.dev"; do
+            if [ -f "$path" ]; then break; fi
+            path=""
+        done
+        if [ -z "$path" ]; then
+            echo "v0.0.0"
+            return 0
+        fi
+    fi
+    if [ ! -f "$path" ]; then
         echo "v0.0.0"
         return 0
     fi
@@ -235,7 +278,7 @@ read_version_file() {
             gsub(/^[[:space:]]+|[[:space:]]+$/, "");
             print;
             exit
-        }' "$repo_root/VERSION")"
+        }' "$path")"
     if [ -z "$v" ]; then
         echo "v0.0.0"
     else
@@ -243,16 +286,18 @@ read_version_file() {
     fi
 }
 
-# resolve_image_tag VAR_NAME
+# resolve_image_tag VAR_NAME [path]
 #   If $VAR_NAME is already set and non-empty, leave it alone.
 #   Otherwise, set it (in the caller's scope, exported) to:
-#     ${IMAGE_TAG} if set, else $(read_version_file), else "v0.0.0".
-#   Usage:
-#       resolve_image_tag DB_IMAGE_TAG
-#       resolve_image_tag BACKEND_IMAGE_TAG
-#       resolve_image_tag FRONTEND_IMAGE_TAG
+#     ${IMAGE_TAG} if set, else $(read_version_file "$path"), else "v0.0.0".
+#
+# Usage (callers should always pass the path of the VERSION file):
+#       resolve_image_tag DB_IMAGE_TAG       VERSION.prod
+#       resolve_image_tag BACKEND_IMAGE_TAG  VERSION.dev
+#       resolve_image_tag FRONTEND_IMAGE_TAG VERSION.prod
 resolve_image_tag() {
     local var="$1"
+    local path="${2:-}"
     local cur="${!var:-}"
     if [ -n "$cur" ]; then
         return 0
@@ -263,19 +308,24 @@ resolve_image_tag() {
         return 0
     fi
     local resolved
-    resolved="$(read_version_file)"
+    resolved="$(read_version_file "$path")"
     printf -v "$var" '%s' "$resolved"
     export "$var"
 }
 
-# warn_if_version_default <tag>  — prints a single warn line if the resolved
-# tag is "v0.0.0" (i.e. no VERSION file was found). A per-process guard
-# (_LIB_VERSION_WARNED) keeps the message from repeating.
+# warn_if_version_default <tag> [path]  — prints a single warn line if the
+# resolved tag is "v0.0.0" (i.e. no VERSION file was found). A per-process
+# guard (_LIB_VERSION_WARNED) keeps the message from repeating.
 warn_if_version_default() {
     local tag="${1:-}"
+    local path="${2:-}"
     if [ "${_LIB_VERSION_WARNED:-0}" = "1" ]; then return 0; fi
     if [ "$tag" = "v0.0.0" ]; then
-        warn "VERSION 文件缺失或为空, 使用默认 v0.0.0 — 在仓库根建一个 VERSION 文件"
+        if [ -n "$path" ]; then
+            warn "VERSION 文件缺失或为空 ($path), 使用默认 v0.0.0"
+        else
+            warn "VERSION 文件缺失或为空, 使用默认 v0.0.0 — 在仓库根建一个 VERSION 文件"
+        fi
         _LIB_VERSION_WARNED=1
     fi
 }

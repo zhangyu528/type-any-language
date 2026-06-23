@@ -22,7 +22,8 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generat
 ## Repository structure
 
 ```
-├── VERSION               # project version (single source of truth for image tags)
+├── VERSION.dev           # tag for english_backend_dev / english_frontend_dev (dev stream)
+├── VERSION.prod          # tag for english_db_content / english_backend / english_frontend (prod stream + CMS db)
 ├── backend/              # FastAPI + SQLAlchemy — pure read-layer
 │   ├── app/
 │   │   ├── main.py      # FastAPI entry, CORS, /audio static mount
@@ -126,25 +127,39 @@ No `.env` is needed. `ALLOWED_ORIGINS` defaults to `http://localhost` in the pro
 
 ## Image version tags
 
-All 5 images (`db`, `english_backend{,_dev}`, `english_frontend{,_dev}`) carry an explicit tag. The default comes from the root `./VERSION` file (first non-empty, non-comment line, trimmed); shell env / `.env.db` override.
+All 5 images (`db`, `english_backend{,_dev}`, `english_frontend{,_dev}`) carry an explicit tag. Defaults come from two root files — dev and prod can drift independently:
+
+| Image | Default tag source |
+|---|---|
+| `english_db_content`         | `VERSION.prod` |
+| `english_backend_dev`        | `VERSION.dev`  |
+| `english_frontend_dev`       | `VERSION.dev`  |
+| `english_backend`            | `VERSION.prod` |
+| `english_frontend`           | `VERSION.prod` |
+
+(The db image is "prod-bound" content — it's shared by both targets, so a dev host always pulls db's tag from `VERSION.prod`. Only dev's app images follow `VERSION.dev`.)
+
+Each file: first non-empty, non-comment line, trimmed. Both files start at the same version; bump them together with `release.sh bump all X.Y.Z`, or independently with `bump dev` / `bump prod`.
 
 Resolution chain (`scripts/lib.sh` → `resolve_image_tag`):
 1. Per-image env var, e.g. `BACKEND_IMAGE_TAG=v1.2.3`
-2. Generic `IMAGE_TAG` (CI convenience — bumps all 5 at once)
-3. Root `./VERSION` file
+2. Generic `IMAGE_TAG` (CI convenience — bumps all images at once)
+3. The VERSION file passed to the helper (`.dev` / `.prod`)
 4. Literal `v0.0.0` (won't break a build, but warns once)
 
 Examples:
 ```bash
-# Use whatever ./VERSION says (default):
-./scripts/ops/dev-host/build_image.sh
+# Use whatever the stream's VERSION file says (default):
+./scripts/ops/dev-host/build_image.sh         # → VERSION.dev
+./scripts/ops/prod-host/build_image.sh        # → VERSION.prod
+./scripts/ops/db/bake_image.sh                # → VERSION.prod
 
-# Bump all 5 images to v1.2.3 for a release:
+# Bump all images to v1.2.3 for a one-off (CI use):
 IMAGE_TAG=v1.2.3 ./scripts/ops/dev-host/build_image.sh
 IMAGE_TAG=v1.2.3 ./scripts/ops/prod-host/build_image.sh
 IMAGE_TAG=v1.2.3 ./scripts/ops/db/bake_image.sh
 
-# Pin just the db image, leave app at VERSION:
+# Pin just the db image, leave dev app at VERSION.dev:
 DB_IMAGE_TAG=v0.5.0 ./scripts/ops/db/bake_image.sh
 ```
 
@@ -152,41 +167,53 @@ The dev/prod `run.sh` reads the same tags at start time, so what gets pulled fro
 
 ### Drift detection
 
-Every image carries the `type-any-language.app.version` LABEL (sourced from `APP_VERSION` build-arg, which the build scripts set to the resolved `*_IMAGE_TAG`). `run.sh doctor` (both dev and prod) iterates the running containers and compares each LABEL against the locally-resolved expected tag — mismatches print a `drift` warning, suggesting `run.sh restart` to pick up the new image. This catches the case where VERSION was bumped on the CMS host but the target host hasn't pulled/restarted yet.
+Every image carries the `type-any-language.app.version` LABEL (sourced from `APP_VERSION` build-arg, which the build scripts set to the resolved `*_IMAGE_TAG`). `run.sh doctor` (both dev and prod) iterates the running containers and compares each LABEL against the locally-resolved expected tag — mismatches print a `drift` warning, suggesting `run.sh restart` to pick up the new image. This catches the case where a VERSION file was bumped on the workstation but the target host hasn't pulled/restarted yet.
 
 ### Release flow
 
-`scripts/release.sh bump X.Y.Z` updates `VERSION`, commits, and prints the per-host build+push commands. The full release flow:
+`scripts/release.sh` is the single point of version management. It updates the right VERSION file(s), commits, and prints the per-host build+push commands.
+
+| Subcommand | Touches | When |
+|---|---|---|
+| `bump dev  X.Y.Z`  | `VERSION.dev` only             | dev-only changes (hot-reload bug fix, dev-only feature) |
+| `bump prod X.Y.Z`  | `VERSION.prod` only            | CMS db re-bake (new content) without touching dev apps |
+| `bump all  X.Y.Z`  | both files (same value)        | normal release: dev apps + CMS db + prod apps all move together |
+
+The full release flow (using `bump all` as the example):
 
 ```bash
 # On the dev workstation (after merging all changes to master):
-./scripts/release.sh bump v0.2.0
+./scripts/release.sh bump all v0.3.0
 git push
 
 # On the CMS host (content-baked db image):
 git pull
-IMAGE_TAG=v0.2.0 ./scripts/ops/db/bake_image.sh
-IMAGE_TAG=v0.2.0 ./scripts/ops/db/push_image.sh -y
+IMAGE_TAG=v0.3.0 ./scripts/ops/db/bake_image.sh
+IMAGE_TAG=v0.3.0 ./scripts/ops/db/push_image.sh -y
 
 # On the dev target host:
 git pull
-IMAGE_TAG=v0.2.0 ./scripts/ops/dev-host/build_image.sh
-IMAGE_TAG=v0.2.0 ./scripts/ops/dev-host/push_image.sh -y
+IMAGE_TAG=v0.3.0 ./scripts/ops/dev-host/build_image.sh
+IMAGE_TAG=v0.3.0 ./scripts/ops/dev-host/push_image.sh -y
 
 # On the prod target host:
 git pull
-IMAGE_TAG=v0.2.0 ./scripts/ops/prod-host/build_image.sh
-IMAGE_TAG=v0.2.0 ./scripts/ops/prod-host/push_image.sh -y
+IMAGE_TAG=v0.3.0 ./scripts/ops/prod-host/build_image.sh
+IMAGE_TAG=v0.3.0 ./scripts/ops/prod-host/push_image.sh -y
 
 # Verify on each target host:
-./scripts/ops/<host>/run.sh doctor    # should show "drift OK (version=v0.2.0)" for all 3 services
+./scripts/ops/<host>/run.sh doctor    # should show "drift OK (version=v0.3.0)" for all 3 services
 ```
+
+For asymmetric cases (e.g. dev hot-fix while prod stays put), use `bump dev` only — the script will print just the dev-host commands and skip the CMS / prod lines.
+
+> Asymmetric case in practice: if you `bump dev` for a dev-only bug fix, prod continues to pull whatever `VERSION.prod` says, including a potentially-newer CMS db image. This is intentional — dev can always point at the latest db content. If you need prod to pin to an older db, use `DB_IMAGE_TAG=v0.2.5 ./scripts/ops/prod-host/run.sh start`.
 
 ## Migration from pre-VERSION release
 
 If you upgraded from a release that used `:latest` (or hardcoded) tags, expect two behavior changes on first run:
 
-1. **`run.sh start` may fail with "image 未构建"** — the compose file now references `:v0.1.0` (or whatever `./VERSION` says), not `:latest`. Fix once:
+1. **`run.sh start` may fail with "image 未构建"** — the compose file now references a tagged tag (`:v0.1.0` or whatever the stream's VERSION file says), not `:latest`. Fix once:
    ```bash
    ./scripts/ops/dev-host/build_image.sh    # or prod-host/build_image.sh
    ```
@@ -194,7 +221,15 @@ If you upgraded from a release that used `:latest` (or hardcoded) tags, expect t
 
 2. **`compose pull` now pulls by versioned tag, not `:latest`.** If your local cache has a stale `:latest` and the registry has a different `:v0.1.0`, the pull overwrites the local tag. This is intentional — it's the whole point of having a version pin.
 
-There is no automatic `:latest` → `:v0.1.0` retag helper, because it would silently lie about what's in the image. Rebuilding once is the only correct migration.
+There is no automatic `:latest` → tagged retag helper, because it would silently lie about what's in the image. Rebuilding once is the only correct migration.
+
+### Migration to the two-file model (this release)
+
+The previous release had a single `VERSION` file. This release splits it into `VERSION.dev` and `VERSION.prod` so the two streams can drift. If your local checkout still has the old single `VERSION`:
+
+1. Pull this release. The old `VERSION` is removed; you'll have the two new files instead.
+2. `./scripts/release.sh show` should print both files (they start at the same value as the old single VERSION).
+3. Continue as normal — `build_image.sh` / `bake_image.sh` now read from the right stream's file automatically.
 
 ### Testing
 
@@ -243,7 +278,7 @@ Required:
 - `AUDIO_DIR` — where `generate_audio.py` writes MP3s and `bake_image.sh` reads them from
 - `POSTGRES_USER`, `POSTGRES_DB` — db identity (baked into image labels)
 - `DB_IMAGE` — image name (default: `english_db_content`)
-- `DB_IMAGE_TAG` — image tag (default: root `./VERSION`; `.env.db` / shell env override)
+- `DB_IMAGE_TAG` — image tag (default: root `VERSION.prod`; `.env.db` / shell env override)
 
 > `DOCKER_REGISTRY` is **not** in `.env.db` — push is a separate concern. Set it in the shell before running `push_image.sh`:
 > ```bash
@@ -263,8 +298,8 @@ Runtime configuration is via shell env (passed to `run.sh` via `KEY=value run.sh
   ```bash
   ALLOWED_ORIGINS=https://my.domain ./scripts/ops/prod-host/run.sh start
   ```
-- `DOCKER_REGISTRY`, `DB_IMAGE_TAG` — which baked db image to pull (when `DOCKER_REGISTRY` is set, `run.sh start` auto-pulls on every start/restart)
-- `BACKEND_IMAGE_TAG`, `FRONTEND_IMAGE_TAG` — image tag for backend/frontend. Default: root `./VERSION` (resolved by `scripts/lib.sh`). Override per image, or set `IMAGE_TAG` to bump all 5 images at once (CI use):
+- `DOCKER_REGISTRY`, `DB_IMAGE_TAG` — which baked db image to pull (default: `VERSION.prod`; when `DOCKER_REGISTRY` is set, `run.sh start` auto-pulls on every start/restart)
+- `BACKEND_IMAGE_TAG`, `FRONTEND_IMAGE_TAG` — image tag for backend/frontend. Default: `VERSION.dev` on dev hosts, `VERSION.prod` on prod hosts (resolved by `scripts/lib.sh`). Override per image, or set `IMAGE_TAG` to bump all images at once (CI use):
   ```bash
   IMAGE_TAG=v1.2.3 ./scripts/ops/prod-host/run.sh start
   ```

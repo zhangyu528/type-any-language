@@ -32,7 +32,7 @@
 #                                        (docker.io/$USER or "")
 #   DB_IMAGE         image name        (default: english_db_content,
 #                                        override via .env.db)
-#   DB_IMAGE_TAG     image tag         (default: root ./VERSION,
+#   DB_IMAGE_TAG     image tag         (default: VERSION.prod,
 #                                        override via .env.db / shell env)
 #
 # Examples:
@@ -59,10 +59,10 @@ if [ -f .env.db ]; then
 fi
 
 DB_IMAGE="${DB_IMAGE:-english_db_content}"
-# DB_IMAGE_TAG defaults to the root ./VERSION file (resolved by lib.sh);
-# .env.db / shell env still override.
-resolve_image_tag DB_IMAGE_TAG
-warn_if_version_default "$DB_IMAGE_TAG"
+# DB_IMAGE_TAG defaults to VERSION.prod (db is "prod-bound" content, shared
+# by both dev and prod targets). .env.db / shell env still override.
+resolve_image_tag DB_IMAGE_TAG VERSION.prod
+warn_if_version_default "$DB_IMAGE_TAG" VERSION.prod
 # DOCKER_REGISTRY is push-only concern. Read from shell env first,
 # fall back to a best-effort auto-detect. Symmetric with the
 # dev/prod push_image.sh.
@@ -210,7 +210,7 @@ usage() {
                    来源: shell env > detect_default_registry()
                          export DOCKER_REGISTRY=docker.io/youruser
   DB_IMAGE         image 名字  (默认: english_db_content; .env.db 覆盖)
-  DB_IMAGE_TAG     image tag   (默认: 根目录 ./VERSION; .env.db / env 覆盖)
+  DB_IMAGE_TAG     image tag   (默认: VERSION.prod; .env.db / env 覆盖)
 
 示例:
   export DOCKER_REGISTRY=docker.io/youruser

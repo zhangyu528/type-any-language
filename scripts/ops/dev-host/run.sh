@@ -55,12 +55,15 @@ source "$SCRIPT_DIR/../../lib.sh"
 # "auto-pull off" (local-only mode) when unset.
 DOCKER_REGISTRY="${DOCKER_REGISTRY:-}"
 DB_IMAGE="${DB_IMAGE:-english_db_content}"
-# *_IMAGE_TAG default to the root ./VERSION file (resolved by lib.sh).
-# Shell env / .env.db still override. Exported for compose interpolation.
-resolve_image_tag DB_IMAGE_TAG
-resolve_image_tag BACKEND_IMAGE_TAG
-resolve_image_tag FRONTEND_IMAGE_TAG
-warn_if_version_default "$BACKEND_IMAGE_TAG"
+# *_IMAGE_TAG resolve to:
+#   DB_IMAGE_TAG       ← VERSION.prod (db is "prod-bound" content shared by both targets)
+#   BACKEND_IMAGE_TAG  ← VERSION.dev
+#   FRONTEND_IMAGE_TAG ← VERSION.dev
+# Shell env still overrides. Exported for compose interpolation.
+resolve_image_tag DB_IMAGE_TAG       VERSION.prod
+resolve_image_tag BACKEND_IMAGE_TAG  VERSION.dev
+resolve_image_tag FRONTEND_IMAGE_TAG VERSION.dev
+warn_if_version_default "$BACKEND_IMAGE_TAG" VERSION.dev
 
 DB_FULL_IMAGE="${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DB_IMAGE}:${DB_IMAGE_TAG}"
 BACKEND_FULL_IMAGE="${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"

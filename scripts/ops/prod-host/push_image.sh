@@ -51,10 +51,10 @@ DOCKER_REGISTRY="${DOCKER_REGISTRY:-}"
 COMPOSE_FILE="docker-compose.yml"
 BACKEND_IMAGE="english_backend"
 FRONTEND_IMAGE="english_frontend"
-# *_IMAGE_TAG default to the root ./VERSION file (resolved by lib.sh).
-resolve_image_tag BACKEND_IMAGE_TAG
-resolve_image_tag FRONTEND_IMAGE_TAG
-warn_if_version_default "$BACKEND_IMAGE_TAG"
+# *_IMAGE_TAG default to VERSION.prod (the prod stream's tag).
+resolve_image_tag BACKEND_IMAGE_TAG VERSION.prod
+resolve_image_tag FRONTEND_IMAGE_TAG VERSION.prod
+warn_if_version_default "$BACKEND_IMAGE_TAG" VERSION.prod
 
 # ---------------------------------------------------------------------------
 # doctor — pre-flight checks. Returns 0/1, doesn't push.
@@ -218,8 +218,8 @@ usage() {
 
 配置 (shell env):
   DOCKER_REGISTRY         registry 命名空间 (REQUIRED for push)
-  BACKEND_IMAGE_TAG       backend  image tag (默认: 根目录 ./VERSION)
-  FRONTEND_IMAGE_TAG      frontend image tag (默认: 根目录 ./VERSION)
+  BACKEND_IMAGE_TAG       backend  image tag (默认: VERSION.prod)
+  FRONTEND_IMAGE_TAG      frontend image tag (默认: VERSION.prod)
   IMAGE_TAG               通用 tag 覆盖 (CI 用，一次性给所有 image 设同 tag)
 
 示例:

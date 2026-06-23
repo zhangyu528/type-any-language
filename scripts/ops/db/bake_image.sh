@@ -49,11 +49,11 @@ else
 fi
 
 DB_IMAGE="${DB_IMAGE:-english_db_content}"
-# DB_IMAGE_TAG defaults to the root ./VERSION file (resolved by lib.sh);
-# callers can still pin a specific tag by setting DB_IMAGE_TAG in .env.db
-# or the shell.
-resolve_image_tag DB_IMAGE_TAG
-warn_if_version_default "$DB_IMAGE_TAG"
+# DB_IMAGE_TAG defaults to VERSION.prod (db is "prod-bound" content, shared
+# by both dev and prod targets). Callers can still pin a specific tag by
+# setting DB_IMAGE_TAG in .env.db or the shell.
+resolve_image_tag DB_IMAGE_TAG VERSION.prod
+warn_if_version_default "$DB_IMAGE_TAG" VERSION.prod
 FULL_IMAGE="${DB_IMAGE}:${DB_IMAGE_TAG}"
 
 # Source-of-truth for what's inside the image. These get baked into
@@ -218,7 +218,7 @@ Push is a separate step: ./scripts/ops/db/push_image.sh
 
 Environment (sourced from .env.db):
   DB_IMAGE        Image name (default: english_db_content)
-  DB_IMAGE_TAG    Image tag (default: root ./VERSION) — also baked into image label
+  DB_IMAGE_TAG    Image tag (default: VERSION.prod) — also baked into image label
   POSTGRES_USER   Baked into image label as type-any-language.db.user
                   (default: english_user). The dump.sql's OWNER must match.
   POSTGRES_DB     Baked into image label as type-any-language.db.name
@@ -227,6 +227,10 @@ Environment (sourced from .env.db):
 DOCKER_REGISTRY is NOT used by this script (push is a separate concern).
 Set it in the shell before running push_image.sh:
   export DOCKER_REGISTRY=... && ./scripts/ops/db/push_image.sh
+
+Versioning:
+  DB_IMAGE_TAG       resolves from VERSION.prod (or IMAGE_TAG env override).
+  VERSION.dev / VERSION.prod are the two project version files — see scripts/release.sh.
 EOF
 }
 
