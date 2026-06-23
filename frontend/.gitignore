@@ -1,6 +1,9 @@
 # React build
 build/
 
+# Next.js
+.next/
+
 # Node modules
 node_modules/
 
@@ -16,3 +19,7 @@ npm-debug.log*
 .idea/
 *.swp
 *.swo
+
+# TypeScript incremental build cache
+tsconfig.tsbuildinfo
+*.tsbuildinfo

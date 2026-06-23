@@ -1,7 +1,17 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getVocabularyLibs, generateSentences, checkAnswer, getAudioUrl, Sentence } from './api';
+import { getVocabularyLibs, generateSentences, checkAnswer, getAudioUrl, getPhonetics, Sentence } from './api';
+import AudioPlayerBar from './AudioPlayerBar';
+
+// 输入模式枚举 + 元数据：未来加模式只改 INPUT_MODES 和 MODE_METADATA 两处
+const INPUT_MODES = ['linear', 'free'] as const;
+type InputMode = (typeof INPUT_MODES)[number];
+
+const MODE_METADATA: Record<InputMode, { label: string; icon: string; desc: string }> = {
+  linear: { label: '按序输入', icon: '▤', desc: '按听到的顺序依次填写' },
+  free:   { label: '自由点选', icon: '⤢', desc: '可任意切换 cell 输入' },
+};
 
 export default function PracticePage() {
   const [loading, setLoading] = useState(true);
@@ -19,10 +29,42 @@ export default function PracticePage() {
   const [score, setScore] = useState({ correct: 0, total: 0 });
   const [spaceHintActive, setSpaceHintActive] = useState(false);
   const [justErred, setJustErred] = useState(false);
+  const [sentenceResults, setSentenceResults] = useState<(boolean | null)[]>([]);
+  const [sentenceStartTime, setSentenceStartTime] = useState<number>(Date.now());
+  const [showPhonetics, setShowPhonetics] = useState(false);
+  const [showSentence, setShowSentence] = useState(false);
+  const [isOptionsOpen, setIsOptionsOpen] = useState(false);
+  const [isToolsOpen, setIsToolsOpen] = useState(false);
+  const [isLooping, setIsLooping] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [correctSoundEnabled, setCorrectSoundEnabled] = useState(true);
+  const [inputMode, setInputMode] = useState<InputMode>('linear');
+  const [modeMenuOpen, setModeMenuOpen] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const navTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const modeBtnRef = useRef<HTMLButtonElement>(null);
+  const modeMenuRef = useRef<HTMLUListElement>(null);
+  const sentenceSnapshotRef = useRef<{userInputs: string[]; wordResults: boolean[]} | null>(null);
+  const phoneticsMap = useRef<Record<string, string>>({});
+  const showPhoneticsRef = useRef(false);
+  const [phoneticsVersion, setPhoneticsVersion] = useState(0);
+  // IME 中文输入法状态：composition 期间不污染 userInputs，避免 IME 半挂起导致 Backspace 失效
+  const isComposingRef = useRef(false);
+  // IME 半挂起兜底：macOS Enter 静默丢弃拼音不触发 compositionend，3 秒后强制 reset
+  const compositionTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const SPEED_OPTIONS = [0.5, 1, 2] as const;
+  type Speed = (typeof SPEED_OPTIONS)[number];
+  const [speed, setSpeed] = useState<Speed>(() => {
+    if (typeof window === 'undefined') return 1;
+    const saved = window.localStorage.getItem('aplayer.speed');
+    const n = saved ? Number(saved) : 1;
+    return (SPEED_OPTIONS as readonly number[]).includes(n) ? (n as Speed) : 1;
+  });
 
   useEffect(() => {
     initPractice();
@@ -42,6 +84,8 @@ export default function PracticePage() {
       setSentences(data.sentences);
       setCurrentIndex(0);
       setScore({ correct: 0, total: data.sentences.length });
+      setSentenceResults(new Array(data.sentences.length).fill(null));
+      setSentenceStartTime(Date.now());
     } catch (err) {
       setError('Failed to load practice');
     } finally {
@@ -61,12 +105,127 @@ export default function PracticePage() {
       setShowNav(false);
       setShowScore(false);
       setSpaceHintActive(false);
+      setShowSentence(false);
+      sentenceSnapshotRef.current = null;
+      setSentenceStartTime(Date.now());
+      // IME 兜底 timer 也清掉，避免句子间状态污染
+      if (compositionTimerRef.current) {
+        clearTimeout(compositionTimerRef.current);
+        compositionTimerRef.current = null;
+      }
+      isComposingRef.current = false;
     }
   }, [sentences, currentIndex]);
 
   useEffect(() => {
     setIsPlaying(false);
   }, [currentIndex]);
+
+  // 持久化倍速
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('aplayer.speed', String(speed));
+    } catch {
+      /* localStorage 满 / 隐私模式：静默忽略 */
+    }
+  }, [speed]);
+
+  // speed 变化时同步到 audio 元素（不重置 src / currentTime，不打断播放）
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = speed;
+    }
+  }, [speed]);
+
+  // 快捷键面板折叠状态：启动时从 localStorage 读
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('prefs.shortcutsOpen');
+      if (saved === 'true') setShortcutsOpen(true);
+    } catch {
+      /* 隐私模式静默 */
+    }
+  }, []);
+
+  // 持久化折叠状态
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('prefs.shortcutsOpen', String(shortcutsOpen));
+    } catch {
+      /* 静默 */
+    }
+  }, [shortcutsOpen]);
+
+  // 答对提示音偏好：启动时从 localStorage 读
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('prefs.correctSound');
+      if (saved === 'false') setCorrectSoundEnabled(false);
+    } catch {
+      /* 隐私模式静默 */
+    }
+  }, []);
+
+  // 持久化答对提示音开关
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('prefs.correctSound', String(correctSoundEnabled));
+    } catch {
+      /* 静默 */
+    }
+  }, [correctSoundEnabled]);
+
+  // 输入模式：启动时从 localStorage 读
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('prefs.inputMode');
+      if (saved === 'free') setInputMode('free');
+    } catch {
+      /* 隐私模式静默 */
+    }
+  }, []);
+
+  // 持久化输入模式
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('prefs.inputMode', inputMode);
+    } catch {
+      /* 静默 */
+    }
+  }, [inputMode]);
+
+  // 输入模式弹层：点击外部 / Esc 关闭
+  useEffect(() => {
+    if (!modeMenuOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (modeBtnRef.current?.contains(e.target as Node)) return;
+      if (modeMenuRef.current?.contains(e.target as Node)) return;
+      setModeMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setModeMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [modeMenuOpen]);
+
+  // 点击 panel 外关闭
+  useEffect(() => {
+    if (!shortcutsOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      const panel = document.getElementById('shortcuts-panel');
+      const toggle = document.querySelector('.shortcuts-toggle');
+      if (panel?.contains(e.target as Node)) return;
+      if (toggle?.contains(e.target as Node)) return;
+      setShortcutsOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [shortcutsOpen]);
 
   // Focus first input when sentences first load
   useEffect(() => {
@@ -92,13 +251,14 @@ export default function PracticePage() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // 优先级 1：panel 打开时按 Esc 关闭 panel（不打开得分）
+      if (e.key === 'Escape' && shortcutsOpen) {
+        e.preventDefault();
+        setShortcutsOpen(false);
+        return;
+      }
       if (e.key === 'Escape') {
         setShowScore(true);
-      }
-      // Space: play audio
-      if (e.key === ' ') {
-        e.preventDefault();
-        playAudio();
       }
       // Tab: toggle answer hint
       if (e.key === 'Tab') {
@@ -108,12 +268,22 @@ export default function PracticePage() {
           setSpaceHintActive(prev => !prev);
         }
       }
+      // Shift+S: toggle sentence display
+      if (e.key === 'S' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        e.preventDefault();
+        handleShowSentenceChange(!showSentence);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isCorrect]);
+  }, [isCorrect, showSentence, shortcutsOpen]);
 
   const handleWordChange = (index: number, value: string) => {
+    // IME composition 期间：onChange 的 value 是临时拼音，不写入 state
+    if (isComposingRef.current) {
+      return;
+    }
+
     if (spaceHintActive && value.length > 0) {
       setSpaceHintActive(false);
     }
@@ -131,38 +301,41 @@ export default function PracticePage() {
     newResults[index] = isWordCorrect;
     setWordResults(newResults);
 
-    if (!isWordCorrect && value.length > 0) {
-      // Trigger error feedback
-      setJustErred(true);
-      setTimeout(() => setJustErred(false), 300);
-    }
-
     if (isWordCorrect) {
       // Auto-complete with correct case
       newInputs[index] = expectedWords[index];
       setUserInputs(newInputs);
 
       if (index < expectedWords.length - 1) {
-        setCurrentWordIndex(index + 1);
+        if (inputMode === 'linear') {
+          setCurrentWordIndex(index + 1);
+        }
+        // 自由模式：不跳，保持当前
       } else {
         // All words filled correctly - auto submit
         setTimeout(() => {
           const fullInput = newInputs.join(' ');
           if (fullInput.trim()) {
             checkAnswer(sentences[currentIndex].id, fullInput).then(result => {
-              setIsCorrect(result.is_correct);
-              setCorrectAnswer(result.correct_answer);
+              setSentenceResults(prev => {
+                const next = [...prev];
+                next[currentIndex] = result.is_correct;
+                return next;
+              });
               if (result.is_correct) {
+                playCorrectChime();
                 setScore(prev => ({ ...prev, correct: prev.correct + 1 }));
-              }
-              // Move to next question after a short delay
-              setTimeout(() => {
+                // 答对立即切下一题（不显示 feedback、不延时）
                 if (currentIndex < sentences.length - 1) {
                   setCurrentIndex(currentIndex + 1);
                 } else {
                   setShowScore(true);
                 }
-              }, 1000);
+              } else {
+                // 答错：显示 feedback，等用户按 Next
+                setIsCorrect(false);
+                setCorrectAnswer(result.correct_answer);
+              }
             });
           }
         }, 300);
@@ -180,7 +353,7 @@ export default function PracticePage() {
       e.preventDefault();
       if (!wordResults[index]) return;
       const expectedWords = currentSentence.text.split(/\s+/);
-      if (index < expectedWords.length - 1) {
+      if (index < expectedWords.length - 1 && inputMode === 'linear') {
         setCurrentWordIndex(index + 1);
         inputRefs.current[0]?.focus();
       }
@@ -193,9 +366,62 @@ export default function PracticePage() {
   };
 
   const handleTypewriterKeyDown = (e: React.KeyboardEvent) => {
+    // IME composition 期间：让 IME 独占处理（Enter = 选词、Backspace = 删拼音...）
+    // React keydown 此时是噪音，统一不响应，避免 IME 半挂起
+    if (e.nativeEvent.isComposing || e.keyCode === 229) {
+      return;
+    }
+    // macOS IME 半挂起兜底：第一个非 composition 键 = 立即脱困
+    // （macOS 中文拼音 Enter 静默丢弃拼音不触发 compositionend，ref 卡在 true）
+    if (isComposingRef.current) {
+      isComposingRef.current = false;
+      if (compositionTimerRef.current) {
+        clearTimeout(compositionTimerRef.current);
+        compositionTimerRef.current = null;
+      }
+    }
+
+    // 自由模式：Tab 切下一 cell、Shift+Tab 切上一 cell
+    if (inputMode === 'free' && e.key === 'Tab') {
+      e.preventDefault();
+      const expectedWords = currentSentence?.text.split(/\s+/) || [];
+      if (e.shiftKey) {
+        if (currentWordIndex > 0) setCurrentWordIndex(currentWordIndex - 1);
+      } else {
+        if (currentWordIndex < expectedWords.length - 1) {
+          setCurrentWordIndex(currentWordIndex + 1);
+        }
+      }
+      return;
+    }
+
     if (e.key === ' ') {
       e.preventDefault();
-      playAudio();
+      const expectedWords = currentSentence.text.split(/\s+/);
+      const isLast = currentWordIndex === expectedWords.length - 1;
+      const currentWord = expectedWords[currentWordIndex];
+      const target = currentWord?.toLowerCase().replace(/[.,!?;:'"]/g, '');
+      const input = userInputs[currentWordIndex]?.toLowerCase().replace(/[.,!?;:'"]/g, '');
+      const isCorrectCell = input && input === target;
+      const isComplete = input && input.length === target?.length;
+
+      if (!isComplete) {
+        // 未输完或 input 为空：空格不响应（避免输入途中被震）
+        return;
+      }
+
+      if (isCorrectCell && isLast) {
+        // 末位答对：提交整句
+        handleSubmit();
+      } else if (isCorrectCell && inputMode === 'free') {
+        // 自由模式 + 答对非末位：跳下一 cell
+        setCurrentWordIndex(currentWordIndex + 1);
+      } else {
+        // 答错（输入完整但与 target 不符）：震动当前 cell
+        setJustErred(true);
+        setTimeout(() => setJustErred(false), 300);
+      }
+      return;
     } else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey) {
       // Close hint when user starts typing
       if (spaceHintActive) {
@@ -227,11 +453,24 @@ export default function PracticePage() {
 
     try {
       const result = await checkAnswer(sentences[currentIndex].id, fullInput);
-      setIsCorrect(result.is_correct);
-      setCorrectAnswer(result.correct_answer);
+      setSentenceResults(prev => {
+        const next = [...prev];
+        next[currentIndex] = result.is_correct;
+        return next;
+      });
 
       if (result.is_correct) {
+        playCorrectChime();
         setScore(prev => ({ ...prev, correct: prev.correct + 1 }));
+        // 答对立即切下一题
+        if (currentIndex < sentences.length - 1) {
+          setCurrentIndex(currentIndex + 1);
+        } else {
+          setShowScore(true);
+        }
+      } else {
+        setIsCorrect(false);
+        setCorrectAnswer(result.correct_answer);
       }
     } catch (err) {
       setError('Check failed');
@@ -247,9 +486,75 @@ export default function PracticePage() {
     const fullUrl = getAudioUrl(audioUrl);
     if (audioRef.current) {
       audioRef.current.src = fullUrl;
+      audioRef.current.playbackRate = speed;
       audioRef.current.play().catch(() => {});
     }
-  }, [sentences, currentIndex]);
+  }, [sentences, currentIndex, speed]);
+
+  // 答对提示音：C 大调三音连奏上行 E5 → G5 → C6（Web Audio API 程序化生成，零依赖）
+  const playCorrectChime = useCallback(() => {
+    if (!correctSoundEnabled) return;
+
+    if (!audioCtxRef.current) {
+      try {
+        audioCtxRef.current = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+      } catch {
+        return;
+      }
+    }
+    const ctx = audioCtxRef.current;
+    if (ctx.state === 'suspended') ctx.resume();
+
+    const notes = [
+      { freq: 659.25, start: 0,    dur: 0.11 },
+      { freq: 783.99, start: 0.10, dur: 0.11 },
+      { freq: 1046.5, start: 0.20, dur: 0.18 },
+    ];
+
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = 0.25;
+    masterGain.connect(ctx.destination);
+
+    const now = ctx.currentTime;
+    for (const note of notes) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = note.freq;
+      const t = now + note.start;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(1, t + 0.01);
+      gain.gain.linearRampToValueAtTime(0.4, t + 0.03);
+      gain.gain.setValueAtTime(0.4, t + note.dur - 0.07);
+      gain.gain.linearRampToValueAtTime(0, t + note.dur);
+      osc.connect(gain);
+      gain.connect(masterGain);
+      osc.start(t);
+      osc.stop(t + note.dur + 0.01);
+    }
+  }, [correctSoundEnabled]);
+
+  const handleTogglePlay = useCallback(() => {
+    if (!audioRef.current) return;
+    if (audioRef.current.paused) {
+      playAudio();
+    } else {
+      audioRef.current.pause();
+    }
+  }, [playAudio]);
+
+  const handleSpeedChange = useCallback((next: number) => {
+    const safe: Speed = (SPEED_OPTIONS as readonly number[]).includes(next) ? (next as Speed) : 1;
+    setSpeed(safe);
+    // 立即同步到 audio 元素（不等 React effect 排队，避免体感延迟）
+    if (audioRef.current) {
+      audioRef.current.playbackRate = safe;
+    }
+  }, []);
+
+  const handleToggleLoop = useCallback(() => {
+    setIsLooping((prev) => !prev);
+  }, []);
 
   const handleNext = () => {
     if (currentIndex < sentences.length - 1) {
@@ -278,12 +583,111 @@ export default function PracticePage() {
     inputRefs.current[0]?.focus();
   };
 
+  // Close dropdowns when clicking outside the toolbar
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (toolbarRef.current && !toolbarRef.current.contains(e.target as Node)) {
+        setIsOptionsOpen(false);
+        setIsToolsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSettings = () => {
+    setIsToolsOpen(false);
+    alert('设置功能待实现');
+  };
+
+  const handleTheme = () => {
+    setIsToolsOpen(false);
+    alert('主题切换待实现');
+  };
+
+  const handleTour = () => {
+    setIsToolsOpen(false);
+    alert('功能引导待实现');
+  };
+
+  const handleShowSentenceChange = (checked: boolean) => {
+    if (!currentSentence) return;
+    if (checked) {
+      // 保存当前状态，以便取消时恢复
+      sentenceSnapshotRef.current = {
+        userInputs: [...userInputs],
+        wordResults: [...wordResults],
+      };
+      // 显示完整正确答案
+      const words = currentSentence.text.split(/\s+/);
+      setUserInputs([...words]);
+      setWordResults(new Array(words.length).fill(true));
+    } else {
+      // 从 snapshot 恢复到"上一个正确单词之后"的状态
+      const snap = sentenceSnapshotRef.current;
+      if (snap) {
+        const words = currentSentence.text.split(/\s+/);
+
+        // 找到最后一个连续正确的单词
+        let lastCorrect = -1;
+        for (let i = 0; i < snap.wordResults.length; i++) {
+          if (snap.wordResults[i]) lastCorrect = i;
+          else break;
+        }
+
+        // 恢复输入：保留已正确输入的，清空后续
+        const newInputs: string[] = new Array(words.length).fill('');
+        for (let i = 0; i <= lastCorrect; i++) {
+          newInputs[i] = snap.userInputs[i] || words[i];
+        }
+
+        setUserInputs(newInputs);
+        setWordResults(new Array(words.length).fill(false).map((_, i) => i <= lastCorrect));
+        setCurrentWordIndex(Math.min(lastCorrect + 1, words.length - 1));
+      }
+    }
+    setShowSentence(checked);
+  };
+
+  const handleShowPhoneticsChange = async (checked: boolean) => {
+    setShowPhonetics(checked);
+    showPhoneticsRef.current = checked;
+    if (checked) {
+      await loadPhonetics();
+    }
+  };
+
   const currentSentence = sentences[currentIndex];
+
+  const loadPhonetics = useCallback(async () => {
+    if (!currentSentence) return;
+    const allWords = currentSentence.text.split(/\s+/).map(w => w.toLowerCase().replace(/[^a-zA-Z0-9']/g, '')).filter(Boolean);
+    const unique = Array.from(new Set(allWords));
+    const missing = unique.filter(w => !phoneticsMap.current[w]);
+    if (missing.length === 0) {
+      setPhoneticsVersion(v => v + 1);
+      return;
+    }
+    try {
+      const result = await getPhonetics(missing);
+      phoneticsMap.current = { ...phoneticsMap.current, ...result };
+      setPhoneticsVersion(v => v + 1);
+    } catch (err) {
+      console.error('Failed to load phonetics:', err);
+    }
+  }, [currentSentence]);
   const allWordsFilled = userInputs.every((inp, i) => {
     const expected = currentSentence?.text.split(/\s+/)[i]?.toLowerCase().replace(/[.,!?;:'"]/g, '');
     const actual = inp.toLowerCase().replace(/[.,!?;:'"]/g, '');
     return actual === expected;
   });
+
+  // 当句子切换或 phonetics 开关为开时，自动加载音标
+  useEffect(() => {
+    if (showPhoneticsRef.current) {
+      loadPhonetics();
+    }
+  }, [currentIndex, showPhonetics]);
 
   if (loading) {
     return (
@@ -323,6 +727,7 @@ export default function PracticePage() {
             setShowScore(false);
             setCurrentIndex(0);
             setScore({ correct: 0, total: sentences.length });
+            setSentenceResults([]);
             initPractice();
           }}>
             Try Again
@@ -339,76 +744,294 @@ export default function PracticePage() {
     >
       <audio
         ref={audioRef}
+        loop={isLooping}
         onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
       />
+
+      {/* Top-right toolbar */}
+      <div
+        className="toolbar"
+        ref={toolbarRef}
+        onKeyDown={(e) => {
+          // 阻止键盘事件冒泡到 window listener（避免字母/空格被菜单 checkbox 误捕获）
+          e.stopPropagation();
+          e.nativeEvent.stopImmediatePropagation();
+        }}
+      >
+        {/* 1. 音频播放（UI 已删除，playAudio() 由 AudioPlayerBar 调用，逻辑保留） */}
+        {/* 2. 显示选项（UI 已删除，showSentence 仍由 shortcuts-panel 的"显示句子"复选框控制，逻辑保留） */}
+
+        {/* 3. 页面工具 */}
+        <div className="toolbar__dropdown">
+          <button
+            type="button"
+            className={`toolbar__btn toolbar__btn--icon ${isToolsOpen ? 'toolbar__btn--active' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsToolsOpen(v => !v);
+              setIsOptionsOpen(false);
+            }}
+            aria-haspopup="true"
+            aria-expanded={isToolsOpen}
+            aria-label="页面工具"
+            title="页面工具"
+          >
+            …
+          </button>
+          {isToolsOpen && (
+            <div className="toolbar__menu" role="menu" onClick={(e) => e.stopPropagation()}>
+              <div className="toolbar__menu-header">页面工具</div>
+              <button type="button" className="toolbar__menu-item" onClick={handleSettings} role="menuitem">设置</button>
+              <button type="button" className="toolbar__menu-item" onClick={handleTheme} role="menuitem">主题</button>
+              <button type="button" className="toolbar__menu-item" onClick={handleTour} role="menuitem">功能引导</button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 折叠触发器：右下角浮动齿轮按钮 */}
+      <button
+        type="button"
+        className="shortcuts-toggle"
+        aria-label={shortcutsOpen ? '关闭快捷键面板' : '打开快捷键面板'}
+        aria-expanded={shortcutsOpen}
+        aria-controls="shortcuts-panel"
+        onClick={() => setShortcutsOpen((v) => !v)}
+      >
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.75"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          {shortcutsOpen ? (
+            <path d="M6 6 L18 18 M6 18 L18 6" />
+          ) : (
+            <>
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 2 L12 5 M12 19 L12 22 M2 12 L5 12 M19 12 L22 12 M4.93 4.93 L7.05 7.05 M16.95 16.95 L19.07 19.07 M4.93 19.07 L7.05 16.95 M16.95 7.05 L19.07 4.93" />
+            </>
+          )}
+        </svg>
+      </button>
+
+      {/* 右侧面板：快捷键 + 显示选项 */}
+      <aside
+        id="shortcuts-panel"
+        className={`shortcuts-panel ${shortcutsOpen ? 'is-open' : ''}`}
+        aria-label="快捷键和选项"
+        aria-hidden={!shortcutsOpen}
+      >
+        <div className="shortcuts-panel__title">快捷键</div>
+        <ul className="shortcuts-panel__list">
+          <li><kbd>Space</kbd><span>播放音频</span></li>
+          <li><kbd>Tab</kbd><span>显示/隐藏答案</span></li>
+          <li><kbd>Shift</kbd>+<kbd>S</kbd><span>显示/隐藏句子</span></li>
+          <li><kbd>Esc</kbd><span>查看得分</span></li>
+          <li><kbd>←</kbd><kbd>→</kbd><span>上一句/下一句</span></li>
+        </ul>
+
+        <div className="shortcuts-panel__divider" />
+
+        <div className="shortcuts-panel__title">显示选项</div>
+        <ul className="shortcuts-panel__list">
+          <li>
+            <label className="shortcuts-panel__check">
+              <input
+                type="checkbox"
+                checked={showSentence}
+                onChange={(e) => handleShowSentenceChange(e.target.checked)}
+              />
+              <span className="shortcuts-panel__checkbox" aria-hidden></span>
+              <span>显示句子</span>
+            </label>
+          </li>
+          <li>
+            <label className="shortcuts-panel__check">
+              <input
+                type="checkbox"
+                checked={showPhonetics}
+                onChange={(e) => handleShowPhoneticsChange(e.target.checked)}
+              />
+              <span className="shortcuts-panel__checkbox" aria-hidden></span>
+              <span>显示音标</span>
+            </label>
+          </li>
+          <li>
+            <label className="shortcuts-panel__check">
+              <input
+                type="checkbox"
+                checked={correctSoundEnabled}
+                onChange={(e) => setCorrectSoundEnabled(e.target.checked)}
+              />
+              <span className="shortcuts-panel__checkbox" aria-hidden></span>
+              <span>答对提示音</span>
+            </label>
+          </li>
+        </ul>
+      </aside>
+
       <div className="immersive-content">
         {currentSentence && (
           <>
-            <div className="waveform-container" title="Click or hover to play audio">
-              <button
-                type="button"
-                className="waveform-button"
-                title="Click or hover to play audio"
-                onClick={(e) => {
-                e.stopPropagation();
-                playAudio();
-                setTimeout(() => {
-                  inputRefs.current[currentWordIndex]?.focus();
-                }, 50);
-              }} onMouseEnter={() => playAudio()}>
-                <div className={`waveform ${isPlaying ? 'playing' : ''}`}>
-                  <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-                </div>
-              </button>
-              <span className="progress-text">{currentIndex + 1} / {sentences.length}</span>
-            </div>
+            <AudioPlayerBar
+              isPlaying={isPlaying}
+              currentIndex={currentIndex}
+              totalCount={sentences.length}
+              speed={speed}
+              onSpeedChange={handleSpeedChange}
+              isLooping={isLooping}
+              onToggleLoop={handleToggleLoop}
+              onPlay={playAudio}
+              onTogglePlay={handleTogglePlay}
+            />
+
 
             <div className="sentence-area" onClick={() => inputRefs.current[0]?.focus()}>
-              <p className="sentence-hint">{currentSentence.chinese_text || 'Listen and type the sentence'}</p>
+              {/* 输入模式选择器：sentence-area 右上角触发按钮 + 弹层 */}
+              <div className="mode-selector">
+                <button
+                  ref={modeBtnRef}
+                  type="button"
+                  className="mode-selector__btn"
+                  aria-label="选择输入模式"
+                  aria-haspopup="listbox"
+                  aria-expanded={modeMenuOpen}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setModeMenuOpen((v) => !v);
+                  }}
+                >
+                  <span aria-hidden>{MODE_METADATA[inputMode].icon}</span>
+                  <span>{MODE_METADATA[inputMode].label}</span>
+                  <span className="apb__caret" aria-hidden>▾</span>
+                </button>
+                {modeMenuOpen && (
+                  <ul
+                    ref={modeMenuRef}
+                    className="mode-selector__menu"
+                    role="listbox"
+                    aria-label="选择输入模式"
+                  >
+                    {INPUT_MODES.map((m) => (
+                      <li key={m} role="presentation">
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={inputMode === m}
+                          className={`mode-selector__option ${inputMode === m ? 'is-active' : ''}`}
+                          onClick={() => {
+                            setInputMode(m);
+                            setModeMenuOpen(false);
+                          }}
+                          title={MODE_METADATA[m].desc}
+                        >
+                          <span className="mode-selector__option-icon" aria-hidden>{MODE_METADATA[m].icon}</span>
+                          <span className="mode-selector__option-body">
+                            <span className="mode-selector__option-label">{MODE_METADATA[m].label}</span>
+                            <span className="mode-selector__option-desc">{MODE_METADATA[m].desc}</span>
+                          </span>
+                          {inputMode === m && <span className="mode-selector__option-check" aria-hidden>✓</span>}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <p className="sentence-hint" lang="zh-CN">{currentSentence.chinese_text || 'Listen and type the sentence'}</p>
 
               <div className="sentence-display typewriter-mode" onClick={(e) => {
                 e.stopPropagation();
                 inputRefs.current[0]?.focus();
               }}>
-                {/* Single continuous line for all words */}
-              <div className="sentence-line">
-                {currentSentence.text.split(/\s+/).map((word, index) => {
-                  const isCorrectWord = wordResults[index];
-                  const isActive = currentWordIndex === index && isCorrect === null;
-                  const input = userInputs[index] || '';
+                {/* 所有 cell 共享一个 flex 容器，wrap 边界物理同步 */}
+                <div className="sentence-line" data-phonetics-version={phoneticsVersion}>
+                  {currentSentence.text.split(/\s+/).map((word, index) => {
+                    const isCorrectWord = wordResults[index];
+                    const isActive = currentWordIndex === index && isCorrect === null;
+                    const input = userInputs[index] || '';
+                    const wordKey = word.toLowerCase().replace(/[^a-zA-Z0-9']/g, '');
+                    const phonetic = showPhonetics ? phoneticsMap.current[wordKey] || '' : '';
 
-                  return (
-                    <span key={index} className={`line-word ${isCorrectWord ? 'line-word--correct' : ''} ${isActive ? 'line-word--active' : ''}`}>
-                      {isCorrectWord ? (
-                        <span className="line-word-text">{word}</span>
-                      ) : isActive ? (
-                        <span className="line-word-input">
-                          {input.split('').map((char, i) => {
-                            const status = char?.toLowerCase() === word[i]?.toLowerCase() ? 'correct' : 'wrong';
-                            return <span key={i} className={`line-char line-char--${status}`}>{char}</span>;
-                          })}
-                          <span className="line-cursor">|</span>
+                    return (
+                      <span key={`cell-${index}`} className="sentence-cell">
+                        {/* 单词行（带下划线） */}
+                        <span
+                          className={`line-word ${isCorrectWord ? 'line-word--correct' : ''} ${isActive ? 'line-word--active' : ''} ${inputMode === 'free' ? 'line-word--clickable' : ''} ${justErred && isActive ? 'line-word--shake' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (inputMode === 'free' && !isComposingRef.current) {
+                              setCurrentWordIndex(index);
+                            }
+                          }}
+                        >
+                          <span className="line-word-ghost" aria-hidden>{word}</span>
+                          {isCorrectWord ? (
+                            <span className="line-word-text">{word}</span>
+                          ) : isActive ? (
+                            <span className="line-word-input">
+                              {input.split('').map((char, i) => {
+                                const status = char?.toLowerCase() === word[i]?.toLowerCase() ? 'correct' : 'wrong';
+                                return <span key={i} className={`line-char line-char--${status}`}>{char}</span>;
+                              })}
+                              <span className="line-cursor">|</span>
+                            </span>
+                          ) : (
+                            <span className="line-word-empty"></span>
+                          )}
                         </span>
-                      ) : (
-                        <span className="line-word-empty" style={{ width: (word.length + 2) * 0.65 + 'em' }}></span>
-                      )}
-                      {index < currentSentence.text.split(/\s+/).length - 1 && <span className="line-space"></span>}
-                    </span>
-                  );
-                })}
-              </div>
+
+                        {/* 音标行 */}
+                        {showPhonetics && (
+                          <span className="phonetic-cell">
+                            <span className="phonetic-ghost" aria-hidden>{word}</span>
+                            {phonetic ? <span className="phonetic-text">{phonetic}</span> : <span className="phonetic-placeholder">·</span>}
+                          </span>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Hidden input for typewriter - captures all keystrokes */}
               <input
-                ref={el => inputRefs.current[0] = el}
+                ref={el => { inputRefs.current[0] = el; }}
                 type="text"
                 className="typewriter-input"
                 value={userInputs[currentWordIndex] || ''}
                 onChange={(e) => handleWordChange(currentWordIndex, e.target.value)}
                 onKeyDown={(e) => handleTypewriterKeyDown(e)}
+                onCompositionStart={() => {
+                  isComposingRef.current = true;
+                  // 兜底：macOS IME Enter 静默丢弃拼音不触发 compositionend → 3 秒后强制 reset
+                  if (compositionTimerRef.current) clearTimeout(compositionTimerRef.current);
+                  compositionTimerRef.current = setTimeout(() => {
+                    isComposingRef.current = false;
+                    compositionTimerRef.current = null;
+                  }, 3000);
+                }}
+                onCompositionEnd={(e) => {
+                  isComposingRef.current = false;
+                  if (compositionTimerRef.current) {
+                    clearTimeout(compositionTimerRef.current);
+                    compositionTimerRef.current = null;
+                  }
+                  // 用 IME commit 后的最终值同步一次（React 接管 input）
+                  const finalValue = (e.target as HTMLInputElement).value;
+                  handleWordChange(currentWordIndex, finalValue);
+                }}
                 autoFocus
+                autoComplete="off"
+                spellCheck={false}
               />
 
               {/* Answer hint box - only shows when Space pressed */}
@@ -421,14 +1044,19 @@ export default function PracticePage() {
                 </div>
               )}
 
-              <div className="tips-area">
-                <span className="tip-text">Space: Play audio • Tab: Show/Hide answer</span>
-              </div>
-
               <div className="progress-dots">
-                {sentences.map((_, i) => (
-                  <span key={i} className={`dot ${i === currentIndex ? 'dot--current' : ''} ${i < currentIndex ? 'dot--done' : ''}`} />
-                ))}
+                {sentences.map((_, i) => {
+                  const result = sentenceResults[i];
+                  const doneClass = i < currentIndex
+                    ? (result === true ? 'dot--correct' : result === false ? 'dot--incorrect' : 'dot--done')
+                    : '';
+                  return (
+                    <span
+                      key={i}
+                      className={`dot ${doneClass} ${i === currentIndex ? 'dot--current' : ''}`}
+                    />
+                  );
+                })}
               </div>
             </div>
 
@@ -441,7 +1069,10 @@ export default function PracticePage() {
 
               {isCorrect !== null && (
                 <div className={`feedback ${isCorrect ? 'feedback--correct' : 'feedback--incorrect'}`}>
-                  <span className="feedback__title">{isCorrect ? 'Correct!' : 'Incorrect'}</span>
+                  <div className="feedback__header">
+                    <span className="feedback__title">{isCorrect ? 'Correct!' : 'Incorrect'}</span>
+                    <span className="feedback__time">用了 {Math.round((Date.now() - sentenceStartTime) / 1000)}s</span>
+                  </div>
                   {!isCorrect && <p className="feedback__answer">{correctAnswer}</p>}
                   <button className="next-btn" onClick={handleNext}>
                     {currentIndex < sentences.length - 1 ? 'Next →' : 'Finish'}

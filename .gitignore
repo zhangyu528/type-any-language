@@ -37,6 +37,7 @@ ENV/
 node_modules/
 npm-debug.log*
 frontend/build/
+frontend/.next/
 
 # Audio (generated TTS MP3s — staging area for bake.sh, NOT bind-mounted
 # at runtime. dev/prod both read audio from the `shared_audio` named volume

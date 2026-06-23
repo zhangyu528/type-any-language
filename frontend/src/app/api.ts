@@ -79,3 +79,13 @@ export function getAudioUrl(audioUrl: string): string {
   }
   return `${API_BASE_URL}${audioUrl}`;
 }
+
+export async function getPhonetics(words: string[]): Promise<Record<string, string>> {
+  if (words.length === 0) return {};
+  const params = new URLSearchParams({ words: words.join(',') });
+  const response = await fetch(`${API_BASE_URL}/api/vocabulary/phonetics?${params}`);
+  if (!response.ok) {
+    throw new Error('查询音标失败');
+  }
+  return response.json();
+}
