@@ -12,11 +12,17 @@
 #                backend via DATABASE_URL_FILE. Nothing in the .env file
 #                ends up as a container env var for these.
 #   • DB_USER / DB_NAME: NOT in .env. Set by run.sh from image labels.
-#   • DOCKER_REGISTRY / DB_IMAGE_TAG: NOT in .env. Set via the shell env
-#     (CI / wrapper / `export ...`). When DOCKER_REGISTRY is set, run.sh
-#     auto-pulls the latest baked db image on every start/restart.
+#   • DOCKER_REGISTRY / DB_IMAGE_TAG / BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG:
+#     NOT in .env. Set via the shell env (CI / wrapper / `export ...`).
+#     Defaults are sourced from the root ./VERSION file by scripts/lib.sh.
+#     When DOCKER_REGISTRY is set, run.sh auto-pulls the latest baked db
+#     image on every start/restart.
 #
 # Run via:  ./scripts/ops/prod-host/run.sh start
+# BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG default to the root ./VERSION
+# file (resolved by scripts/lib.sh); the run script exports them before
+# invoking compose. Override at start time:
+#   BACKEND_IMAGE_TAG=v0.2.0 ./scripts/ops/prod-host/run.sh start
 # ---------------------------------------------------------------------------
 
 # Top-level `secrets:` block — secrets are FILES on the host, mounted
@@ -62,7 +68,7 @@ services:
   # Backend — FastAPI / SQLAlchemy
   # -------------------------------------------------------------------------
   backend:
-    image: english_backend
+    image: english_backend:${BACKEND_IMAGE_TAG:-latest}
     build: ./backend
     restart: unless-stopped
     environment:
@@ -93,7 +99,7 @@ services:
   # Frontend — React (CRA build), served by nginx
   # -------------------------------------------------------------------------
   frontend:
-    image: english_frontend
+    image: english_frontend:${FRONTEND_IMAGE_TAG:-latest}
     build: ./frontend
     restart: unless-stopped
     environment:

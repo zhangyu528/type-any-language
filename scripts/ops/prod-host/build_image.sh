@@ -29,6 +29,14 @@ source "$SCRIPT_DIR/../../lib.sh"
 
 require_docker
 
+# BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG default to the root ./VERSION
+# file (resolved by lib.sh). They're exported so docker-compose's
+# ${BACKEND_IMAGE_TAG:-latest} / ${FRONTEND_IMAGE_TAG:-latest}
+# interpolation in the compose file resolves correctly.
+resolve_image_tag BACKEND_IMAGE_TAG
+resolve_image_tag FRONTEND_IMAGE_TAG
+warn_if_version_default "$BACKEND_IMAGE_TAG"
+
 COMPOSE_FILE="docker-compose.yml"
 BACKEND_IMAGE="english_backend"
 FRONTEND_IMAGE="english_frontend"

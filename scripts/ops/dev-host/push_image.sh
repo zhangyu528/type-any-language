@@ -51,7 +51,21 @@ DOCKER_REGISTRY="${DOCKER_REGISTRY:-}"
 COMPOSE_FILE="docker-compose.dev.yml"
 BACKEND_IMAGE="english_backend_dev"
 FRONTEND_IMAGE="english_frontend_dev"
-TAG="${TAG:-latest}"
+# *_IMAGE_TAG default to the root ./VERSION file (resolved by lib.sh).
+resolve_image_tag BACKEND_IMAGE_TAG
+resolve_image_tag FRONTEND_IMAGE_TAG
+warn_if_version_default "$BACKEND_IMAGE_TAG"
+
+# Back-compat: the old single `TAG=...` knob. Only honored when the
+# per-image vars are still at their default (i.e. the user didn't set
+# them explicitly). To be removed once all callers migrate.
+_VER_DEFAULT="$(read_version_file)"
+if [ -n "${TAG:-}" ] && [ "$BACKEND_IMAGE_TAG" = "$_VER_DEFAULT" ]; then
+    warn "TAG=... 已废弃 — 用 BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG"
+    BACKEND_IMAGE_TAG="$TAG"
+    FRONTEND_IMAGE_TAG="$TAG"
+fi
+unset _VER_DEFAULT
 
 # ---------------------------------------------------------------------------
 # doctor — pre-flight checks. Returns 0/1, doesn't push.
@@ -92,20 +106,20 @@ cmd_doctor() {
         info "  → docker login $DOCKER_REGISTRY"
     fi
 
-    if ! image_exists "$BACKEND_IMAGE"; then
-        err "本地 image $BACKEND_IMAGE 不存在"
+    if ! image_exists "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"; then
+        err "本地 image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 不存在"
         info "  → 先跑 ./scripts/ops/dev-host/build_image.sh"
         ok=0
     else
-        ok "本地 image $BACKEND_IMAGE 存在"
+        ok "本地 image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 存在"
     fi
 
-    if ! image_exists "$FRONTEND_IMAGE"; then
-        err "本地 image $FRONTEND_IMAGE 不存在"
+    if ! image_exists "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"; then
+        err "本地 image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 不存在"
         info "  → 先跑 ./scripts/ops/dev-host/build_image.sh"
         ok=0
     else
-        ok "本地 image $FRONTEND_IMAGE 存在"
+        ok "本地 image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 存在"
     fi
 
     echo ""
@@ -136,22 +150,22 @@ cmd_push() {
         exit 1
     fi
 
-    if ! image_exists "$BACKEND_IMAGE"; then
-        err "本地 image $BACKEND_IMAGE 不存在"
+    if ! image_exists "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"; then
+        err "本地 image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 不存在"
         info "  → 先跑 ./scripts/ops/dev-host/build_image.sh"
         exit 1
     fi
-    if ! image_exists "$FRONTEND_IMAGE"; then
-        err "本地 image $FRONTEND_IMAGE 不存在"
+    if ! image_exists "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"; then
+        err "本地 image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 不存在"
         info "  → 先跑 ./scripts/ops/dev-host/build_image.sh"
         exit 1
     fi
 
-    local backend_remote="${DOCKER_REGISTRY}/${BACKEND_IMAGE}:${TAG}"
-    local frontend_remote="${DOCKER_REGISTRY}/${FRONTEND_IMAGE}:${TAG}"
+    local backend_remote="${DOCKER_REGISTRY}/${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"
+    local frontend_remote="${DOCKER_REGISTRY}/${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"
 
     echo ""
-    info "Will push (tag=$TAG):"
+    info "Will push:"
     info "  $BACKEND_IMAGE  →  $backend_remote"
     info "  $FRONTEND_IMAGE →  $frontend_remote"
     info ""
@@ -159,8 +173,8 @@ cmd_push() {
 
     # Brief metadata block.
     local backend_id frontend_id
-    backend_id="$(docker inspect "$BACKEND_IMAGE" --format '{{.Id}}' 2>/dev/null)"
-    frontend_id="$(docker inspect "$FRONTEND_IMAGE" --format '{{.Id}}' 2>/dev/null)"
+    backend_id="$(docker inspect "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}" --format '{{.Id}}' 2>/dev/null)"
+    frontend_id="$(docker inspect "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}" --format '{{.Id}}' 2>/dev/null)"
     info ""
     info "  backend  id=${backend_id}"
     info "  frontend id=${frontend_id}"
@@ -176,8 +190,8 @@ cmd_push() {
 
     echo ""
     info "Tagging..."
-    docker tag "$BACKEND_IMAGE" "$backend_remote"
-    docker tag "$FRONTEND_IMAGE" "$frontend_remote"
+    docker tag "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}" "$backend_remote"
+    docker tag "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}" "$frontend_remote"
 
     info "Pushing backend..."
     if ! docker push "$backend_remote"; then
@@ -214,8 +228,11 @@ usage() {
   -h | --help      显示本帮助
 
 配置 (shell env):
-  DOCKER_REGISTRY  registry 命名空间 (REQUIRED for push)
-  TAG              image tag (默认: latest)
+  DOCKER_REGISTRY         registry 命名空间 (REQUIRED for push)
+  BACKEND_IMAGE_TAG       backend  image tag (默认: 根目录 ./VERSION)
+  FRONTEND_IMAGE_TAG      frontend image tag (默认: 根目录 ./VERSION)
+  IMAGE_TAG               通用 tag 覆盖 (CI 用，一次性给所有 image 设同 tag)
+  TAG                     [已废弃] 用 BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG
 
 示例:
   export DOCKER_REGISTRY=docker.io/youruser

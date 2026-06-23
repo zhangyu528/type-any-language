@@ -20,6 +20,10 @@
 #   - warn_port_in_use           (prints warning if in use)
 #   - gen_secret                 (random URL-safe string)
 #   - detect_default_registry    (docker.io/$USER or empty)
+#   - find_repo_root             (walk up to .git or VERSION; echoes "" if neither)
+#   - read_version_file          (echo first non-empty/non-comment line of ./VERSION, or "v0.0.0")
+#   - resolve_image_tag VAR      (per-image env > IMAGE_TAG > VERSION file > "v0.0.0")
+#   - warn_if_version_default    (one-shot warn when VERSION file is missing/empty)
 #   - sed_inplace                (portable sed -i; GNU vs BSD/macOS)
 #
 
@@ -181,6 +185,98 @@ detect_default_registry() {
         # No usable username (root, container, no whoami): leave empty so
         # the user picks one explicitly. Empty = local-only mode.
         echo ""
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Version resolution
+# ---------------------------------------------------------------------------
+# The project's image tags (db + backend + frontend) all default to the
+# contents of the root VERSION file, with shell-env overrides. The dev and
+# prod run scripts also call resolve_image_tag so the image they pull
+# matches the one that was built.
+#
+# Resolution order (highest priority first):
+#   1. Per-image env var, e.g. BACKEND_IMAGE_TAG=v1.2.3
+#   2. Generic IMAGE_TAG env var (CI convenience — bumps all 5 images)
+#   3. Root ./VERSION file: first non-empty, non-comment line, trimmed
+#   4. Literal "v0.0.0" fallback (won't break a build, but warns once)
+
+# find_repo_root [start] → echoes the absolute path of the repo root, or "".
+# Walks up from $start (default: dir of BASH_SOURCE) until it finds a .git
+# directory or a VERSION file. Returns "" if neither is found.
+find_repo_root() {
+    local start="${1:-$(dirname "${BASH_SOURCE[0]}")}"
+    local dir
+    dir="$(cd "$start" 2>/dev/null && pwd)" || return 0
+    while [ -n "$dir" ] && [ "$dir" != "/" ]; do
+        if [ -d "$dir/.git" ] || [ -f "$dir/VERSION" ]; then
+            echo "$dir"
+            return 0
+        fi
+        dir="$(dirname "$dir")"
+    done
+    echo ""
+}
+
+# read_version_file → echoes the first non-empty, non-comment line of the
+# root VERSION file, stripped of BOM / CR / surrounding whitespace. Falls
+# back to "v0.0.0" when the file is missing or contains no usable content.
+read_version_file() {
+    local repo_root
+    repo_root="$(find_repo_root)"
+    if [ -z "$repo_root" ] || [ ! -f "$repo_root/VERSION" ]; then
+        echo "v0.0.0"
+        return 0
+    fi
+    local v
+    v="$(awk 'NF && substr($0,1,1) != "#" {
+            gsub(/\r/, "");
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "");
+            print;
+            exit
+        }' "$repo_root/VERSION")"
+    if [ -z "$v" ]; then
+        echo "v0.0.0"
+    else
+        echo "$v"
+    fi
+}
+
+# resolve_image_tag VAR_NAME
+#   If $VAR_NAME is already set and non-empty, leave it alone.
+#   Otherwise, set it (in the caller's scope, exported) to:
+#     ${IMAGE_TAG} if set, else $(read_version_file), else "v0.0.0".
+#   Usage:
+#       resolve_image_tag DB_IMAGE_TAG
+#       resolve_image_tag BACKEND_IMAGE_TAG
+#       resolve_image_tag FRONTEND_IMAGE_TAG
+resolve_image_tag() {
+    local var="$1"
+    local cur="${!var:-}"
+    if [ -n "$cur" ]; then
+        return 0
+    fi
+    if [ -n "${IMAGE_TAG:-}" ]; then
+        printf -v "$var" '%s' "$IMAGE_TAG"
+        export "$var"
+        return 0
+    fi
+    local resolved
+    resolved="$(read_version_file)"
+    printf -v "$var" '%s' "$resolved"
+    export "$var"
+}
+
+# warn_if_version_default <tag>  — prints a single warn line if the resolved
+# tag is "v0.0.0" (i.e. no VERSION file was found). A per-process guard
+# (_LIB_VERSION_WARNED) keeps the message from repeating.
+warn_if_version_default() {
+    local tag="${1:-}"
+    if [ "${_LIB_VERSION_WARNED:-0}" = "1" ]; then return 0; fi
+    if [ "$tag" = "v0.0.0" ]; then
+        warn "VERSION 文件缺失或为空, 使用默认 v0.0.0 — 在仓库根建一个 VERSION 文件"
+        _LIB_VERSION_WARNED=1
     fi
 }
 

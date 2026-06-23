@@ -38,9 +38,12 @@
 #   - TENCENT_SECRET_ID/KEY/APP_ID   (provider-issued)
 #
 # `init` copies .env.example.db → .env.db. All other defaults (POSTGRES_USER,
-# POSTGRES_DB, DB_IMAGE, DB_IMAGE_TAG, AI_BASE_URL, AI_MODEL, AUDIO_DIR,
+# POSTGRES_DB, DB_IMAGE, AI_BASE_URL, AI_MODEL, AUDIO_DIR,
 # DEFAULT_BUCKET_TARGET_SIZE) already live in the template with sensible
-# values; the user only needs to fill the secrets above.
+# values; the user only needs to fill the secrets above. DB_IMAGE_TAG is
+# NOT in this list — its default is the root ./VERSION file (resolved by
+# scripts/lib.sh), with .env.db / shell env still able to pin a specific
+# version when needed.
 #
 # DOCKER_REGISTRY is intentionally NOT in .env.db — it's a push-only concern
 # and is read from the shell env by push_image.sh (symmetric with
@@ -72,12 +75,14 @@ SECRET_KEYS=(
 )
 
 # Required keys for a "ready" CMS host. Used by cmd_doctor.
+# DB_IMAGE_TAG is intentionally NOT here — its default is the root
+# ./VERSION file (lib.sh's resolve_image_tag), with .env.db able to pin
+# a specific version when needed.
 REQUIRED_KEYS=(
     DATABASE_URL
     POSTGRES_USER
     POSTGRES_DB
     DB_IMAGE
-    DB_IMAGE_TAG
     AI_API_KEY
     AI_BASE_URL
     AI_MODEL
@@ -132,8 +137,8 @@ cmd_init() {
     fi
 
     # Copy template — all non-secret defaults (POSTGRES_USER, DB, DB_IMAGE,
-    # DB_IMAGE_TAG, AI_BASE_URL, AI_MODEL, AUDIO_DIR, ...) already live in
-    # the template. The user only needs to fill the secrets below.
+    # AI_BASE_URL, AI_MODEL, AUDIO_DIR, ...) already live in the template.
+    # The user only needs to fill the secrets below.
     cp "$TEMPLATE" "$TARGET"
     ok "已从 $TEMPLATE 复制为 $TARGET"
 

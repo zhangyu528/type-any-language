@@ -55,8 +55,17 @@ source "$SCRIPT_DIR/../../lib.sh"
 # "auto-pull off" (local-only mode) when unset.
 DOCKER_REGISTRY="${DOCKER_REGISTRY:-}"
 DB_IMAGE="${DB_IMAGE:-english_db_content}"
-DB_IMAGE_TAG="${DB_IMAGE_TAG:-latest}"
+# *_IMAGE_TAG default to the root ./VERSION file (resolved by lib.sh).
+# Shell env / .env.db still override. Exported for compose interpolation.
+resolve_image_tag DB_IMAGE_TAG
+resolve_image_tag BACKEND_IMAGE_TAG
+resolve_image_tag FRONTEND_IMAGE_TAG
+warn_if_version_default "$BACKEND_IMAGE_TAG"
+
 DB_FULL_IMAGE="${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DB_IMAGE}:${DB_IMAGE_TAG}"
+BACKEND_FULL_IMAGE="${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"
+FRONTEND_FULL_IMAGE="${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"
+export BACKEND_FULL_IMAGE FRONTEND_FULL_IMAGE
 
 SECRETS_DIR=".secrets"
 PG_PASSWORD_FILE="${SECRETS_DIR}/postgres_password"
@@ -144,13 +153,13 @@ write_secrets() {
 # ---------------------------------------------------------------------------
 gate_preflight() {
     require_docker
-    if ! image_exists "$BACKEND_IMAGE"; then
-        err "image $BACKEND_IMAGE 未构建"
+    if ! image_exists "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"; then
+        err "image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 未构建"
         info "  → 运行 ./scripts/ops/dev-host/build_image.sh"
         exit 1
     fi
-    if ! image_exists "$FRONTEND_IMAGE"; then
-        err "image $FRONTEND_IMAGE 未构建"
+    if ! image_exists "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"; then
+        err "image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 未构建"
         info "  → 运行 ./scripts/ops/dev-host/build_image.sh"
         exit 1
     fi
@@ -202,15 +211,15 @@ cmd_doctor() {
     fi
 
     if check_docker_installed && check_docker_daemon_running; then
-        if image_exists "$BACKEND_IMAGE"; then
-            ok "image $BACKEND_IMAGE 存在"
+        if image_exists "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"; then
+            ok "image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 存在"
         else
-            warn "image $BACKEND_IMAGE 缺失 → 运行 ./scripts/ops/dev-host/build_image.sh"
+            warn "image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 缺失 → 运行 ./scripts/ops/dev-host/build_image.sh"
         fi
-        if image_exists "$FRONTEND_IMAGE"; then
-            ok "image $FRONTEND_IMAGE 存在"
+        if image_exists "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"; then
+            ok "image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 存在"
         else
-            warn "image $FRONTEND_IMAGE 缺失 → 运行 ./scripts/ops/dev-host/build_image.sh"
+            warn "image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 缺失 → 运行 ./scripts/ops/dev-host/build_image.sh"
         fi
         if image_exists "$DB_FULL_IMAGE"; then
             ok "db image $DB_FULL_IMAGE 存在"
@@ -287,13 +296,13 @@ cmd_restart() {
     auto_pull_from_registry
     info "重启开发容器（重新加载 secrets）..."
 
-    BACKEND_BEFORE=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "$BACKEND_IMAGE" 2>/dev/null || true)
-    FRONTEND_BEFORE=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "$FRONTEND_IMAGE" 2>/dev/null || true)
+    BACKEND_BEFORE=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}" 2>/dev/null || true)
+    FRONTEND_BEFORE=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}" 2>/dev/null || true)
 
     $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d --no-deps --force-recreate backend frontend
 
-    BACKEND_AFTER=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "$BACKEND_IMAGE" 2>/dev/null || true)
-    FRONTEND_AFTER=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "$FRONTEND_IMAGE" 2>/dev/null || true)
+    BACKEND_AFTER=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}" 2>/dev/null || true)
+    FRONTEND_AFTER=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}" 2>/dev/null || true)
 
     if [ -n "$BACKEND_BEFORE" ] && [ "$BACKEND_BEFORE" != "$BACKEND_AFTER" ]; then
         warn "$BACKEND_IMAGE image ID 变化了 — 你是改了 Dockerfile？"
@@ -342,7 +351,10 @@ usage() {
 
 环境覆盖:
   ALLOWED_ORIGINS=https://my.domain ./scripts/ops/dev-host/run.sh start
-  DOCKER_REGISTRY=ghcr.io/me DB_IMAGE_TAG=v1.2 ./scripts/ops/dev-host/run.sh start
+  DOCKER_REGISTRY=ghcr.io/me \
+    DB_IMAGE_TAG=v1.2 BACKEND_IMAGE_TAG=v1.2 FRONTEND_IMAGE_TAG=v1.2 \
+    ./scripts/ops/dev-host/run.sh start
+  # IMAGE_TAG=v1.2 一次性给所有 image 设同 tag（CI 用）
 EOF
 }
 

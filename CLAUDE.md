@@ -22,6 +22,7 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generat
 ## Repository structure
 
 ```
+├── VERSION               # project version (single source of truth for image tags)
 ├── backend/              # FastAPI + SQLAlchemy — pure read-layer
 │   ├── app/
 │   │   ├── main.py      # FastAPI entry, CORS, /audio static mount
@@ -123,6 +124,46 @@ No `.env` is needed. `ALLOWED_ORIGINS` defaults to `http://localhost` in the pro
 
 **Image registry model**: CMS host pushes the content-baked `db` image; each target host pushes its own `backend + frontend` images. Target hosts `docker pull` all 3 from `$DOCKER_REGISTRY` when `DOCKER_REGISTRY` is set (auto-pulled by `run.sh start`).
 
+## Image version tags
+
+All 5 images (`db`, `english_backend{,_dev}`, `english_frontend{,_dev}`) carry an explicit tag. The default comes from the root `./VERSION` file (first non-empty, non-comment line, trimmed); shell env / `.env.db` override.
+
+Resolution chain (`scripts/lib.sh` → `resolve_image_tag`):
+1. Per-image env var, e.g. `BACKEND_IMAGE_TAG=v1.2.3`
+2. Generic `IMAGE_TAG` (CI convenience — bumps all 5 at once)
+3. Root `./VERSION` file
+4. Literal `v0.0.0` (won't break a build, but warns once)
+
+Examples:
+```bash
+# Use whatever ./VERSION says (default):
+./scripts/ops/dev-host/build_image.sh
+
+# Bump all 5 images to v1.2.3 for a release:
+IMAGE_TAG=v1.2.3 ./scripts/ops/dev-host/build_image.sh
+IMAGE_TAG=v1.2.3 ./scripts/ops/prod-host/build_image.sh
+IMAGE_TAG=v1.2.3 ./scripts/ops/db/bake_image.sh
+
+# Pin just the db image, leave app at VERSION:
+DB_IMAGE_TAG=v0.5.0 ./scripts/ops/db/bake_image.sh
+```
+
+The dev/prod `run.sh` reads the same tags at start time, so what gets pulled from the registry matches what was built. `push_image.sh` uses the same convention (legacy `TAG=...` env var is deprecated — emits a warning and still works for one release).
+
+## Migration from pre-VERSION release
+
+If you upgraded from a release that used `:latest` (or hardcoded) tags, expect two behavior changes on first run:
+
+1. **`run.sh start` may fail with "image 未构建"** — the compose file now references `:v0.1.0` (or whatever `./VERSION` says), not `:latest`. Fix once:
+   ```bash
+   ./scripts/ops/dev-host/build_image.sh    # or prod-host/build_image.sh
+   ```
+   Old `:latest` images on the host will still exist as stale tags. They're harmless; clean up later with `docker rmi english_backend_dev:latest english_frontend_dev:latest`.
+
+2. **`compose pull` now pulls by versioned tag, not `:latest`.** If your local cache has a stale `:latest` and the registry has a different `:v0.1.0`, the pull overwrites the local tag. This is intentional — it's the whole point of having a version pin.
+
+There is no automatic `:latest` → `:v0.1.0` retag helper, because it would silently lie about what's in the image. Rebuilding once is the only correct migration.
+
 ### Testing
 
 ```bash
@@ -169,7 +210,8 @@ Required:
 - `TENCENT_SECRET_ID`, `TENCENT_SECRET_KEY`, `TENCENT_APP_ID` — Tencent Cloud TTS
 - `AUDIO_DIR` — where `generate_audio.py` writes MP3s and `bake_image.sh` reads them from
 - `POSTGRES_USER`, `POSTGRES_DB` — db identity (baked into image labels)
-- `DB_IMAGE`, `DB_IMAGE_TAG` — image naming (the local tag baked + pushed)
+- `DB_IMAGE` — image name (default: `english_db_content`)
+- `DB_IMAGE_TAG` — image tag (default: root `./VERSION`; `.env.db` / shell env override)
 
 > `DOCKER_REGISTRY` is **not** in `.env.db` — push is a separate concern. Set it in the shell before running `push_image.sh`:
 > ```bash
@@ -190,4 +232,8 @@ Runtime configuration is via shell env (passed to `run.sh` via `KEY=value run.sh
   ALLOWED_ORIGINS=https://my.domain ./scripts/ops/prod-host/run.sh start
   ```
 - `DOCKER_REGISTRY`, `DB_IMAGE_TAG` — which baked db image to pull (when `DOCKER_REGISTRY` is set, `run.sh start` auto-pulls on every start/restart)
+- `BACKEND_IMAGE_TAG`, `FRONTEND_IMAGE_TAG` — image tag for backend/frontend. Default: root `./VERSION` (resolved by `scripts/lib.sh`). Override per image, or set `IMAGE_TAG` to bump all 5 images at once (CI use):
+  ```bash
+  IMAGE_TAG=v1.2.3 ./scripts/ops/prod-host/run.sh start
+  ```
 - `POSTGRES_PASSWORD` — **never set manually**. `run.sh` generates a fresh 24-char URL-safe value on first start and writes it to `.secrets/postgres_password` (chmod 600). Subsequent restarts reuse the file. Compose mounts it into the db container via `POSTGRES_PASSWORD_FILE` and the assembled `DATABASE_URL_FILE` into the backend container.

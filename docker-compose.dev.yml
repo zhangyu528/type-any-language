@@ -9,6 +9,10 @@
 #   • Dev compose file points at ./backend/Dockerfile.dev etc.
 #
 # Run via:  ./scripts/ops/dev-host/run.sh start
+# BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG default to the root ./VERSION
+# file (resolved by scripts/lib.sh); the run script exports them before
+# invoking compose. Override at start time:
+#   BACKEND_IMAGE_TAG=v0.2.0 ./scripts/ops/dev-host/run.sh start
 # ---------------------------------------------------------------------------
 
 secrets:
@@ -44,7 +48,7 @@ services:
   # Backend — hot-reload via ./backend bind-mount + uvicorn --reload
   # -------------------------------------------------------------------------
   backend:
-    image: english_backend_dev
+    image: english_backend_dev:${BACKEND_IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: Dockerfile.dev
@@ -74,7 +78,7 @@ services:
   # Frontend — CRA dev server (HMR) on :3000
   # -------------------------------------------------------------------------
   frontend:
-    image: english_frontend_dev
+    image: english_frontend_dev:${FRONTEND_IMAGE_TAG:-latest}
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
