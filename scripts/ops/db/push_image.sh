@@ -7,9 +7,10 @@
 # times locally before you're ready to publish.
 #
 # Symmetric with scripts/ops/{dev,prod}-host/push_image.sh: all three
-# hosts read DOCKER_REGISTRY from the shell env, NOT from .env.db.
-# This script additionally needs DB_IMAGE / DB_IMAGE_TAG to know WHAT
-# to push — those still come from .env.db (or sane defaults).
+# push scripts read every config value (DOCKER_REGISTRY, DB_IMAGE,
+# DB_IMAGE_TAG) from the shell env, NOT from .env.db. .env.db is the
+# bake-time secret store (OpenAI/Tencent keys, postgres connection,
+# etc.) and shouldn't bleed into push.
 #
 # Subcommands:
 #   (no args)    Push with interactive confirmation prompt.
@@ -23,7 +24,7 @@
 #   1   prerequisite missing
 #   2   docker push failed
 #
-# Configuration:
+# Configuration (ALL shell env; .env.db is NOT loaded by this script):
 #   DOCKER_REGISTRY  namespace prefix  (REQUIRED — push is disabled when
 #                                      empty; that's local-only mode).
 #                      Source precedence:
@@ -31,9 +32,9 @@
 #                        2. auto-detect: detect_default_registry()
 #                                        (docker.io/$USER or "")
 #   DB_IMAGE         image name        (default: english_db_content,
-#                                        override via .env.db)
+#                                        shell env override)
 #   DB_IMAGE_TAG     image tag         (default: VERSION.prod,
-#                                        override via .env.db / shell env)
+#                                        shell env override)
 #
 # Examples:
 #   export DOCKER_REGISTRY=docker.io/youruser
@@ -50,22 +51,20 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 cd "$PROJECT_DIR"
 source "$SCRIPT_DIR/../../lib.sh"
 
-# DB_IMAGE / DB_IMAGE_TAG are still in .env.db (shared with bake_image.sh
-# for OCI labels). Load it optionally — push can also work with the
-# default values if the operator didn't customize the image name.
-if [ -f .env.db ]; then
-    # shellcheck disable=SC1091
-    set -a; . ./.env.db; set +a
-fi
-
+# NOTE: we deliberately do NOT load .env.db here. Push is a separate
+# concern from bake: .env.db is the bake-time secret/config store
+# (OpenAI/Tencent keys, postgres connection, etc.) and shouldn't bleed
+# into push. The values that push DOES care about are all shell-env:
+#   DB_IMAGE         image name (default: english_db_content)
+#   DB_IMAGE_TAG     image tag  (default: root VERSION.prod)
+#   DOCKER_REGISTRY  registry namespace (default: detect_default_registry())
+# Bake pushes the image — push only needs to know its name + tag +
+# where to send it. Nothing else.
 DB_IMAGE="${DB_IMAGE:-english_db_content}"
-# DB_IMAGE_TAG defaults to VERSION.prod (db is "prod-bound" content, shared
-# by both dev and prod targets). .env.db / shell env still override.
 resolve_image_tag DB_IMAGE_TAG VERSION.prod
 warn_if_version_default "$DB_IMAGE_TAG" VERSION.prod
-# DOCKER_REGISTRY is push-only concern. Read from shell env first,
-# fall back to a best-effort auto-detect. Symmetric with the
-# dev/prod push_image.sh.
+# DOCKER_REGISTRY is push-only concern. Shell env wins; falls back to a
+# best-effort auto-detect. Symmetric with dev/prod push_image.sh.
 DOCKER_REGISTRY="${DOCKER_REGISTRY:-$(detect_default_registry)}"
 
 LOCAL_IMAGE="${DB_IMAGE}:${DB_IMAGE_TAG}"
@@ -209,8 +208,8 @@ usage() {
   DOCKER_REGISTRY  registry 命名空间 (REQUIRED for push)
                    来源: shell env > detect_default_registry()
                          export DOCKER_REGISTRY=docker.io/youruser
-  DB_IMAGE         image 名字  (默认: english_db_content; .env.db 覆盖)
-  DB_IMAGE_TAG     image tag   (默认: VERSION.prod; .env.db / env 覆盖)
+  DB_IMAGE         image 名字  (默认: english_db_content; shell env 覆盖)
+  DB_IMAGE_TAG     image tag   (默认: VERSION.prod; shell env 覆盖)
 
 示例:
   export DOCKER_REGISTRY=docker.io/youruser
