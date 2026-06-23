@@ -7,9 +7,9 @@
 # this image and have immediate content without any AI calls.
 #
 # Image labels baked in (read by prod/dev run.sh via `docker inspect`):
-#   type-any-language.db.user           POSTGRES_USER from .env.db
-#   type-any-language.db.name           POSTGRES_DB   from .env.db
-#   type-any-language.content.version   DB_IMAGE_TAG  from .env.db
+#   type-any-language.db.user           POSTGRES_USER (default: english_user; shell env override)
+#   type-any-language.db.name           POSTGRES_DB   (default: english_learning; shell env override)
+#   type-any-language.content.version   DB_IMAGE_TAG  (default: VERSION.prod; .env.db / shell env override)
 #   type-any-language.content.baked-at  <UTC timestamp>
 #
 # Subcommands:
@@ -38,9 +38,13 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 cd "$PROJECT_DIR"
 source "$SCRIPT_DIR/../../lib.sh"
 
-# Load .env.db so $DB_IMAGE / $DB_IMAGE_TAG / $DATABASE_URL
-# / $POSTGRES_USER / $POSTGRES_DB resolve. Refuses to continue if .env.db is
-# missing — run scripts/ops/db/env.sh first.
+# Load .env.db so $DB_IMAGE / $DB_IMAGE_TAG / any user-supplied secrets
+# (AI_API_KEY, TENCENT_*, AUDIO_DIR) resolve. Refuses to continue if
+# .env.db is missing — run scripts/ops/db/env.sh first.
+#
+# DATABASE_URL is NOT in .env.db by convention — see CLAUDE.md. We
+# assemble it from POSTGRES_PASSWORD (env var or .secrets/postgres_password)
+# + code defaults below.
 if [ -f .env.db ]; then
     set -a; . ./.env.db; set +a
 else
@@ -60,6 +64,29 @@ FULL_IMAGE="${DB_IMAGE}:${DB_IMAGE_TAG}"
 # image labels so target hosts can discover them via `docker inspect`.
 POSTGRES_USER="${POSTGRES_USER:-english_user}"
 POSTGRES_DB="${POSTGRES_DB:-english_learning}"
+
+# DATABASE_URL assembly — see db/pipeline/env.py for the same logic.
+# Priority: explicit env var > assembled from POSTGRES_PASSWORD + defaults.
+if [ -z "${DATABASE_URL:-}" ]; then
+    POSTGRES_HOST="${POSTGRES_HOST:-localhost}"
+    POSTGRES_PORT="${POSTGRES_PORT:-5432}"
+    if [ -z "${POSTGRES_PASSWORD:-}" ] && [ -f .secrets/postgres_password ]; then
+        POSTGRES_PASSWORD="$(cat .secrets/postgres_password)"
+    fi
+    if [ -z "${POSTGRES_PASSWORD:-}" ]; then
+        err "POSTGRES_PASSWORD missing — export it, or copy .secrets/postgres_password from the dev/prod host"
+        exit 1
+    fi
+    # URL-encode each component (gen_secret output is URL-safe by default,
+    # but be defensive). Use python if available, fall back to a noop pass.
+    if command -v python3 &> /dev/null; then
+        DATABASE_URL="$(POSTGRES_USER="$POSTGRES_USER" POSTGRES_DB="$POSTGRES_DB" POSTGRES_HOST="$POSTGRES_HOST" POSTGRES_PORT="$POSTGRES_PORT" POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+            python3 -c 'import os, urllib.parse; print("postgresql://%s:%s@%s:%s/%s" % (urllib.parse.quote(os.environ["POSTGRES_USER"], safe=""), urllib.parse.quote(os.environ["POSTGRES_PASSWORD"], safe=""), os.environ["POSTGRES_HOST"], os.environ["POSTGRES_PORT"], os.environ["POSTGRES_DB"]))')"
+    else
+        DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}"
+    fi
+    export DATABASE_URL
+fi
 
 DB_IMAGE_DIR="db"
 DATA_PIPELINE_DIR="db/pipeline"

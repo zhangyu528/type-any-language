@@ -66,17 +66,36 @@ cmd_doctor() {
     set -a; . ./.env.db; set +a
 
     # Hard requirements (every subcommand needs these).
+    # DATABASE_URL is NOT in .env.db — it's assembled from POSTGRES_PASSWORD
+    # + code defaults. The check below mirrors what db/pipeline/env.py does
+    # in Python; we replicate it here in bash so doctor can run without
+    # spinning up Python.
     local missing=()
-    [ -z "$DATABASE_URL" ]   && missing+=("DATABASE_URL")
     [ -z "$AI_API_KEY" ]     && missing+=("AI_API_KEY")
     [ -z "$AUDIO_DIR" ]      && missing+=("AUDIO_DIR")
+    if [ -z "$DATABASE_URL" ]; then
+        # Try to assemble it (same logic as env.py / bake_image.sh).
+        local _pu="${POSTGRES_USER:-english_user}"
+        local _pd="${POSTGRES_DB:-english_learning}"
+        local _ph="${POSTGRES_HOST:-localhost}"
+        local _pp="${POSTGRES_PORT:-5432}"
+        local _pp_pw="${POSTGRES_PASSWORD:-}"
+        if [ -z "$_pp_pw" ] && [ -f .secrets/postgres_password ]; then
+            _pp_pw="$(cat .secrets/postgres_password)"
+        fi
+        if [ -n "$_pp_pw" ]; then
+            DATABASE_URL="postgresql://${_pu}:${_pp_pw}@${_ph}:${_pp}/${_pd}"
+        else
+            missing+=("POSTGRES_PASSWORD (or .secrets/postgres_password)")
+        fi
+    fi
 
     if [ ${#missing[@]} -gt 0 ]; then
-        err "以下 .env.db key 缺失:"
+        err "以下 .env.db / 必要项缺失:"
         for k in "${missing[@]}"; do echo "  - $k"; done
         ok=0
     else
-        ok "核心 .env.db key 都有值 (DATABASE_URL / AI_API_KEY / AUDIO_DIR)"
+        ok "核心 key 都有值 (AI_API_KEY / AUDIO_DIR / POSTGRES_PASSWORD)"
     fi
 
     # TENCENT_* — all-or-nothing, but 0 is OK (only audio subcommand needs them).

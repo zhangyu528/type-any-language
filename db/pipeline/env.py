@@ -26,6 +26,7 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import quote
 
 
 # Project root = parent of db/. Caller passes an absolute path or we
@@ -34,15 +35,81 @@ def _project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent
 
 
+# ---------------------------------------------------------------------------
+# Postgres connection assembly
+# ---------------------------------------------------------------------------
+# Code defaults for the Postgres connection. Each can be overridden by an
+# env var (set in the shell, or by .env.db via setup_env):
+#   POSTGRES_USER   -> english_user       (matches POSTGRES_USER in the baked image label)
+#   POSTGRES_DB     -> english_learning   (matches POSTGRES_DB   in the baked image label)
+#   POSTGRES_HOST   -> localhost          (CMS host talking to its own / dev / prod db)
+#   POSTGRES_PORT   -> 5432
+# POSTGRES_PASSWORD has no default — it must be supplied. Sources (in order):
+#   1. POSTGRES_PASSWORD env var
+#   2. .secrets/postgres_password file (chmod 600, the same file the dev/prod
+#      run.sh writes; operator copies it to the CMS host for content production)
+#   3. error
+# If DATABASE_URL is already set in the environment (legacy or override),
+# it's respected as-is — the assembly step is a no-op.
+
+_DEFAULT_POSTGRES_USER = "english_user"
+_DEFAULT_POSTGRES_DB = "english_learning"
+_DEFAULT_POSTGRES_HOST = "localhost"
+_DEFAULT_POSTGRES_PORT = "5432"
+
+
+def _resolve_postgres_password() -> str:
+    """Find the per-host postgres password. Order:
+        1. POSTGRES_PASSWORD env var
+        2. .secrets/postgres_password file (relative to project root)
+        3. error
+    """
+    pwd = os.environ.get("POSTGRES_PASSWORD", "").strip()
+    if pwd:
+        return pwd
+    secret_file = _project_root() / ".secrets" / "postgres_password"
+    if secret_file.is_file():
+        pwd = secret_file.read_text(encoding="utf-8").strip()
+        if pwd:
+            return pwd
+    sys.exit(
+        "POSTGRES_PASSWORD missing — set it via:\n"
+        "  export POSTGRES_PASSWORD=...\n"
+        "  # OR copy the per-host password file from the dev/prod host:\n"
+        "  mkdir -p .secrets && scp user@dev-host:.secrets/postgres_password .secrets/"
+    )
+
+
+def _resolve_database_url() -> str:
+    """Return the full DATABASE_URL, either from env or assembled from parts.
+
+    Priority: explicit DATABASE_URL env var > assembled from code defaults
+    + POSTGRES_PASSWORD.
+    """
+    explicit = os.environ.get("DATABASE_URL", "").strip()
+    if explicit:
+        return explicit
+    user = os.environ.get("POSTGRES_USER", _DEFAULT_POSTGRES_USER)
+    db = os.environ.get("POSTGRES_DB", _DEFAULT_POSTGRES_DB)
+    host = os.environ.get("POSTGRES_HOST", _DEFAULT_POSTGRES_HOST)
+    port = os.environ.get("POSTGRES_PORT", _DEFAULT_POSTGRES_PORT)
+    pwd = _resolve_postgres_password()
+    return f"postgresql://{quote(user, safe='')}:{quote(pwd, safe='')}@{host}:{port}/{db}"
+
+
 def setup_env(env_file: str | os.PathLike | None = None) -> dict[str, str]:
     """Load .env.db into os.environ (idempotent). Returns the loaded dict.
 
     Mirrors what bake_image.sh does in bash:
         set -a; . ./.env.db; set +a
 
-    After this call, os.environ["DATABASE_URL"] etc. are populated and
-    downstream libraries (psycopg2, openai, tencentcloud-sdk-python) can
-    pick them up via their standard env-var discovery.
+    After this call:
+      - os.environ["DATABASE_URL"] is populated (either from .env.db or
+        assembled from POSTGRES_PASSWORD + code defaults) so downstream
+        libraries (psycopg2, openai, tencentcloud-sdk-python) can pick
+        them up via their standard env-var discovery.
+      - os.environ["AI_API_KEY"], "TENCENT_*", "AUDIO_DIR" are populated
+        if they're in .env.db.
     """
     path = Path(env_file) if env_file else _project_root() / ".env.db"
     if not path.is_file():
@@ -66,6 +133,12 @@ def setup_env(env_file: str | os.PathLike | None = None) -> dict[str, str]:
                 value = value[1:-1]
             loaded[key] = value
             os.environ.setdefault(key, value)  # don't clobber pre-set env
+
+    # Assemble DATABASE_URL last so it picks up POSTGRES_PASSWORD / .secrets
+    # / explicit override correctly. If .env.db already set it, that's used.
+    assembled = _resolve_database_url()
+    os.environ["DATABASE_URL"] = assembled
+    loaded["DATABASE_URL"] = assembled
     return loaded
 
 
@@ -80,7 +153,7 @@ def _required(name: str) -> str:
 class Config:
     """Validated .env.db settings used by the data pipeline."""
 
-    # Database
+    # Database (assembled from POSTGRES_PASSWORD + code defaults by setup_env)
     database_url: str
 
     # AI / OpenAI
@@ -108,10 +181,11 @@ def load_config() -> Config:
     """Build a validated Config from os.environ.
 
     Required keys (no defaults — fail if missing):
-      DATABASE_URL, AI_API_KEY, TENCENT_SECRET_ID, TENCENT_SECRET_KEY,
-      TENCENT_APP_ID, AUDIO_DIR.
+      DATABASE_URL (assembled by setup_env from POSTGRES_PASSWORD + code defaults),
+      AI_API_KEY, TENCENT_SECRET_ID, TENCENT_SECRET_KEY, TENCENT_APP_ID, AUDIO_DIR.
 
-    Defaults provided for AI_BASE_URL, AI_MODEL, DEFAULT_BUCKET_TARGET_SIZE.
+    Defaults provided for AI_BASE_URL, AI_MODEL, DEFAULT_BUCKET_TARGET_SIZE,
+    POSTGRES_USER, POSTGRES_DB.
     """
     return Config(
         database_url=_required("DATABASE_URL"),
@@ -125,6 +199,6 @@ def load_config() -> Config:
         default_bucket_target_size=int(
             os.environ.get("DEFAULT_BUCKET_TARGET_SIZE", "200")
         ),
-        postgres_user=os.environ.get("POSTGRES_USER", "english_user"),
-        postgres_db=os.environ.get("POSTGRES_DB", "english_learning"),
+        postgres_user=os.environ.get("POSTGRES_USER", _DEFAULT_POSTGRES_USER),
+        postgres_db=os.environ.get("POSTGRES_DB", _DEFAULT_POSTGRES_DB),
     )

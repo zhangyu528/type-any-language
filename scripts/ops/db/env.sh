@@ -33,14 +33,16 @@
 #   has a built-in default). So this is the only env.sh in the project.
 #
 # Smart defaults NOT injected (require user-supplied secrets or host paths):
-#   - DATABASE_URL                   (host-side, needs the password)
+#   - POSTGRES_PASSWORD              (host-side db password; see "Where does
+#                                     the db password come from" below)
 #   - AI_API_KEY                     (provider-issued)
 #   - TENCENT_SECRET_ID/KEY/APP_ID   (provider-issued)
 #   - AUDIO_DIR                      (host-specific filesystem path)
 #
-# All other knobs (POSTGRES_USER, POSTGRES_DB, DB_IMAGE, AI_BASE_URL,
-# AI_MODEL, DEFAULT_BUCKET_TARGET_SIZE) have code-level defaults and are
-# therefore NOT in .env.db. To pin a different value, set it in the shell:
+# All other knobs (POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB,
+# DB_IMAGE, AI_BASE_URL, AI_MODEL, DEFAULT_BUCKET_TARGET_SIZE) have
+# code-level defaults and are therefore NOT in .env.db. To pin a different
+# value, set it in the shell:
 #   POSTGRES_USER=other ./scripts/ops/db/bake_image.sh
 #   AI_MODEL=gpt-4o ./scripts/ops/db/content.sh sentences
 # DB_IMAGE_TAG is also not here — its default is the root ./VERSION file
@@ -52,6 +54,19 @@
 # Override at push time via shell env:
 #   export DOCKER_REGISTRY=docker.io/youruser
 #   ./scripts/ops/db/push_image.sh
+#
+# Where does the db password come from?
+#   DATABASE_URL is assembled at runtime by db/pipeline/env.py +
+#   scripts/ops/db/bake_image.sh from POSTGRES_PASSWORD (which has no code
+#   default) + code defaults for user/host/port/db. POSTGRES_PASSWORD is
+#   resolved in this order:
+#     1. shell env:  export POSTGRES_PASSWORD=...
+#     2. .secrets/postgres_password (chmod 600) — same file the dev/prod
+#        run.sh writes; operator copies it from the dev/prod host to the
+#        CMS host for content production
+#     3. error with hint
+#   For a single-host setup (CMS + dev on the same machine), .secrets/
+#   postgres_password already exists, so no extra setup is needed.
 #
 # Requires: shell + filesystem. NO python, NO docker.
 
@@ -73,19 +88,18 @@ SECRET_KEYS=(
     AI_API_KEY
     TENCENT_SECRET_ID
     TENCENT_SECRET_KEY
-    DATABASE_URL
 )
 
 # Required keys for a "ready" CMS host. Used by cmd_doctor.
-# POSTGRES_USER / POSTGRES_DB / DB_IMAGE / AI_BASE_URL / AI_MODEL /
-# DEFAULT_BUCKET_TARGET_SIZE are intentionally NOT here — they have
-# code-level defaults (see env.py + bake_image.sh) and can be overridden
-# via shell env when needed. DB_IMAGE_TAG is also not here — its default
-# is the root ./VERSION file (lib.sh's resolve_image_tag). TENCENT_*
-# is checked separately below (all-or-nothing, but only the audio
-# subcommand actually needs them).
+# DATABASE_URL is NOT here — it's assembled at runtime from POSTGRES_PASSWORD
+# + code defaults (see header comment). POSTGRES_USER/POSTGRES_DB/DB_IMAGE/
+# AI_BASE_URL/AI_MODEL/DEFAULT_BUCKET_TARGET_SIZE are intentionally NOT here
+# — they have code-level defaults (see env.py + bake_image.sh) and can be
+# overridden via shell env when needed. DB_IMAGE_TAG is also not here — its
+# default is the root ./VERSION file (lib.sh's resolve_image_tag). TENCENT_*
+# is checked separately below (all-or-nothing, but only the audio subcommand
+# actually needs them).
 REQUIRED_KEYS=(
-    DATABASE_URL
     AI_API_KEY
     AUDIO_DIR
 )
@@ -98,17 +112,12 @@ mask_value() {
     local value="$2"
     for s in "${SECRET_KEYS[@]}"; do
         if [ "$key" = "$s" ]; then
-            # DATABASE_URL contains user/pass@host — mask the password segment.
-            if [ "$key" = "DATABASE_URL" ]; then
-                echo "$value" | sed -E 's|(:[^:/@]+@)|:****@|g'
+            # Show first 4 + last 4 chars of the value, with **** between.
+            local n=${#value}
+            if [ "$n" -le 8 ]; then
+                echo "****"
             else
-                # Show first 4 + last 4 chars of the value, with **** between.
-                local n=${#value}
-                if [ "$n" -le 8 ]; then
-                    echo "****"
-                else
-                    echo "${value:0:4}****${value: -4}"
-                fi
+                echo "${value:0:4}****${value: -4}"
             fi
             return
         fi
@@ -137,21 +146,27 @@ cmd_init() {
         exit 1
     fi
 
-    # Copy template — only secrets + host paths (DATABASE_URL, AI_API_KEY,
-    # TENCENT_*, AUDIO_DIR) need to be filled. All other knobs (POSTGRES_USER,
-    # POSTGRES_DB, DB_IMAGE, AI_BASE_URL, AI_MODEL, DEFAULT_BUCKET_TARGET_SIZE)
-    # have code-level defaults and are therefore NOT in .env.db.
+    # Copy template — only secrets + AUDIO_DIR need to be filled.
+    # DATABASE_URL is NOT in .env.db (assembled at runtime from POSTGRES_PASSWORD
+    # + code defaults). All other knobs (POSTGRES_USER, POSTGRES_DB, DB_IMAGE,
+    # AI_BASE_URL, AI_MODEL, DEFAULT_BUCKET_TARGET_SIZE) also have code-level
+    # defaults.
     cp "$TEMPLATE" "$TARGET"
     ok "已从 $TEMPLATE 复制为 $TARGET"
 
     echo ""
     warn "以下项必须你手动填 (env.sh 不会自动 inject):"
-    echo "  - DATABASE_URL       (你的 host-side db password)"
     echo "  - AI_API_KEY         (OpenAI / 提供方密钥)"
     echo "  - AUDIO_DIR          (本机 TTS MP3 输出目录, 需是已存在的可写路径)"
     echo "  - TENCENT_SECRET_ID  (腾讯云 TTS — 三件套 all-or-nothing, 不跑 audio 可不填)"
     echo "  - TENCENT_SECRET_KEY"
     echo "  - TENCENT_APP_ID"
+    echo ""
+    info "DB password 来源 (DATABASE_URL 是运行时拼出来的):"
+    echo "  1. export POSTGRES_PASSWORD=...               # 临时"
+    echo "  2. cp dev-host:.secrets/postgres_password \\"
+    echo "       .secrets/postgres_password              # 多机部署"
+    echo "  3. 单机部署: .secrets/postgres_password 已经在 dev host 存在"
     echo ""
     info "填好后跑: ./scripts/ops/db/env.sh doctor 验证"
     info "或者用: ./scripts/ops/db/env.sh update KEY=VALUE 改某一项"
@@ -362,6 +377,21 @@ cmd_doctor() {
         ok "POSTGRES_USER / POSTGRES_DB 走 bake_image.sh 默认 (english_user / english_learning)"
     fi
 
+    # --- DB password source ---
+    # DATABASE_URL is assembled at runtime; the only thing the operator
+    # needs to provide is POSTGRES_PASSWORD. Check that at least one of
+    # the supported sources will work.
+    if [ -n "${POSTGRES_PASSWORD:-}" ]; then
+        ok "POSTGRES_PASSWORD 来自 shell env"
+    elif [ -f .secrets/postgres_password ]; then
+        ok "POSTGRES_PASSWORD 来自 .secrets/postgres_password"
+    else
+        err "POSTGRES_PASSWORD 找不到 — 设一下:"
+        info "  export POSTGRES_PASSWORD=...                       # 临时"
+        info "  mkdir -p .secrets && cp <dev-host>:.secrets/postgres_password .secrets/"
+        failed=1
+    fi
+
     echo ""
     if [ "$failed" -eq 0 ]; then
         ok "所有必需检查通过"
@@ -390,13 +420,17 @@ usage() {
 
 典型工作流:
   ./scripts/ops/db/env.sh            # 首次: 引导 + smart defaults
-  nano .env.db                    # 填 secrets + AUDIO_DIR (DATABASE_URL / AI_API_KEY / AUDIO_DIR / TENCENT_*)
+  nano .env.db                    # 填 secrets + AUDIO_DIR (AI_API_KEY / AUDIO_DIR / TENCENT_*)
+  # 准备 db password (单选):
+  export POSTGRES_PASSWORD=...                   # 临时
+  # OR:
+  scp user@dev-host:.secrets/postgres_password .secrets/   # 持久
   ./scripts/ops/db/env.sh doctor     # 验证
-  ./scripts/ops/db/env.sh update DATABASE_URL=...  # 改某一项
+  ./scripts/ops/db/env.sh update AI_API_KEY=...  # 改某一项
   ./scripts/ops/db/env.sh show       # 看一眼当前配置 (secret 脱敏)
 
-其他配置 (POSTGRES_USER, POSTGRES_DB, DB_IMAGE, AI_BASE_URL, AI_MODEL,
-DEFAULT_BUCKET_TARGET_SIZE) 不在 .env.db — 代码里有默认, 需要时 shell 覆盖:
+其他配置 (POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, DB_IMAGE,
+AI_BASE_URL, AI_MODEL, DEFAULT_BUCKET_TARGET_SIZE) 不在 .env.db — 代码里有默认, 需要时 shell 覆盖:
   AI_MODEL=gpt-4o ./scripts/ops/db/content.sh sentences
   POSTGRES_USER=foo ./scripts/ops/db/bake_image.sh
 EOF
