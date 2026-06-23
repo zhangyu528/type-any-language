@@ -299,7 +299,6 @@ project/
 │   │   ├── models/                  # 模型
 │   │   ├── routers/                 # 路由
 │   │   └── schemas/                 # Pydantic
-│   ├── seed/vocabulary/             # 历史词库 CSV（保留兼容）
 │   ├── requirements.txt
 │   └── Dockerfile
 │

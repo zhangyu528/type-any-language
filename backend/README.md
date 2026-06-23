@@ -29,7 +29,6 @@ backend/
 │   ├── models/        # SQLAlchemy ORM (vocabulary, sentence)
 │   ├── routers/       # APIRouter definitions
 │   └── schemas/       # pydantic request/response models
-└── seed/              # legacy CSV dir (kept for historical reference)
 ```
 
 ## Endpoints
