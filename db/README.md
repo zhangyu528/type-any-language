@@ -70,9 +70,9 @@ docker compose up -d            # re-init from baked image
 | Label | Source | Consumer |
 |---|---|---|
 | `type-any-language.role` | hard-coded | sanity check |
-| `type-any-language.db.user` | `$POSTGRES_USER` from `.env.cms` | `run.sh` → `DB_USER` |
-| `type-any-language.db.name` | `$POSTGRES_DB` from `.env.cms` | `run.sh` → `DB_NAME` |
-| `type-any-language.content.version` | `$DB_IMAGE_TAG` from `.env.cms` | `run.sh` log line |
+| `type-any-language.db.user` | `$POSTGRES_USER` from `.env.db` | `run.sh` → `DB_USER` |
+| `type-any-language.db.name` | `$POSTGRES_DB` from `.env.db` | `run.sh` → `DB_NAME` |
+| `type-any-language.content.version` | `$DB_IMAGE_TAG` from `.env.db` | `run.sh` log line |
 | `type-any-language.content.baked-at` | `date -u` at bake time | `run.sh` log line |
 
 `db.user` and `db.name` are the **only** authoritative source — `.env` on

@@ -13,8 +13,7 @@
 # Secrets — never bake into any image
 .env
 .env.*
-!.env.example.runtime
-!.env.example.cms
+!.env.example.db
 
 # Editor / IDE / OS
 .idea

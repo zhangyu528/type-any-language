@@ -8,7 +8,7 @@ They're invoked via `scripts/ops/db/content.sh <subcommand>` (which sets up
 
 | Module | CLI invocation | Purpose |
 |---|---|---|
-| `env.py` | (imported by others) | Loads `.env.cms`, exposes `Config` dataclass. |
+| `env.py` | (imported by others) | Loads `.env.db`, exposes `Config` dataclass. |
 | `import_vocab.py` | `python -m pipeline.import_vocab` | CSVs → `vocabulary_libs` + `vocabulary_words`. |
 | `generate_sentences.py` | `python -m pipeline.generate_sentences` | OpenAI → `sentences` table (bucket fill). |
 | `generate_audio.py` | `python -m pipeline.generate_audio` | Tencent TTS → MP3 + `sentences.audio_url`. |
@@ -27,7 +27,7 @@ python3 db/pipeline/import_vocab.py
 ```
 
 `env.py` is imported (not a CLI) — it exposes:
-- `setup_env(env_file=None)` — copies `.env.cms` into `os.environ` (idempotent).
+- `setup_env(env_file=None)` — copies `.env.db` into `os.environ` (idempotent).
 - `load_config()` — returns a validated `Config` dataclass.
 
 ## Python deps (CMS host)

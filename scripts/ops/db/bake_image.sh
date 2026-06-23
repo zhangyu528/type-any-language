@@ -1,15 +1,15 @@
 #!/bin/bash
 #
-# cms/bake_image.sh — bake the content into a portable db image.
+# scripts/ops/db/bake_image.sh — bake the content into a portable db image.
 #
 # The image is a postgres:15-alpine wrapper that pre-loads the
 # `content_items` table and all audio MP3s. Fresh hosts `docker pull`
 # this image and have immediate content without any AI calls.
 #
 # Image labels baked in (read by prod/dev run.sh via `docker inspect`):
-#   type-any-language.db.user           POSTGRES_USER from .env.cms
-#   type-any-language.db.name           POSTGRES_DB   from .env.cms
-#   type-any-language.content.version   DB_IMAGE_TAG  from .env.cms
+#   type-any-language.db.user           POSTGRES_USER from .env.db
+#   type-any-language.db.name           POSTGRES_DB   from .env.db
+#   type-any-language.content.version   DB_IMAGE_TAG  from .env.db
 #   type-any-language.content.baked-at  <UTC timestamp>
 #
 # Subcommands:
@@ -19,7 +19,7 @@
 # Image naming:
 #   Local:  ${DB_IMAGE:-english_db_content}:${DB_IMAGE_TAG:-latest}
 #   Registry: ${DOCKER_REGISTRY}/${DB_IMAGE}:${DB_IMAGE_TAG}
-#   All sourced from .env.cms (defaults match docker-compose.yml).
+#   All sourced from .env.db (defaults match docker-compose.yml).
 #
 # This script does NOT modify content. It only packages whatever is
 # currently in the DB + ./audio/. To update content, run
@@ -34,15 +34,15 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
-source "$SCRIPT_DIR/../lib.sh"
+source "$SCRIPT_DIR/../../lib.sh"
 
-# Load .env.cms so $DB_IMAGE / $DB_IMAGE_TAG / $DOCKER_REGISTRY / $DATABASE_URL
-# / $POSTGRES_USER / $POSTGRES_DB resolve. Refuses to continue if .env.cms is
+# Load .env.db so $DB_IMAGE / $DB_IMAGE_TAG / $DOCKER_REGISTRY / $DATABASE_URL
+# / $POSTGRES_USER / $POSTGRES_DB resolve. Refuses to continue if .env.db is
 # missing — run scripts/ops/db/env.sh first.
-if [ -f .env.cms ]; then
-    set -a; . ./.env.cms; set +a
+if [ -f .env.db ]; then
+    set -a; . ./.env.db; set +a
 else
-    echo "[ERR] .env.cms 不存在 — 跑 ./scripts/ops/db/env.sh 先引导一份" >&2
+    echo "[ERR] .env.db 不存在 — 跑 ./scripts/ops/db/env.sh 先引导一份" >&2
     exit 1
 fi
 
@@ -207,7 +207,7 @@ Usage: $0 [doctor]
 
 Push is a separate step: ./scripts/ops/db/push_image.sh
 
-Environment (sourced from .env.cms):
+Environment (sourced from .env.db):
   DB_IMAGE        Image name (default: english_db_content)
   DB_IMAGE_TAG    Image tag (default: latest) — also baked into image label
   DOCKER_REGISTRY Registry namespace (e.g. docker.io/youruser).

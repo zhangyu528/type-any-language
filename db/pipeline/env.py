@@ -1,21 +1,21 @@
 """
-db/pipeline/env.py — shared .env.cms loader for the data pipeline.
+db/pipeline/env.py — shared .env.db loader for the data pipeline.
 
-Reads .env.cms from the project root and exposes a typed `Config` object
+Reads .env.db from the project root and exposes a typed `Config` object
 to the other pipeline modules. Centralising the env-loading logic here
 means individual scripts (import_vocab, generate_sentences, ...) can just
 do `from pipeline.env import load_config; cfg = load_config()` and
 get validated settings.
 
 Why a dedicated loader (not os.environ directly):
-  - Fail loudly if .env.cms is missing or required keys are unset.
+  - Fail loudly if .env.db is missing or required keys are unset.
   - Single place to do type coercion + default handling.
   - Other scripts can `from pipeline.env import setup_env` to mirror
-    the .env.cms → os.environ copy that bake_image.sh does via `set -a`.
+    the .env.db → os.environ copy that bake_image.sh does via `set -a`.
 
 Usage from a CLI script:
     from pipeline.env import setup_env, load_config
-    setup_env()                 # copies .env.cms into os.environ (idempotent)
+    setup_env()                 # copies .env.db into os.environ (idempotent)
     cfg = load_config()         # typed, validated config
     print(cfg.ai_api_key)       # str (raises if missing)
 """
@@ -35,19 +35,19 @@ def _project_root() -> Path:
 
 
 def setup_env(env_file: str | os.PathLike | None = None) -> dict[str, str]:
-    """Load .env.cms into os.environ (idempotent). Returns the loaded dict.
+    """Load .env.db into os.environ (idempotent). Returns the loaded dict.
 
     Mirrors what bake_image.sh does in bash:
-        set -a; . ./.env.cms; set +a
+        set -a; . ./.env.db; set +a
 
     After this call, os.environ["DATABASE_URL"] etc. are populated and
     downstream libraries (psycopg2, openai, tencentcloud-sdk-python) can
     pick them up via their standard env-var discovery.
     """
-    path = Path(env_file) if env_file else _project_root() / ".env.cms"
+    path = Path(env_file) if env_file else _project_root() / ".env.db"
     if not path.is_file():
         sys.exit(
-            f".env.cms 不存在 ({path}) — 跑 ./scripts/ops/db/env.sh 先引导"
+            f".env.db 不存在 ({path}) — 跑 ./scripts/ops/db/env.sh 先引导"
         )
 
     loaded: dict[str, str] = {}
@@ -72,13 +72,13 @@ def setup_env(env_file: str | os.PathLike | None = None) -> dict[str, str]:
 def _required(name: str) -> str:
     value = os.environ.get(name, "").strip()
     if not value:
-        sys.exit(f"required env var {name} is missing — check .env.cms")
+        sys.exit(f"required env var {name} is missing — check .env.db")
     return value
 
 
 @dataclass(frozen=True)
 class Config:
-    """Validated .env.cms settings used by the data pipeline."""
+    """Validated .env.db settings used by the data pipeline."""
 
     # Database
     database_url: str

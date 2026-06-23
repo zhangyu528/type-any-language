@@ -149,7 +149,7 @@ require_image() {
 # ---------------------------------------------------------------------------
 # gen_secret <length>  → prints a URL-safe random string (no trailing newline).
 # Tries python3 → openssl → /dev/urandom. Used by init scripts to seed
-# SECRET_KEY / POSTGRES_PASSWORD so the resulting .env is immediately usable
+# POSTGRES_PASSWORD so the resulting .env is immediately usable
 # (user can still edit it afterwards).
 gen_secret() {
     local len="${1:-48}"
@@ -189,7 +189,7 @@ detect_default_registry() {
 # ---------------------------------------------------------------------------
 # sed_inplace PATTERN FILE — in-place edit, compatible with GNU sed (Linux)
 # and BSD sed (macOS). BSD requires an explicit empty argument after -i.
-# Used by every env.sh to inject smart defaults into .env.*.
+# Used by scripts/ops/db/env.sh to inject smart defaults into .env.db.
 sed_inplace() {
     if sed --version >/dev/null 2>&1; then
         sed -i "$1" "$2"

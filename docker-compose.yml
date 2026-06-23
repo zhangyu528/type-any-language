@@ -13,7 +13,7 @@
 #                ends up as a container env var for these.
 #   • DB_USER / DB_NAME: NOT in .env. Set by run.sh from image labels.
 #   • DOCKER_REGISTRY / DB_IMAGE_TAG: NOT in .env. Set by CI / wrapper /
-#     .env.cms on the CMS host. When DOCKER_REGISTRY is set, run.sh
+#     .env.db on the CMS host. When DOCKER_REGISTRY is set, run.sh
 #     auto-pulls the latest baked db image on every start/restart.
 #
 # Run via:  ./scripts/ops/prod-host/run.sh start
@@ -24,9 +24,9 @@
 # prod/run.sh's write_secrets() (chmod 600).
 secrets:
   postgres_password:
-    file: ./secrets/postgres_password
+    file: ./.secrets/postgres_password
   database_url:
-    file: ./secrets/database_url
+    file: ./.secrets/database_url
 
 services:
   # -------------------------------------------------------------------------
@@ -66,9 +66,11 @@ services:
     build: ./backend
     restart: unless-stopped
     environment:
-      # Runtime / app config from .env
-      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY not set}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?ALLOWED_ORIGINS not set}
+      # CORS allowlist — override via shell env, e.g.
+      #   ALLOWED_ORIGINS=https://my.domain ./scripts/ops/prod-host/run.sh start
+      # Falls back to http://localhost so first-boot works out of the box
+      # (replace this default with your real domain for production).
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost}
       # DB connection assembled host-side by run.sh and read from file
       DATABASE_URL_FILE: /run/secrets/database_url
     secrets:

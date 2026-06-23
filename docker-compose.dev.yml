@@ -13,9 +13,9 @@
 
 secrets:
   postgres_password:
-    file: ./secrets/postgres_password
+    file: ./.secrets/postgres_password
   database_url:
-    file: ./secrets/database_url
+    file: ./.secrets/database_url
 
 services:
   # -------------------------------------------------------------------------
@@ -50,8 +50,10 @@ services:
       dockerfile: Dockerfile.dev
     restart: unless-stopped
     environment:
-      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY not set}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?ALLOWED_ORIGINS not set}
+      # CORS allowlist — dev defaults to localhost:3000 (CRA dev server).
+      # Override via shell env if needed:
+      #   ALLOWED_ORIGINS=... ./scripts/ops/dev-host/run.sh start
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost,http://localhost:3000}
       DATABASE_URL_FILE: /run/secrets/database_url
     secrets:
       - database_url

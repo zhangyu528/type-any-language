@@ -205,7 +205,7 @@ def main() -> None:
     args = parser.parse_args()
 
     setup_env()
-    cfg = load_config()  # noqa: F841 — validates .env.cms
+    cfg = load_config()  # noqa: F841 — validates .env.db
 
     vocab_dir = find_vocab_dir()
     targets = [args.lib] if args.lib else sorted(LIB_DEFS.keys())

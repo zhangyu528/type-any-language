@@ -1,6 +1,6 @@
 # Content-baked db image for type-any-language.
 #
-# ─── Build pipeline (driven by ./scripts/cms/bake_image.sh) ───────────────
+# ─── Build pipeline (driven by ./scripts/ops/db/bake_image.sh) ───────────────
 #   1. db/pipeline/export_bundle.py dumps content_items + audio/ into
 #      .bake-staging/data-bundle-v.../
 #   2. bake_image.sh stages those into this directory:

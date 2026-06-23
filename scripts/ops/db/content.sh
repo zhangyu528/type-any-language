@@ -15,7 +15,7 @@
 #   export     Dump content + audio into a staging bundle (same as
 #              what bake_image.sh does internally — exposed here for
 #              inspection).
-#   doctor     Pre-flight: .env.cms ready, py deps present, db reachable.
+#   doctor     Pre-flight: .env.db ready, py deps present, db reachable.
 #   -h|help    Show usage.
 #
 # Typical workflow (CMS host):
@@ -34,7 +34,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
-source "$SCRIPT_DIR/../lib.sh"
+source "$SCRIPT_DIR/../../lib.sh"
 
 # pipeline/ lives at db/pipeline/. For `python -m pipeline.X`
 # to work, db/ must be on PYTHONPATH.
@@ -56,14 +56,14 @@ cmd_doctor() {
     echo "=== db/content.sh pre-flight ==="
     echo ""
 
-    if [ ! -f .env.cms ]; then
-        err ".env.cms 不存在 — 跑 ./scripts/ops/db/env.sh 先引导"
+    if [ ! -f .env.db ]; then
+        err ".env.db 不存在 — 跑 ./scripts/ops/db/env.sh 先引导"
         return 1
     fi
-    ok ".env.cms 存在"
+    ok ".env.db 存在"
 
-    # Source .env.cms quietly to peek at required keys.
-    set -a; . ./.env.cms; set +a
+    # Source .env.db quietly to peek at required keys.
+    set -a; . ./.env.db; set +a
 
     # Hard requirements (every subcommand needs these).
     local missing=()
@@ -72,11 +72,11 @@ cmd_doctor() {
     [ -z "$AUDIO_DIR" ]      && missing+=("AUDIO_DIR")
 
     if [ ${#missing[@]} -gt 0 ]; then
-        err "以下 .env.cms key 缺失:"
+        err "以下 .env.db key 缺失:"
         for k in "${missing[@]}"; do echo "  - $k"; done
         ok=0
     else
-        ok "核心 .env.cms key 都有值 (DATABASE_URL / AI_API_KEY / AUDIO_DIR)"
+        ok "核心 .env.db key 都有值 (DATABASE_URL / AI_API_KEY / AUDIO_DIR)"
     fi
 
     # TENCENT_* — all-or-nothing, but 0 is OK (only audio subcommand needs them).
@@ -165,7 +165,7 @@ usage() {
   audio      调 Tencent TTS 批量烤 MP3 (跳过 audio_url 已设的句子)
   publish    no-op (schema 没有 published 标志)
   export     把 content + audio 导出成 staging bundle (bake_image 内部用的同一个)
-  doctor     前置检查 (.env.cms + Python deps + db 可达)
+  doctor     前置检查 (.env.db + Python deps + db 可达)
   -h|help    显示本帮助
 
 每个子命令都透传给 db/pipeline/ 下的 Python 模块。子命令自身的

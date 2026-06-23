@@ -32,17 +32,14 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # --- App / security -----------------------------------------------------
-    SECRET_KEY: str = Field(
-        ...,
-        description=(
-            "Signing / encryption key. Must be ≥32 chars and not the default "
-            "placeholder. Refuse to boot otherwise — see _require_secrets()."
-        ),
-    )
+    # --- App ----------------------------------------------------------------
     ALLOWED_ORIGINS: str = Field(
-        default="http://localhost",
-        description="Comma-separated CORS allow-list.",
+        default="http://localhost,http://localhost:3000",
+        description=(
+            "Comma-separated CORS allow-list. Override via the ALLOWED_ORIGINS "
+            "env var (set by docker-compose from the shell); this default is "
+            "the last-resort fallback when no override is provided."
+        ),
     )
 
     # --- Database -----------------------------------------------------------
@@ -131,22 +128,7 @@ def _apply_file_indirection() -> None:
 # ---------------------------------------------------------------------------
 # _require_secrets — runtime invariants. Called once on first get_settings().
 # ---------------------------------------------------------------------------
-_SECRET_KEY_PLACEHOLDER = "change-me-in-production-must-be-at-least-32-chars-long"
-_SECRET_KEY_MIN_LEN = 32
-
-
 def _require_secrets(settings: "Settings") -> None:
-    if not settings.SECRET_KEY or settings.SECRET_KEY == _SECRET_KEY_PLACEHOLDER:
-        raise RuntimeError(
-            "SECRET_KEY is missing or still at the default placeholder. "
-            "Run ./scripts/ops/prod-host/env.sh (or ./scripts/ops/dev-host/env.sh) to generate one, "
-            "or set it in .env."
-        )
-    if len(settings.SECRET_KEY) < _SECRET_KEY_MIN_LEN:
-        raise RuntimeError(
-            f"SECRET_KEY is too short ({len(settings.SECRET_KEY)} chars). "
-            f"Must be ≥{_SECRET_KEY_MIN_LEN} chars."
-        )
     # Touch resolved_database_url() so we fail fast if DB is unconfigured.
     try:
         settings.resolved_database_url()

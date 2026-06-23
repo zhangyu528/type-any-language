@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# dev/run.sh — manage DEVELOPMENT container lifecycle.
+# dev-host/run.sh — manage DEVELOPMENT container lifecycle.
 #
 # ─── What this is ─────────────────────────────────────────────────────────
 # Runs dev containers with **hot-reload**:
@@ -13,21 +13,24 @@
 #
 # ─── Database identity from image labels ─────────────────────────────────
 # Same as prod: the db image's labels (type-any-language.db.user / .db.name)
-# are read at start time and exported for compose. POSTGRES_PASSWORD from
-# .env.dev is materialised to .secrets/postgres_password and the assembled
-# DATABASE_URL to .secrets/database_url, both chmod 600.
+# are read at start time and exported for compose. POSTGRES_PASSWORD is
+# generated on first start (or reused if .secrets/postgres_password already
+# exists) and materialised to .secrets/postgres_password + .secrets/database_url,
+# both chmod 600. ALLOWED_ORIGINS is read from the shell env, falling back
+# to the compose-level default (http://localhost,http://localhost:3000).
 #
 # ─── What this isn't ──────────────────────────────────────────────────────
-# Does NOT build images, does NOT edit .env.dev.
+# Does NOT build images, does NOT manage secrets.
 #   • To build dev images:    ./scripts/ops/dev-host/build_image.sh
-#   • To init .env.dev:        ./scripts/ops/dev-host/env.sh
-#   • To reload .env.dev:      ./scripts/ops/dev-host/run.sh restart   (≈5s, no rebuild)
+#   • To reset the dev db:    rm .secrets/postgres_password && docker volume rm <db-data>
+#   • To change ALLOWED_ORIGINS: export ALLOWED_ORIGINS=... before start,
+#     or edit the default in docker-compose.dev.yml.
 #
 # ─── Usage ────────────────────────────────────────────────────────────────
 #   ./scripts/ops/dev-host/run.sh doctor   # run pre-flight environment checks
 #   ./scripts/ops/dev-host/run.sh start    # docker compose up -d (dev compose)
 #   ./scripts/ops/dev-host/run.sh stop     # docker compose down
-#   ./scripts/ops/dev-host/run.sh restart  # hard restart (recreate + re-read .env.dev)
+#   ./scripts/ops/dev-host/run.sh restart  # hard restart (recreate)
 #   ./scripts/ops/dev-host/run.sh reload   # alias for restart
 #   ./scripts/ops/dev-host/run.sh logs     # docker compose logs -f
 #   ./scripts/ops/dev-host/run.sh status   # docker compose ps
@@ -37,7 +40,7 @@
 #   • Edit backend/requirements.txt or frontend/package.json → just save.
 #     entrypoint.sh picks it up on next container recreate (use `restart`).
 #   • Edit Dockerfile / .dockerignore → ./scripts/ops/dev-host/build_image.sh && restart.
-#   • Edit .env.dev → ./scripts/ops/dev-host/run.sh restart (no rebuild).
+#   • Edit docker-compose.dev.yml (e.g. ALLOWED_ORIGINS default) → restart.
 #   • Edit nginx/* → not applicable (dev has no nginx).
 #
 
@@ -46,19 +49,15 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
-source "$SCRIPT_DIR/../lib.sh"
+source "$SCRIPT_DIR/../../lib.sh"
 
-# Load .env.dev so POSTGRES_PASSWORD, SECRET_KEY, ALLOWED_ORIGINS resolve.
-if [ -f .env.dev ]; then
-    set -a; . ./.env.dev; set +a
-fi
-
+# DOCKER_REGISTRY may be set in the shell env (CI / wrapper). Default to
+# "auto-pull off" (local-only mode) when unset.
 DOCKER_REGISTRY="${DOCKER_REGISTRY:-}"
 DB_IMAGE="${DB_IMAGE:-english_db_content}"
 DB_IMAGE_TAG="${DB_IMAGE_TAG:-latest}"
 DB_FULL_IMAGE="${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DB_IMAGE}:${DB_IMAGE_TAG}"
 
-ENV_FILE=".env.dev"
 SECRETS_DIR=".secrets"
 PG_PASSWORD_FILE="${SECRETS_DIR}/postgres_password"
 DB_URL_FILE="${SECRETS_DIR}/database_url"
@@ -87,13 +86,22 @@ inspect_db_image_labels() {
 }
 
 # ---------------------------------------------------------------------------
-# write_secrets — same as prod/run.sh.
+# write_secrets
+#
+# Materialises host-side secrets on disk so compose can mount them as
+# files into the db and backend containers (via POSTGRES_PASSWORD_FILE
+# and DATABASE_URL_FILE).
+#
+#   .secrets/postgres_password   (chmod 600) — generated on first start,
+#                                              reused across restarts
+#   .secrets/database_url        (chmod 600) — assembled from above +
+#                                              DB_USER / DB_NAME from image
+#
+# Idempotent: existing .secrets/postgres_password is preserved across
+# restarts so the db volume's password stays stable. To reset the dev
+# db, delete the file (and the db-data volume).
 # ---------------------------------------------------------------------------
 write_secrets() {
-    if [ -z "${POSTGRES_PASSWORD:-}" ]; then
-        err "POSTGRES_PASSWORD 未设置 — 在 .env.dev 里跑 ./scripts/ops/dev-host/env.sh 重新生成"
-        return 1
-    fi
     if [ -z "${DB_USER:-}" ] || [ -z "${DB_NAME:-}" ]; then
         err "DB_USER / DB_NAME 未设置 — db image 的 label 缺失或不正确"
         return 1
@@ -102,13 +110,29 @@ write_secrets() {
     mkdir -p "$SECRETS_DIR"
     chmod 700 "$SECRETS_DIR"
 
+    if [ -f "$PG_PASSWORD_FILE" ]; then
+        # Reuse existing password so the db-data volume keeps its user
+        # credentials (changing it would make the existing db unreachable).
+        POSTGRES_PASSWORD="$(cat "$PG_PASSWORD_FILE")"
+        info "复用现有 $(basename "$PG_PASSWORD_FILE")"
+    else
+        # First start on this host — generate a fresh 24-char URL-safe secret.
+        POSTGRES_PASSWORD="$(gen_secret 24)"
+        info "新生成 POSTGRES_PASSWORD → $(basename "$PG_PASSWORD_FILE")"
+    fi
+    # No trailing newline (postgres reads it strictly).
     printf '%s' "$POSTGRES_PASSWORD" > "$PG_PASSWORD_FILE"
     chmod 600 "$PG_PASSWORD_FILE"
 
+    # database_url: postgresql://<user>:<password>@db:5432/<name>
+    # password is URL-encoded as %xx if needed. We use python if available
+    # for proper escaping; fall back to a noop pass.
     if command -v python3 &> /dev/null; then
         encoded_pw="$(DB_USER="$DB_USER" DB_NAME="$DB_NAME" POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
             python3 -c 'import os, urllib.parse; print("postgresql://%s:%s@db:5432/%s" % (urllib.parse.quote(os.environ["DB_USER"]), urllib.parse.quote(os.environ["POSTGRES_PASSWORD"], safe=""), os.environ["DB_NAME"]))')"
     else
+        # Fallback: trust that secrets.token_urlsafe output is URL-safe
+        # (it is — alphabet is A-Z a-z 0-9 - _).
         encoded_pw="postgresql://${DB_USER}:${POSTGRES_PASSWORD}@db:5432/${DB_NAME}"
     fi
     printf '%s' "$encoded_pw" > "$DB_URL_FILE"
@@ -120,7 +144,6 @@ write_secrets() {
 # ---------------------------------------------------------------------------
 gate_preflight() {
     require_docker
-    require_file "$ENV_FILE" "运行 ./scripts/ops/dev-host/env.sh"
     if ! image_exists "$BACKEND_IMAGE"; then
         err "image $BACKEND_IMAGE 未构建"
         info "  → 运行 ./scripts/ops/dev-host/build_image.sh"
@@ -134,7 +157,7 @@ gate_preflight() {
     if ! image_exists "$DB_FULL_IMAGE"; then
         err "db image $DB_FULL_IMAGE 未构建或未拉取"
         if [ -n "$DOCKER_REGISTRY" ]; then
-            info "  → 设置 DB_IMAGE_TAG 后由 dev/run.sh 拉取，或: docker pull $DB_FULL_IMAGE"
+            info "  → 设置 DB_IMAGE_TAG 后由 run.sh 拉取，或: docker pull $DB_FULL_IMAGE"
         else
             info "  → 运行 ./scripts/ops/db/bake_image.sh（可用 --tag dev 标记）"
             info "  → 之后再次运行 ./scripts/ops/dev-host/run.sh start"
@@ -172,10 +195,10 @@ cmd_doctor() {
         err "未找到 docker-compose / docker compose"; failed=1
     fi
 
-    if file_exists "$ENV_FILE"; then
-        ok "$ENV_FILE 存在"
+    if [ -f "$PG_PASSWORD_FILE" ]; then
+        ok ".secrets/postgres_password 存在（密码稳定，db 不会重置）"
     else
-        err "$ENV_FILE 缺失 → 运行 ./scripts/ops/dev-host/env.sh"; failed=1
+        info ".secrets/postgres_password 缺失 — 下次 start 会现场生成"
     fi
 
     if check_docker_installed && check_docker_daemon_running; then
@@ -262,7 +285,7 @@ cmd_restart() {
     fi
     write_secrets
     auto_pull_from_registry
-    info "重启开发容器（重新加载 $ENV_FILE + secrets）..."
+    info "重启开发容器（重新加载 secrets）..."
 
     BACKEND_BEFORE=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "$BACKEND_IMAGE" 2>/dev/null || true)
     FRONTEND_BEFORE=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "$FRONTEND_IMAGE" 2>/dev/null || true)
@@ -281,7 +304,7 @@ cmd_restart() {
         warn "  这种情况请用 ./scripts/ops/dev-host/build_image.sh 重 build 后再 restart"
     fi
 
-    ok "服务已重启（$ENV_FILE + secrets 已重读）"
+    ok "服务已重启（secrets 已重读）"
 }
 
 cmd_reload() { cmd_restart "$@"; }
@@ -304,7 +327,7 @@ usage() {
   doctor   跑完整环境检查（不修改任何东西，纯只读）
   start    启动开发容器（热重载）。如 DOCKER_REGISTRY 配了就 auto-pull (db + backend + frontend)
   stop     停止开发容器
-  restart  重启容器并重新读取 $ENV_FILE + secrets (≈5s, 不重 build image)
+  restart  重启容器并重新读取 secrets (≈5s, 不重 build image)
   reload   同 restart —— 别名，语义更清晰
   logs     跟踪日志 (Ctrl+C 退出)
   status   查看容器状态
@@ -312,10 +335,14 @@ usage() {
 典型工作流:
   ./scripts/ops/dev-host/run.sh doctor        # 跑一遍检查，看环境是否就绪
   ./scripts/ops/dev-host/run.sh start         # 启动 (DOCKER_REGISTRY 配了会先 auto-pull)
-  ./scripts/ops/dev-host/run.sh restart       # 改 ${ENV_FILE} 后用这个
+  ./scripts/ops/dev-host/run.sh restart       # 改 docker-compose.dev.yml / .secrets 后用这个
   ./scripts/ops/dev-host/build_image.sh && \\
     ./scripts/ops/dev-host/run.sh restart     # 改代码 / Dockerfile 后
   ./scripts/ops/dev-host/run.sh logs backend  # 跟踪 backend 日志
+
+环境覆盖:
+  ALLOWED_ORIGINS=https://my.domain ./scripts/ops/dev-host/run.sh start
+  DOCKER_REGISTRY=ghcr.io/me DB_IMAGE_TAG=v1.2 ./scripts/ops/dev-host/run.sh start
 EOF
 }
 

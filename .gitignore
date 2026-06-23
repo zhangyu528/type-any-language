@@ -1,9 +1,12 @@
 # Environment
 .env
-.env.cms
-.env.dev
+.env.db
 .env.local
 .env.*.local
+
+# Runtime secrets — written by run.sh's write_secrets() (chmod 600).
+# Never commit: each host generates its own on first start.
+.secrets/
 
 # OS
 .DS_Store
@@ -40,7 +43,7 @@ frontend/build/
 # which the content-baked db image seeds on first start.)
 audio/
 
-# db-image build inputs — populated by scripts/cms/bake_image.sh build.
+# db-image build inputs — populated by scripts/ops/db/bake_image.sh build.
 # Only the Dockerfile + init/99-audio.sh + README.md are committed.
 db/init/01-content.sql
 db/seed/

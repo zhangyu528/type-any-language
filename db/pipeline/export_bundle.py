@@ -56,7 +56,7 @@ def run(cmd, **kw):
 def get_database_url() -> str:
     url = os.environ.get("DATABASE_URL")
     if not url:
-        sys.exit("DATABASE_URL is not set (export it from .env.cms)")
+        sys.exit("DATABASE_URL is not set (export it from .env.db)")
     return url
 
 
@@ -158,7 +158,7 @@ def main() -> None:
     parser.add_argument(
         "--audio-dir",
         default=os.environ.get("AUDIO_DIR"),
-        help="Source audio directory. Default: $AUDIO_DIR from .env.cms.",
+        help="Source audio directory. Default: $AUDIO_DIR from .env.db.",
     )
     args = parser.parse_args()
 

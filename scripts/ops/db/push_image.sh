@@ -9,7 +9,7 @@
 # Subcommands:
 #   (no args)    Push with interactive confirmation prompt.
 #   -y|--yes     Skip the confirmation prompt (CI / cron mode).
-#   doctor       Pre-flight: .env.cms has DOCKER_REGISTRY, image exists,
+#   doctor       Pre-flight: .env.db has DOCKER_REGISTRY, image exists,
 #                docker daemon running, login state.
 #   -h|--help    Show usage.
 #
@@ -18,7 +18,7 @@
 #   1   prerequisite missing
 #   2   docker push failed
 #
-# Configuration is read from .env.cms:
+# Configuration is read from .env.db:
 #   DB_IMAGE         image name        (default: english_db_content)
 #   DB_IMAGE_TAG     image tag         (default: latest)
 #   DOCKER_REGISTRY  namespace prefix  (REQUIRED — push is disabled when
@@ -36,13 +36,13 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
-source "$SCRIPT_DIR/../lib.sh"
+source "$SCRIPT_DIR/../../lib.sh"
 
-# Load .env.cms
-if [ -f .env.cms ]; then
-    set -a; . ./.env.cms; set +a
+# Load .env.db
+if [ -f .env.db ]; then
+    set -a; . ./.env.db; set +a
 else
-    err ".env.cms 不存在 — 跑 ./scripts/ops/db/env.sh 先引导"
+    err ".env.db 不存在 — 跑 ./scripts/ops/db/env.sh 先引导"
     exit 1
 fi
 
@@ -187,7 +187,7 @@ usage() {
   doctor           前置检查 (registry / image / docker / login)
   -h | --help      显示本帮助
 
-配置 (.env.cms):
+配置 (.env.db):
   DB_IMAGE         image 名字 (默认: english_db_content)
   DB_IMAGE_TAG     image tag  (默认: latest)
   DOCKER_REGISTRY  registry 命名空间 (REQUIRED for push)

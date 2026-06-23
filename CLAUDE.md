@@ -12,12 +12,12 @@ This project intentionally separates **content production** from **content servi
 
 | Host | Role | What lives here | What runs here |
 |---|---|---|---|
-| **CMS host** | Content production + image bake | `.env.cms` + `scripts/ops/db/` + `db/pipeline/` | Python + Docker |
-| **Target host** (dev or prod) | Content serving | `.env.dev` / `.env` + `scripts/ops/dev-host/` or `scripts/ops/prod-host/` | Docker only |
+| **CMS host** | Content production + image bake | `.env.db` + `scripts/ops/db/` + `db/pipeline/` | Python + Docker |
+| **Target host** (dev or prod) | Content serving | `scripts/ops/dev-host/` or `scripts/ops/prod-host/` | Docker only |
 
-The CMS host produces a `db` image with all content pre-loaded and pushes it to a registry. Target hosts `docker pull` the image and serve it — they never need AI keys, TTS keys, or Python.
+The CMS host produces a `db` image with all content pre-loaded and pushes it to a registry. Target hosts `docker pull` the image and serve it — they never need AI keys, TTS keys, or Python. **Target hosts need no .env file at all** — runtime configuration (only `ALLOWED_ORIGINS`) is passed via shell env, and the host-side secret (`POSTGRES_PASSWORD`) is generated on first start by `run.sh`.
 
-Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is written to `.secrets/postgres_password` (chmod 600) and injected via compose's `secrets` block + `*_FILE` env indirection.
+Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generated on first start by `run.sh` (or reused if `.secrets/postgres_password` already exists) and written to `.secrets/postgres_password` (chmod 600). It is injected via compose's `secrets` block + `*_FILE` env indirection.
 
 ## Repository structure
 
@@ -43,7 +43,7 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is written
 │   ├── content/
 │   │   └── vocabulary/      # operator-maintained CSVs (committed)
 │   └── pipeline/            # Python modules (CMS-only, NOT in the image)
-│       ├── env.py           # .env.cms loader + Config dataclass
+│       ├── env.py           # .env.db loader + Config dataclass
 │       ├── import_vocab.py
 │       ├── generate_sentences.py
 │       ├── generate_audio.py
@@ -54,16 +54,18 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is written
 │   ├── lib.sh               # shared helpers (ok/warn/err, docker detection, gen_secret)
 │   ├── ops/                 # host-operations scripts (configure env / build image / run containers)
 │   │   ├── db/              # CMS host — operates on the db service
-│   │   │   ├── env.sh         # .env.cms lifecycle (init/update/show/doctor)
+│   │   │   ├── env.sh         # .env.db lifecycle (init/update/show/doctor)
 │   │   │   ├── content.sh     # sync / sentences / audio / publish / export / doctor
 │   │   │   ├── bake_image.sh  # DB → staging bundle → docker build
 │   │   │   └── push_image.sh  # registry push
 │   │   ├── dev-host/        # dev target host
-│   │   │   ├── env.sh         # .env.dev lifecycle
-│   │   │   └── run.sh         # compose lifecycle (start/stop/restart/logs/doctor)
+│   │   │   ├── run.sh         # compose lifecycle (start/stop/restart/logs/doctor)
+│   │   │   ├── build_image.sh # local backend+frontend image build
+│   │   │   └── push_image.sh  # push backend+frontend to DOCKER_REGISTRY
 │   │   └── prod-host/       # prod target host
-│   │       ├── env.sh         # .env lifecycle
-│   │       └── run.sh         # compose lifecycle
+│   │       ├── run.sh         # compose lifecycle
+│   │       ├── build_image.sh # local backend+frontend image build
+│   │       └── push_image.sh  # push backend+frontend to DOCKER_REGISTRY
 │   └── dev/                 # developer tools (lint/test/generate/...) — currently empty
 │
 ├── nginx/               # Nginx reverse proxy config
@@ -77,8 +79,8 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 ### CMS host — content production
 
 ```bash
-./scripts/ops/db/env.sh                # First-time .env.cms creation (interactive)
-./scripts/ops/db/content.sh doctor     # Pre-flight: .env.cms + Python deps + DB reachable
+./scripts/ops/db/env.sh                # First-time .env.db creation (interactive)
+./scripts/ops/db/content.sh doctor     # Pre-flight: .env.db + Python deps + DB reachable
 ./scripts/ops/db/content.sh sync       # CSVs → vocabulary_libs + vocabulary_words
 ./scripts/ops/db/content.sh sentences  # OpenAI bulk-fills sentences to DEFAULT_BUCKET_TARGET_SIZE
 ./scripts/ops/db/content.sh audio      # Tencent TTS bulk-fills audio_url + MP3
@@ -91,24 +93,35 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 ### Dev target host
 
 ```bash
-./scripts/ops/dev-host/env.sh               # First-time .env.dev creation (smart defaults)
 ./scripts/ops/dev-host/run.sh doctor         # Pre-flight
 ./scripts/ops/dev-host/run.sh start          # compose up (hot-reload, bind-mounted)
 ./scripts/ops/dev-host/run.sh stop
-./scripts/ops/dev-host/run.sh restart        # Hard restart (recreate + re-read .env.dev)
+./scripts/ops/dev-host/run.sh restart        # Hard restart (recreate + re-read secrets)
 ./scripts/ops/dev-host/run.sh logs
+# Optional image publishing (offline / first-time local setup → registry):
+./scripts/ops/dev-host/build_image.sh        # build english_backend_dev + english_frontend_dev
+./scripts/ops/dev-host/push_image.sh -y      # push them to DOCKER_REGISTRY
 ```
+
+No `.env.dev` is needed. The dev compose file defaults `ALLOWED_ORIGINS` to `http://localhost,http://localhost:3000`; override via shell env. `POSTGRES_PASSWORD` is generated on first start.
 
 ### Prod target host
 
 ```bash
-./scripts/ops/prod-host/env.sh              # First-time .env creation
+ALLOWED_ORIGINS=https://my.domain ./scripts/ops/prod-host/run.sh start
 ./scripts/ops/prod-host/run.sh doctor
 ./scripts/ops/prod-host/run.sh start
 ./scripts/ops/prod-host/run.sh stop
 ./scripts/ops/prod-host/run.sh restart
 ./scripts/ops/prod-host/run.sh logs
+# Optional image publishing:
+./scripts/ops/prod-host/build_image.sh        # build english_backend + english_frontend
+./scripts/ops/prod-host/push_image.sh -y      # push them to DOCKER_REGISTRY
 ```
+
+No `.env` is needed. `ALLOWED_ORIGINS` defaults to `http://localhost` in the prod compose — override via shell env (shown above) or edit the compose file directly. `POSTGRES_PASSWORD` is generated on first start.
+
+**Image registry model**: CMS host pushes the content-baked `db` image; each target host pushes its own `backend + frontend` images. Target hosts `docker pull` all 3 from `$DOCKER_REGISTRY` when `DOCKER_REGISTRY` is set (auto-pulled by `run.sh start`).
 
 ### Testing
 
@@ -141,14 +154,14 @@ cd backend && python -m pytest tests/test_file.py::test_name -v
 6. `push_image.sh` pushes to `DOCKER_REGISTRY`.
 
 **Runtime (target host):**
-1. `run.sh start` reads the db image's labels, assembles `POSTGRES_PASSWORD` (host secret) and `DATABASE_URL_FILE`, `compose up`.
+1. `run.sh start` reads the db image's labels, generates (or reuses) `POSTGRES_PASSWORD` and writes both `.secrets/postgres_password` + `.secrets/database_url`, then `compose up`.
 2. On first start, the db image's `/docker-entrypoint-initdb.d/` runs `01-content.sql` (creates schema, loads content) and `99-audio.sh` (copies `/seed/audio/*` → `/audio/`).
 3. Frontend fetches a sentence, browser plays its MP3 from `/audio/{hash}.mp3` (served by backend's `StaticFiles` mount, in dev proxied through nginx).
 4. User submits answer → `validate_answer()` normalizes (lowercase, strip punctuation/spaces) and compares.
 
 ## Environment variables
 
-### CMS host — `.env.cms` (created by `scripts/ops/db/env.sh`)
+### CMS host — `.env.db` (created by `scripts/ops/db/env.sh`)
 
 Required:
 - `DATABASE_URL` — Postgres connection (used by `pipeline/*.py`)
@@ -161,12 +174,13 @@ Required:
 Optional:
 - `DEFAULT_BUCKET_TARGET_SIZE` — sentences per (lib, difficulty) bucket (default 200)
 
-### Target host — `.env.dev` / `.env` (created by `scripts/ops/dev-host/env.sh` / `scripts/ops/prod-host/env.sh`)
+### Target host — no `.env` file required
 
-Required:
-- `POSTGRES_PASSWORD` — written to `.secrets/postgres_password` (chmod 600), injected via compose `secrets` block
+Runtime configuration is via shell env (passed to `run.sh` via `KEY=value run.sh start` or via a systemd unit `Environment=`), with compose-level defaults as a fallback:
 
-Optional:
-- `DOCKER_REGISTRY`, `DB_IMAGE_TAG` — which baked db image to pull
-- `ALLOWED_ORIGINS` — CORS allowlist (dev defaults to `http://localhost,http://localhost:3000`; prod defaults to `http://localhost`)
-- `SECRET_KEY` — backend sessions/JWT (random by default)
+- `ALLOWED_ORIGINS` — CORS allowlist. Dev defaults to `http://localhost,http://localhost:3000`; prod defaults to `http://localhost`. Override at start time:
+  ```bash
+  ALLOWED_ORIGINS=https://my.domain ./scripts/ops/prod-host/run.sh start
+  ```
+- `DOCKER_REGISTRY`, `DB_IMAGE_TAG` — which baked db image to pull (when `DOCKER_REGISTRY` is set, `run.sh start` auto-pulls on every start/restart)
+- `POSTGRES_PASSWORD` — **never set manually**. `run.sh` generates a fresh 24-char URL-safe value on first start and writes it to `.secrets/postgres_password` (chmod 600). Subsequent restarts reuse the file. Compose mounts it into the db container via `POSTGRES_PASSWORD_FILE` and the assembled `DATABASE_URL_FILE` into the backend container.

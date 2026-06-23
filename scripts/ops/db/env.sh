@@ -1,33 +1,36 @@
 #!/bin/bash
 #
-# cms/env.sh — manage .env.cms on the CMS content-production host.
+# cms/env.sh — manage .env.db on the CMS content-production host.
 #
-# This is the unified entry point for .env.cms lifecycle: first-time
+# This is the unified entry point for .env.db lifecycle: first-time
 # creation, ongoing updates, masked inspection, and config validation.
 # Default behaviour is `init` (backward-compatible — old users who just
 # run `./scripts/ops/db/env.sh` get the bootstrap flow they expect).
 #
 # Subcommands:
-#   (no args)  init      Create .env.cms from template + inject smart defaults.
-#                        Idempotent: skips if .env.cms exists.
-#   update     update    Update one or more KEY=VALUE pairs in .env.cms.
+#   (no args)  init      Create .env.db from template + inject smart defaults.
+#                        Idempotent: skips if .env.db exists.
+#   update     update    Update one or more KEY=VALUE pairs in .env.db.
 #                        Other keys are untouched ("remember last" semantics).
 #                        Without args: interactive prompt. With args: non-interactive.
-#   show       show      Print .env.cms contents with sensitive values masked.
-#   doctor     doctor    Validate .env.cms completeness + format checks.
+#   show       show      Print .env.db contents with sensitive values masked.
+#   doctor     doctor    Validate .env.db completeness + format checks.
 #                        Non-zero exit if any REQUIRED key is missing/invalid.
 #   -h | help             Show usage.
 #
 # "Remember last" semantics:
-#   - `init` only runs on first creation; existing .env.cms is left alone.
+#   - `init` only runs on first creation; existing .env.db is left alone.
 #   - `update` changes only the keys you specify; everything else is preserved.
 #   - `show` and `doctor` are read-only.
 #
 # Why "env.sh" (not "init.sh"):
-#   The script started as init-only (mirroring prod/init.sh, dev/init.sh),
-#   but grew init/update/show/doctor subcommands. The name "init.sh" became
-#   misleading. The new name "env.sh" reflects its real job: manage the
-#   .env.cms file. prod/init.sh and dev/init.sh remain init-only by design.
+#   The script's real job is to manage .env.db (init / update / show /
+#   doctor), not just initialize it. "env.sh" describes the scope.
+#
+#   Note: target hosts (dev/prod) no longer have an env.sh at all — they
+#   need no .env file. POSTGRES_PASSWORD is generated on first start by
+#   run.sh, and ALLOWED_ORIGINS is passed via the shell env (compose
+#   has a built-in default). So this is the only env.sh in the project.
 #
 # Smart defaults injected on first init:
 #   - POSTGRES_USER, POSTGRES_DB    = english_user / english_learning
@@ -50,14 +53,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
 # shellcheck disable=SC1091
-source "$SCRIPT_DIR/../lib.sh"
+source "$SCRIPT_DIR/../../lib.sh"
 
-TEMPLATE=".env.example.cms"
-TARGET=".env.cms"
+TEMPLATE=".env.example.db"
+TARGET=".env.db"
 
 # Keys whose values contain a secret and must be masked in `show`.
 # (Used by cmd_show; kept here for documentation and to make it easy
-# to extend if more secrets land in .env.cms later.)
+# to extend if more secrets land in .env.db later.)
 SECRET_KEYS=(
     AI_API_KEY
     TENCENT_SECRET_ID
@@ -219,7 +222,7 @@ cmd_update() {
         done
     else
         # Interactive: list all current key=value pairs and let user pick
-        echo ".env.cms 当前内容:"
+        echo ".env.db 当前内容:"
         echo ""
         local n=1
         local keys=()
@@ -268,7 +271,7 @@ cmd_update() {
 }
 
 # ---------------------------------------------------------------------------
-# cmd_show — print .env.cms with secrets masked
+# cmd_show — print .env.db with secrets masked
 # ---------------------------------------------------------------------------
 cmd_show() {
     if ! file_exists "$TARGET"; then
@@ -299,7 +302,7 @@ cmd_show() {
 }
 
 # ---------------------------------------------------------------------------
-# cmd_doctor — validate .env.cms is ready for content.sh
+# cmd_doctor — validate .env.db is ready for content.sh
 # ---------------------------------------------------------------------------
 cmd_doctor() {
     local failed=0
@@ -308,10 +311,10 @@ cmd_doctor() {
         return 1
     fi
 
-    echo "=== CMS .env.cms health check ==="
+    echo "=== CMS .env.db health check ==="
     echo ""
 
-    # Source .env.cms in a subshell to read values without polluting our env.
+    # Source .env.db in a subshell to read values without polluting our env.
     local missing=()
     local empty=()
     for k in "${REQUIRED_KEYS[@]}"; do
@@ -385,20 +388,20 @@ usage() {
 用法: ./scripts/ops/db/env.sh <command> [args]
 
 命令:
-  (无参数)     init      首次创建 .env.cms + 注入 smart defaults (idempotent: 已存在则跳过)
+  (无参数)     init      首次创建 .env.db + 注入 smart defaults (idempotent: 已存在则跳过)
   update       update    改一项或多项 (保持其他不变)。无参数走交互, 带 KEY=VALUE 走 CI 模式
-  show         show      显示 .env.cms 当前内容, secret 已脱敏
-  doctor       doctor    验证 .env.cms 完整性 + 格式
+  show         show      显示 .env.db 当前内容, secret 已脱敏
+  doctor       doctor    验证 .env.db 完整性 + 格式
   -h | help              显示本帮助
 
 "记住上次" 语义:
-  - init  不会覆盖已存在的 .env.cms (一首次创建, 后续保持)
+  - init  不会覆盖已存在的 .env.db (一首次创建, 后续保持)
   - update 只改你指定的 key, 其他保持不变
   - show / doctor 纯只读
 
 典型工作流:
   ./scripts/ops/db/env.sh            # 首次: 引导 + smart defaults
-  nano .env.cms                    # 填 5 个 secret (DATABASE_URL / AI_API_KEY / TENCENT_*)
+  nano .env.db                    # 填 5 个 secret (DATABASE_URL / AI_API_KEY / TENCENT_*)
   ./scripts/ops/db/env.sh doctor     # 验证
   ./scripts/ops/db/env.sh update DOCKER_REGISTRY=ghcr.io/myorg  # 改某一项
   ./scripts/ops/db/env.sh show       # 看一眼当前配置 (secret 脱敏)
