@@ -150,6 +150,38 @@ DB_IMAGE_TAG=v0.5.0 ./scripts/ops/db/bake_image.sh
 
 The dev/prod `run.sh` reads the same tags at start time, so what gets pulled from the registry matches what was built. `push_image.sh` uses the same convention.
 
+### Drift detection
+
+Every image carries the `type-any-language.app.version` LABEL (sourced from `APP_VERSION` build-arg, which the build scripts set to the resolved `*_IMAGE_TAG`). `run.sh doctor` (both dev and prod) iterates the running containers and compares each LABEL against the locally-resolved expected tag — mismatches print a `drift` warning, suggesting `run.sh restart` to pick up the new image. This catches the case where VERSION was bumped on the CMS host but the target host hasn't pulled/restarted yet.
+
+### Release flow
+
+`scripts/release.sh bump X.Y.Z` updates `VERSION`, commits, and prints the per-host build+push commands. The full release flow:
+
+```bash
+# On the dev workstation (after merging all changes to master):
+./scripts/release.sh bump v0.2.0
+git push
+
+# On the CMS host (content-baked db image):
+git pull
+IMAGE_TAG=v0.2.0 ./scripts/ops/db/bake_image.sh
+IMAGE_TAG=v0.2.0 ./scripts/ops/db/push_image.sh -y
+
+# On the dev target host:
+git pull
+IMAGE_TAG=v0.2.0 ./scripts/ops/dev-host/build_image.sh
+IMAGE_TAG=v0.2.0 ./scripts/ops/dev-host/push_image.sh -y
+
+# On the prod target host:
+git pull
+IMAGE_TAG=v0.2.0 ./scripts/ops/prod-host/build_image.sh
+IMAGE_TAG=v0.2.0 ./scripts/ops/prod-host/push_image.sh -y
+
+# Verify on each target host:
+./scripts/ops/<host>/run.sh doctor    # should show "drift OK (version=v0.2.0)" for all 3 services
+```
+
 ## Migration from pre-VERSION release
 
 If you upgraded from a release that used `:latest` (or hardcoded) tags, expect two behavior changes on first run:

@@ -257,6 +257,10 @@ cmd_doctor() {
     fi
 
     echo ""
+    echo "--- drift check (running containers vs local VERSION) ---"
+    drift_check
+
+    echo ""
     if [ $failed -eq 0 ]; then
         ok "所有必需检查通过"
         return 0
@@ -279,6 +283,35 @@ auto_pull_from_registry() {
         err "pull 失败 — 检查 DOCKER_REGISTRY / 网络 / 凭据"
         exit 1
     fi
+}
+
+# drift_check — compare running containers' type-any-language.app.version
+# LABEL against the locally-resolved *_IMAGE_TAG. Warns on mismatch.
+# Skipped silently if no containers are running.
+drift_check() {
+    if ! $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" ps -q db >/dev/null 2>&1; then
+        return 0
+    fi
+    local svc cid expected actual
+    for svc in db backend frontend; do
+        case "$svc" in
+            db)      expected="$DB_IMAGE_TAG" ;;
+            backend) expected="$BACKEND_IMAGE_TAG" ;;
+            frontend) expected="$FRONTEND_IMAGE_TAG" ;;
+        esac
+        cid="$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" ps -q "$svc" 2>/dev/null | head -1)"
+        if [ -z "$cid" ]; then
+            continue
+        fi
+        actual="$(docker inspect "$cid" --format '{{ index .Config.Labels "type-any-language.app.version" }}' 2>/dev/null || echo "")"
+        if [ -z "$actual" ]; then
+            warn "  $svc: 无 type-any-language.app.version LABEL (image 旧？rebuild)"
+        elif [ "$actual" != "$expected" ]; then
+            warn "  $svc drift: running=$actual, expected=$expected — run.sh restart 拉新 image"
+        else
+            ok "  $svc drift OK (version=$actual)"
+        fi
+    done
 }
 
 cmd_start() {
