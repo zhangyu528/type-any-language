@@ -1,5 +1,13 @@
 FROM python:3.11-slim
 
+# Project version (root ./VERSION, resolved by scripts/lib.sh) + git SHA
+# (best-effort, "unknown" if not in a git checkout). Surfaces in
+# `docker inspect` as type-any-language.app.{version,git-sha}.
+ARG APP_VERSION=latest
+ARG GIT_SHA=unknown
+LABEL type-any-language.app.version="${APP_VERSION}"
+LABEL type-any-language.app.git-sha="${GIT_SHA}"
+
 WORKDIR /app
 
 # 安装系统依赖

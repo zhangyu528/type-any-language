@@ -35,6 +35,12 @@ ARG DB_USER=english_user
 ARG DB_NAME=english_learning
 ARG CONTENT_VERSION=latest
 ARG BAKED_AT=unknown
+# Project code version (root ./VERSION, resolved by scripts/lib.sh).
+# Same value as CONTENT_VERSION today, but conceptually distinct:
+# APP_VERSION is the project semver, CONTENT_VERSION is the content
+# snapshot identifier (currently derived from the same VERSION file).
+ARG APP_VERSION=latest
+ARG GIT_SHA=unknown
 
 # OCI labels — these are the source of truth (docker build --label in
 # bake_image.sh re-asserts them, but declaring here keeps `docker build .`
@@ -44,6 +50,8 @@ LABEL type-any-language.db.user="${DB_USER}"
 LABEL type-any-language.db.name="${DB_NAME}"
 LABEL type-any-language.content.version="${CONTENT_VERSION}"
 LABEL type-any-language.content.baked-at="${BAKED_AT}"
+LABEL type-any-language.app.version="${APP_VERSION}"
+LABEL type-any-language.app.git-sha="${GIT_SHA}"
 
 # Init scripts: 01-content.sql is populated by bake_image.sh (gitignored,
 # not in repo), 99-audio.sh is committed.

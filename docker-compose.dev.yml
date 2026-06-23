@@ -52,6 +52,11 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.dev
+      args:
+        # Project VERSION (resolved by scripts/lib.sh) + best-effort git SHA.
+        # Surfaces in the image as type-any-language.app.{version,git-sha}.
+        APP_VERSION: ${BACKEND_IMAGE_TAG:-latest}
+        GIT_SHA: ${GIT_SHA:-unknown}
     restart: unless-stopped
     environment:
       # CORS allowlist — dev defaults to localhost:3000 (CRA dev server).
@@ -82,6 +87,11 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
+      args:
+        # Project VERSION (resolved by scripts/lib.sh) + best-effort git SHA.
+        # Surfaces in the image as type-any-language.app.{version,git-sha}.
+        APP_VERSION: ${FRONTEND_IMAGE_TAG:-latest}
+        GIT_SHA: ${GIT_SHA:-unknown}
     restart: unless-stopped
     environment:
       # In dev, the React app talks to the backend on the host directly

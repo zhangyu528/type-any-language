@@ -176,16 +176,21 @@ cmd_bake() {
 
     # UTC timestamp for the image label.
     baked_at="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)"
+    # Best-effort short git SHA. Same convention as dev/prod build scripts.
+    git_sha="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
     echo
     info "Building image: ${FULL_IMAGE}"
     info "  labels: db.user=$POSTGRES_USER  db.name=$POSTGRES_DB  version=$DB_IMAGE_TAG  baked_at=$baked_at"
+    info "          app.version=$DB_IMAGE_TAG  app.git-sha=$git_sha"
     docker build \
         --tag "${FULL_IMAGE}" \
         --build-arg "DB_USER=${POSTGRES_USER}" \
         --build-arg "DB_NAME=${POSTGRES_DB}" \
         --build-arg "CONTENT_VERSION=${DB_IMAGE_TAG}" \
         --build-arg "BAKED_AT=${baked_at}" \
+        --build-arg "APP_VERSION=${DB_IMAGE_TAG}" \
+        --build-arg "GIT_SHA=${git_sha}" \
         --label "org.opencontainers.image.source=https://github.com/zhangyu528/type-any-language" \
         --label "org.opencontainers.image.created=${baked_at}" \
         --label "type-any-language.role=content-baked-db" \
@@ -193,6 +198,8 @@ cmd_bake() {
         --label "type-any-language.db.name=${POSTGRES_DB}" \
         --label "type-any-language.content.version=${DB_IMAGE_TAG}" \
         --label "type-any-language.content.baked-at=${baked_at}" \
+        --label "type-any-language.app.version=${DB_IMAGE_TAG}" \
+        --label "type-any-language.app.git-sha=${git_sha}" \
         "${DB_IMAGE_DIR}/"
 
     echo

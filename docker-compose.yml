@@ -69,7 +69,14 @@ services:
   # -------------------------------------------------------------------------
   backend:
     image: english_backend:${BACKEND_IMAGE_TAG:-latest}
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        # Project VERSION (resolved by scripts/lib.sh) + best-effort git SHA.
+        # Surfaces in the image as type-any-language.app.{version,git-sha}
+        # labels (see backend/Dockerfile).
+        APP_VERSION: ${BACKEND_IMAGE_TAG:-latest}
+        GIT_SHA: ${GIT_SHA:-unknown}
     restart: unless-stopped
     environment:
       # CORS allowlist — override via shell env, e.g.
@@ -100,7 +107,14 @@ services:
   # -------------------------------------------------------------------------
   frontend:
     image: english_frontend:${FRONTEND_IMAGE_TAG:-latest}
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        # Project VERSION (resolved by scripts/lib.sh) + best-effort git SHA.
+        # Surfaces in the image as type-any-language.app.{version,git-sha}
+        # labels (see frontend/Dockerfile).
+        APP_VERSION: ${FRONTEND_IMAGE_TAG:-latest}
+        GIT_SHA: ${GIT_SHA:-unknown}
     restart: unless-stopped
     environment:
       # Build-time var baked into the JS bundle at image-build time.

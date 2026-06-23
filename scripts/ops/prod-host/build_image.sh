@@ -41,6 +41,12 @@ COMPOSE_FILE="docker-compose.yml"
 BACKEND_IMAGE="english_backend"
 FRONTEND_IMAGE="english_frontend"
 
+# Best-effort short git SHA. Falls back to "unknown" if the build context
+# isn't a git checkout. Exported so compose's `args: GIT_SHA` block picks
+# it up — surfaces in the image as type-any-language.app.git-sha.
+GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+export GIT_SHA
+
 echo -e "${_LIB_BLUE}=========================================${_LIB_BLUE}"
 echo -e "${_LIB_BLUE} type-any-language · prod build${_LIB_BLUE}"
 echo -e "${_LIB_BLUE}=========================================${_LIB_BLUE}"
