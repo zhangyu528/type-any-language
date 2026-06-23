@@ -53,7 +53,9 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generat
 │       └── README.md
 │
 ├── scripts/
+│   ├── README.md            # scripts/ layout, lib.sh helpers, conventions for new scripts
 │   ├── lib.sh               # shared helpers (ok/warn/err, docker detection, gen_secret)
+│   ├── release.sh           # release orchestrator: bump + build + push (dev / prod / show)
 │   ├── ops/                 # host-operations scripts (configure env / build image / run containers)
 │   │   ├── db/              # CMS host — operates on the db service
 │   │   │   ├── env.sh         # .env.db lifecycle (init/update/show/doctor)
