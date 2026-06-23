@@ -56,17 +56,6 @@ resolve_image_tag BACKEND_IMAGE_TAG
 resolve_image_tag FRONTEND_IMAGE_TAG
 warn_if_version_default "$BACKEND_IMAGE_TAG"
 
-# Back-compat: the old single `TAG=...` knob. Only honored when the
-# per-image vars are still at their default (i.e. the user didn't set
-# them explicitly). To be removed once all callers migrate.
-_VER_DEFAULT="$(read_version_file)"
-if [ -n "${TAG:-}" ] && [ "$BACKEND_IMAGE_TAG" = "$_VER_DEFAULT" ]; then
-    warn "TAG=... 已废弃 — 用 BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG"
-    BACKEND_IMAGE_TAG="$TAG"
-    FRONTEND_IMAGE_TAG="$TAG"
-fi
-unset _VER_DEFAULT
-
 # ---------------------------------------------------------------------------
 # doctor — pre-flight checks. Returns 0/1, doesn't push.
 # ---------------------------------------------------------------------------
@@ -232,7 +221,6 @@ usage() {
   BACKEND_IMAGE_TAG       backend  image tag (默认: 根目录 ./VERSION)
   FRONTEND_IMAGE_TAG      frontend image tag (默认: 根目录 ./VERSION)
   IMAGE_TAG               通用 tag 覆盖 (CI 用，一次性给所有 image 设同 tag)
-  TAG                     [已废弃] 用 BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG
 
 示例:
   export DOCKER_REGISTRY=docker.io/youruser

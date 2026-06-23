@@ -148,7 +148,7 @@ IMAGE_TAG=v1.2.3 ./scripts/ops/db/bake_image.sh
 DB_IMAGE_TAG=v0.5.0 ./scripts/ops/db/bake_image.sh
 ```
 
-The dev/prod `run.sh` reads the same tags at start time, so what gets pulled from the registry matches what was built. `push_image.sh` uses the same convention (legacy `TAG=...` env var is deprecated — emits a warning and still works for one release).
+The dev/prod `run.sh` reads the same tags at start time, so what gets pulled from the registry matches what was built. `push_image.sh` uses the same convention.
 
 ## Migration from pre-VERSION release
 
