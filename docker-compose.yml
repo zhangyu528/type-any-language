@@ -12,8 +12,8 @@
 #                backend via DATABASE_URL_FILE. Nothing in the .env file
 #                ends up as a container env var for these.
 #   • DB_USER / DB_NAME: NOT in .env. Set by run.sh from image labels.
-#   • DOCKER_REGISTRY / DB_IMAGE_TAG: NOT in .env. Set by CI / wrapper /
-#     .env.db on the CMS host. When DOCKER_REGISTRY is set, run.sh
+#   • DOCKER_REGISTRY / DB_IMAGE_TAG: NOT in .env. Set via the shell env
+#     (CI / wrapper / `export ...`). When DOCKER_REGISTRY is set, run.sh
 #     auto-pulls the latest baked db image on every start/restart.
 #
 # Run via:  ./scripts/ops/prod-host/run.sh start

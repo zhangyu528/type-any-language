@@ -18,8 +18,10 @@
 #
 # Image naming:
 #   Local:  ${DB_IMAGE:-english_db_content}:${DB_IMAGE_TAG:-latest}
-#   Registry: ${DOCKER_REGISTRY}/${DB_IMAGE}:${DB_IMAGE_TAG}
-#   All sourced from .env.db (defaults match docker-compose.yml).
+#   DOCKER_REGISTRY is NOT used here — push is a separate concern.
+#   Source the registry from the shell when you're ready to push:
+#     export DOCKER_REGISTRY=... && ./scripts/ops/db/push_image.sh
+#   All other vars sourced from .env.db (defaults match docker-compose.yml).
 #
 # This script does NOT modify content. It only packages whatever is
 # currently in the DB + ./audio/. To update content, run
@@ -36,7 +38,7 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
 source "$SCRIPT_DIR/../../lib.sh"
 
-# Load .env.db so $DB_IMAGE / $DB_IMAGE_TAG / $DOCKER_REGISTRY / $DATABASE_URL
+# Load .env.db so $DB_IMAGE / $DB_IMAGE_TAG / $DATABASE_URL
 # / $POSTGRES_USER / $POSTGRES_DB resolve. Refuses to continue if .env.db is
 # missing — run scripts/ops/db/env.sh first.
 if [ -f .env.db ]; then
@@ -48,9 +50,7 @@ fi
 
 DB_IMAGE="${DB_IMAGE:-english_db_content}"
 DB_IMAGE_TAG="${DB_IMAGE_TAG:-latest}"
-DOCKER_REGISTRY="${DOCKER_REGISTRY:-}"   # empty = local only
 FULL_IMAGE="${DB_IMAGE}:${DB_IMAGE_TAG}"
-REMOTE_IMAGE="${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${FULL_IMAGE}"
 
 # Source-of-truth for what's inside the image. These get baked into
 # image labels so target hosts can discover them via `docker inspect`.
@@ -193,9 +193,7 @@ cmd_bake() {
 
     echo
     ok "Built: ${FULL_IMAGE}"
-    if [ -n "$DOCKER_REGISTRY" ]; then
-        echo "  To push: ./scripts/ops/db/push_image.sh"
-    fi
+    info "To push: export DOCKER_REGISTRY=... && ./scripts/ops/db/push_image.sh"
 }
 
 usage() {
@@ -210,12 +208,14 @@ Push is a separate step: ./scripts/ops/db/push_image.sh
 Environment (sourced from .env.db):
   DB_IMAGE        Image name (default: english_db_content)
   DB_IMAGE_TAG    Image tag (default: latest) — also baked into image label
-  DOCKER_REGISTRY Registry namespace (e.g. docker.io/youruser).
-                   If empty, push is disabled (local image only).
   POSTGRES_USER   Baked into image label as type-any-language.db.user
                   (default: english_user). The dump.sql's OWNER must match.
   POSTGRES_DB     Baked into image label as type-any-language.db.name
                   (default: english_learning). The dump.sql's database must match.
+
+DOCKER_REGISTRY is NOT used by this script (push is a separate concern).
+Set it in the shell before running push_image.sh:
+  export DOCKER_REGISTRY=... && ./scripts/ops/db/push_image.sh
 EOF
 }
 

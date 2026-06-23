@@ -6,10 +6,15 @@
 # locally. Push is a deliberate, separate step: you might bake many
 # times locally before you're ready to publish.
 #
+# Symmetric with scripts/ops/{dev,prod}-host/push_image.sh: all three
+# hosts read DOCKER_REGISTRY from the shell env, NOT from .env.db.
+# This script additionally needs DB_IMAGE / DB_IMAGE_TAG to know WHAT
+# to push — those still come from .env.db (or sane defaults).
+#
 # Subcommands:
 #   (no args)    Push with interactive confirmation prompt.
 #   -y|--yes     Skip the confirmation prompt (CI / cron mode).
-#   doctor       Pre-flight: .env.db has DOCKER_REGISTRY, image exists,
+#   doctor       Pre-flight: DOCKER_REGISTRY set, image exists,
 #                docker daemon running, login state.
 #   -h|--help    Show usage.
 #
@@ -18,13 +23,20 @@
 #   1   prerequisite missing
 #   2   docker push failed
 #
-# Configuration is read from .env.db:
-#   DB_IMAGE         image name        (default: english_db_content)
-#   DB_IMAGE_TAG     image tag         (default: latest)
+# Configuration:
 #   DOCKER_REGISTRY  namespace prefix  (REQUIRED — push is disabled when
-#                                       empty; that's local-only mode).
+#                                      empty; that's local-only mode).
+#                      Source precedence:
+#                        1. shell env:   export DOCKER_REGISTRY=...
+#                        2. auto-detect: detect_default_registry()
+#                                        (docker.io/$USER or "")
+#   DB_IMAGE         image name        (default: english_db_content,
+#                                        override via .env.db)
+#   DB_IMAGE_TAG     image tag         (default: latest,
+#                                        override via .env.db)
 #
 # Examples:
+#   export DOCKER_REGISTRY=docker.io/youruser
 #   ./scripts/ops/db/push_image.sh             # interactive
 #   ./scripts/ops/db/push_image.sh -y          # CI
 #   ./scripts/ops/db/push_image.sh doctor      # check prereqs
@@ -38,17 +50,20 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
 source "$SCRIPT_DIR/../../lib.sh"
 
-# Load .env.db
+# DB_IMAGE / DB_IMAGE_TAG are still in .env.db (shared with bake_image.sh
+# for OCI labels). Load it optionally — push can also work with the
+# default values if the operator didn't customize the image name.
 if [ -f .env.db ]; then
+    # shellcheck disable=SC1091
     set -a; . ./.env.db; set +a
-else
-    err ".env.db 不存在 — 跑 ./scripts/ops/db/env.sh 先引导"
-    exit 1
 fi
 
 DB_IMAGE="${DB_IMAGE:-english_db_content}"
 DB_IMAGE_TAG="${DB_IMAGE_TAG:-latest}"
-DOCKER_REGISTRY="${DOCKER_REGISTRY:-}"
+# DOCKER_REGISTRY is push-only concern. Read from shell env first,
+# fall back to a best-effort auto-detect. Symmetric with the
+# dev/prod push_image.sh.
+DOCKER_REGISTRY="${DOCKER_REGISTRY:-$(detect_default_registry)}"
 
 LOCAL_IMAGE="${DB_IMAGE}:${DB_IMAGE_TAG}"
 if [ -n "$DOCKER_REGISTRY" ]; then
@@ -68,7 +83,7 @@ cmd_doctor() {
 
     if [ -z "$DOCKER_REGISTRY" ]; then
         err "DOCKER_REGISTRY 未设置 — push 需要 registry"
-        info "  → ./scripts/ops/db/env.sh update DOCKER_REGISTRY=docker.io/youruser"
+        info "  → export DOCKER_REGISTRY=docker.io/youruser"
         ok=0
     else
         ok "DOCKER_REGISTRY=$DOCKER_REGISTRY"
@@ -126,7 +141,7 @@ cmd_push() {
 
     if [ -z "$DOCKER_REGISTRY" ]; then
         err "DOCKER_REGISTRY 未设置 — push 需要 registry"
-        info "  → ./scripts/ops/db/env.sh update DOCKER_REGISTRY=docker.io/youruser"
+        info "  → export DOCKER_REGISTRY=docker.io/youruser"
         exit 1
     fi
 
@@ -187,12 +202,15 @@ usage() {
   doctor           前置检查 (registry / image / docker / login)
   -h | --help      显示本帮助
 
-配置 (.env.db):
-  DB_IMAGE         image 名字 (默认: english_db_content)
-  DB_IMAGE_TAG     image tag  (默认: latest)
+配置:
   DOCKER_REGISTRY  registry 命名空间 (REQUIRED for push)
+                   来源: shell env > detect_default_registry()
+                         export DOCKER_REGISTRY=docker.io/youruser
+  DB_IMAGE         image 名字  (默认: english_db_content; .env.db 覆盖)
+  DB_IMAGE_TAG     image tag   (默认: latest;        .env.db 覆盖)
 
 示例:
+  export DOCKER_REGISTRY=docker.io/youruser
   ./scripts/ops/db/push_image.sh            # 交互
   ./scripts/ops/db/push_image.sh -y         # CI
   ./scripts/ops/db/push_image.sh doctor     # 前置检查

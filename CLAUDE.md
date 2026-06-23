@@ -169,7 +169,14 @@ Required:
 - `TENCENT_SECRET_ID`, `TENCENT_SECRET_KEY`, `TENCENT_APP_ID` — Tencent Cloud TTS
 - `AUDIO_DIR` — where `generate_audio.py` writes MP3s and `bake_image.sh` reads them from
 - `POSTGRES_USER`, `POSTGRES_DB` — db identity (baked into image labels)
-- `DB_IMAGE`, `DB_IMAGE_TAG`, `DOCKER_REGISTRY` — image naming + registry
+- `DB_IMAGE`, `DB_IMAGE_TAG` — image naming (the local tag baked + pushed)
+
+> `DOCKER_REGISTRY` is **not** in `.env.db` — push is a separate concern. Set it in the shell before running `push_image.sh`:
+> ```bash
+> export DOCKER_REGISTRY=docker.io/youruser
+> ./scripts/ops/db/push_image.sh
+> ```
+> (Symmetric with dev/prod `push_image.sh`.)
 
 Optional:
 - `DEFAULT_BUCKET_TARGET_SIZE` — sentences per (lib, difficulty) bucket (default 200)

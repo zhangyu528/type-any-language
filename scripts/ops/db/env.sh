@@ -32,18 +32,21 @@
 #   run.sh, and ALLOWED_ORIGINS is passed via the shell env (compose
 #   has a built-in default). So this is the only env.sh in the project.
 #
-# Smart defaults injected on first init:
-#   - POSTGRES_USER, POSTGRES_DB    = english_user / english_learning
-#     (these MUST match the db image label baked by bake_image.sh)
-#   - DB_IMAGE_TAG                   = v0.0.1
-#   - DOCKER_REGISTRY                = docker.io/$USER  (or "" if USER=root)
-#   - AI_BASE_URL, AI_MODEL, AUDIO_DIR, DEFAULT_BUCKET_TARGET_SIZE
-#                                   = kept from template
-#
 # Smart defaults NOT injected (require user-supplied secrets):
 #   - DATABASE_URL                   (host-side, needs the password)
 #   - AI_API_KEY                     (provider-issued)
 #   - TENCENT_SECRET_ID/KEY/APP_ID   (provider-issued)
+#
+# `init` copies .env.example.db → .env.db. All other defaults (POSTGRES_USER,
+# POSTGRES_DB, DB_IMAGE, DB_IMAGE_TAG, AI_BASE_URL, AI_MODEL, AUDIO_DIR,
+# DEFAULT_BUCKET_TARGET_SIZE) already live in the template with sensible
+# values; the user only needs to fill the secrets above.
+#
+# DOCKER_REGISTRY is intentionally NOT in .env.db — it's a push-only concern
+# and is read from the shell env by push_image.sh (symmetric with
+# dev/prod push_image.sh). To push:
+#   export DOCKER_REGISTRY=docker.io/youruser
+#   ./scripts/ops/db/push_image.sh
 #
 # Requires: shell + filesystem. NO python, NO docker.
 
@@ -128,40 +131,12 @@ cmd_init() {
         exit 1
     fi
 
-    # Step 1: copy template
+    # Copy template — all non-secret defaults (POSTGRES_USER, DB, DB_IMAGE,
+    # DB_IMAGE_TAG, AI_BASE_URL, AI_MODEL, AUDIO_DIR, ...) already live in
+    # the template. The user only needs to fill the secrets below.
     cp "$TEMPLATE" "$TARGET"
     ok "已从 $TEMPLATE 复制为 $TARGET"
 
-    # Step 2: inject smart defaults
-    #   POSTGRES_USER, POSTGRES_DB, DB_IMAGE_TAG → hard-coded "sane" defaults
-    #   DOCKER_REGISTRY                             → detect_default_registry()
-    #   AI_BASE_URL, AI_MODEL, AUDIO_DIR,
-    #   DEFAULT_BUCKET_TARGET_SIZE                  → keep template value
-    #   DATABASE_URL, AI_API_KEY, TENCENT_*         → leave as template placeholders,
-    #                                                 user must fill
-    cp "$TARGET" "$TARGET.bak"
-
-    SMART_REGISTRY="${DOCKER_REGISTRY:-$(detect_default_registry)}"
-
-    # Uncomment + fill DOCKER_REGISTRY
-    if [ -n "$SMART_REGISTRY" ]; then
-        sed_inplace "s|^# DOCKER_REGISTRY=$|DOCKER_REGISTRY=${SMART_REGISTRY}|" "$TARGET"
-    else
-        sed_inplace "s|^# DOCKER_REGISTRY=.*|# DOCKER_REGISTRY=|" "$TARGET"
-    fi
-
-    # POSTGRES_USER / POSTGRES_DB / DB_IMAGE / DB_IMAGE_TAG are already in
-    # the template with sensible defaults; the user can update via `update`
-    # if they want to change them.
-
-    rm -f "$TARGET.bak"
-
-    echo ""
-    ok "已注入 smart defaults（请检查/按需修改）:"
-    echo ""
-    # Show all the "bake-time" + "config" keys (NOT the secrets).
-    grep -E "^(POSTGRES_USER|POSTGRES_DB|DB_IMAGE|DB_IMAGE_TAG|DOCKER_REGISTRY|AI_BASE_URL|AI_MODEL|AUDIO_DIR|DEFAULT_BUCKET_TARGET_SIZE)=" \
-        "$TARGET" | sed 's/^/  /'
     echo ""
     warn "以下 secret 必须你手动填 (env.sh 不会自动 inject):"
     echo "  - DATABASE_URL       (你的 host-side db password)"
@@ -403,7 +378,7 @@ usage() {
   ./scripts/ops/db/env.sh            # 首次: 引导 + smart defaults
   nano .env.db                    # 填 5 个 secret (DATABASE_URL / AI_API_KEY / TENCENT_*)
   ./scripts/ops/db/env.sh doctor     # 验证
-  ./scripts/ops/db/env.sh update DOCKER_REGISTRY=ghcr.io/myorg  # 改某一项
+  ./scripts/ops/db/env.sh update AI_MODEL=gpt-4o  # 改某一项
   ./scripts/ops/db/env.sh show       # 看一眼当前配置 (secret 脱敏)
 EOF
 }
