@@ -32,22 +32,24 @@
 #   run.sh, and ALLOWED_ORIGINS is passed via the shell env (compose
 #   has a built-in default). So this is the only env.sh in the project.
 #
-# Smart defaults NOT injected (require user-supplied secrets):
+# Smart defaults NOT injected (require user-supplied secrets or host paths):
 #   - DATABASE_URL                   (host-side, needs the password)
 #   - AI_API_KEY                     (provider-issued)
 #   - TENCENT_SECRET_ID/KEY/APP_ID   (provider-issued)
+#   - AUDIO_DIR                      (host-specific filesystem path)
 #
-# `init` copies .env.example.db → .env.db. All other defaults (POSTGRES_USER,
-# POSTGRES_DB, DB_IMAGE, AI_BASE_URL, AI_MODEL, AUDIO_DIR,
-# DEFAULT_BUCKET_TARGET_SIZE) already live in the template with sensible
-# values; the user only needs to fill the secrets above. DB_IMAGE_TAG is
-# NOT in this list — its default is the root ./VERSION file (resolved by
-# scripts/lib.sh), with .env.db / shell env still able to pin a specific
-# version when needed.
+# All other knobs (POSTGRES_USER, POSTGRES_DB, DB_IMAGE, AI_BASE_URL,
+# AI_MODEL, DEFAULT_BUCKET_TARGET_SIZE) have code-level defaults and are
+# therefore NOT in .env.db. To pin a different value, set it in the shell:
+#   POSTGRES_USER=other ./scripts/ops/db/bake_image.sh
+#   AI_MODEL=gpt-4o ./scripts/ops/db/content.sh sentences
+# DB_IMAGE_TAG is also not here — its default is the root ./VERSION file
+# (resolved by scripts/lib.sh), with .env.db / shell env able to pin a
+# specific version when needed.
 #
-# DOCKER_REGISTRY is intentionally NOT in .env.db — it's a push-only concern
-# and is read from the shell env by push_image.sh (symmetric with
-# dev/prod push_image.sh). To push:
+# DOCKER_REGISTRY is not in .env.db either — it lives in the committed
+# ./REGISTRY file at the repo root (shared project config, not a secret).
+# Override at push time via shell env:
 #   export DOCKER_REGISTRY=docker.io/youruser
 #   ./scripts/ops/db/push_image.sh
 #
@@ -75,17 +77,16 @@ SECRET_KEYS=(
 )
 
 # Required keys for a "ready" CMS host. Used by cmd_doctor.
-# DB_IMAGE_TAG is intentionally NOT here — its default is the root
-# ./VERSION file (lib.sh's resolve_image_tag), with .env.db able to pin
-# a specific version when needed.
+# POSTGRES_USER / POSTGRES_DB / DB_IMAGE / AI_BASE_URL / AI_MODEL /
+# DEFAULT_BUCKET_TARGET_SIZE are intentionally NOT here — they have
+# code-level defaults (see env.py + bake_image.sh) and can be overridden
+# via shell env when needed. DB_IMAGE_TAG is also not here — its default
+# is the root ./VERSION file (lib.sh's resolve_image_tag). TENCENT_*
+# is checked separately below (all-or-nothing, but only the audio
+# subcommand actually needs them).
 REQUIRED_KEYS=(
     DATABASE_URL
-    POSTGRES_USER
-    POSTGRES_DB
-    DB_IMAGE
     AI_API_KEY
-    AI_BASE_URL
-    AI_MODEL
     AUDIO_DIR
 )
 
@@ -136,17 +137,19 @@ cmd_init() {
         exit 1
     fi
 
-    # Copy template — all non-secret defaults (POSTGRES_USER, DB, DB_IMAGE,
-    # AI_BASE_URL, AI_MODEL, AUDIO_DIR, ...) already live in the template.
-    # The user only needs to fill the secrets below.
+    # Copy template — only secrets + host paths (DATABASE_URL, AI_API_KEY,
+    # TENCENT_*, AUDIO_DIR) need to be filled. All other knobs (POSTGRES_USER,
+    # POSTGRES_DB, DB_IMAGE, AI_BASE_URL, AI_MODEL, DEFAULT_BUCKET_TARGET_SIZE)
+    # have code-level defaults and are therefore NOT in .env.db.
     cp "$TEMPLATE" "$TARGET"
     ok "已从 $TEMPLATE 复制为 $TARGET"
 
     echo ""
-    warn "以下 secret 必须你手动填 (env.sh 不会自动 inject):"
+    warn "以下项必须你手动填 (env.sh 不会自动 inject):"
     echo "  - DATABASE_URL       (你的 host-side db password)"
     echo "  - AI_API_KEY         (OpenAI / 提供方密钥)"
-    echo "  - TENCENT_SECRET_ID  (腾讯云 TTS — 三件套 all-or-nothing)"
+    echo "  - AUDIO_DIR          (本机 TTS MP3 输出目录, 需是已存在的可写路径)"
+    echo "  - TENCENT_SECRET_ID  (腾讯云 TTS — 三件套 all-or-nothing, 不跑 audio 可不填)"
     echo "  - TENCENT_SECRET_KEY"
     echo "  - TENCENT_APP_ID"
     echo ""
@@ -154,7 +157,7 @@ cmd_init() {
     info "或者用: ./scripts/ops/db/env.sh update KEY=VALUE 改某一项"
     echo ""
     echo "下一步:"
-    echo -e "  ${_LIB_BLUE}nano $TARGET${_LIB_NC}   # 填上面那 5 个 secret"
+    echo -e "  ${_LIB_BLUE}nano $TARGET${_LIB_NC}   # 填上面那几项"
     echo -e "  ${_LIB_BLUE}./scripts/ops/db/env.sh doctor${_LIB_NC}"
 }
 
@@ -344,13 +347,19 @@ cmd_doctor() {
         failed=1
     fi
 
-    # --- Bake-time consistency (POSTGRES_USER/DB must align with the
-    #     image-label convention) ---
+    # --- Bake-time identity hint ---
+    # POSTGRES_USER/POSTGRES_DB are no longer in .env.db — they have code
+    # defaults (bake_image.sh: ${POSTGRES_USER:-english_user} etc). If the
+    # operator DID set them in .env.db for one-off use, surface them so they
+    # can sanity-check what's going to be baked into the image label.
     local pu pd
     pu="$(grep -E "^POSTGRES_USER=" "$TARGET" | head -1 | cut -d= -f2-)"
     pd="$(grep -E "^POSTGRES_DB=" "$TARGET" | head -1 | cut -d= -f2-)"
     if [ -n "$pu" ] && [ -n "$pd" ]; then
-        ok "POSTGRES_USER=$pu / POSTGRES_DB=$pd  (将烤入 image label)"
+        info "POSTGRES_USER=$pu / POSTGRES_DB=$pd  (来自 .env.db, 将烤入 image label)"
+        info "  (默认在 bake_image.sh 里: english_user / english_learning — 留空走默认)"
+    else
+        ok "POSTGRES_USER / POSTGRES_DB 走 bake_image.sh 默认 (english_user / english_learning)"
     fi
 
     echo ""
@@ -381,10 +390,15 @@ usage() {
 
 典型工作流:
   ./scripts/ops/db/env.sh            # 首次: 引导 + smart defaults
-  nano .env.db                    # 填 5 个 secret (DATABASE_URL / AI_API_KEY / TENCENT_*)
+  nano .env.db                    # 填 secrets + AUDIO_DIR (DATABASE_URL / AI_API_KEY / AUDIO_DIR / TENCENT_*)
   ./scripts/ops/db/env.sh doctor     # 验证
-  ./scripts/ops/db/env.sh update AI_MODEL=gpt-4o  # 改某一项
+  ./scripts/ops/db/env.sh update DATABASE_URL=...  # 改某一项
   ./scripts/ops/db/env.sh show       # 看一眼当前配置 (secret 脱敏)
+
+其他配置 (POSTGRES_USER, POSTGRES_DB, DB_IMAGE, AI_BASE_URL, AI_MODEL,
+DEFAULT_BUCKET_TARGET_SIZE) 不在 .env.db — 代码里有默认, 需要时 shell 覆盖:
+  AI_MODEL=gpt-4o ./scripts/ops/db/content.sh sentences
+  POSTGRES_USER=foo ./scripts/ops/db/bake_image.sh
 EOF
 }
 

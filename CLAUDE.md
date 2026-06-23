@@ -300,24 +300,35 @@ cd backend && python -m pytest tests/test_file.py::test_name -v
 
 ### CMS host — `.env.db` (created by `scripts/ops/db/env.sh`)
 
-Required:
+`.env.db` holds **only secrets + the host-specific AUDIO_DIR**. All other knobs have code-level defaults and are therefore NOT in the file — see [CMS host config knobs](#cms-host-config-knobs) below for how to override them.
+
+Required (in `.env.db`):
 - `DATABASE_URL` — Postgres connection (used by `pipeline/*.py`)
-- `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL` — OpenAI-compatible LLM
-- `TENCENT_SECRET_ID`, `TENCENT_SECRET_KEY`, `TENCENT_APP_ID` — Tencent Cloud TTS
-- `AUDIO_DIR` — where `generate_audio.py` writes MP3s and `bake_image.sh` reads them from
-- `POSTGRES_USER`, `POSTGRES_DB` — db identity (baked into image labels)
-- `DB_IMAGE` — image name (default: `english_db_content`)
+- `AI_API_KEY` — OpenAI-compatible LLM key
+- `AUDIO_DIR` — where `generate_audio.py` writes MP3s and `bake_image.sh` reads them from (host-specific filesystem path)
+- `TENCENT_SECRET_ID`, `TENCENT_SECRET_KEY`, `TENCENT_APP_ID` — Tencent Cloud TTS; required when running `content.sh audio`, optional otherwise
 
-The image tag (`DB_IMAGE_TAG`) comes from the root `VERSION.prod` file (resolved by `scripts/lib.sh` → `resolve_image_tag`); shell env can override it for one-off builds. It is **not** a `.env.db` field.
+`DB_IMAGE_TAG` is not in `.env.db` either — its default is the root `VERSION.prod` file (resolved by `scripts/lib.sh` → `resolve_image_tag`); shell env can override it for one-off builds.
 
-`DOCKER_REGISTRY` is **not** in `.env.db` either — it is shared project config that lives in the committed `REGISTRY` file at the repo root (see [Image registry namespace](#image-registry-namespace) above). Override at push time via shell env if you need a one-off namespace:
+`DOCKER_REGISTRY` is not in `.env.db` — it is shared project config that lives in the committed `REGISTRY` file at the repo root (see [Image registry namespace](#image-registry-namespace) above). Override at push time via shell env if you need a one-off namespace:
 ```bash
 export DOCKER_REGISTRY=docker.io/youruser   # overrides REGISTRY file
 ./scripts/ops/db/push_image.sh
 ```
 
-Optional:
-- `DEFAULT_BUCKET_TARGET_SIZE` — sentences per (lib, difficulty) bucket (default 200)
+### CMS host config knobs (NOT in `.env.db`)
+
+These have code-level defaults in `db/pipeline/env.py` / `scripts/ops/db/bake_image.sh` / `lib.sh`. Override via shell env when you need a different value:
+
+| Knob | Code default | Override example |
+|---|---|---|
+| `POSTGRES_USER` | `english_user` | `POSTGRES_USER=foo ./scripts/ops/db/bake_image.sh` |
+| `POSTGRES_DB`   | `english_learning` | (same pattern) |
+| `DB_IMAGE`      | `english_db_content` | (same pattern) |
+| `AI_BASE_URL`   | `https://api.openai.com/v1` | `AI_BASE_URL=https://api.azure.com/v1 ./scripts/ops/db/content.sh sentences` |
+| `AI_MODEL`      | `gpt-3.5-turbo` | `AI_MODEL=gpt-4o ./scripts/ops/db/content.sh sentences` |
+| `DEFAULT_BUCKET_TARGET_SIZE` | `200` | `DEFAULT_BUCKET_TARGET_SIZE=500 ./scripts/ops/db/content.sh sentences` |
+| `DB_IMAGE_TAG`  | `VERSION.prod` | `DB_IMAGE_TAG=v0.5.0 ./scripts/ops/db/bake_image.sh` |
 
 ### Target host — no `.env` file required
 
