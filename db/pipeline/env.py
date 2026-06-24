@@ -13,11 +13,30 @@ Why a dedicated loader (not os.environ directly):
   - Other scripts can `from pipeline.env import setup_env` to mirror
     the .env.db → os.environ copy that bake_image.sh does via `set -a`.
 
+Validation contract:
+  - DATABASE_URL is ALWAYS required (assembled by setup_env from
+    POSTGRES_PASSWORD + code defaults). load_config() raises if it's
+    missing — every subcommand needs the DB.
+  - AI_API_KEY / AI_BASE_URL / AI_MODEL are OPTIONAL at load time.
+    Each is `str | None`. Consumer modules that talk to OpenAI should
+    call `cfg.require_ai()` first, which raises with a clear pointer
+    to .env.db and the specific subcommand that needs them.
+  - TENCENT_SECRET_ID / TENCENT_SECRET_KEY / TENCENT_APP_ID are also
+    OPTIONAL. Consumer modules for Tencent TTS call `cfg.require_tencent()`
+    first.
+  - Rationale: a CMS host that only runs `content.sh sync` doesn't need
+    AI or TENCENT keys at all. Forcing them on every operator is friction;
+    forcing them only on the subcommand that needs them is the right
+    shape. The bash-side `env.sh doctor` and `content.sh doctor` already
+    treat AI as required and TENCENT as optional — this Python change
+    brings the two sides into agreement.
+
 Usage from a CLI script:
     from pipeline.env import setup_env, load_config
     setup_env()                 # copies .env.db into os.environ (idempotent)
-    cfg = load_config()         # typed, validated config
-    print(cfg.ai_api_key)       # str (raises if missing)
+    cfg = load_config()         # typed Config (AI / TENCENT fields may be None)
+    cfg.require_ai()            # raise if AI_* unset — call this before OpenAI calls
+    cfg.require_tencent()       # raise if TENCENT_* unset — call this before TTS calls
 """
 
 from __future__ import annotations
@@ -151,20 +170,28 @@ def _required(name: str) -> str:
 
 @dataclass(frozen=True)
 class Config:
-    """Validated .env.db settings used by the data pipeline."""
+    """Validated .env.db settings used by the data pipeline.
 
-    # Database (assembled from POSTGRES_PASSWORD + code defaults by setup_env)
+    AI_* and TENCENT_* fields are Optional — each is None if the
+    corresponding .env.db key was missing or empty. Consumer modules
+    that actually need them should call `cfg.require_ai()` or
+    `cfg.require_tencent()` first, which raises with a clear pointer
+    to which subcommand needs which keys.
+    """
+
+    # Database (assembled from POSTGRES_PASSWORD + code defaults by setup_env).
+    # Always required — every subcommand needs the DB.
     database_url: str
 
-    # AI / OpenAI
-    ai_api_key: str
-    ai_base_url: str
-    ai_model: str
+    # AI / OpenAI — Optional; required only for `content.sh sentences`.
+    ai_api_key: str | None
+    ai_base_url: str | None
+    ai_model: str | None
 
-    # Tencent TTS
-    tencent_secret_id: str
-    tencent_secret_key: str
-    tencent_app_id: str
+    # Tencent TTS — Optional; required only for `content.sh audio`.
+    tencent_secret_id: str | None
+    tencent_secret_key: str | None
+    tencent_app_id: str | None
 
     # Audio
     audio_dir: str
@@ -176,6 +203,46 @@ class Config:
     postgres_user: str
     postgres_db: str
 
+    def require_ai(self) -> None:
+        """Raise if any AI_* field is unset. Call before OpenAI requests.
+
+        Error message names the specific subcommand that needs these
+        keys, so the operator knows where to look.
+        """
+        missing = [
+            name for name, val in (
+                ("AI_API_KEY",  self.ai_api_key),
+                ("AI_BASE_URL", self.ai_base_url),
+                ("AI_MODEL",    self.ai_model),
+            ) if not val
+        ]
+        if missing:
+            sys.exit(
+                f"{', '.join(missing)} missing in .env.db — "
+                f"required for `content.sh sentences`"
+            )
+
+    def require_tencent(self) -> None:
+        """Raise if any TENCENT_* field is unset. Call before Tencent TTS.
+
+        TENCENT_* is all-or-nothing: the .env.example.db template leaves
+        them empty (audio subcommand is optional), but if you set any,
+        you must set all three.
+        """
+        missing = [
+            name for name, val in (
+                ("TENCENT_SECRET_ID",  self.tencent_secret_id),
+                ("TENCENT_SECRET_KEY", self.tencent_secret_key),
+                ("TENCENT_APP_ID",     self.tencent_app_id),
+            ) if not val
+        ]
+        if missing:
+            sys.exit(
+                f"{', '.join(missing)} missing in .env.db — "
+                f"required for `content.sh audio`. "
+                f"Either fill all three TENCENT_* keys, or skip the audio subcommand."
+            )
+
 
 # Where TTS MP3s land before bake. XDG-style: /var/lib/<app>/<resource>.
 # generate_audio.py creates the dir (mkdir -p), so the only thing the
@@ -186,24 +253,32 @@ _DEFAULT_AUDIO_DIR = "/var/lib/type-any-language/audio"
 
 
 def load_config() -> Config:
-    """Build a validated Config from os.environ.
+    """Build a Config from os.environ.
 
     Required keys (no defaults — fail if missing):
-      DATABASE_URL (assembled by setup_env from POSTGRES_PASSWORD + code defaults),
-      AI_API_KEY, AI_BASE_URL, AI_MODEL,
-      TENCENT_SECRET_ID, TENCENT_SECRET_KEY, TENCENT_APP_ID.
+      DATABASE_URL (assembled by setup_env from POSTGRES_PASSWORD + code defaults).
+
+    Optional keys (None if missing/empty): AI_API_KEY, AI_BASE_URL, AI_MODEL,
+    TENCENT_SECRET_ID, TENCENT_SECRET_KEY, TENCENT_APP_ID. Consumer modules
+    that need them call cfg.require_ai() / cfg.require_tencent() at point
+    of use, with a clear error pointing at the specific subcommand that
+    needs the missing keys.
 
     Defaults provided for AUDIO_DIR, DEFAULT_BUCKET_TARGET_SIZE,
     POSTGRES_USER, POSTGRES_DB.
     """
     return Config(
         database_url=_required("DATABASE_URL"),
-        ai_api_key=_required("AI_API_KEY"),
-        ai_base_url=_required("AI_BASE_URL"),
-        ai_model=_required("AI_MODEL"),
-        tencent_secret_id=_required("TENCENT_SECRET_ID"),
-        tencent_secret_key=_required("TENCENT_SECRET_KEY"),
-        tencent_app_id=_required("TENCENT_APP_ID"),
+        # AI / Tencent are read raw — None means "operator hasn't set
+        # them in .env.db". load_config must NOT fail on these, because
+        # sync / export don't need them. require_ai() / require_tencent()
+        # enforce at point of use.
+        ai_api_key=os.environ.get("AI_API_KEY") or None,
+        ai_base_url=os.environ.get("AI_BASE_URL") or None,
+        ai_model=os.environ.get("AI_MODEL") or None,
+        tencent_secret_id=os.environ.get("TENCENT_SECRET_ID") or None,
+        tencent_secret_key=os.environ.get("TENCENT_SECRET_KEY") or None,
+        tencent_app_id=os.environ.get("TENCENT_APP_ID") or None,
         audio_dir=os.environ.get("AUDIO_DIR", _DEFAULT_AUDIO_DIR),
         default_bucket_target_size=int(
             os.environ.get("DEFAULT_BUCKET_TARGET_SIZE", "200")

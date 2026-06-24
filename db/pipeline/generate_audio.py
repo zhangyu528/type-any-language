@@ -127,6 +127,7 @@ def main() -> None:
 
     setup_env()
     cfg = load_config()
+    cfg.require_tencent()  # raise clearly if TENCENT_* unset, with a pointer at .env.db
 
     audio_dir = Path(cfg.audio_dir)
     audio_dir.mkdir(parents=True, exist_ok=True)

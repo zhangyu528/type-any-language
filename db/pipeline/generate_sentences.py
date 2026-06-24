@@ -254,6 +254,7 @@ def main() -> None:
 
     setup_env()
     cfg = load_config()
+    cfg.require_ai()  # raise clearly if AI_* unset, with a pointer at .env.db
 
     target = args.target_size or cfg.default_bucket_target_size
     diffs = [args.difficulty] if args.difficulty else DIFFICULTIES

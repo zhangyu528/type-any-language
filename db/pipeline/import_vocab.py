@@ -69,8 +69,15 @@ def find_vocab_dir() -> Path:
     sys.exit("db/content/vocabulary/ not found — are you running from the project root?")
 
 
-def upsert_lib(conn, level: str, display: str, word_count: int, force: bool) -> str:
-    """INSERT a vocabulary_libs row if missing; return its id."""
+def upsert_lib(conn, level: str, display: str, word_count: int, force: bool) -> str | None:
+    """INSERT a vocabulary_libs row if missing; return its id.
+
+    Returns None when the lib already exists and `force=False`. The caller
+    uses that signal to SKIP re-inserting vocabulary_words — the CSV is
+    treated as source-of-truth only for empty dbs. (Previous behavior
+    returned the existing id but didn't gate the caller's insert, which
+    caused double-insertion on every re-run.)
+    """
     with conn.cursor() as cur:
         cur.execute(
             "SELECT id FROM vocabulary_libs WHERE level = %s",
@@ -91,7 +98,7 @@ def upsert_lib(conn, level: str, display: str, word_count: int, force: bool) -> 
                 return str(existing[0])
             else:
                 print(f"[import_vocab] {level}: already imported ({word_count} words in CSV skipped)")
-                return str(existing[0])
+                return None
 
         lib_id = str(uuid.uuid4())
         cur.execute(
@@ -170,6 +177,17 @@ def import_one(conn, name: str, vocab_dir: Path, force: bool, dry_run: bool) -> 
         return {"name": name, "status": "plan", "csv": str(csv_path), "rows": n, **defn}
 
     lib_id = upsert_lib(conn, defn["level"], defn["display"], n, force)
+    if lib_id is None:
+        # skip-existing path: lib was already imported, CSV is a no-op.
+        # Don't insert words, don't touch word_count, don't commit.
+        return {
+            "name": name,
+            "status": "skipped",
+            "csv": str(csv_path),
+            "rows": 0,
+            "lib_id": None,
+        }
+
     inserted = import_words(conn, lib_id, csv_path)
     if not force:
         update_word_count(conn, lib_id, inserted)
@@ -230,6 +248,8 @@ def main() -> None:
             print(f"  ✗ {r['name']}: csv not found at {r['csv']}")
         elif r["status"] == "unknown":
             print(f"  ? {r['name']}: unknown lib (not in LIB_DEFS)")
+        elif r["status"] == "skipped":
+            print(f"  ⊝ {r['name']:10s} {'skipped':13s} (already imported, CSV not re-read)")
         else:
             print(f"  ✓ {r['name']:10s} {r['status']:13s} {r.get('rows', 0)} rows")
 
