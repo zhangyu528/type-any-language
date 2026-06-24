@@ -3,6 +3,7 @@
 .env.db
 .env.local
 .env.*.local
+.env.dev
 
 # Runtime secrets — written by run.sh's write_secrets() (chmod 600).
 # Never commit: each host generates its own on first start.
