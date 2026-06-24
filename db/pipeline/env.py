@@ -190,16 +190,17 @@ def load_config() -> Config:
 
     Required keys (no defaults — fail if missing):
       DATABASE_URL (assembled by setup_env from POSTGRES_PASSWORD + code defaults),
-      AI_API_KEY, TENCENT_SECRET_ID, TENCENT_SECRET_KEY, TENCENT_APP_ID.
+      AI_API_KEY, AI_BASE_URL, AI_MODEL,
+      TENCENT_SECRET_ID, TENCENT_SECRET_KEY, TENCENT_APP_ID.
 
-    Defaults provided for AUDIO_DIR, AI_BASE_URL, AI_MODEL,
-    DEFAULT_BUCKET_TARGET_SIZE, POSTGRES_USER, POSTGRES_DB.
+    Defaults provided for AUDIO_DIR, DEFAULT_BUCKET_TARGET_SIZE,
+    POSTGRES_USER, POSTGRES_DB.
     """
     return Config(
         database_url=_required("DATABASE_URL"),
         ai_api_key=_required("AI_API_KEY"),
-        ai_base_url=os.environ.get("AI_BASE_URL", "https://api.openai.com/v1"),
-        ai_model=os.environ.get("AI_MODEL", "gpt-3.5-turbo"),
+        ai_base_url=_required("AI_BASE_URL"),
+        ai_model=_required("AI_MODEL"),
         tencent_secret_id=_required("TENCENT_SECRET_ID"),
         tencent_secret_key=_required("TENCENT_SECRET_KEY"),
         tencent_app_id=_required("TENCENT_APP_ID"),

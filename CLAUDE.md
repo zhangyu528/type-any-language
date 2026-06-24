@@ -300,10 +300,12 @@ cd backend && python -m pytest tests/test_file.py::test_name -v
 
 ### CMS host — `.env.db` (created by `scripts/ops/db/env.sh`)
 
-`.env.db` holds **only provider secrets**. Everything else — the Postgres connection (DATABASE_URL), the db identity (POSTGRES_USER/HOST/PORT/DB), the image name, the audio output directory, AI model/endpoint, and the sentences-bucket size — has code-level defaults and is therefore NOT in the file. See [CMS host config knobs](#cms-host-config-knobs) for the override pattern.
+`.env.db` holds **only provider secrets and operator decisions**. Everything else — the Postgres connection (DATABASE_URL), the db identity (POSTGRES_USER/HOST/PORT/DB), the image name, the audio output directory, and the sentences-bucket size — has code-level defaults and is therefore NOT in the file. See [CMS host config knobs](#cms-host-config-knobs) for the override pattern.
 
 Required (in `.env.db`):
 - `AI_API_KEY` — OpenAI-compatible LLM key
+- `AI_BASE_URL` — OpenAI-compatible endpoint (default in template: `https://api.openai.com/v1`; switch to Azure / local / Anthropic-compatible endpoints as needed)
+- `AI_MODEL` — model name (default in template: `gpt-3.5-turbo`; switch to `gpt-4o` / etc. as needed)
 - `TENCENT_SECRET_ID`, `TENCENT_SECRET_KEY`, `TENCENT_APP_ID` — Tencent Cloud TTS; required when running `content.sh audio`, optional otherwise
 
 `DATABASE_URL` is **not** in `.env.db`. It's assembled at runtime by `db/pipeline/env.py` + `scripts/ops/db/bake_image.sh` from:
@@ -349,8 +351,6 @@ These have code-level defaults in `db/pipeline/env.py` / `scripts/ops/db/bake_im
 | `POSTGRES_PASSWORD` | (none — see above) | `POSTGRES_PASSWORD=... ./scripts/ops/db/bake_image.sh` |
 | `DB_IMAGE`      | `english_db_content` | (same pattern) |
 | `AUDIO_DIR`     | `/var/lib/type-any-language/audio` | `AUDIO_DIR=/your/audio/dir ./scripts/ops/db/content.sh audio` |
-| `AI_BASE_URL`   | `https://api.openai.com/v1` | `AI_BASE_URL=https://api.azure.com/v1 ./scripts/ops/db/content.sh sentences` |
-| `AI_MODEL`      | `gpt-3.5-turbo` | `AI_MODEL=gpt-4o ./scripts/ops/db/content.sh sentences` |
 | `DEFAULT_BUCKET_TARGET_SIZE` | `200` | `DEFAULT_BUCKET_TARGET_SIZE=500 ./scripts/ops/db/content.sh sentences` |
 | `DB_IMAGE_TAG`  | `VERSION.prod` | `DB_IMAGE_TAG=v0.5.0 ./scripts/ops/db/bake_image.sh` |
 

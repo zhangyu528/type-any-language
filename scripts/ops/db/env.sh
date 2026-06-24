@@ -32,19 +32,21 @@
 #   run.sh, and ALLOWED_ORIGINS is passed via the shell env (compose
 #   has a built-in default). So this is the only env.sh in the project.
 #
-# Smart defaults NOT injected (require user-supplied secrets):
+# Smart defaults NOT injected (require user-supplied secrets + operator decisions):
 #   - POSTGRES_PASSWORD              (host-side db password; see "Where does
 #                                     the db password come from" below)
 #   - AI_API_KEY                     (provider-issued)
+#   - AI_BASE_URL                    (operator decision: OpenAI / Azure / local)
+#   - AI_MODEL                       (operator decision: gpt-3.5-turbo / gpt-4o / ...)
 #   - TENCENT_SECRET_ID/KEY/APP_ID   (provider-issued)
 #
 # All other knobs (POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB,
-# DB_IMAGE, AUDIO_DIR, AI_BASE_URL, AI_MODEL, DEFAULT_BUCKET_TARGET_SIZE)
-# have code-level defaults and are therefore NOT in .env.db. To pin a
-# different value, set it in the shell:
+# DB_IMAGE, AUDIO_DIR, DEFAULT_BUCKET_TARGET_SIZE) have code-level defaults
+# and are therefore NOT in .env.db. To pin a different value, set it in
+# the shell:
 #   POSTGRES_USER=other ./scripts/ops/db/bake_image.sh
 #   AUDIO_DIR=/my/audio/dir ./scripts/ops/db/content.sh audio
-#   AI_MODEL=gpt-4o ./scripts/ops/db/content.sh sentences
+#   DEFAULT_BUCKET_TARGET_SIZE=500 ./scripts/ops/db/content.sh sentences
 # DB_IMAGE_TAG is also not here — its default is the root ./VERSION file
 # (resolved by scripts/lib.sh), with .env.db / shell env able to pin a
 # specific version when needed.
@@ -94,15 +96,19 @@ SECRET_KEYS=(
 # DATABASE_URL is NOT here — it's assembled at runtime from POSTGRES_PASSWORD
 # + code defaults (see header comment). AUDIO_DIR is NOT here — it has a code
 # default (/var/lib/type-any-language/audio) and can be overridden via shell
-# env. POSTGRES_USER/POSTGRES_HOST/POSTGRES_PORT/POSTGRES_DB/DB_IMAGE/
-# AI_BASE_URL/AI_MODEL/DEFAULT_BUCKET_TARGET_SIZE are intentionally NOT here
-# — they have code-level defaults (see env.py + bake_image.sh) and can be
-# overridden via shell env when needed. DB_IMAGE_TAG is also not here — its
-# default is the root ./VERSION file (lib.sh's resolve_image_tag). TENCENT_*
-# is checked separately below (all-or-nothing, but only the audio subcommand
-# actually needs them).
+# env. AI_BASE_URL and AI_MODEL ARE here — they're operator decisions
+# (OpenAI vs Azure vs local; gpt-3.5-turbo vs gpt-4o), not infrastructure
+# defaults, so they go in .env.db. POSTGRES_USER/POSTGRES_HOST/
+# POSTGRES_PORT/POSTGRES_DB/DB_IMAGE/DEFAULT_BUCKET_TARGET_SIZE are
+# intentionally NOT here — they have code-level defaults (see env.py +
+# bake_image.sh) and can be overridden via shell env when needed.
+# DB_IMAGE_TAG is also not here — its default is the root ./VERSION file
+# (lib.sh's resolve_image_tag). TENCENT_* is checked separately below
+# (all-or-nothing, but only the audio subcommand actually needs them).
 REQUIRED_KEYS=(
     AI_API_KEY
+    AI_BASE_URL
+    AI_MODEL
 )
 
 # Portable sed -i (GNU vs BSD) lives in lib.sh; sourced above.
@@ -147,18 +153,20 @@ cmd_init() {
         exit 1
     fi
 
-    # Copy template — only secrets need to be filled.
+    # Copy template — secrets + AI provider/model need to be filled.
     # DATABASE_URL is NOT in .env.db (assembled at runtime from POSTGRES_PASSWORD
     # + code defaults). AUDIO_DIR is also NOT in .env.db (code default
     # /var/lib/type-any-language/audio). All other knobs (POSTGRES_USER,
-    # POSTGRES_DB, DB_IMAGE, AI_BASE_URL, AI_MODEL, DEFAULT_BUCKET_TARGET_SIZE)
-    # also have code-level defaults.
+    # POSTGRES_DB, DB_IMAGE, DEFAULT_BUCKET_TARGET_SIZE) also have code-level
+    # defaults.
     cp "$TEMPLATE" "$TARGET"
     ok "已从 $TEMPLATE 复制为 $TARGET"
 
     echo ""
     warn "以下项必须你手动填 (env.sh 不会自动 inject):"
     echo "  - AI_API_KEY         (OpenAI / 提供方密钥)"
+    echo "  - AI_BASE_URL        (默认 https://api.openai.com/v1; 改 Azure/本地时换)"
+    echo "  - AI_MODEL           (默认 gpt-3.5-turbo; 按需换 gpt-4o / claude-... 等)"
     echo "  - TENCENT_SECRET_ID  (腾讯云 TTS — 三件套 all-or-nothing, 不跑 audio 可不填)"
     echo "  - TENCENT_SECRET_KEY"
     echo "  - TENCENT_APP_ID"
@@ -434,7 +442,7 @@ usage() {
 
 典型工作流:
   ./scripts/ops/db/env.sh            # 首次: 引导 + smart defaults
-  nano .env.db                    # 填 secrets (AI_API_KEY / TENCENT_*)
+  nano .env.db                    # 填 secrets + AI 配置 (AI_API_KEY / AI_BASE_URL / AI_MODEL / TENCENT_*)
   # 准备 db password (单选):
   export POSTGRES_PASSWORD=...                   # 临时
   # OR:
@@ -444,10 +452,10 @@ usage() {
   ./scripts/ops/db/env.sh show       # 看一眼当前配置 (secret 脱敏)
 
 其他配置 (POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, DB_IMAGE,
-AUDIO_DIR, AI_BASE_URL, AI_MODEL, DEFAULT_BUCKET_TARGET_SIZE) 不在 .env.db — 代码里有默认, 需要时 shell 覆盖:
-  AI_MODEL=gpt-4o ./scripts/ops/db/content.sh sentences
+AUDIO_DIR, DEFAULT_BUCKET_TARGET_SIZE) 不在 .env.db — 代码里有默认, 需要时 shell 覆盖:
   POSTGRES_USER=foo ./scripts/ops/db/bake_image.sh
   AUDIO_DIR=/my/audio/dir ./scripts/ops/db/content.sh audio
+  DEFAULT_BUCKET_TARGET_SIZE=500 ./scripts/ops/db/content.sh sentences
 EOF
 }
 

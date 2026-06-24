@@ -68,11 +68,15 @@ cmd_doctor() {
     # Hard requirements (every subcommand needs these).
     # DATABASE_URL is NOT in .env.db — it's assembled from POSTGRES_PASSWORD
     # + code defaults. AUDIO_DIR is also NOT in .env.db (code default
-    # /var/lib/type-any-language/audio). The check below mirrors what
-    # db/pipeline/env.py does in Python; we replicate it here in bash so
-    # doctor can run without spinning up Python.
+    # /var/lib/type-any-language/audio). AI_BASE_URL / AI_MODEL ARE in
+    # .env.db (operator decisions — OpenAI vs Azure vs local, gpt-3.5-turbo
+    # vs gpt-4o). The check below mirrors what db/pipeline/env.py does in
+    # Python; we replicate it here in bash so doctor can run without
+    # spinning up Python.
     local missing=()
     [ -z "$AI_API_KEY" ]     && missing+=("AI_API_KEY")
+    [ -z "$AI_BASE_URL" ]    && missing+=("AI_BASE_URL")
+    [ -z "$AI_MODEL" ]       && missing+=("AI_MODEL")
     if [ -z "$DATABASE_URL" ]; then
         # Try to assemble it (same logic as env.py / bake_image.sh).
         local _pu="${POSTGRES_USER:-english_user}"
@@ -95,7 +99,7 @@ cmd_doctor() {
         for k in "${missing[@]}"; do echo "  - $k"; done
         ok=0
     else
-        ok "核心 key 都有值 (AI_API_KEY / POSTGRES_PASSWORD)"
+        ok "核心 key 都有值 (AI_API_KEY / AI_BASE_URL / AI_MODEL / POSTGRES_PASSWORD)"
     fi
 
     # AUDIO_DIR: code default, just show what's resolved (no fail if missing —
