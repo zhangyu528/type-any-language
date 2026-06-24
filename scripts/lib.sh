@@ -381,13 +381,20 @@ read_registry_file() {
 # (and exports it) following the chain above. Always succeeds; an empty
 # result means "local-only mode".
 #
+# "Shell env wins" is checked by set-ness, not by non-emptiness — so
+# `DOCKER_REGISTRY= ./script` (explicit empty) forces local-only mode
+# instead of falling through to auto-detect. Without this, an empty
+# DOCKER_REGISTRY env var would be silently re-detected to
+# `docker.io/$USER` on hosts where that succeeds, turning an
+# operator's "I want local-only" intent into a push-mode run.
+#
 # Usage:
 #   source lib.sh
 #   resolve_docker_registry
 #   echo "$DOCKER_REGISTRY"
 resolve_docker_registry() {
-    # 1. Shell env wins.
-    if [ -n "${DOCKER_REGISTRY:-}" ]; then
+    # 1. Shell env wins — even if explicitly empty (see note above).
+    if [ -n "${DOCKER_REGISTRY+x}" ]; then
         export DOCKER_REGISTRY
         return 0
     fi
