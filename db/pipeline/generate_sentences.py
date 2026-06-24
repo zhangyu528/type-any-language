@@ -20,6 +20,7 @@ Usage:
 import argparse
 import json
 import random
+import re
 import sys
 import uuid
 from datetime import datetime, timezone
@@ -117,9 +118,16 @@ def call_openai(cfg, words: list[str], difficulty: str) -> list[dict]:
         model=cfg.ai_model,
         messages=messages,
         temperature=0.7,
-        response_format={"type": "json_object"},
+        # NOTE: response_format={"type": "json_object"} intentionally omitted.
+        # That's an OpenAI-specific extension; minimaxi's OpenAI-compatible
+        # endpoint may not honour it. The model is also asked to output pure
+        # JSON in build_prompt(); relying on that instead.
     )
     content = response.choices[0].message.content or "{}"
+    # Strip reasoning blocks (e.g. MiniMax-M3 emits <think>...</think>
+    # before its actual answer). Some compatible endpoints pass them
+    # through into message.content, which would break json.loads below.
+    content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
     parsed = json.loads(content)
     sentences = parsed.get("sentences", [])
     if not isinstance(sentences, list):
