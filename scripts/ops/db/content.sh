@@ -67,12 +67,12 @@ cmd_doctor() {
 
     # Hard requirements (every subcommand needs these).
     # DATABASE_URL is NOT in .env.db — it's assembled from POSTGRES_PASSWORD
-    # + code defaults. The check below mirrors what db/pipeline/env.py does
-    # in Python; we replicate it here in bash so doctor can run without
-    # spinning up Python.
+    # + code defaults. AUDIO_DIR is also NOT in .env.db (code default
+    # /var/lib/type-any-language/audio). The check below mirrors what
+    # db/pipeline/env.py does in Python; we replicate it here in bash so
+    # doctor can run without spinning up Python.
     local missing=()
     [ -z "$AI_API_KEY" ]     && missing+=("AI_API_KEY")
-    [ -z "$AUDIO_DIR" ]      && missing+=("AUDIO_DIR")
     if [ -z "$DATABASE_URL" ]; then
         # Try to assemble it (same logic as env.py / bake_image.sh).
         local _pu="${POSTGRES_USER:-english_user}"
@@ -95,7 +95,16 @@ cmd_doctor() {
         for k in "${missing[@]}"; do echo "  - $k"; done
         ok=0
     else
-        ok "核心 key 都有值 (AI_API_KEY / AUDIO_DIR / POSTGRES_PASSWORD)"
+        ok "核心 key 都有值 (AI_API_KEY / POSTGRES_PASSWORD)"
+    fi
+
+    # AUDIO_DIR: code default, just show what's resolved (no fail if missing —
+    # content.sh audio will mkdir -p when it runs).
+    local _audio_dir="${AUDIO_DIR:-/var/lib/type-any-language/audio}"
+    if [ -d "$_audio_dir" ]; then
+        ok "AUDIO_DIR=$_audio_dir  (目录存在)"
+    else
+        info "AUDIO_DIR=$_audio_dir  (目录不存在, content.sh audio 会自动 mkdir)"
     fi
 
     # TENCENT_* — all-or-nothing, but 0 is OK (only audio subcommand needs them).

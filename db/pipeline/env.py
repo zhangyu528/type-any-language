@@ -108,8 +108,8 @@ def setup_env(env_file: str | os.PathLike | None = None) -> dict[str, str]:
         assembled from POSTGRES_PASSWORD + code defaults) so downstream
         libraries (psycopg2, openai, tencentcloud-sdk-python) can pick
         them up via their standard env-var discovery.
-      - os.environ["AI_API_KEY"], "TENCENT_*", "AUDIO_DIR" are populated
-        if they're in .env.db.
+      - os.environ["AI_API_KEY"] and "TENCENT_*" are populated if they're
+        in .env.db (those are the only required secrets now).
     """
     path = Path(env_file) if env_file else _project_root() / ".env.db"
     if not path.is_file():
@@ -177,15 +177,23 @@ class Config:
     postgres_db: str
 
 
+# Where TTS MP3s land before bake. XDG-style: /var/lib/<app>/<resource>.
+# generate_audio.py creates the dir (mkdir -p), so the only thing the
+# operator needs is write access to /var/lib. On systems where that's
+# not practical (Windows, no sudo), set AUDIO_DIR via shell env when
+# running content.sh / bake_image.sh.
+_DEFAULT_AUDIO_DIR = "/var/lib/type-any-language/audio"
+
+
 def load_config() -> Config:
     """Build a validated Config from os.environ.
 
     Required keys (no defaults — fail if missing):
       DATABASE_URL (assembled by setup_env from POSTGRES_PASSWORD + code defaults),
-      AI_API_KEY, TENCENT_SECRET_ID, TENCENT_SECRET_KEY, TENCENT_APP_ID, AUDIO_DIR.
+      AI_API_KEY, TENCENT_SECRET_ID, TENCENT_SECRET_KEY, TENCENT_APP_ID.
 
-    Defaults provided for AI_BASE_URL, AI_MODEL, DEFAULT_BUCKET_TARGET_SIZE,
-    POSTGRES_USER, POSTGRES_DB.
+    Defaults provided for AUDIO_DIR, AI_BASE_URL, AI_MODEL,
+    DEFAULT_BUCKET_TARGET_SIZE, POSTGRES_USER, POSTGRES_DB.
     """
     return Config(
         database_url=_required("DATABASE_URL"),
@@ -195,7 +203,7 @@ def load_config() -> Config:
         tencent_secret_id=_required("TENCENT_SECRET_ID"),
         tencent_secret_key=_required("TENCENT_SECRET_KEY"),
         tencent_app_id=_required("TENCENT_APP_ID"),
-        audio_dir=_required("AUDIO_DIR"),
+        audio_dir=os.environ.get("AUDIO_DIR", _DEFAULT_AUDIO_DIR),
         default_bucket_target_size=int(
             os.environ.get("DEFAULT_BUCKET_TARGET_SIZE", "200")
         ),

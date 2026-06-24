@@ -300,16 +300,20 @@ cd backend && python -m pytest tests/test_file.py::test_name -v
 
 ### CMS host — `.env.db` (created by `scripts/ops/db/env.sh`)
 
-`.env.db` holds **only provider secrets + the host-specific AUDIO_DIR**. Everything else — the Postgres connection (DATABASE_URL), the db identity (POSTGRES_USER/HOST/PORT/DB), the image name, AI model/endpoint, and the sentences-bucket size — has code-level defaults and is therefore NOT in the file. See [CMS host config knobs](#cms-host-config-knobs) for the override pattern.
+`.env.db` holds **only provider secrets**. Everything else — the Postgres connection (DATABASE_URL), the db identity (POSTGRES_USER/HOST/PORT/DB), the image name, the audio output directory, AI model/endpoint, and the sentences-bucket size — has code-level defaults and is therefore NOT in the file. See [CMS host config knobs](#cms-host-config-knobs) for the override pattern.
 
 Required (in `.env.db`):
 - `AI_API_KEY` — OpenAI-compatible LLM key
-- `AUDIO_DIR` — where `generate_audio.py` writes MP3s and `bake_image.sh` reads them from (host-specific filesystem path)
 - `TENCENT_SECRET_ID`, `TENCENT_SECRET_KEY`, `TENCENT_APP_ID` — Tencent Cloud TTS; required when running `content.sh audio`, optional otherwise
 
 `DATABASE_URL` is **not** in `.env.db`. It's assembled at runtime by `db/pipeline/env.py` + `scripts/ops/db/bake_image.sh` from:
 - `POSTGRES_PASSWORD` (the only piece without a code default — see [Where the db password comes from](#where-the-db-password-comes-from))
 - `POSTGRES_USER` (default `english_user`), `POSTGRES_HOST` (default `localhost`), `POSTGRES_PORT` (default `5432`), `POSTGRES_DB` (default `english_learning`)
+
+`AUDIO_DIR` is also **not** in `.env.db`. Code default is `/var/lib/type-any-language/audio` (XDG-style); `generate_audio.py` and `bake_image.sh` will `mkdir -p` it. Override via shell env on systems where `/var/lib` isn't writable (Windows, no sudo):
+```bash
+AUDIO_DIR=/your/audio/dir ./scripts/ops/db/content.sh audio
+```
 
 `DB_IMAGE_TAG` is not in `.env.db` either — its default is the root `VERSION.prod` file (resolved by `scripts/lib.sh` → `resolve_image_tag`); shell env can override it for one-off builds.
 
@@ -344,6 +348,7 @@ These have code-level defaults in `db/pipeline/env.py` / `scripts/ops/db/bake_im
 | `POSTGRES_DB`   | `english_learning` | (same pattern) |
 | `POSTGRES_PASSWORD` | (none — see above) | `POSTGRES_PASSWORD=... ./scripts/ops/db/bake_image.sh` |
 | `DB_IMAGE`      | `english_db_content` | (same pattern) |
+| `AUDIO_DIR`     | `/var/lib/type-any-language/audio` | `AUDIO_DIR=/your/audio/dir ./scripts/ops/db/content.sh audio` |
 | `AI_BASE_URL`   | `https://api.openai.com/v1` | `AI_BASE_URL=https://api.azure.com/v1 ./scripts/ops/db/content.sh sentences` |
 | `AI_MODEL`      | `gpt-3.5-turbo` | `AI_MODEL=gpt-4o ./scripts/ops/db/content.sh sentences` |
 | `DEFAULT_BUCKET_TARGET_SIZE` | `200` | `DEFAULT_BUCKET_TARGET_SIZE=500 ./scripts/ops/db/content.sh sentences` |

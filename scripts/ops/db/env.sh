@@ -32,18 +32,18 @@
 #   run.sh, and ALLOWED_ORIGINS is passed via the shell env (compose
 #   has a built-in default). So this is the only env.sh in the project.
 #
-# Smart defaults NOT injected (require user-supplied secrets or host paths):
+# Smart defaults NOT injected (require user-supplied secrets):
 #   - POSTGRES_PASSWORD              (host-side db password; see "Where does
 #                                     the db password come from" below)
 #   - AI_API_KEY                     (provider-issued)
 #   - TENCENT_SECRET_ID/KEY/APP_ID   (provider-issued)
-#   - AUDIO_DIR                      (host-specific filesystem path)
 #
 # All other knobs (POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB,
-# DB_IMAGE, AI_BASE_URL, AI_MODEL, DEFAULT_BUCKET_TARGET_SIZE) have
-# code-level defaults and are therefore NOT in .env.db. To pin a different
-# value, set it in the shell:
+# DB_IMAGE, AUDIO_DIR, AI_BASE_URL, AI_MODEL, DEFAULT_BUCKET_TARGET_SIZE)
+# have code-level defaults and are therefore NOT in .env.db. To pin a
+# different value, set it in the shell:
 #   POSTGRES_USER=other ./scripts/ops/db/bake_image.sh
+#   AUDIO_DIR=/my/audio/dir ./scripts/ops/db/content.sh audio
 #   AI_MODEL=gpt-4o ./scripts/ops/db/content.sh sentences
 # DB_IMAGE_TAG is also not here — its default is the root ./VERSION file
 # (resolved by scripts/lib.sh), with .env.db / shell env able to pin a
@@ -92,7 +92,9 @@ SECRET_KEYS=(
 
 # Required keys for a "ready" CMS host. Used by cmd_doctor.
 # DATABASE_URL is NOT here — it's assembled at runtime from POSTGRES_PASSWORD
-# + code defaults (see header comment). POSTGRES_USER/POSTGRES_DB/DB_IMAGE/
+# + code defaults (see header comment). AUDIO_DIR is NOT here — it has a code
+# default (/var/lib/type-any-language/audio) and can be overridden via shell
+# env. POSTGRES_USER/POSTGRES_HOST/POSTGRES_PORT/POSTGRES_DB/DB_IMAGE/
 # AI_BASE_URL/AI_MODEL/DEFAULT_BUCKET_TARGET_SIZE are intentionally NOT here
 # — they have code-level defaults (see env.py + bake_image.sh) and can be
 # overridden via shell env when needed. DB_IMAGE_TAG is also not here — its
@@ -101,7 +103,6 @@ SECRET_KEYS=(
 # actually needs them).
 REQUIRED_KEYS=(
     AI_API_KEY
-    AUDIO_DIR
 )
 
 # Portable sed -i (GNU vs BSD) lives in lib.sh; sourced above.
@@ -146,18 +147,18 @@ cmd_init() {
         exit 1
     fi
 
-    # Copy template — only secrets + AUDIO_DIR need to be filled.
+    # Copy template — only secrets need to be filled.
     # DATABASE_URL is NOT in .env.db (assembled at runtime from POSTGRES_PASSWORD
-    # + code defaults). All other knobs (POSTGRES_USER, POSTGRES_DB, DB_IMAGE,
-    # AI_BASE_URL, AI_MODEL, DEFAULT_BUCKET_TARGET_SIZE) also have code-level
-    # defaults.
+    # + code defaults). AUDIO_DIR is also NOT in .env.db (code default
+    # /var/lib/type-any-language/audio). All other knobs (POSTGRES_USER,
+    # POSTGRES_DB, DB_IMAGE, AI_BASE_URL, AI_MODEL, DEFAULT_BUCKET_TARGET_SIZE)
+    # also have code-level defaults.
     cp "$TEMPLATE" "$TARGET"
     ok "已从 $TEMPLATE 复制为 $TARGET"
 
     echo ""
     warn "以下项必须你手动填 (env.sh 不会自动 inject):"
     echo "  - AI_API_KEY         (OpenAI / 提供方密钥)"
-    echo "  - AUDIO_DIR          (本机 TTS MP3 输出目录, 需是已存在的可写路径)"
     echo "  - TENCENT_SECRET_ID  (腾讯云 TTS — 三件套 all-or-nothing, 不跑 audio 可不填)"
     echo "  - TENCENT_SECRET_KEY"
     echo "  - TENCENT_APP_ID"
@@ -167,6 +168,9 @@ cmd_init() {
     echo "  2. cp dev-host:.secrets/postgres_password \\"
     echo "       .secrets/postgres_password              # 多机部署"
     echo "  3. 单机部署: .secrets/postgres_password 已经在 dev host 存在"
+    echo ""
+    info "AUDIO_DIR 默认是 /var/lib/type-any-language/audio"
+    info "  → Windows / 无 sudo 的系统: export AUDIO_DIR=/your/path"
     echo ""
     info "填好后跑: ./scripts/ops/db/env.sh doctor 验证"
     info "或者用: ./scripts/ops/db/env.sh update KEY=VALUE 改某一项"
@@ -392,6 +396,16 @@ cmd_doctor() {
         failed=1
     fi
 
+    # --- AUDIO_DIR ---
+    # Not in .env.db anymore — code default is /var/lib/type-any-language/audio.
+    # Show the resolved value so the operator can sanity-check.
+    local _audio_dir="${AUDIO_DIR:-/var/lib/type-any-language/audio}"
+    if [ -d "$_audio_dir" ]; then
+        ok "AUDIO_DIR=$_audio_dir  (目录存在)"
+    else
+        info "AUDIO_DIR=$_audio_dir  (目录不存在, 但 content.sh audio 会 mkdir -p)"
+    fi
+
     echo ""
     if [ "$failed" -eq 0 ]; then
         ok "所有必需检查通过"
@@ -420,7 +434,7 @@ usage() {
 
 典型工作流:
   ./scripts/ops/db/env.sh            # 首次: 引导 + smart defaults
-  nano .env.db                    # 填 secrets + AUDIO_DIR (AI_API_KEY / AUDIO_DIR / TENCENT_*)
+  nano .env.db                    # 填 secrets (AI_API_KEY / TENCENT_*)
   # 准备 db password (单选):
   export POSTGRES_PASSWORD=...                   # 临时
   # OR:
@@ -430,9 +444,10 @@ usage() {
   ./scripts/ops/db/env.sh show       # 看一眼当前配置 (secret 脱敏)
 
 其他配置 (POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, DB_IMAGE,
-AI_BASE_URL, AI_MODEL, DEFAULT_BUCKET_TARGET_SIZE) 不在 .env.db — 代码里有默认, 需要时 shell 覆盖:
+AUDIO_DIR, AI_BASE_URL, AI_MODEL, DEFAULT_BUCKET_TARGET_SIZE) 不在 .env.db — 代码里有默认, 需要时 shell 覆盖:
   AI_MODEL=gpt-4o ./scripts/ops/db/content.sh sentences
   POSTGRES_USER=foo ./scripts/ops/db/bake_image.sh
+  AUDIO_DIR=/my/audio/dir ./scripts/ops/db/content.sh audio
 EOF
 }
 
