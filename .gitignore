@@ -52,6 +52,11 @@ db/seed/
 # bake staging
 .bake-staging/
 
+# Test artifacts (used by the test path that exercises the labels-read
+# path in dev/prod build_image.sh — not normally created in real use)
+.db-image-build/
+.audio/
+
 # Logs
 *.log
 logs/

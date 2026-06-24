@@ -62,7 +62,7 @@ def find_vocab_dir() -> Path:
     """Locate db/content/vocabulary/. Walks up to find the project root."""
     here = Path(__file__).resolve().parent
     while here != here.parent:
-        candidate = here / "cms" / "content" / "vocabulary"
+        candidate = here / "db" / "content" / "vocabulary"
         if candidate.is_dir():
             return candidate
         here = here.parent
