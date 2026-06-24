@@ -124,10 +124,21 @@ def call_openai(cfg, words: list[str], difficulty: str) -> list[dict]:
         # JSON in build_prompt(); relying on that instead.
     )
     content = response.choices[0].message.content or "{}"
-    # Strip reasoning blocks (e.g. MiniMax-M3 emits <think>...</think>
-    # before its actual answer). Some compatible endpoints pass them
-    # through into message.content, which would break json.loads below.
-    content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+    # Two non-JSON artefacts MiniMax-M3 emits into message.content that
+    # would break json.loads below:
+    #   1. <think>...</think>  reasoning blocks (M3 "thinks out loud"
+    #      before answering — leaks into content on this endpoint).
+    #   2. Markdown code fences (```json ... ```) wrapping the JSON.
+    # Strip both before parsing. The fences can appear at start/end of
+    # the whole response or around the JSON block, so the regexes are
+    # anchored accordingly.
+    content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL)
+    # Strip leading ```json / ``` (with optional language tag) and a
+    # trailing ``` if either is present. Both must be present to count
+    # as a real fence — don't strip a lone backtick triple elsewhere.
+    content = re.sub(r"^\s*```(?:json|JSON)?\s*", "", content)
+    content = re.sub(r"\s*```\s*$", "", content)
+    content = content.strip()
     parsed = json.loads(content)
     sentences = parsed.get("sentences", [])
     if not isinstance(sentences, list):

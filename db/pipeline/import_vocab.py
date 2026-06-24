@@ -243,15 +243,18 @@ def main() -> None:
                 results.append(import_one(conn, name, vocab_dir, args.force, dry_run=False))
 
     # Summary
+    # ASCII-only status glyphs: Windows console (GBK / cp936) can't encode
+    # the nicer Unicode ticks used in earlier versions. 'ok' / 'skip' / '!!'
+    # are readable everywhere and grep-friendly.
     for r in results:
         if r["status"] == "missing":
-            print(f"  ✗ {r['name']}: csv not found at {r['csv']}")
+            print(f"  !! {r['name']}: csv not found at {r['csv']}")
         elif r["status"] == "unknown":
-            print(f"  ? {r['name']}: unknown lib (not in LIB_DEFS)")
+            print(f"  ?? {r['name']}: unknown lib (not in LIB_DEFS)")
         elif r["status"] == "skipped":
-            print(f"  ⊝ {r['name']:10s} {'skipped':13s} (already imported, CSV not re-read)")
+            print(f"  -- {r['name']:10s} {'skipped':13s} (already imported, CSV not re-read)")
         else:
-            print(f"  ✓ {r['name']:10s} {r['status']:13s} {r.get('rows', 0)} rows")
+            print(f"  ok {r['name']:10s} {r['status']:13s} {r.get('rows', 0)} rows")
 
 
 if __name__ == "__main__":

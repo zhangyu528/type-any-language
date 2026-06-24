@@ -3,6 +3,11 @@
 # db/content.sh — orchestrate the content production pipeline.
 #
 # Subcommands (all idempotent; safe to re-run):
+#   init-schema Create the 3 content tables (vocabulary_libs /
+#              vocabulary_words / sentences) in the CMS host's DB.
+#              First-time setup only — create_all() is idempotent but
+#              does NOT migrate existing schemas.
+#              (pipeline/init_schema.py — imports backend models)
 #   sync       Import vocabulary CSVs → vocabulary_libs / vocabulary_words.
 #              (pipeline/import_vocab.py)
 #   sentences  Bulk-generate practice sentences via OpenAI.
@@ -39,6 +44,12 @@ source "$SCRIPT_DIR/../../lib.sh"
 # pipeline/ lives at db/pipeline/. For `python -m pipeline.X`
 # to work, db/ must be on PYTHONPATH.
 export PYTHONPATH="${PROJECT_DIR}/db${PYTHONPATH:+:$PYTHONPATH}"
+
+# Force Python IO to UTF-8 so Unicode glyphs in pipeline output (✓ / ✗
+# / box-drawing in import_vocab / generate_sentences / generate_audio /
+# export_bundle summaries) don't blow up on Windows consoles whose
+# default codepage is GBK / cp936. No-op on macOS / Linux.
+export PYTHONIOENCODING="${PYTHONIOENCODING:-utf-8}"
 
 # Pick a python interpreter. Lazy: only resolved when a subcommand actually
 # needs it. This way `content.sh -h` and `content.sh` (usage) work even on
@@ -164,6 +175,10 @@ cmd_sync() {
     "$(py)" -m pipeline.import_vocab "$@"
 }
 
+cmd_init_schema() {
+    "$(py)" -m pipeline.init_schema "$@"
+}
+
 cmd_sentences() {
     "$(py)" -m pipeline.generate_sentences "$@"
 }
@@ -192,13 +207,14 @@ usage() {
 用法: $0 <command> [args]
 
 命令:
-  sync       把 db/content/vocabulary/*.csv 灌进 vocabulary_libs / vocabulary_words
+  init-schema  一次性建 3 张 content 表 (vocabulary_libs/words/sentences)
+  sync         把 db/content/vocabulary/*.csv 灌进 vocabulary_libs / vocabulary_words
   sentences  调 OpenAI 批量生成 sentences (填到 DEFAULT_BUCKET_TARGET_SIZE)
   audio      调 Tencent TTS 批量烤 MP3 (跳过 audio_url 已设的句子)
-  publish    no-op (schema 没有 published 标志)
-  export     把 content + audio 导出成 staging bundle (bake_image 内部用的同一个)
-  doctor     前置检查 (.env.db + Python deps + db 可达)
-  -h|help    显示本帮助
+  publish      no-op (schema 没有 published 标志)
+  export       把 content + audio 导出成 staging bundle (bake_image 内部用的同一个)
+  doctor       前置检查 (.env.db + Python deps + db 可达)
+  -h|help      显示本帮助
 
 每个子命令都透传给 db/pipeline/ 下的 Python 模块。子命令自身的
 参数透传，flags 见各自 --help:
@@ -206,22 +222,25 @@ usage() {
   $0 sentences --help
   $0 audio --help
 
-典型工作流:
-  $0 sync              # csv → DB
-  $0 sentences         # OpenAI 填句子
-  $0 audio             # TTS 烤 MP3
-  ./scripts/ops/db/bake_image.sh    # 烤 image
-  ./scripts/ops/db/push_image.sh    # 推 registry
+典型工作流 (CMS 主机,首次):
+  ./scripts/ops/db/env.sh                   # .env.db 引导 (一次性)
+  $0 init-schema                            # 建表 (一次性, 幂等)
+  $0 sync                                   # csv → DB
+  $0 sentences                              # OpenAI 填句子
+  $0 audio                                  # TTS 烤 MP3
+  ./scripts/ops/db/bake_image.sh            # 烤 image
+  ./scripts/ops/db/push_image.sh            # 推 registry
 EOF
 }
 
 case "${1:-}" in
-    doctor)     cmd_doctor || exit 1 ;;
-    sync)       shift; cmd_sync "$@" ;;
-    sentences)  shift; cmd_sentences "$@" ;;
-    audio)      shift; cmd_audio "$@" ;;
-    publish)    cmd_publish ;;
-    export)     shift; cmd_export "$@" ;;
+    doctor)        cmd_doctor || exit 1 ;;
+    init-schema)   shift; cmd_init_schema "$@" ;;
+    sync)          shift; cmd_sync "$@" ;;
+    sentences)     shift; cmd_sentences "$@" ;;
+    audio)         shift; cmd_audio "$@" ;;
+    publish)       cmd_publish ;;
+    export)        shift; cmd_export "$@" ;;
     -h|--help|help|"") usage ;;
     *)          err "未知命令: $1"; usage; exit 1 ;;
 esac
