@@ -17,11 +17,6 @@ export interface Sentence {
   is_cached: boolean;
 }
 
-export interface GenerateResponse {
-  session_id: string;
-  sentences: Sentence[];
-}
-
 export async function getVocabularyLibs(): Promise<VocabularyLib[]> {
   const response = await fetch(`${API_BASE_URL}/api/vocabulary/libs`);
   if (!response.ok) {
@@ -34,41 +29,18 @@ export async function generateSentences(
   libId: string,
   count: number = 10,
   difficulty: string = 'beginner'
-): Promise<GenerateResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/sentences/generate`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      lib_id: libId,
-      count,
-      difficulty,
-      force_new: false,
-    }),
+): Promise<Sentence[]> {
+  // Read-layer backend (commit f26265d "strip to read-layer") serves
+  // pre-baked sentences via GET. No session, no cache-miss flow —
+  // sentences come straight from the content baked into the db image.
+  const params = new URLSearchParams({
+    lib_id: libId,
+    count: String(count),
+    difficulty,
   });
+  const response = await fetch(`${API_BASE_URL}/api/sentences/random?${params}`);
   if (!response.ok) {
     throw new Error('生成句子失败');
-  }
-  return response.json();
-}
-
-export async function checkAnswer(
-  sentenceId: string,
-  userInput: string
-): Promise<{ is_correct: boolean; correct_answer: string }> {
-  const response = await fetch(`${API_BASE_URL}/api/sentences/check`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      sentence_id: sentenceId,
-      user_input: userInput,
-    }),
-  });
-  if (!response.ok) {
-    throw new Error('校验答案失败');
   }
   return response.json();
 }

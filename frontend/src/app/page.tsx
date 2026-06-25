@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getVocabularyLibs, generateSentences, checkAnswer, getAudioUrl, getPhonetics, Sentence } from './api';
+import { getVocabularyLibs, generateSentences, getAudioUrl, getPhonetics, Sentence } from './api';
 import AudioPlayerBar from './AudioPlayerBar';
 
 // 输入模式枚举 + 元数据：未来加模式只改 INPUT_MODES 和 MODE_METADATA 两处
@@ -12,6 +12,22 @@ const MODE_METADATA: Record<InputMode, { label: string; icon: string; desc: stri
   linear: { label: '按序输入', icon: '▤', desc: '按听到的顺序依次填写' },
   free:   { label: '自由点选', icon: '⤢', desc: '可任意切换 cell 输入' },
 };
+
+// Normalize a string for comparison: lowercase, strip punctuation, collapse
+// whitespace. Mirrors what backend's old `validate_answer()` did (CLAUDE.md:
+// "User submits answer → validate_answer() normalizes ...").
+// Pure local check now that the read-layer backend dropped POST /sentences/check.
+function normalize(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9'\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isAnswerCorrect(sentence: Sentence, userInput: string): boolean {
+  return normalize(sentence.text) === normalize(userInput);
+}
 
 export default function PracticePage() {
   const [loading, setLoading] = useState(true);
@@ -80,11 +96,11 @@ export default function PracticePage() {
         setLoading(false);
         return;
       }
-      const data = await generateSentences(libs[0].id, 10, 'beginner');
-      setSentences(data.sentences);
+      const sentences = await generateSentences(libs[0].id, 10, 'beginner');
+      setSentences(sentences);
       setCurrentIndex(0);
-      setScore({ correct: 0, total: data.sentences.length });
-      setSentenceResults(new Array(data.sentences.length).fill(null));
+      setScore({ correct: 0, total: sentences.length });
+      setSentenceResults(new Array(sentences.length).fill(null));
       setSentenceStartTime(Date.now());
     } catch (err) {
       setError('Failed to load practice');
@@ -316,27 +332,26 @@ export default function PracticePage() {
         setTimeout(() => {
           const fullInput = newInputs.join(' ');
           if (fullInput.trim()) {
-            checkAnswer(sentences[currentIndex].id, fullInput).then(result => {
-              setSentenceResults(prev => {
-                const next = [...prev];
-                next[currentIndex] = result.is_correct;
-                return next;
-              });
-              if (result.is_correct) {
-                playCorrectChime();
-                setScore(prev => ({ ...prev, correct: prev.correct + 1 }));
-                // 答对立即切下一题（不显示 feedback、不延时）
-                if (currentIndex < sentences.length - 1) {
-                  setCurrentIndex(currentIndex + 1);
-                } else {
-                  setShowScore(true);
-                }
-              } else {
-                // 答错：显示 feedback，等用户按 Next
-                setIsCorrect(false);
-                setCorrectAnswer(result.correct_answer);
-              }
+            const correct = isAnswerCorrect(sentences[currentIndex], fullInput);
+            setSentenceResults(prev => {
+              const next = [...prev];
+              next[currentIndex] = correct;
+              return next;
             });
+            if (correct) {
+              playCorrectChime();
+              setScore(prev => ({ ...prev, correct: prev.correct + 1 }));
+              // 答对立即切下一题（不显示 feedback、不延时）
+              if (currentIndex < sentences.length - 1) {
+                setCurrentIndex(currentIndex + 1);
+              } else {
+                setShowScore(true);
+              }
+            } else {
+              // 答错：显示 feedback，等用户按 Next
+              setIsCorrect(false);
+              setCorrectAnswer(sentences[currentIndex].text);
+            }
           }
         }, 300);
       }
@@ -452,14 +467,14 @@ export default function PracticePage() {
     if (!fullInput.trim()) return;
 
     try {
-      const result = await checkAnswer(sentences[currentIndex].id, fullInput);
+      const correct = isAnswerCorrect(sentences[currentIndex], fullInput);
       setSentenceResults(prev => {
         const next = [...prev];
-        next[currentIndex] = result.is_correct;
+        next[currentIndex] = correct;
         return next;
       });
 
-      if (result.is_correct) {
+      if (correct) {
         playCorrectChime();
         setScore(prev => ({ ...prev, correct: prev.correct + 1 }));
         // 答对立即切下一题
@@ -470,7 +485,7 @@ export default function PracticePage() {
         }
       } else {
         setIsCorrect(false);
-        setCorrectAnswer(result.correct_answer);
+        setCorrectAnswer(sentences[currentIndex].text);
       }
     } catch (err) {
       setError('Check failed');
