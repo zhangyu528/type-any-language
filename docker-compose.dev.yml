@@ -100,13 +100,25 @@ services:
     volumes:
       # Hot-reload source mount — node_modules is kept in-container
       - ./frontend:/app
-      - /app/node_modules
+      # Named (not anonymous) volume so node_modules survives `compose down`.
+      # Anonymous volumes are deleted with the container on down, which
+      # races the entrypoint's hash-skip optimization into a state where
+      # the hash file (bind-mounted at /app) says "deps already installed"
+      # but /app/node_modules is empty → `next: not found` on every start.
+      # The frontend_dev-node_modules volume preserves deps across down/up.
+      - frontend_dev-node_modules:/app/node_modules
     ports:
       - "3000:3000"
-    command: ["npm", "start"]
+    # Dev mode: Next.js dev server with HMR. The Dockerfile's CMD also
+    # sets `npm run dev`, but compose's `command:` overrides that — so we
+    # mirror it here. (If we used `npm start`, it'd run `next start` which
+    # needs a pre-built .next/ — the entrypoint only does `npm install`,
+    # not `npm run build`, so production start would crash.)
+    command: ["npm", "run", "dev"]
     depends_on:
       - backend
 
 volumes:
   db-data:
   shared-audio:
+  frontend_dev-node_modules:

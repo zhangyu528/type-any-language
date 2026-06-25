@@ -6,10 +6,14 @@
 # Runs dev containers with **hot-reload**:
 #   • ./backend  and  ./frontend  are bind-mounted INTO the container.
 #   • Backend  uses `uvicorn --reload` — restart on .py change.
-#   • Frontend uses react-scripts dev server — HMR on .tsx/.css change.
-#   • entrypoint.sh is hash-aware: pip install only when requirements.txt
-#     SHA256 changes; npm install only when package.json / package-lock.json
-#     SHA256 changes. So dependency edits also "just work" — no rebuild.
+#   • Frontend uses `next dev` (Next.js dev server) — HMR on .tsx/.css change.
+#   • Backend pip deps are baked into the image at build time
+#     (backend/Dockerfile.dev). Edit requirements.txt → rebuild via
+#     build_image.sh, then restart.
+#   • Frontend npm deps are hash-gated at start via frontend/entrypoint.sh:
+#     npm install only when package.json / package-lock.json SHA256
+#     changes. Named docker volume (frontend_dev-node_modules) on
+#     /app/node_modules keeps installed deps across container recreates.
 #
 # ─── Database identity from image labels ─────────────────────────────────
 # Same as prod: the db image's labels (type-any-language.db.user / .db.name)
