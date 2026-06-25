@@ -136,7 +136,42 @@ require_file() {
 
 # image_exists <name>  → returns 0 if Docker image is present locally.
 image_exists() {
-    docker image inspect "$1" &> /dev/null
+    # Try the name as-given first. If that misses and the name has a
+    # registry prefix (e.g. "docker.io/me/foo:tag" → strip to "me/foo:tag"
+    # or further to "foo:tag"), retry without it — local images built via
+    # bake_image.sh / build_image.sh are tagged without the registry
+    # prefix, so callers asking with the prefix should still find them.
+    docker image inspect "$1" &> /dev/null && return 0
+    local stripped="${1#*/}"          # docker.io/me/foo:tag → me/foo:tag
+    [ "$stripped" != "$1" ] && docker image inspect "$stripped" &> /dev/null && return 0
+    local bare="${stripped#*/}"       # me/foo:tag → foo:tag
+    [ "$bare" != "$stripped" ] && docker image inspect "$bare" &> /dev/null && return 0
+    return 1
+}
+
+# resolve_image_ref <name> — print a docker-inspectable reference for the
+# image (image ID if found, empty if not). Mirrors image_exists's prefix
+# stripping so callers asking with a registry prefix still find locally-
+# tagged images. Use this before reading labels / config so the inspect
+# call doesn't fail on the prefix mismatch.
+resolve_image_ref() {
+    docker image inspect "$1" --format '{{.Id}}' 2>/dev/null | head -1 | grep -v '^$' && return 0
+    local stripped="${1#*/}"
+    [ "$stripped" != "$1" ] && docker image inspect "$stripped" --format '{{.Id}}' 2>/dev/null | head -1 | grep -v '^$' && return 0
+    local bare="${stripped#*/}"
+    [ "$bare" != "$stripped" ] && docker image inspect "$bare" --format '{{.Id}}' 2>/dev/null | head -1 | grep -v '^$' && return 0
+    return 1
+}
+
+# image_label <name> <label-key> — print the value of an OCI label on the
+# given image, or empty string. Uses resolve_image_ref internally so it
+# works whether the caller passes a registry-prefixed name or the bare
+# local tag. Pairs nicely with image_exists for the gate-check.
+image_label() {
+    local ref
+    ref="$(resolve_image_ref "$1")" || return 1
+    [ -z "$ref" ] && return 1
+    docker inspect "$ref" --format "{{ index .Config.Labels \"$2\" }}" 2>/dev/null
 }
 
 # require_image <name> <fix-hint>  → exits 1 if missing, prints fix hint.

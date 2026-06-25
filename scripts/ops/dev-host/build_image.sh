@@ -68,10 +68,8 @@ if ! image_exists "$DB_FULL_IMAGE"; then
     info "  或:   shell 覆盖 DB_IMAGE / DB_IMAGE_TAG 指向已有的 image"
     exit 1
 fi
-DB_USER="$(docker inspect "$DB_FULL_IMAGE" \
-    --format '{{ index .Config.Labels "type-any-language.db.user" }}' 2>/dev/null || echo "")"
-DB_NAME="$(docker inspect "$DB_FULL_IMAGE" \
-    --format '{{ index .Config.Labels "type-any-language.db.name" }}' 2>/dev/null || echo "")"
+DB_USER="$(image_label "$DB_FULL_IMAGE" "type-any-language.db.user" || echo "")"
+DB_NAME="$(image_label "$DB_FULL_IMAGE" "type-any-language.db.name" || echo "")"
 if [ -z "$DB_USER" ] || [ -z "$DB_NAME" ]; then
     err "db image $DB_FULL_IMAGE 缺 type-any-language.db.user / .db.name label"
     info "  → 重新跑 scripts/ops/db/bake_image.sh 烤一个带 label 的"

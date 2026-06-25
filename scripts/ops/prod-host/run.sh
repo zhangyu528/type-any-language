@@ -100,14 +100,10 @@ inspect_db_image_labels() {
     if ! image_exists "$DB_FULL_IMAGE"; then
         return 1
     fi
-    DB_USER="$(docker inspect "$DB_FULL_IMAGE" \
-        --format '{{ index .Config.Labels "type-any-language.db.user" }}' 2>/dev/null || echo "")"
-    DB_NAME="$(docker inspect "$DB_FULL_IMAGE" \
-        --format '{{ index .Config.Labels "type-any-language.db.name" }}' 2>/dev/null || echo "")"
-    DB_VERSION="$(docker inspect "$DB_FULL_IMAGE" \
-        --format '{{ index .Config.Labels "type-any-language.content.version" }}' 2>/dev/null || echo "")"
-    DB_BAKED_AT="$(docker inspect "$DB_FULL_IMAGE" \
-        --format '{{ index .Config.Labels "type-any-language.content.baked-at" }}' 2>/dev/null || echo "")"
+    DB_USER="$(image_label "$DB_FULL_IMAGE" "type-any-language.db.user" || echo "")"
+    DB_NAME="$(image_label "$DB_FULL_IMAGE" "type-any-language.db.name" || echo "")"
+    DB_VERSION="$(image_label "$DB_FULL_IMAGE" "type-any-language.content.version" || echo "")"
+    DB_BAKED_AT="$(image_label "$DB_FULL_IMAGE" "type-any-language.content.baked-at" || echo "")"
     export DB_USER DB_NAME DB_VERSION DB_BAKED_AT
     [ -n "$DB_USER" ] && [ -n "$DB_NAME" ]
 }
