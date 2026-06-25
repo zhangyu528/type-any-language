@@ -57,7 +57,11 @@ source "$SCRIPT_DIR/../../lib.sh"
 # is disabled, but the dev compose still works (it pulls the local image).
 resolve_docker_registry
 if [ -n "$DOCKER_REGISTRY" ]; then
-    info "DOCKER_REGISTRY=$DOCKER_REGISTRY (auto-pull on)"
+    if [ "${_DOCKER_REGISTRY_SOURCE:-}" = "detect" ]; then
+        info "DOCKER_REGISTRY=$DOCKER_REGISTRY (auto-detected, auto-pull off — 本地模式)"
+    else
+        info "DOCKER_REGISTRY=$DOCKER_REGISTRY (auto-pull on)"
+    fi
 else
     info "DOCKER_REGISTRY 未设置 (auto-pull off, local-only mode)"
 fi
@@ -72,9 +76,28 @@ resolve_image_tag BACKEND_IMAGE_TAG  VERSION.dev
 resolve_image_tag FRONTEND_IMAGE_TAG VERSION.dev
 warn_if_version_default "$BACKEND_IMAGE_TAG" VERSION.dev
 
-DB_FULL_IMAGE="${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DB_IMAGE}:${DB_IMAGE_TAG}"
-BACKEND_FULL_IMAGE="${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"
-FRONTEND_FULL_IMAGE="${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"
+# Image full references (used in inspect / pull paths).
+# Prepend the registry prefix ONLY when DOCKER_REGISTRY was explicitly
+# configured (shell env or REGISTRY file). Auto-detected registries
+# (docker.io/$USER) are guesses — prepending them makes compose look
+# for "zhangyu528/english_db_content:v0.2.0-rc.1" locally, which fails
+# because locally-built images are tagged "english_db_content:v0.2.0-rc.1"
+# (no prefix). So when the source is "detect", force DOCKER_REGISTRY to
+# empty for the rest of the script — compose's
+#   image: ${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DB_IMAGE}:${DB_IMAGE_TAG}
+# interpolates to the bare local name. Local-only mode effectively.
+if [ "${_DOCKER_REGISTRY_SOURCE:-}" = "shell" ] || [ "${_DOCKER_REGISTRY_SOURCE:-}" = "file" ]; then
+    DB_FULL_IMAGE="${DOCKER_REGISTRY}/${DB_IMAGE}:${DB_IMAGE_TAG}"
+    BACKEND_FULL_IMAGE="${DOCKER_REGISTRY}/${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"
+    FRONTEND_FULL_IMAGE="${DOCKER_REGISTRY}/${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"
+else
+    DB_FULL_IMAGE="${DB_IMAGE}:${DB_IMAGE_TAG}"
+    BACKEND_FULL_IMAGE="${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"
+    FRONTEND_FULL_IMAGE="${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"
+    # Force compose to use bare names too (its own image: line re-uses
+    # $DOCKER_REGISTRY for the prefix).
+    export DOCKER_REGISTRY=""
+fi
 export BACKEND_FULL_IMAGE FRONTEND_FULL_IMAGE
 
 SECRETS_DIR=".secrets"
@@ -289,6 +312,16 @@ cmd_doctor() {
 
 auto_pull_from_registry() {
     if [ -z "$DOCKER_REGISTRY" ]; then
+        return 0
+    fi
+    # Auto-detected registries (docker.io/$USER) are a guess, not a
+    # configured destination. If the operator never set DOCKER_REGISTRY
+    # (shell env or REGISTRY file), they're probably on a single-host
+    # setup that bakes locally — pulling from a registry they never
+    # pushed to will just 429. Skip silently; the message at the top
+    # of cmd_setup already explained why.
+    if [ "${_DOCKER_REGISTRY_SOURCE:-}" = "detect" ]; then
+        info "DOCKER_REGISTRY=$DOCKER_REGISTRY (auto-detected — 跳过 auto-pull)"
         return 0
     fi
     info "DOCKER_REGISTRY=$DOCKER_REGISTRY — 拉取最新 dev images (db + backend + frontend)..."
@@ -660,7 +693,12 @@ cmd_start() {
     write_secrets
     auto_pull_from_registry
     info "启动开发容器..."
-    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d
+    # `--pull=never`: auto_pull_from_registry above is the single source
+    # of pull attempts (best-effort). Without this flag, compose up -d
+    # would default to `--pull=missing` and re-pull, hitting 429 on
+    # registries that don't host the image (or pulling mismatched tags
+    # when the local image was built without the registry prefix).
+    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d --pull=never
     ok "服务已启动（热重载已开启）"
     echo -e "  前端:   ${_LIB_BLUE}http://localhost:3000${_LIB_NC}"
     echo -e "  后端:   ${_LIB_BLUE}http://localhost:8000${_LIB_NC}"

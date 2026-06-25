@@ -65,7 +65,11 @@ source "$SCRIPT_DIR/../../lib.sh"
 # and frontend are built locally on the prod host, not pulled from registry).
 resolve_docker_registry
 if [ -n "$DOCKER_REGISTRY" ]; then
-    info "DOCKER_REGISTRY=$DOCKER_REGISTRY (auto-pull on for db image)"
+    if [ "${_DOCKER_REGISTRY_SOURCE:-}" = "detect" ]; then
+        info "DOCKER_REGISTRY=$DOCKER_REGISTRY (auto-detected, auto-pull off — 本地模式)"
+    else
+        info "DOCKER_REGISTRY=$DOCKER_REGISTRY (auto-pull on for db image)"
+    fi
 else
     info "DOCKER_REGISTRY 未设置 (auto-pull off, local-only mode)"
 fi
@@ -77,9 +81,22 @@ resolve_image_tag BACKEND_IMAGE_TAG  VERSION.prod
 resolve_image_tag FRONTEND_IMAGE_TAG VERSION.prod
 warn_if_version_default "$BACKEND_IMAGE_TAG" VERSION.prod
 
-DB_FULL_IMAGE="${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DB_IMAGE}:${DB_IMAGE_TAG}"
-BACKEND_FULL_IMAGE="${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"
-FRONTEND_FULL_IMAGE="${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"
+# Image full references. Same registry-prefix guard as dev-host: only
+# prepend when DOCKER_REGISTRY was explicitly configured (shell env or
+# REGISTRY file). Auto-detected registries are guesses — locally-built
+# images have no prefix, so we'd otherwise look for an image that
+# doesn't exist and confuse compose / pull.
+if [ "${_DOCKER_REGISTRY_SOURCE:-}" = "shell" ] || [ "${_DOCKER_REGISTRY_SOURCE:-}" = "file" ]; then
+    DB_FULL_IMAGE="${DOCKER_REGISTRY}/${DB_IMAGE}:${DB_IMAGE_TAG}"
+    BACKEND_FULL_IMAGE="${DOCKER_REGISTRY}/${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"
+    FRONTEND_FULL_IMAGE="${DOCKER_REGISTRY}/${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"
+else
+    DB_FULL_IMAGE="${DB_IMAGE}:${DB_IMAGE_TAG}"
+    BACKEND_FULL_IMAGE="${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"
+    FRONTEND_FULL_IMAGE="${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"
+    # Force compose's image: line interpolation to bare local names too.
+    export DOCKER_REGISTRY=""
+fi
 export BACKEND_FULL_IMAGE FRONTEND_FULL_IMAGE
 
 SECRETS_DIR=".secrets"
@@ -281,6 +298,13 @@ cmd_doctor() {
 # image is registry-distributed.)
 auto_pull_from_registry() {
     if [ -z "$DOCKER_REGISTRY" ]; then
+        return 0
+    fi
+    # Same guard as dev-host: an auto-detected registry (docker.io/$USER)
+    # is a guess, not operator intent. Prod's pull is a hard fail, so the
+    # guard prevents an unconfigured prod host from 429-ing on a guess.
+    if [ "${_DOCKER_REGISTRY_SOURCE:-}" = "detect" ]; then
+        info "DOCKER_REGISTRY=$DOCKER_REGISTRY (auto-detected — 跳过 auto-pull)"
         return 0
     fi
     info "DOCKER_REGISTRY=$DOCKER_REGISTRY — 拉取最新 baked db image..."

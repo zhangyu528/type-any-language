@@ -431,6 +431,8 @@ resolve_docker_registry() {
     # 1. Shell env wins — even if explicitly empty (see note above).
     if [ -n "${DOCKER_REGISTRY+x}" ]; then
         export DOCKER_REGISTRY
+        _DOCKER_REGISTRY_SOURCE="shell"
+        export _DOCKER_REGISTRY_SOURCE
         return 0
     fi
     # 2. REGISTRY file at repo root.
@@ -442,12 +444,21 @@ resolve_docker_registry() {
         if [ -n "$file_val" ]; then
             DOCKER_REGISTRY="$file_val"
             export DOCKER_REGISTRY
+            _DOCKER_REGISTRY_SOURCE="file"
+            export _DOCKER_REGISTRY_SOURCE
             return 0
         fi
     fi
-    # 3. Auto-detect (best effort).
+    # 3. Auto-detect (best effort). Recorded as "detect" so callers that
+    #    care about user intent (e.g. auto_pull_from_registry) can tell
+    #    the difference between "operator configured a registry" and
+    #    "we just guessed docker.io/$USER". Auto-detect is fine for push
+    #    (solo dev convenience) but should NOT trigger auto-pull — that
+    #    would fail with 429 on registries that don't host our image.
     DOCKER_REGISTRY="$(detect_default_registry)"
     export DOCKER_REGISTRY
+    _DOCKER_REGISTRY_SOURCE="detect"
+    export _DOCKER_REGISTRY_SOURCE
 }
 
 # ---------------------------------------------------------------------------
