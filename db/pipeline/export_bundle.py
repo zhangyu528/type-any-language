@@ -53,6 +53,48 @@ def run(cmd, **kw):
     return subprocess.run(cmd, check=True, **kw)
 
 
+def _has_binary(name: str) -> bool:
+    """Return True if `name` is on PATH (skip .exe so we work on Windows + Unix)."""
+    from shutil import which
+    return which(name) is not None or which(f"{name}.exe") is not None
+
+
+def _docker_container_for_db() -> str | None:
+    """Return the docker container name that exposes the CMS DB, or None.
+
+    Used as an automatic fallback when host-side pg_dump / psql are
+    missing (e.g. Windows dev boxes that run postgres in Docker but
+    haven't installed postgresql-client on the host). The convention
+    baked into bake_image.sh's doctor is `english_db` (or
+    `english_db_dev` for the dev stream). Both names are tried.
+    """
+    try:
+        out = subprocess.run(
+            ["docker", "ps", "--format", "{{.Names}}"],
+            capture_output=True, text=True, check=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return None
+    names = {n.strip() for n in out.stdout.splitlines() if n.strip()}
+    for cand in ("english_db", "english_db_dev"):
+        if cand in names:
+            return cand
+    return None
+
+
+def _run_in_docker(container: str, cmd: list[str]) -> str:
+    """Run a command inside the named docker container. Returns stdout.
+
+    Forces UTF-8 decoding — Windows defaults to GBK / cp936, which
+    can't decode pg_dump's SQL output (lots of high-bit bytes).
+    """
+    full = ["docker", "exec", container] + cmd
+    result = subprocess.run(
+        full, capture_output=True, text=True, encoding="utf-8", check=True,
+    )
+    return result.stdout
+
+
 def get_database_url() -> str:
     url = os.environ.get("DATABASE_URL")
     if not url:
@@ -69,11 +111,15 @@ def make_bundle_dir(parent: Path) -> Path:
     return bundle
 
 
-def pg_dump_content(db_url: str, out_sql: Path) -> None:
-    """pg_dump the 3 content tables (schema + data) into out_sql."""
-    cmd = [
-        "pg_dump",
-        db_url,
+def _pg_dump_invocation(db_url: str, out_sql: Path | None) -> tuple[list[str], bool]:
+    """Build the (cmd, in_docker) pair for pg_dump.
+
+    `in_docker=True` means cmd starts with `docker exec ...` — used
+    when the host has no pg_dump but a matching container is running.
+    Returns the command list and a flag indicating whether it's the
+    docker-wrapped form.
+    """
+    pg_args = [
         "--no-owner",  # no OWNER TO statements
         "--no-acl",    # no GRANT/REVOKE statements
         "--clean",     # DROP TABLE IF EXISTS before CREATE
@@ -82,20 +128,70 @@ def pg_dump_content(db_url: str, out_sql: Path) -> None:
         "--table=vocabulary_words",
         "--table=sentences",
     ]
-    with out_sql.open("w", encoding="utf-8") as f:
-        run(cmd, stdout=f)
+    if _has_binary("pg_dump"):
+        return (["pg_dump", db_url] + pg_args, False)
+    container = _docker_container_for_db()
+    if container is not None:
+        return (["docker", "exec", container, "pg_dump", db_url] + pg_args, True)
+    sys.exit(
+        "pg_dump not found on host and no english_db / english_db_dev "
+        "container is running.\n"
+        "  install postgresql-client (scoop install postgresql / "
+        "apt-get install postgresql-client) or start the CMS postgres "
+        "container so this script can docker-exec into it."
+    )
+
+
+def pg_dump_content(db_url: str, out_sql: Path) -> None:
+    """pg_dump the 3 content tables (schema + data) into out_sql.
+
+    Tries host `pg_dump` first; falls back to `docker exec` into a
+    running english_db{,_dev} container if the host has no postgres
+    client. The fall-back lets a Windows dev box (no postgresql-client
+    on PATH) still bake from a Dockerised CMS DB.
+    """
+    cmd, in_docker = _pg_dump_invocation(db_url, out_sql)
+    # docker exec writes to its own stdout — we can't redirect a
+    # file-handle on the host side. Capture and write ourselves.
+    # Force UTF-8 (see _run_in_docker for rationale).
+    if in_docker:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, encoding="utf-8", check=True,
+        )
+        out_sql.write_text(result.stdout, encoding="utf-8")
+    else:
+        with out_sql.open("w", encoding="utf-8") as f:
+            run(cmd, stdout=f)
 
 
 def count_rows(db_url: str) -> dict:
     """Return {table: row_count} via psql -tAc 'SELECT count(*)...'."""
     counts = {}
+    container = None
+    use_docker = not _has_binary("psql")
+    if use_docker:
+        container = _docker_container_for_db()
+        if container is None:
+            sys.exit(
+                "psql not found on host and no english_db / english_db_dev "
+                "container is running."
+            )
     for table in CONTENT_TABLES:
-        result = run(
-            ["psql", db_url, "-tAc", f"SELECT count(*) FROM {table}"],
-            capture_output=True,
-            text=True,
-        )
-        counts[table] = int(result.stdout.strip() or "0")
+        if use_docker:
+            stdout = _run_in_docker(
+                container, ["psql", db_url, "-tAc", f"SELECT count(*) FROM {table}"]
+            )
+        else:
+            # Force UTF-8 to match the docker path (Windows default
+            # encoding is GBK, which corrupts SQL output).
+            result = run(
+                ["psql", db_url, "-tAc", f"SELECT count(*) FROM {table}"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+            )
+            stdout = result.stdout
+        counts[table] = int(stdout.strip() or "0")
     return counts
 
 
