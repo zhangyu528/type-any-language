@@ -46,7 +46,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(content.router)
+app.include_router(vocabulary.router)
+app.include_router(sentences.router)
 
 
 @app.get("/")
