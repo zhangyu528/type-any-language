@@ -32,6 +32,7 @@ CMS 主机把内容（词库 + AI 句子 + TTS 音频）烤进 db image，推到
 
 ```bash
 # ./dev.sh 是根目录入口,等价于 scripts/ops/dev-host/run.sh
+./dev.sh setup      # 首次:准备 image(自动 bake db + build dev apps,见下)
 ./dev.sh doctor     # 前置检查
 ./dev.sh start      # 起来(首次会现场生成 .secrets/postgres_password)
 ./dev.sh logs       # 看日志
@@ -45,9 +46,26 @@ CMS 主机把内容（词库 + AI 句子 + TTS 音频）烤进 db image，推到
 - 前端: <http://localhost:3000>
 - API: <http://localhost:8000/docs>(Swagger UI)
 
+### `setup` 做什么
+
+`./dev.sh setup` 把 dev 跑起来所需的所有 image 摆到位,**不启动容器、不动 secrets、不 push**:
+
+1. **db image** —— 按以下顺序找一个可用的:
+   - 本地已有 → 用本地的
+   - `DOCKER_REGISTRY` 显式配置(shell env 或 `REGISTRY` 文件) → `docker pull`
+   - 本机有 `.env.db`(单主机 CMS+dev 模式) → **自动跑整条内容链**:起 `english_db` 容器 → `init-schema` → `sync` → `sentences`(AI) → `audio`(TTS) → `bake_image.sh`。每步都是 idempotent,重新跑不会重复烧钱
+   - 都没有 → 打印完整 CMS 路径并退出
+
+2. **dev app images** (`english_backend_dev` + `english_frontend_dev`) —— 缺失就 build
+
+3. **Final summary** —— 提示下一步 `./dev.sh start`
+
+> auto-detect 出来的 `docker.io/$USER` 当 DOCKER_REGISTRY 是 solo dev 兜底,只用于 push,不会自动 pull(避免 429)。
+
 如果还没有 baked db image,要么:
-- 等 CMS 主机推一份到 registry(设了 `DOCKER_REGISTRY` run.sh 会自动 pull);要么
-- 在本机就地烤:`./scripts/ops/db/env.sh` 引导 `.env.db`,再 `./scripts/ops/db/bake_image.sh`。
+- 让 `./dev.sh setup` 自动烤(本机有 `.env.db` 时自动走完整链);要么
+- 等 CMS 主机推一份到 registry(显式设了 `DOCKER_REGISTRY` run.sh 会自动 pull);要么
+- 手动:`./scripts/ops/db/env.sh` 引导 `.env.db`,再 `./scripts/ops/db/bake_image.sh`。
 
 需要换 CORS 白名单:`ALLOWED_ORIGINS=https://my.domain ./dev.sh start`
 
