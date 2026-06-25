@@ -5,6 +5,7 @@
 # Thin wrapper around scripts/ops/dev-host/run.sh. Use this when you want
 # a short, memorable command from the project root:
 #
+#   ./dev setup          # first-time: 拉/检查 db image, build dev app images
 #   ./dev doctor         # pre-flight
 #   ./dev start          # compose up (auto-pull db image if DOCKER_REGISTRY set)
 #   ./dev stop

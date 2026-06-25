@@ -98,6 +98,7 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 ### Dev target host
 
 ```bash
+./scripts/ops/dev-host/run.sh setup          # First-time: 拉/检查 db image + build dev apps
 ./scripts/ops/dev-host/run.sh doctor         # Pre-flight
 ./scripts/ops/dev-host/run.sh start          # compose up (hot-reload, bind-mounted)
 ./scripts/ops/dev-host/run.sh stop
@@ -110,11 +111,14 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 
 No `.env.dev` is needed. The dev compose file defaults `ALLOWED_ORIGINS` to `http://localhost,http://localhost:3000`; override via shell env. `POSTGRES_PASSWORD` is generated on first start.
 
+`setup` is the recommended entry point for a fresh checkout. It runs preflight (docker + compose), ensures the `db` image is present locally (auto-pulls from `DOCKER_REGISTRY` if set, otherwise prints the CMS-side bake steps), and builds the dev `backend + frontend` images. It does NOT start containers or create `.secrets/` — that's `start`'s job. Re-running `setup` is safe (idempotent).
+
 ### Prod target host
 
 ```bash
-ALLOWED_ORIGINS=https://my.domain ./scripts/ops/prod-host/run.sh start
+./scripts/ops/prod-host/run.sh setup         # First-time: 拉 db image + build prod apps
 ./scripts/ops/prod-host/run.sh doctor
+ALLOWED_ORIGINS=https://my.domain ./scripts/ops/prod-host/run.sh start
 ./scripts/ops/prod-host/run.sh start
 ./scripts/ops/prod-host/run.sh stop
 ./scripts/ops/prod-host/run.sh restart
@@ -123,6 +127,8 @@ ALLOWED_ORIGINS=https://my.domain ./scripts/ops/prod-host/run.sh start
 ./scripts/ops/prod-host/build_image.sh        # build english_backend + english_frontend
 ./scripts/ops/prod-host/push_image.sh -y      # push them to DOCKER_REGISTRY
 ```
+
+`setup` is the recommended entry point for a fresh prod host. Same flow as dev: preflight + ensure `db` image present (auto-pull from `DOCKER_REGISTRY`) + build prod `backend + frontend`. The prod host never bakes db content itself — it pulls from a registry. If `DOCKER_REGISTRY` is empty, `setup` exits with the CMS-side steps.
 
 No `.env` is needed. `ALLOWED_ORIGINS` defaults to `http://localhost` in the prod compose — override via shell env (shown above) or edit the compose file directly. `POSTGRES_PASSWORD` is generated on first start.
 
@@ -272,13 +278,21 @@ cd backend && python -m pytest tests/test_file.py::test_name -v
 
 ## Key API Endpoints
 
+All read-only. Sentences and audio are pre-baked into the db image by the CMS host (commit `f26265d refactor(backend): strip to read-layer`); the runtime never generates, never validates against a server-side cache.
+
 | Endpoint | Method | Description |
 |---|---|---|
 | `/api/vocabulary/libs` | GET | List all vocabulary libraries |
-| `/api/vocabulary/libs/{id}/random` | GET | Get N random words from a library |
-| `/api/sentences/generate` | POST | Get a practice sentence (cache-first: serves baked sentence or generates + persists) |
-| `/api/sentences/check` | POST | Validate user input against correct answer |
+| `/api/vocabulary/libs/{id}` | GET | Single library by id |
+| `/api/vocabulary/libs/{id}/words` | GET | All words in a library |
+| `/api/vocabulary/libs/{id}/random` | GET | N random words from a library (params: `count`) |
+| `/api/vocabulary/phonetics` | GET | Bulk IPA lookup (params: `words=a,b,c`) — DB → CMUdict fallback |
+| `/api/sentences` | GET | List baked sentences (filters: `lib_id`, `difficulty`, `limit`) |
+| `/api/sentences/{id}` | GET | Single sentence by id |
+| `/api/sentences/random` | GET | N random baked sentences for practice (params: `lib_id`, `difficulty`, `count`) |
 | `/audio/{filename}` | GET | Static MP3 from the shared-audio volume (baked into db image) |
+
+Answer validation is **client-side**: the frontend normalizes (lowercase, strip punctuation, collapse whitespace) and compares against `sentence.text` directly. No `/api/sentences/check` endpoint.
 
 ## Data flow
 
