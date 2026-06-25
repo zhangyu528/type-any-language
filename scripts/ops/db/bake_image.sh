@@ -164,9 +164,12 @@ cmd_bake() {
 
     # export_bundle creates a dated subdir; capture its path.
     # cms/ must be on PYTHONPATH so `from data_pipeline.env import setup` resolves.
+    # NOTE: don't pass --content-only here — that flag SKIPS the audio
+    # copy (it's the testing-the-SQL-side-alone toggle). The bake needs
+    # both SQL + audio, so leave it off.
     if ! PYTHONPATH="cms${PYTHONPATH:+:$PYTHONPATH}" \
          "$PY" "$DATA_PIPELINE_DIR/export_bundle.py" \
-            --content-only --no-tar --keep-staging \
+            --no-tar --keep-staging \
             --output-dir "$STAGING_DIR"; then
         err "export_bundle failed"
         rm -rf "$STAGING_DIR"
