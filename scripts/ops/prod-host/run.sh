@@ -34,6 +34,7 @@
 #                                         or edit the default in docker-compose.yml.
 #
 # ─── Usage ────────────────────────────────────────────────────────────────
+#   ./scripts/ops/prod-host/run.sh setup    # first-time: 拉 db image + build prod apps
 #   ./scripts/ops/prod-host/run.sh doctor   # run pre-flight environment checks
 #   ./scripts/ops/prod-host/run.sh start    # auto-pull (if DOCKER_REGISTRY) + docker compose up -d
 #   ./scripts/ops/prod-host/run.sh stop     # docker compose down
@@ -289,6 +290,114 @@ auto_pull_from_registry() {
     fi
 }
 
+# ---------------------------------------------------------------------------
+# cmd_setup — first-time (or post-reset) environment bootstrap.
+#
+# Walks the operator through the image dependency chain so a fresh prod
+# host is one command away from `./scripts/ops/prod-host/run.sh start`:
+#
+#   1. Preflight: docker + compose must be present.
+#   2. db image: must be locally present (prod build_image.sh reads
+#      DB_USER / DB_NAME from its OCI labels). The prod host NEVER bakes
+#      db content itself — it only pulls from a registry or expects a
+#      pre-loaded image:
+#        - DOCKER_REGISTRY set → docker pull
+#        - otherwise → "go bake it on the CMS host, then come back"
+#   3. prod app images: call ./scripts/ops/prod-host/build_image.sh.
+#      Skipped if both already present.
+#   4. Final summary.
+#
+# This command does NOT create .secrets/, start any containers, or push
+# to a registry. Re-run as many times as you want — nothing destructive.
+# ---------------------------------------------------------------------------
+cmd_setup() {
+    info "=== prod environment setup ==="
+    echo ""
+
+    # 1. Preflight — same checks as the rest of run.sh.
+    local preflight_ok=1
+    if check_docker_installed; then
+        ok "docker 已安装: $(docker --version 2>&1 | head -1)"
+    else
+        err "docker 未安装"; preflight_ok=0
+    fi
+    if [ $preflight_ok -eq 1 ] && check_docker_daemon_running; then
+        ok "docker daemon 运行中"
+    else
+        err "docker daemon 未运行 (启动 Docker Desktop)"; preflight_ok=0
+    fi
+    if [ $preflight_ok -eq 1 ] && detect_compose_cmd 2>/dev/null; then
+        ok "compose: $DOCKER_COMPOSE_CMD"
+    else
+        err "未找到 docker-compose / docker compose"; preflight_ok=0
+    fi
+    if [ $preflight_ok -eq 0 ]; then
+        err "preflight 失败 — 修好上面 1-2 项后再跑 setup"
+        return 1
+    fi
+    echo ""
+
+    # 2. db image — pull-only on prod host.
+    info "Step 1/2: db image ($DB_FULL_IMAGE)"
+    if ! image_exists "$DB_FULL_IMAGE"; then
+        warn "db image 不在本地"
+        if [ -n "$DOCKER_REGISTRY" ]; then
+            info "  DOCKER_REGISTRY 已设,尝试 docker pull..."
+            echo ""
+            if docker pull "$DB_FULL_IMAGE"; then
+                echo ""
+                ok "  pull 成功"
+            else
+                err "  pull 失败 — 检查 registry / 网络 / 凭据"
+                err "  或: 在 CMS 主机上先 push: ./scripts/ops/db/push_image.sh -y"
+                return 1
+            fi
+        else
+            info "  prod 主机不 bake content,db image 必须从 CMS 主机过来:"
+            info "    1. CMS 主机: ./scripts/ops/db/bake_image.sh"
+            info "    2. CMS 主机: ./scripts/ops/db/push_image.sh -y     # 推 registry"
+            info "    3. 本机配置 REGISTRY / DOCKER_REGISTRY,再跑一次 ./scripts/ops/prod-host/run.sh setup"
+            info "  (或: 手动 docker load/tar 把 db image 搬过来)"
+            err "db image 缺失 — 完成上面的步骤后,再跑一次 setup"
+            return 1
+        fi
+    fi
+    if inspect_db_image_labels; then
+        ok "  db.user=$DB_USER  db.name=$DB_NAME  content.version=$DB_VERSION"
+    else
+        warn "  db image 缺 type-any-language.* label — 重新 bake"
+        return 1
+    fi
+    echo ""
+
+    # 3. prod app images.
+    info "Step 2/2: prod app images"
+    if image_exists "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}" && \
+       image_exists "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"; then
+        ok "  ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 已存在"
+        ok "  ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 已存在"
+        info "  (要 rebuild? 跑: ./scripts/ops/prod-host/build_image.sh)"
+    else
+        info "  调 ./scripts/ops/prod-host/build_image.sh..."
+        echo ""
+        if "$SCRIPT_DIR/build_image.sh"; then
+            echo ""
+            ok "  build done"
+        else
+            err "  build 失败 — 见上面的错误"
+            return 1
+        fi
+    fi
+    echo ""
+
+    # 4. Final summary
+    ok "=== setup 完成 ==="
+    info "  下一步: ./scripts/ops/prod-host/run.sh start"
+    info "  启动后访问:"
+    info "    前端: http://localhost  (经 nginx :80)"
+    info "    API:  http://localhost/api/docs"
+}
+
 # drift_check — compare running containers' type-any-language.app.version
 # LABEL against the locally-resolved *_IMAGE_TAG. Warns on mismatch.
 # Skipped silently if no containers are running.
@@ -391,6 +500,7 @@ usage() {
 用法: ./scripts/ops/prod-host/run.sh <command>
 
 命令:
+  setup    首次环境引导: 拉 db image,build 缺失的 prod app images,无 start 副作用
   doctor   跑完整环境检查（不修改任何东西，纯只读）
   start    启动生产容器 (docker compose up -d). 如果 DOCKER_REGISTRY 配了就先 pull baked db image
   stop     停止生产容器 (docker compose down)
@@ -400,6 +510,7 @@ usage() {
   status   查看容器状态
 
 典型工作流:
+  ./scripts/ops/prod-host/run.sh setup         # 首次或重置后: 一次性就位所有 image
   ./scripts/ops/prod-host/run.sh doctor        # 跑一遍检查，看环境是否就绪
   ./scripts/ops/prod-host/run.sh start         # 启动 (DOCKER_REGISTRY 配了会先 pull)
   ./scripts/ops/prod-host/run.sh restart       # 改 docker-compose.yml / .secrets 后用这个，5 秒生效
@@ -417,6 +528,7 @@ EOF
 }
 
 case "${1:-}" in
+    setup)   cmd_setup "$@" ;;
     doctor)  cmd_doctor "$@" ;;
     start)   cmd_start "$@" ;;
     stop)    cmd_stop "$@" ;;

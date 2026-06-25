@@ -27,6 +27,7 @@
 #     or edit the default in docker-compose.dev.yml.
 #
 # ─── Usage ────────────────────────────────────────────────────────────────
+#   ./scripts/ops/dev-host/run.sh setup    # first-time: 拉/检查 db image + build dev apps
 #   ./scripts/ops/dev-host/run.sh doctor   # run pre-flight environment checks
 #   ./scripts/ops/dev-host/run.sh start    # docker compose up -d (dev compose)
 #   ./scripts/ops/dev-host/run.sh stop     # docker compose down
@@ -97,6 +98,32 @@ inspect_db_image_labels() {
     DB_BAKED_AT="$(image_label "$DB_FULL_IMAGE" "type-any-language.content.baked-at" || echo "")"
     export DB_USER DB_NAME DB_VERSION DB_BAKED_AT
     [ -n "$DB_USER" ] && [ -n "$DB_NAME" ]
+}
+
+# export_db_identity_for_compose — make sure DB_USER / DB_NAME are set
+# so compose interpolation (${DB_USER:?...} / ${DB_NAME:?...} in
+# docker-compose.dev.yml) doesn't fail. Used by read-only subcommands
+# (`status` / `stop` / `logs`) where the *actual* values don't matter
+# for the operation — we just need *some* non-empty value to satisfy
+# compose's strict interpolation.
+#
+# Falls back to the same defaults bake_image.sh uses (english_user /
+# english_learning) when the db image isn't around locally. Those
+# defaults are the ones that ship with the project, so compose's
+# evaluated result matches what a fresh bake would produce — `ps` will
+# show the right container names, `down` will target the right project,
+# `logs` will stream from the right services.
+#
+# NOT a substitute for inspect_db_image_labels in cmd_start /
+# cmd_restart — those need the *real* values to assemble the right
+# DATABASE_URL and POSTGRES_PASSWORD.
+export_db_identity_for_compose() {
+    if inspect_db_image_labels; then
+        return 0
+    fi
+    DB_USER="${DB_USER:-english_user}"
+    DB_NAME="${DB_NAME:-english_learning}"
+    export DB_USER DB_NAME
 }
 
 # ---------------------------------------------------------------------------
@@ -270,6 +297,331 @@ auto_pull_from_registry() {
     fi
 }
 
+# ---------------------------------------------------------------------------
+# Auto-bake helpers (used by cmd_setup when local CMS env is sufficient)
+#
+# On a single-host CMS+dev setup (.env.db present + DOCKER_REGISTRY unset),
+# the CMS content-production pipeline normally requires several manual
+# steps (start postgres, sync, sentences, audio, bake). These helpers let
+# cmd_setup run the whole chain automatically. Every helper is idempotent
+# — re-running setup on a populated host is cheap, and `sentences` / `audio`
+# are skip-existing on their end so re-runs don't burn API calls.
+# ---------------------------------------------------------------------------
+
+# setup_resolve_pg_password — print POSTGRES_PASSWORD (no trailing newline).
+# Sources (in order): shell env > .secrets/postgres_password > .env.db.
+setup_resolve_pg_password() {
+    if [ -n "${POSTGRES_PASSWORD:-}" ]; then
+        printf '%s' "$POSTGRES_PASSWORD"
+        return 0
+    fi
+    if [ -f "$SECRETS_DIR/postgres_password" ]; then
+        cat "$SECRETS_DIR/postgres_password"
+        return 0
+    fi
+    if [ -f "$PROJECT_DIR/.env.db" ]; then
+        local pw
+        pw="$(grep -E '^POSTGRES_PASSWORD=' "$PROJECT_DIR/.env.db" | head -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//')"
+        if [ -n "$pw" ]; then
+            printf '%s' "$pw"
+            return 0
+        fi
+    fi
+    err "POSTGRES_PASSWORD 不可解析 — 在 .env.db 里设 POSTGRES_PASSWORD=... 或"
+    err "确保 .secrets/postgres_password 存在"
+    return 1
+}
+
+# setup_ensure_source_db — make sure a postgres source for the bake is
+# reachable. Tries three strategies, in order:
+#   1. english_db / english_db_dev container already running — use it.
+#   2. local postgres reachable at POSTGRES_HOST:POSTGRES_PORT — use it.
+#   3. spin up a fresh english_db container (postgres:15-alpine) with the
+#      right POSTGRES_USER / POSTGRES_DB / POSTGRES_PASSWORD, published on
+#      $POSTGRES_PORT (default 5432) so content.sh on the host can reach it.
+# Returns 0 if a source db is reachable after the call; 1 otherwise.
+setup_ensure_source_db() {
+    # 1. named container already running?
+    local running
+    running="$(docker ps --format '{{.Names}}' 2>/dev/null | grep -E '^(english_db|english_db_dev)$' | head -1 || true)"
+    if [ -n "$running" ]; then
+        ok "  source db: container '$running' 已在跑"
+        return 0
+    fi
+
+    local pg_user="${POSTGRES_USER:-english_user}"
+    local pg_db="${POSTGRES_DB:-english_learning}"
+    local pg_host="${POSTGRES_HOST:-localhost}"
+    local pg_port="${POSTGRES_PORT:-5432}"
+
+    # 2. local postgres reachable at POSTGRES_HOST:POSTGRES_PORT?
+    #    Skip silently if host has no psql — fall through to docker run.
+    if command -v psql &>/dev/null && \
+       PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$pg_host" -p "$pg_port" \
+            -U "$pg_user" -d "$pg_db" -tAc "SELECT 1" &>/dev/null; then
+        ok "  source db: 本地 postgres ($pg_host:$pg_port) 可达"
+        return 0
+    fi
+
+    # 3. spin up a fresh english_db container. Re-use a stopped one if present
+    #    (typical after a `docker stop` between sessions — keeps the data vol).
+    info "  source db: 本地无可达 postgres — 自动起 english_db 容器..."
+    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qE '^english_db$'; then
+        info "    english_db 容器存在但未跑 — 启动"
+        if ! docker start english_db >/dev/null; then
+            err "    docker start english_db 失败"
+            return 1
+        fi
+    else
+        info "    创建 english_db (postgres:15-alpine)..."
+        if ! docker run -d \
+                --name english_db \
+                -e "POSTGRES_USER=$pg_user" \
+                -e "POSTGRES_DB=$pg_db" \
+                -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
+                -p "${pg_port}:5432" \
+                -v cms-source-data:/var/lib/postgresql/data \
+                postgres:15-alpine >/dev/null; then
+            err "    docker run english_db 失败 — 检查 docker / 端口冲突 (${pg_host}:${pg_port})"
+            return 1
+        fi
+    fi
+
+    # Wait up to 30s for the container to accept connections. Use docker exec
+    # so this works even on hosts without psql (Windows / macOS without
+    # postgres-client installed) — pg_isready is bundled inside the image.
+    info "    等 english_db 就绪 (最多 30s)..."
+    local i
+    for i in $(seq 1 30); do
+        if docker exec english_db pg_isready -U "$pg_user" -d "$pg_db" &>/dev/null; then
+            ok "  source db: english_db 就绪"
+            return 0
+        fi
+        sleep 1
+    done
+    err "    english_db 30s 内未就绪 — 看 docker logs english_db 找原因"
+    return 1
+}
+
+# setup_run_content_step <desc> <subcommand> [args...]
+# Run a content.sh subcommand with progress logging. Returns 0/1.
+setup_run_content_step() {
+    local desc="$1"; shift
+    info "  [content.sh] $desc..."
+    if ! "$SCRIPT_DIR/../db/content.sh" "$@"; then
+        err "  [content.sh] $desc 失败 (退出码 $?)"
+        return 1
+    fi
+    ok "  [content.sh] $desc ok"
+    return 0
+}
+
+# setup_auto_bake — full auto-bake chain, used by cmd_setup when local
+# CMS env is sufficient (.env.db present + DOCKER_REGISTRY unset).
+#
+# Hard-fail on init-schema / sync / bake — those should only fail if env
+# is broken (no .env.db, no docker, etc.) and there's no useful recovery.
+# Best-effort on sentences / audio — those depend on external services
+# (OpenAI / Tencent TTS) that can rate-limit or run out of quota. If they
+# fail, log loud warnings and let the bake proceed with whatever content
+# sync produced. The dev runtime will still come up; /api/sentences just
+# returns [] until the next setup run fills them in.
+setup_auto_bake() {
+    # Resolve POSTGRES_PASSWORD (also exports it so content.sh + bake can read).
+    POSTGRES_PASSWORD="$(setup_resolve_pg_password)" || return 1
+    export POSTGRES_PASSWORD
+
+    # Source .env.db so POSTGRES_USER/HOST/PORT/DB / AI_* / TENCENT_* / AUDIO_DIR resolve.
+    set -a; . "$PROJECT_DIR/.env.db"; set +a
+
+    # (a) ensure source db.
+    info "  (a) ensure source db"
+    setup_ensure_source_db || return 1
+
+    # (b) schema (idempotent — CREATE TABLE IF NOT EXISTS).
+    setup_run_content_step "init-schema" init-schema || return 1
+
+    # (c) vocab CSVs → DB (idempotent — skip-existing per commit 0a14705).
+    setup_run_content_step "sync (CSVs → vocab)" sync || return 1
+
+    # (d) AI-fill sentences. Best-effort: AI_* missing → skip; API fails →
+    # warn and continue (dev will still come up, /api/sentences returns []).
+    if [ -n "${AI_API_KEY:-}" ] && [ -n "${AI_BASE_URL:-}" ] && [ -n "${AI_MODEL:-}" ]; then
+        setup_run_content_step "sentences (AI-fill)" sentences || \
+            warn "  sentences 失败 — 跳过 (dev 起来后 /api/sentences 会返回空)"
+    else
+        warn "  跳过 sentences (AI_API_KEY / AI_BASE_URL / AI_MODEL 没设齐)"
+    fi
+
+    # (e) TTS audio. All-or-nothing: any TENCENT_* missing → skip.
+    if [ -n "${TENCENT_SECRET_ID:-}" ] && [ -n "${TENCENT_SECRET_KEY:-}" ] && \
+       [ -n "${TENCENT_APP_ID:-}" ]; then
+        setup_run_content_step "audio (TTS-fill)" audio || \
+            warn "  audio 失败 — 跳过 (sentences.audio_url 没填 /audio/<hash>.mp3 会 404)"
+    else
+        warn "  跳过 audio (TENCENT_* 没填齐)"
+    fi
+
+    # (f) bake.
+    info "  (f) bake_image.sh"
+    if ! "$SCRIPT_DIR/../db/bake_image.sh"; then
+        err "  bake_image.sh 失败 — 看上面 export_bundle 的错误"
+        return 1
+    fi
+    ok "  bake_image.sh ok"
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+# cmd_setup — first-time (or post-reset) environment bootstrap.
+#
+# Walks the operator through the image dependency chain so a fresh clone is
+# one command away from `./dev.sh start`:
+#
+#   1. Preflight: docker + compose must be present.
+#   2. db image: must be locally present (build_image.sh reads DB_USER /
+#      DB_NAME from its OCI labels — a hard requirement, not a convenience).
+#      If missing, try:
+#        - DOCKER_REGISTRY set → docker pull
+#        - .env.db present locally → suggest ./scripts/ops/db/bake_image.sh
+#        - otherwise → multi-step CMS path
+#      If still missing after auto-pickup, exit 1 with clear guidance (the
+#      dev app build below would fail with a less actionable error anyway).
+#   3. dev app images: call ./scripts/ops/dev-host/build_image.sh (it
+#      builds both backend + frontend in one shot). Skipped if both
+#      already present (idempotent — no need to rebuild cached layers).
+#   4. Final summary.
+#
+# This command does NOT create .secrets/, start any containers, or push
+# to a registry. It's strictly an image-management pass. Re-run as many
+# times as you want — nothing destructive.
+# ---------------------------------------------------------------------------
+cmd_setup() {
+    info "=== dev environment setup ==="
+    echo ""
+
+    # 1. Preflight — same checks as the rest of run.sh, but the failure
+    #    mode is "print and stop" (not "exit 1") so the operator can see
+    #    every missing prerequisite in one go.
+    local preflight_ok=1
+    if check_docker_installed; then
+        ok "docker 已安装: $(docker --version 2>&1 | head -1)"
+    else
+        err "docker 未安装"; preflight_ok=0
+    fi
+    if [ $preflight_ok -eq 1 ] && check_docker_daemon_running; then
+        ok "docker daemon 运行中"
+    else
+        err "docker daemon 未运行 (启动 Docker Desktop)"; preflight_ok=0
+    fi
+    if [ $preflight_ok -eq 1 ] && detect_compose_cmd 2>/dev/null; then
+        ok "compose: $DOCKER_COMPOSE_CMD"
+    else
+        err "未找到 docker-compose / docker compose"; preflight_ok=0
+    fi
+    if [ $preflight_ok -eq 0 ]; then
+        err "preflight 失败 — 修好上面 1-2 项后再跑 setup"
+        return 1
+    fi
+    echo ""
+
+    # 2. db image — must be present locally for the dev app build below.
+    #    Resolution chain (each step falls through to the next on miss):
+    #      a. local image already present
+    #      b. DOCKER_REGISTRY set → docker pull (fast path; bypasses local CMS work)
+    #      c. .env.db present (single-host CMS+dev) → auto-bake
+    #      d. nothing works → print CMS path guidance and exit
+    info "Step 1/2: db image ($DB_FULL_IMAGE)"
+    local got_image=0
+    if image_exists "$DB_FULL_IMAGE"; then
+        ok "  本地已有 $DB_FULL_IMAGE"
+        got_image=1
+    else
+        warn "db image 不在本地"
+        if [ -n "$DOCKER_REGISTRY" ]; then
+            info "  DOCKER_REGISTRY=$DOCKER_REGISTRY — 尝试 docker pull..."
+            echo ""
+            if docker pull "$DB_FULL_IMAGE"; then
+                echo ""
+                ok "  pull 成功"
+                got_image=1
+            else
+                # Don't exit — fall through to auto-bake below. The pull
+                # might've failed because the registry is rate-limited
+                # (HTTP 429) or the image genuinely isn't there yet.
+                # If .env.db is local we can bake instead.
+                warn "  pull 失败 — fallback 到本地 auto-bake"
+            fi
+        fi
+        if [ "$got_image" = "0" ] && [ -f "$PROJECT_DIR/.env.db" ]; then
+            # Single-host setup: .env.db is here, so we can run the whole
+            # CMS chain ourselves — bring up source db, fill content, bake.
+            # Each step is idempotent so this is safe on populated hosts too.
+            info "  本机 .env.db 存在 — 尝试自动 bake (source db + 内容 + 烘焙)..."
+            echo ""
+            if setup_auto_bake; then
+                echo ""
+                ok "  自动 bake 完成"
+                got_image=1
+            else
+                err "  自动 bake 失败 — 上面的错误说明哪步挂了"
+                info "  手动排查:"
+                info "    docker logs english_db          # 如果 source db 起不来"
+                info "    ./scripts/ops/db/content.sh doctor   # 内容管线 preflight"
+                return 1
+            fi
+        fi
+        if [ "$got_image" = "0" ]; then
+            info "  本机没有 .env.db — db image 需要在 CMS 主机上 bake:"
+            info "    1. CMS 主机: ./scripts/ops/db/env.sh                  # 初始化 .env.db"
+            info "    2. CMS 主机: ./scripts/ops/db/content.sh sync         # 导入 vocab CSVs"
+            info "    3. CMS 主机: ./scripts/ops/db/content.sh sentences    # 生成句子"
+            info "    4. CMS 主机: ./scripts/ops/db/content.sh audio        # 生成音频"
+            info "    5. CMS 主机: ./scripts/ops/db/bake_image.sh           # 烘焙"
+            info "    6. CMS 主机: ./scripts/ops/db/push_image.sh -y        # 推 registry"
+            info "  (单机开发 = CMS+dev 同机: 1-5 在本机跑,跳过 push)"
+            err "db image 缺失 — 完成上面的步骤后,再跑一次 ./dev.sh setup"
+            return 1
+        fi
+    fi
+    if inspect_db_image_labels; then
+        ok "  db.user=$DB_USER  db.name=$DB_NAME  content.version=$DB_VERSION"
+    else
+        warn "  db image 缺 type-any-language.* label — 重新 bake"
+        return 1
+    fi
+    echo ""
+
+    # 3. dev app images — call build_image.sh (handles both at once).
+    #    Skipped when both already exist; otherwise build_image.sh is
+    #    fast (cached layers) and idempotent.
+    info "Step 2/2: dev app images"
+    if image_exists "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}" && \
+       image_exists "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"; then
+        ok "  ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 已存在"
+        ok "  ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 已存在"
+        info "  (要 rebuild? 跑: ./scripts/ops/dev-host/build_image.sh)"
+    else
+        info "  调 ./scripts/ops/dev-host/build_image.sh..."
+        echo ""
+        if "$SCRIPT_DIR/build_image.sh"; then
+            echo ""
+            ok "  build done"
+        else
+            err "  build 失败 — 见上面的错误"
+            return 1
+        fi
+    fi
+    echo ""
+
+    # 4. Final summary
+    ok "=== setup 完成 ==="
+    info "  下一步: ./dev.sh start"
+    info "  启动后访问:"
+    info "    前端: http://localhost:3000"
+    info "    后端: http://localhost:8000  (API 文档: /docs)"
+}
+
 # drift_check — compare running containers' type-any-language.app.version
 # LABEL against the locally-resolved *_IMAGE_TAG. Warns on mismatch.
 # Skipped silently if no containers are running.
@@ -318,6 +670,13 @@ cmd_start() {
 
 cmd_stop() {
     require_docker
+    # Compose evaluates the full file at every subcommand (including
+    # `down`), so DB_USER / DB_NAME must be exported first — otherwise
+    # the ${DB_USER:?...} interpolation in the db service's environment
+    # block fails before docker even looks at running containers.
+    # Fall back to the bake defaults when the db image isn't local —
+    # see export_db_identity_for_compose.
+    export_db_identity_for_compose
     info "停止开发容器..."
     $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" down
     ok "服务已停止"
@@ -357,11 +716,17 @@ cmd_reload() { cmd_restart "$@"; }
 
 cmd_logs() {
     require_docker
+    # See cmd_stop for the why — compose evaluates the file even for
+    # read-only ops like `logs`.
+    export_db_identity_for_compose
     $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" logs -f "$@"
 }
 
 cmd_status() {
     require_docker
+    # See cmd_stop for the why — `ps` is read-only but compose still
+    # evaluates the whole file.
+    export_db_identity_for_compose
     $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" ps
 }
 
@@ -370,6 +735,7 @@ usage() {
 用法: ./scripts/ops/dev-host/run.sh <command>
 
 命令:
+  setup    首次环境引导: 拉/检查 db image,build 缺失的 dev app images,无 start 副作用
   doctor   跑完整环境检查（不修改任何东西，纯只读）
   start    启动开发容器（热重载）。如 DOCKER_REGISTRY 配了就 auto-pull (db + backend + frontend)
   stop     停止开发容器
@@ -379,6 +745,7 @@ usage() {
   status   查看容器状态
 
 典型工作流:
+  ./scripts/ops/dev-host/run.sh setup         # 首次或重置后: 一次性就位所有 image
   ./scripts/ops/dev-host/run.sh doctor        # 跑一遍检查，看环境是否就绪
   ./scripts/ops/dev-host/run.sh start         # 启动 (DOCKER_REGISTRY 配了会先 auto-pull)
   ./scripts/ops/dev-host/run.sh restart       # 改 docker-compose.dev.yml / .secrets 后用这个
@@ -396,6 +763,7 @@ EOF
 }
 
 case "${1:-}" in
+    setup)   cmd_setup "$@" ;;
     doctor)  cmd_doctor "$@" ;;
     start)   cmd_start "$@" ;;
     stop)    cmd_stop "$@" ;;
