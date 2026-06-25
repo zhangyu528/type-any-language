@@ -420,19 +420,25 @@ export default function PracticePage() {
       const isCorrectCell = input && input === target;
       const isComplete = input && input.length === target?.length;
 
+      if (!input) {
+        // 空 input：明确"跳过"意图，直接跳下一 cell
+        if (!isLast) setCurrentWordIndex(currentWordIndex + 1);
+        return;
+      }
+
       if (!isComplete) {
-        // 未输完或 input 为空：空格不响应（避免输入途中被震）
+        // 中间输入中：静默不响应（避免误跳）
         return;
       }
 
       if (isCorrectCell && isLast) {
-        // 末位答对：提交整句
+        // 完整 + 答对 + 末位：提交
         handleSubmit();
       } else if (isCorrectCell && inputMode === 'free') {
-        // 自由模式 + 答对非末位：跳下一 cell
+        // 完整 + 答对 + 自由非末位：跳下一 cell
         setCurrentWordIndex(currentWordIndex + 1);
       } else {
-        // 答错（输入完整但与 target 不符）：震动当前 cell
+        // 完整 + 答错：震动
         setJustErred(true);
         setTimeout(() => setJustErred(false), 300);
       }
@@ -443,22 +449,21 @@ export default function PracticePage() {
         setSpaceHintActive(false);
       }
     } else if (e.key === 'Enter') {
+      e.preventDefault();
       const expectedWords = currentSentence.text.split(/\s+/);
+      const isLast = currentWordIndex === expectedWords.length - 1;
       const currentWord = expectedWords[currentWordIndex]?.toLowerCase().replace(/[.,!?;:'"]/g, '');
       const input = userInputs[currentWordIndex]?.toLowerCase().replace(/[.,!?;:'"]/g, '');
+      const isCorrectCell = input && input === currentWord;
 
-      if (input === currentWord) {
-        // Auto-complete with correct case
-        const newInputs = [...userInputs];
-        newInputs[currentWordIndex] = expectedWords[currentWordIndex];
-        setUserInputs(newInputs);
-
-        if (currentWordIndex < expectedWords.length - 1) {
-          setCurrentWordIndex(currentWordIndex + 1);
-        } else {
-          handleSubmit();
-        }
+      if (isLast && isCorrectCell) {
+        // 末位 + 答对：提交
+        handleSubmit();
+      } else if (!isLast) {
+        // 中间 cell：不论对错都跳下一 cell（"我不会"用）
+        setCurrentWordIndex(currentWordIndex + 1);
       }
+      // 末位 + 答错/未完成：静默
     }
   };
 
@@ -846,8 +851,10 @@ export default function PracticePage() {
       >
         <div className="shortcuts-panel__title">快捷键</div>
         <ul className="shortcuts-panel__list">
-          <li><kbd>Space</kbd><span>播放音频</span></li>
-          <li><kbd>Tab</kbd><span>显示/隐藏答案</span></li>
+          <li><kbd>Space</kbd><span>提交 / 跳过（空时）</span></li>
+          <li><kbd>Enter</kbd><span>跳过 / 末位提交</span></li>
+          <li><kbd>Tab</kbd><span>下一 cell</span></li>
+          <li><kbd>Shift</kbd>+<kbd>Tab</kbd><span>上一 cell</span></li>
           <li><kbd>Shift</kbd>+<kbd>S</kbd><span>显示/隐藏句子</span></li>
           <li><kbd>Esc</kbd><span>查看得分</span></li>
           <li><kbd>←</kbd><kbd>→</kbd><span>上一句/下一句</span></li>
