@@ -58,7 +58,11 @@ def call_tencent_tts(cfg, text: str) -> bytes:
     from tencentcloud.tts.v20190823 import tts_client, models
 
     cred = credential.Credential(cfg.tencent_secret_id, cfg.tencent_secret_key)
-    client = tts_client.Client(cred, "ap-guangzhou")  # region for TTS
+    # NOTE: tencentcloud-sdk-python ≥ 3.x renamed the per-product client
+    # classes from a bare `<product>.Client` to `<Product>Client`
+    # (e.g. tts_client.Client → tts_client.TtsClient). The old name is
+    # no longer exported, so importing it would fail at runtime.
+    client = tts_client.TtsClient(cred, "ap-guangzhou")  # region for TTS
 
     req = models.TextToVoiceRequest()
     req.Text = text
