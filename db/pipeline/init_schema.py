@@ -1,28 +1,32 @@
 #!/usr/bin/env python3
 """
-init_schema.py — first-time schema bootstrap for the CMS host's DB.
+init_schema.py — schema bootstrap for the CMS host's DB.
 
-Why this script exists
-----------------------
-`backend/app/main.py` calls `Base.metadata.create_all(bind=engine)` as a
-safety net, but the comment there says it's for tests, not the source
-of truth. The CMS host doesn't run the backend — it only runs
-`scripts/ops/db/content.sh {sync,sentences,audio,export}` and
-`scripts/ops/db/bake_image.sh`. None of those create the 3 content
-tables (vocabulary_libs / vocabulary_words / sentences). `import_vocab`
-just INSERTs; pg_dump against an empty schema produces an empty dump.
+Two-track bootstrap:
 
-So the gap is: a fresh CMS host has a running postgres with NO tables,
-and no documented step to create them. This script fills that gap by
-importing the SQLAlchemy models (the actual source of truth) and
-running create_all() against the CMS host's DB.
+1. Migration runner (PRIMARY) — calls `pipeline.migrations.upgrade_head(conn)`
+   which discovers every module under `pipeline.migrations.versions/` and
+   applies any whose version is greater than the one recorded in
+   `schema_migrations`. This is the supported path for both fresh DBs
+   (all migrations apply) and existing DBs (already-applied versions are
+   skipped automatically).
 
-Idempotent
-----------
-create_all() is `CREATE TABLE IF NOT EXISTS` semantically — safe to
-re-run. If a table already exists with a different shape, this script
-will NOT migrate it; it'll just skip. For schema changes, do a
-`pg_dump --schema-only` of the new shape and apply manually.
+2. SQLAlchemy create_all() (SAFETY NET) — runs after the migration runner.
+   Idempotent `CREATE TABLE IF NOT EXISTS`; covers the case where the
+   backend was upgraded between an alembic-equivalent version and the
+   SQLAlchemy model definitions diverged. Doesn't alter existing tables.
+
+Why both: the migration runner is the source of truth (it knows about
+ordering, bookkeeping, and schema evolution). create_all() guarantees the
+DB at least has every table the SQLAlchemy models know about — useful
+in dev when iterating on models before writing the corresponding
+migration.
+
+Why no Alembic dependency: Alembic requires Mako + a generated config
+tree + its own template language for what is, at heart, a small ordered
+list of `upgrade(conn)` calls. This project's migration count is small
+(3-5 versions total over the life of the app) and a 60-line runner is
+easier to read, audit, and modify than a generated Alembic env.py.
 
 Usage
 -----
@@ -40,9 +44,9 @@ from pathlib import Path
 # same bootstrap block in import_vocab.py / generate_sentences.py.
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-    from pipeline.env import setup_env  # noqa: E402
+    from pipeline.env import setup_env, load_config  # noqa: E402
 else:
-    from .env import setup_env  # noqa: E402
+    from .env import setup_env, load_config  # noqa: E402
 
 
 def _ensure_backend_on_path() -> None:
@@ -57,37 +61,52 @@ def _ensure_backend_on_path() -> None:
 
 
 def main() -> int:
-    # 1. Load .env.db + assemble DATABASE_URL (sets os.environ["DATABASE_URL"]).
+    # 1. Load .env.db + assemble DATABASE_URL.
     setup_env()
+    cfg = load_config()
 
     # 2. Make backend/app importable so the models + database engine resolve.
     _ensure_backend_on_path()
 
-    # 3. Import order matters: import the database module FIRST (this
-    #    reads DATABASE_URL from env via get_settings()), then the
-    #    models so they register on Base.metadata. Importing the
-    #    routers works too (they import the models transitively), but
-    #    explicit model imports are clearer and don't drag in FastAPI.
+    # 3. Import models so SQLAlchemy metadata is populated for the safety
+    #    net step below. (The migration runner doesn't need models — it
+    #    applies raw SQL — but importing them here means a typo in a
+    #    model file fails fast at init-schema time, not at first query.)
     from app.database import Base, engine  # noqa: E402
     from app.models import vocabulary, sentence  # noqa: E402,F401
 
-    # 4. Pre-flight: confirm the engine actually has a URL. get_settings()
-    #    already raised if not, but a noop recheck here makes the failure
-    #    mode obvious in logs.
     if not Base.metadata.tables:
         print("[ERR] Base.metadata is empty — model imports did not register anything", file=sys.stderr)
         print("      check that backend/app/models/__init__.py exposes the models", file=sys.stderr)
         return 1
 
     print(f"[INFO] DATABASE_URL = {engine.url.render_as_string(hide_password=True)}")
-    print(f"[INFO] Tables to create: {sorted(Base.metadata.tables.keys())}")
+    print(f"[INFO] SQLAlchemy tables declared: {sorted(Base.metadata.tables.keys())}")
 
-    # 5. Create. create_all() is `CREATE TABLE IF NOT EXISTS` — safe to re-run.
+    # 4. PRIMARY: run the migration runner. This handles ordering, the
+    #    schema_migrations bookkeeping table, and idempotent re-runs.
+    import psycopg2  # noqa: E402
+    from pipeline.migrations import upgrade_head, get_current_version  # noqa: E402
+
+    with psycopg2.connect(cfg.database_url) as conn:
+        before = get_current_version(conn)
+        applied = upgrade_head(conn)
+        after = get_current_version(conn)
+
+    if applied:
+        print(f"[OK]   Applied migrations: {', '.join(applied)}")
+        print(f"[OK]   Schema version: {before or '(none)'} -> {after}")
+    else:
+        print(f"[OK]   Schema already at version: {after or '(none)'} (nothing pending)")
+
+    # 5. SAFETY NET: SQLAlchemy create_all() against the same DB. Covers
+    #    tables the migrations forgot or models added after a migration
+    #    was written. Idempotent, no-op when already in sync.
+    print()
+    print("[INFO] Running SQLAlchemy create_all() as safety net...")
     Base.metadata.create_all(bind=engine)
 
-    # 6. Verify by introspecting the DB. We use the same engine so we
-    #    don't need psycopg2 here (the import_vocab module brings it
-    #    in, but init_schema should be runnable with just SQLAlchemy).
+    # 6. Verify by introspecting the DB.
     from sqlalchemy import inspect  # noqa: E402
     inspector = inspect(engine)
     existing = sorted(inspector.get_table_names())

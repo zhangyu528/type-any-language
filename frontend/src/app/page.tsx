@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getVocabularyLibs, generateSentences, getAudioUrl, getPhonetics, Sentence } from './api';
+import { generateSentences, getAudioUrl, getPhonetics, Sentence, getContentCatalog } from './api';
 import AudioPlayerBar from './AudioPlayerBar';
+import LibraryPicker from './LibraryPicker';
 
 // 输入模式枚举 + 元数据：未来加模式只改 INPUT_MODES 和 MODE_METADATA 两处
 const INPUT_MODES = ['linear', 'free'] as const;
@@ -56,6 +57,11 @@ export default function PracticePage() {
   const [correctSoundEnabled, setCorrectSoundEnabled] = useState(true);
   const [inputMode, setInputMode] = useState<InputMode>('linear');
   const [modeMenuOpen, setModeMenuOpen] = useState(false);
+  // LibraryPicker selection. Persisted to localStorage so reload preserves
+  // the user's pick. Defaults are resolved after the catalog loads — see
+  // the catalog-loaded effect below.
+  const [selectedLibId, setSelectedLibId] = useState<string | null>(null);
+  const [selectedDifficulty, setSelectedDifficulty] = useState<string>('');
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -84,19 +90,55 @@ export default function PracticePage() {
 
   useEffect(() => {
     initPractice();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLibId, selectedDifficulty]);
+
+  // Load the catalog once on mount, then resolve picker selection:
+  //   - restored from localStorage if still valid
+  //   - else: first lib + catalog's default difficulty
+  // The initPractice effect above fires once these land.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const catalog = await getContentCatalog();
+        if (cancelled) return;
+        if (catalog.libs.length === 0) return;
+
+        const savedLibId = (() => {
+          try { return window.localStorage.getItem('prefs.libId'); } catch { return null; }
+        })();
+        const savedDifficulty = (() => {
+          try { return window.localStorage.getItem('prefs.difficulty'); } catch { return null; }
+        })();
+
+        const lib = catalog.libs.find((l) => l.id === savedLibId) ?? catalog.libs[0];
+        const availableDiffs =
+          catalog.difficulties_by_lib[lib.level] ?? [catalog.defaults.difficulty];
+        const difficulty = availableDiffs.includes(savedDifficulty ?? '')
+          ? (savedDifficulty as string)
+          : availableDiffs.includes(catalog.defaults.difficulty)
+            ? catalog.defaults.difficulty
+            : availableDiffs[0];
+
+        setSelectedLibId(lib.id);
+        setSelectedDifficulty(difficulty);
+      } catch {
+        // initPractice will surface the error in its own try/catch.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const initPractice = async () => {
+    // Skip until the picker has resolved a real selection.
+    if (!selectedLibId || !selectedDifficulty) return;
     setLoading(true);
     setError('');
     try {
-      const libs = await getVocabularyLibs();
-      if (libs.length === 0) {
-        setError('No vocabulary library available');
-        setLoading(false);
-        return;
-      }
-      const sentences = await generateSentences(libs[0].id, 10, 'beginner');
+      const sentences = await generateSentences(selectedLibId, 10, selectedDifficulty);
       setSentences(sentences);
       setCurrentIndex(0);
       setScore({ correct: 0, total: sentences.length });
@@ -108,6 +150,17 @@ export default function PracticePage() {
       setLoading(false);
     }
   };
+
+  // LibraryPicker callback. Persists to localStorage and re-triggers
+  // initPractice via the [selectedLibId, selectedDifficulty] effect.
+  const handlePickerChange = useCallback((libId: string, difficulty: string) => {
+    try {
+      window.localStorage.setItem('prefs.libId', libId);
+      window.localStorage.setItem('prefs.difficulty', difficulty);
+    } catch { /* 隐私模式静默 */ }
+    setSelectedLibId(libId);
+    setSelectedDifficulty(difficulty);
+  }, []);
 
   useEffect(() => {
     if (sentences.length > 0 && sentences[currentIndex]) {
@@ -769,6 +822,18 @@ export default function PracticePage() {
         onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
       />
+
+      {/* Content selector — picks which vocab lib + difficulty to practice. */}
+      {selectedLibId && selectedDifficulty && (
+        <div className="library-picker-bar">
+          <LibraryPicker
+            selectedLibId={selectedLibId}
+            selectedDifficulty={selectedDifficulty}
+            onChange={handlePickerChange}
+            disabled={loading}
+          />
+        </div>
+      )}
 
       {/* Top-right toolbar */}
       <div

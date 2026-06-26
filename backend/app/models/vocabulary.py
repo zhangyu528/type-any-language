@@ -27,6 +27,13 @@ class VocabularyWord(Base):
     phonetic = Column(String(100), default="")
     translation = Column(Text, default="")
     part_of_speech = Column(String(20), default="")  # noun/verb/adj/adv
+    # Phase 2 metadata columns. All nullable -- old CSVs / rows have NULLs.
+    # CSV header can carry these as optional columns: see import_vocab.py.
+    frequency = Column(Integer, nullable=True)
+    register = Column(String(20), nullable=True)   # formal | neutral | informal | slang
+    domain = Column(String(50), nullable=True)     # business | travel | tech | ...
+    example = Column(Text, nullable=True)
+    tags = Column(ARRAY(String), nullable=True)    # free-form array
     created_at = Column(DateTime, default=datetime.utcnow)
 
     lib = relationship("VocabularyLib", back_populates="words")

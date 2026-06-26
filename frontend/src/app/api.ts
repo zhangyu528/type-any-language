@@ -17,6 +17,28 @@ export interface Sentence {
   is_cached: boolean;
 }
 
+// Content catalog — powers the LibraryPicker. Returns every lib, each
+// lib's available difficulty buckets, and the UI defaults (used when
+// the user has no prior selection in localStorage).
+export interface CatalogDefaults {
+  difficulty: string;
+  bucket_target_size: number;
+}
+
+export interface Catalog {
+  libs: VocabularyLib[];
+  difficulties_by_lib: Record<string, string[]>;
+  defaults: CatalogDefaults;
+}
+
+export async function getContentCatalog(): Promise<Catalog> {
+  const response = await fetch(`${API_BASE_URL}/api/content/catalog`);
+  if (!response.ok) {
+    throw new Error('获取内容目录失败');
+  }
+  return response.json();
+}
+
 export async function getVocabularyLibs(): Promise<VocabularyLib[]> {
   const response = await fetch(`${API_BASE_URL}/api/vocabulary/libs`);
   if (!response.ok) {

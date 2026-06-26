@@ -1,0 +1,55 @@
+# db/content/manifest.yaml — declarative content catalog.
+#
+# This is the SINGLE source of truth for "what content does this app ship".
+# Adding a new vocabulary lib, a new difficulty level, or tweaking the LLM
+# prompt all happen here — no Python source edits required.
+#
+# Schema (v1):
+#   version:     schema version (currently 1)
+#   libs:        list of vocabulary libraries the app will ship
+#                - id:           stable identifier (used in CSV filenames + DB `level` column)
+#                - display:      user-facing name (shown in UI library picker)
+#                - level:        short key (matches DB vocabulary_libs.level; CET/IELTS-style codes)
+#                - csv:          path to the vocabulary CSV, project-root relative
+#                - difficulties: list of difficulty buckets to fill for this lib
+#   defaults:
+#     difficulty:        fallback when caller doesn't specify
+#     bucket_target_size: sentences-per-(lib,difficulty) target (DEFAULT_BUCKET_TARGET_SIZE)
+#
+# After editing this file, run ./scripts/ops/db/content.sh sync to import.
+# Adding a new lib = add a `libs:` entry + drop a matching CSV. Nothing else.
+
+version: 1
+
+libs:
+  - id: beginner
+    display: Beginner Vocabulary
+    level: beginner
+    csv: db/content/vocabulary/beginner.csv
+    difficulties: [beginner, intermediate, advanced]
+
+  - id: cet4
+    display: CET-4
+    level: cet4
+    csv: db/content/vocabulary/cet4.csv
+    difficulties: [beginner, intermediate, advanced]
+
+  - id: cet6
+    display: CET-6
+    level: cet6
+    csv: db/content/vocabulary/cet6.csv
+    difficulties: [beginner, intermediate, advanced]
+
+  # ielts.csv is referenced here but the file isn't on disk yet -- sync will
+  # report `csv not found` and skip it, same behavior as the legacy
+  # hardcoded LIB_DEFS dict. Drop the CSV in db/content/vocabulary/ to
+  # enable this lib without any code change.
+  - id: ielts
+    display: IELTS
+    level: ielts
+    csv: db/content/vocabulary/ielts.csv
+    difficulties: [intermediate, advanced]
+
+defaults:
+  difficulty: beginner
+  bucket_target_size: 200

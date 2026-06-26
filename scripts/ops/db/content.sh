@@ -3,20 +3,14 @@
 # db/content.sh — orchestrate the content production pipeline.
 #
 # Subcommands (all idempotent; safe to re-run):
-#   init-schema Create the 3 content tables (vocabulary_libs /
-#              vocabulary_words / sentences) in the CMS host's DB.
-#              First-time setup only — create_all() is idempotent but
-#              does NOT migrate existing schemas.
-#              (pipeline/init_schema.py — imports backend models)
+#   init-schema Run pending schema migrations + create_all safety net
+#              (pipeline/init_schema.py -> pipeline.migrations.upgrade_head).
 #   sync       Import vocabulary CSVs → vocabulary_libs / vocabulary_words.
 #              (pipeline/import_vocab.py)
 #   sentences  Bulk-generate practice sentences via OpenAI.
 #              (pipeline/generate_sentences.py)
 #   audio      Bulk-generate MP3s via Tencent Cloud TTS.
 #              (pipeline/generate_audio.py)
-#   publish    Mark the current snapshot ready for bake (no-op for now —
-#              schema has no published_at column; this is a documentation
-#              hook for future use).
 #   export     Dump content + audio into a staging bundle (same as
 #              what bake_image.sh does internally — exposed here for
 #              inspection).
@@ -188,11 +182,13 @@ cmd_audio() {
 }
 
 cmd_publish() {
-    # No-op for now. The current schema has no "published" flag — sentences
-    # are baked once, served forever. If/when we add a published_at column
-    # or a per-sentence status field, wire it here.
-    info "publish: no-op (schema 没有 published 标志 — sentences 烤进去即最终态)"
-    info "  下一步: ./scripts/ops/db/bake_image.sh"
+    # Removed: the schema has no "published" flag (sentences are baked
+    # once, served forever) so this command was always a no-op. Kept as
+    # a friendly error so older docs / muscle memory don't silently do
+    # nothing.
+    err "publish 子命令已移除 — schema 没有 published 标志"
+    err "  直接跑: ./scripts/ops/db/bake_image.sh"
+    exit 1
 }
 
 cmd_export() {
@@ -207,11 +203,10 @@ usage() {
 用法: $0 <command> [args]
 
 命令:
-  init-schema  一次性建 3 张 content 表 (vocabulary_libs/words/sentences)
+  init-schema  运行 pending schema migrations + create_all 兜底 (一次性, 幂等)
   sync         把 db/content/vocabulary/*.csv 灌进 vocabulary_libs / vocabulary_words
   sentences  调 OpenAI 批量生成 sentences (填到 DEFAULT_BUCKET_TARGET_SIZE)
   audio      调 Tencent TTS 批量烤 MP3 (跳过 audio_url 已设的句子)
-  publish      no-op (schema 没有 published 标志)
   export       把 content + audio 导出成 staging bundle (bake_image 内部用的同一个)
   doctor       前置检查 (.env.db + Python deps + db 可达)
   -h|help      显示本帮助
@@ -224,7 +219,7 @@ usage() {
 
 典型工作流 (CMS 主机,首次):
   ./scripts/ops/db/env.sh                   # .env.db 引导 (一次性)
-  $0 init-schema                            # 建表 (一次性, 幂等)
+  $0 init-schema                            # migrations + create_all 兜底 (一次性, 幂等)
   $0 sync                                   # csv → DB
   $0 sentences                              # OpenAI 填句子
   $0 audio                                  # TTS 烤 MP3

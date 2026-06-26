@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
 """
-import_vocab.py — read db/content/vocabulary/*.csv → populate vocabulary_libs
-+ vocabulary_words tables.
+import_vocab.py — read vocabulary CSVs (declared in db/content/manifest.yaml)
+→ populate vocabulary_libs + vocabulary_words tables.
+
+The lib list comes from the manifest (single source of truth for content
+catalog), not from a hardcoded dict in this file. To add a new lib:
+  1. add an entry to db/content/manifest.yaml's `libs:`
+  2. drop the CSV at the declared path
+
+No Python edit required.
 
 Idempotent:
   - Per lib (level), if a row with that `level` exists, skip insertion
@@ -10,13 +17,22 @@ Idempotent:
     word_count stats).
 
 CSV format (header required):
-    word,phonetic,translation,part_of_speech
+    word,phonetic,translation,part_of_speech,frequency,register,domain,example,tags
 
-Each lib (level) has its own CSV: beginner.csv, cet4.csv, cet6.csv, ielts.csv.
+Only `word` is required. The 5 trailing metadata columns are optional:
+  - frequency (int)    — word-frequency rank / count
+  - register   (str)   — formal | neutral | informal | slang
+  - domain     (str)   — business | travel | tech | ...
+  - example    (str)   — a short example sentence
+  - tags       (str)   — semicolon-separated, e.g. "idiom;phrasal-verb"
+                         parsed into a TEXT[] column
+
+Old CSVs with only the first 4 columns still work; the new fields land as
+NULL. New CSVs can carry any subset of the optional columns.
 
 Usage:
-    python -m pipeline.import_vocab                # import all CSVs
-    python -m pipeline.import_vocab beginner       # one lib only
+    python -m pipeline.import_vocab                # import all libs in manifest
+    python -m pipeline.import_vocab cet4           # one lib only (by manifest id)
     python -m pipeline.import_vocab --force        # truncate + re-import
     python -m pipeline.import_vocab --dry-run      # show plan, no writes
 """
@@ -32,41 +48,12 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
     from pipeline.env import setup_env, load_config
+    from pipeline.manifest import LibDef, load_manifest
 else:
     from .env import setup_env, load_config
+    from .manifest import LibDef, load_manifest
 
 import psycopg2
-
-# Map: lib_name in CSVs ↔ display name + level
-LIB_DEFS = {
-    "beginner": {
-        "display": "Beginner Vocabulary",
-        "level":   "beginner",
-    },
-    "cet4": {
-        "display": "CET-4",
-        "level":   "cet4",
-    },
-    "cet6": {
-        "display": "CET-6",
-        "level":   "cet6",
-    },
-    "ielts": {
-        "display": "IELTS",
-        "level":   "ielts",
-    },
-}
-
-
-def find_vocab_dir() -> Path:
-    """Locate db/content/vocabulary/. Walks up to find the project root."""
-    here = Path(__file__).resolve().parent
-    while here != here.parent:
-        candidate = here / "db" / "content" / "vocabulary"
-        if candidate.is_dir():
-            return candidate
-        here = here.parent
-    sys.exit("db/content/vocabulary/ not found — are you running from the project root?")
 
 
 def upsert_lib(conn, level: str, display: str, word_count: int, force: bool) -> str | None:
@@ -112,7 +99,15 @@ def upsert_lib(conn, level: str, display: str, word_count: int, force: bool) -> 
 
 
 def import_words(conn, lib_id: str, csv_path: Path) -> int:
-    """INSERT every row from csv_path into vocabulary_words. Returns count."""
+    """INSERT every row from csv_path into vocabulary_words. Returns count.
+
+    Reads the 5 trailing metadata columns (frequency / register / domain /
+    example / tags) when present, defaults them to NULL otherwise. Backwards
+    compatible with CSVs that only carry word,phonetic,translation,part_of_speech.
+
+    `tags` is semicolon-separated in the CSV ("idiom;phrasal-verb") and
+    parsed into a Python list (stored as TEXT[] in Postgres).
+    """
     count = 0
     rows = []
     with csv_path.open("r", encoding="utf-8") as f:
@@ -121,6 +116,33 @@ def import_words(conn, lib_id: str, csv_path: Path) -> int:
             word = (row.get("word") or "").strip().lower()
             if not word:
                 continue
+
+            # Optional metadata. Empty cell -> NULL, not "" -- matches the
+            # column's nullable contract in the schema (migration 0002).
+            frequency_raw = (row.get("frequency") or "").strip()
+            try:
+                frequency = int(frequency_raw) if frequency_raw else None
+            except ValueError:
+                # Tolerate garbage: log + skip the cell rather than abort
+                # the whole import. The user can re-fix the CSV and --force.
+                print(
+                    f"[import_vocab] {csv_path.name}: bad frequency {frequency_raw!r} "
+                    f"for {word!r}, storing NULL"
+                )
+                frequency = None
+
+            register = (row.get("register") or "").strip() or None
+            domain = (row.get("domain") or "").strip() or None
+            example = (row.get("example") or "").strip() or None
+
+            tags_raw = (row.get("tags") or "").strip()
+            if tags_raw:
+                tags = [t.strip() for t in tags_raw.split(";") if t.strip()]
+                if not tags:
+                    tags = None
+            else:
+                tags = None
+
             rows.append((
                 str(uuid.uuid4()),
                 lib_id,
@@ -128,6 +150,11 @@ def import_words(conn, lib_id: str, csv_path: Path) -> int:
                 (row.get("phonetic") or "").strip(),
                 (row.get("translation") or "").strip(),
                 (row.get("part_of_speech") or "").strip(),
+                frequency,
+                register,
+                domain,
+                example,
+                tags,
                 datetime.now(timezone.utc),
             ))
             count += 1
@@ -141,8 +168,9 @@ def import_words(conn, lib_id: str, csv_path: Path) -> int:
         cur.executemany(
             """
             INSERT INTO vocabulary_words
-                (id, lib_id, word, phonetic, translation, part_of_speech, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                (id, lib_id, word, phonetic, translation, part_of_speech,
+                 frequency, register, domain, example, tags, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             rows,
         )
@@ -157,14 +185,11 @@ def update_word_count(conn, lib_id: str, count: int) -> None:
         )
 
 
-def import_one(conn, name: str, vocab_dir: Path, force: bool, dry_run: bool) -> dict:
-    csv_path = vocab_dir / f"{name}.csv"
-    if not csv_path.is_file():
-        return {"name": name, "status": "missing", "csv": str(csv_path)}
-
-    defn = LIB_DEFS.get(name)
-    if defn is None:
-        return {"name": name, "status": "unknown", "csv": str(csv_path)}
+def import_one(conn, lib: LibDef, force: bool, dry_run: bool) -> dict:
+    """Import one lib. Manifest-driven — lib's display/level/csv are pre-resolved."""
+    csv_path = lib.csv_path
+    if not lib.csv_exists:
+        return {"name": lib.id, "status": "missing", "csv": str(csv_path)}
 
     # Quick count of non-empty `word` cells (matches the actual insert count).
     n = 0
@@ -174,14 +199,22 @@ def import_one(conn, name: str, vocab_dir: Path, force: bool, dry_run: bool) -> 
                 n += 1
 
     if dry_run:
-        return {"name": name, "status": "plan", "csv": str(csv_path), "rows": n, **defn}
+        return {
+            "name": lib.id,
+            "status": "plan",
+            "csv": str(csv_path),
+            "rows": n,
+            "display": lib.display,
+            "level": lib.level,
+            "difficulties": list(lib.difficulties),
+        }
 
-    lib_id = upsert_lib(conn, defn["level"], defn["display"], n, force)
+    lib_id = upsert_lib(conn, lib.level, lib.display, n, force)
     if lib_id is None:
         # skip-existing path: lib was already imported, CSV is a no-op.
         # Don't insert words, don't touch word_count, don't commit.
         return {
-            "name": name,
+            "name": lib.id,
             "status": "skipped",
             "csv": str(csv_path),
             "rows": 0,
@@ -194,7 +227,7 @@ def import_one(conn, name: str, vocab_dir: Path, force: bool, dry_run: bool) -> 
     conn.commit()
 
     return {
-        "name": name,
+        "name": lib.id,
         "status": "imported" if not force or inserted else "re-imported",
         "csv": str(csv_path),
         "rows": inserted,
@@ -207,8 +240,8 @@ def main() -> None:
     parser.add_argument(
         "lib",
         nargs="?",
-        choices=sorted(LIB_DEFS.keys()),
-        help="Specific lib to import (default: all found).",
+        default=None,
+        help="Specific lib to import by manifest id (default: all libs in manifest).",
     )
     parser.add_argument(
         "--force",
@@ -225,22 +258,33 @@ def main() -> None:
     setup_env()
     cfg = load_config()  # noqa: F841 — validates .env.db
 
-    vocab_dir = find_vocab_dir()
-    targets = [args.lib] if args.lib else sorted(LIB_DEFS.keys())
+    manifest = load_manifest()
 
-    print(f"[import_vocab] vocab dir: {vocab_dir}")
-    print(f"[import_vocab] libs:      {', '.join(targets)}")
-    print(f"[import_vocab] mode:      {'dry-run' if args.dry_run else 'force' if args.force else 'skip-existing'}")
+    # Filter by `--lib` if specified.
+    if args.lib is not None:
+        target = manifest.get_lib(args.lib)
+        if target is None:
+            sys.exit(
+                f"unknown lib {args.lib!r} -- declared libs in manifest: "
+                f"{', '.join(manifest.all_lib_ids())}"
+            )
+        targets = [target]
+    else:
+        targets = list(manifest.all_libs())
+
+    print(f"[import_vocab] manifest version={manifest.version}")
+    print(f"[import_vocab] libs:        {', '.join(l.id for l in targets)}")
+    print(f"[import_vocab] mode:        {'dry-run' if args.dry_run else 'force' if args.force else 'skip-existing'}")
     print()
 
     results = []
     if args.dry_run:
-        for name in targets:
-            results.append(import_one(None, name, vocab_dir, args.force, dry_run=True))
+        for lib in targets:
+            results.append(import_one(None, lib, args.force, dry_run=True))
     else:
         with psycopg2.connect(cfg.database_url) as conn:
-            for name in targets:
-                results.append(import_one(conn, name, vocab_dir, args.force, dry_run=False))
+            for lib in targets:
+                results.append(import_one(conn, lib, args.force, dry_run=False))
 
     # Summary
     # ASCII-only status glyphs: Windows console (GBK / cp936) can't encode
@@ -250,7 +294,7 @@ def main() -> None:
         if r["status"] == "missing":
             print(f"  !! {r['name']}: csv not found at {r['csv']}")
         elif r["status"] == "unknown":
-            print(f"  ?? {r['name']}: unknown lib (not in LIB_DEFS)")
+            print(f"  ?? {r['name']}: unknown lib (not in manifest)")
         elif r["status"] == "skipped":
             print(f"  -- {r['name']:10s} {'skipped':13s} (already imported, CSV not re-read)")
         else:

@@ -1600,3 +1600,92 @@ button:focus-visible {
     font-size: 15px;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   LibraryPicker (content selector: lib + difficulty)
+   --------------------------------------------------------------------------- */
+.library-picker-bar {
+  display: flex;
+  justify-content: center;
+  padding: 16px 24px 0;
+}
+
+.picker {
+  display: inline-flex;
+  gap: 18px;
+  align-items: center;
+  background: var(--bg-elevated, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.picker--disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.picker--loading,
+.picker--error {
+  font-size: 13px;
+  opacity: 0.7;
+  padding: 14px;
+}
+
+.picker__field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.picker__field--chips {
+  border-left: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  padding-left: 18px;
+}
+
+.picker__label {
+  font-size: 12px;
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.picker__select {
+  background: transparent;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.15));
+  border-radius: 6px;
+  color: inherit;
+  font-size: 14px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.picker__select:hover {
+  border-color: var(--border-strong, rgba(255, 255, 255, 0.3));
+}
+
+.picker__chips {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.picker__chip {
+  background: transparent;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.15));
+  border-radius: 16px;
+  color: inherit;
+  font-size: 12px;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.picker__chip:hover {
+  border-color: var(--border-strong, rgba(255, 255, 255, 0.3));
+}
+
+.picker__chip--active {
+  background: var(--accent, #4a90e2);
+  border-color: var(--accent, #4a90e2);
+  color: #fff;
+}

@@ -6,9 +6,9 @@ pre-generated sentences that the CMS host baked into the db image. No AI,
 no TTS, no scheduler — those run at bake time on the CMS host.
 
 Why this is so thin:
-  • Content (vocab_libs, vocab_words, sentences) ships inside the db image.
-  • Schema is created at bake time (db/init/01-content.sql).
-  • The backend only mounts the static audio dir and exposes GET endpoints.
+  - Content (vocab_libs, vocab_words, sentences) ships inside the db image.
+  - Schema is created at bake time (db/init/01-content.sql).
+  - The backend only mounts the static audio dir and exposes GET endpoints.
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.database import engine, Base
-from app.routers import sentences, vocabulary
+from app.routers import content, sentences, vocabulary
 
 settings = get_settings()
 
@@ -48,6 +48,7 @@ app.add_middleware(
 
 app.include_router(vocabulary.router)
 app.include_router(sentences.router)
+app.include_router(content.router)
 
 
 @app.get("/")

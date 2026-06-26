@@ -6,9 +6,10 @@ Sentences are pre-generated and baked into the db image by the CMS host
 generation, no AI, no TTS, no cache eviction — all of that is bake-time.
 
 Endpoints:
-  GET /api/sentences            List (with filters)
-  GET /api/sentences/{id}       Single sentence
-  GET /api/sentences/random     Random sample for practice
+  GET /api/sentences                  List (with filters)
+  GET /api/sentences/random           Random sample for practice
+  GET /api/sentences/{id}             Single sentence
+  GET /api/sentences/{id}/words       Words this sentence covers (via FK join)
 """
 import random
 from typing import List, Optional
@@ -19,7 +20,9 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.sentence import Sentence
-from app.schemas.sentence import SentenceResponse
+from app.models.sentence_word_link import SentenceWordLink
+from app.models.vocabulary import VocabularyWord
+from app.schemas.sentence import SentenceResponse, SentenceWordResponse
 
 router = APIRouter(prefix="/api/sentences", tags=["sentences"])
 
@@ -61,6 +64,31 @@ def random_sentences(
     if len(candidates) <= count:
         return candidates
     return random.sample(candidates, count)
+
+
+@router.get("/{sentence_id}/words", response_model=List[SentenceWordResponse])
+def get_sentence_words(sentence_id: UUID, db: Session = Depends(get_db)):
+    """Words this sentence covers, via the sentence_word_links FK join.
+
+    Authoritative source -- replaces the soft string-match via
+    sentences.target_words. Typo / case mismatches no longer silently
+    drop words; only rows actually linked at bake time appear here.
+
+    Returns 404 if the sentence id doesn't exist (caller asked for an
+    unknown sentence, vs. an empty list which would mean "sentence
+    exists but has no linked words yet").
+    """
+    exists = db.query(Sentence.id).filter(Sentence.id == sentence_id).first()
+    if not exists:
+        raise HTTPException(status_code=404, detail="sentence not found")
+
+    rows = (
+        db.query(VocabularyWord)
+        .join(SentenceWordLink, SentenceWordLink.word_id == VocabularyWord.id)
+        .filter(SentenceWordLink.sentence_id == sentence_id)
+        .all()
+    )
+    return rows
 
 
 @router.get("/{sentence_id}", response_model=SentenceResponse)
