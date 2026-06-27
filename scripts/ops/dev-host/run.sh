@@ -24,8 +24,13 @@
 # to the compose-level default (http://localhost,http://localhost:3000).
 #
 # ─── What this isn't ──────────────────────────────────────────────────────
-# Does NOT build images, does NOT manage secrets.
+# Does NOT build images, does NOT manage secrets, does NOT pull images
+# from the registry on start/restart (dev's image lifecycle is local —
+# `setup` does the one-time bootstrap pull when needed, otherwise
+# build_image.sh / bake_image.sh keep local images fresh).
 #   • To build dev images:    ./scripts/ops/dev-host/build_image.sh
+#   • To pull a registry image manually:  docker pull <full-image>
+#       (find it via: ./scripts/ops/dev-host/run.sh doctor)
 #   • To reset the dev db:    rm .secrets/postgres_password && docker volume rm <db-data>
 #   • To change ALLOWED_ORIGINS: export ALLOWED_ORIGINS=... before start,
 #     or edit the default in docker-compose.dev.yml.
@@ -62,12 +67,12 @@ source "$SCRIPT_DIR/../../lib.sh"
 resolve_docker_registry
 if [ -n "$DOCKER_REGISTRY" ]; then
     if [ "${_DOCKER_REGISTRY_SOURCE:-}" = "detect" ]; then
-        info "DOCKER_REGISTRY=$DOCKER_REGISTRY (auto-detected, auto-pull off — 本地模式)"
+        info "DOCKER_REGISTRY=$DOCKER_REGISTRY (auto-detected — 仅 push_image.sh 用,setup 也不会拉)"
     else
-        info "DOCKER_REGISTRY=$DOCKER_REGISTRY (auto-pull on)"
+        info "DOCKER_REGISTRY=$DOCKER_REGISTRY (setup 一次性 bootstrap 拉取用,start 不再 auto-pull)"
     fi
 else
-    info "DOCKER_REGISTRY 未设置 (auto-pull off, local-only mode)"
+    info "DOCKER_REGISTRY 未设置 (local-only mode — 仅本机使用)"
 fi
 DB_IMAGE="${DB_IMAGE:-english_db_content}"
 # *_IMAGE_TAG resolve to:
@@ -314,25 +319,15 @@ cmd_doctor() {
     fi
 }
 
-auto_pull_from_registry() {
-    if [ -z "$DOCKER_REGISTRY" ]; then
-        return 0
-    fi
-    # Auto-detected registries (docker.io/$USER) are a guess, not a
-    # configured destination. If the operator never set DOCKER_REGISTRY
-    # (shell env or REGISTRY file), they're probably on a single-host
-    # setup that bakes locally — pulling from a registry they never
-    # pushed to will just 429. Skip silently; the message at the top
-    # of cmd_setup already explained why.
-    if [ "${_DOCKER_REGISTRY_SOURCE:-}" = "detect" ]; then
-        info "DOCKER_REGISTRY=$DOCKER_REGISTRY (auto-detected — 跳过 auto-pull)"
-        return 0
-    fi
-    info "DOCKER_REGISTRY=$DOCKER_REGISTRY — 拉取最新 dev images (db + backend + frontend)..."
-    if ! $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" pull; then
-        warn "部分 image 拉取失败 — 将使用本地已 build 的 image（如有）"
-    fi
-}
+# ---------------------------------------------------------------------------
+# (auto_pull_from_registry was removed: dev iteration never pulls from
+# the registry on start/restart. Image lifecycle is local — `setup`
+# does the one-time bootstrap pull when needed, otherwise
+# build_image.sh / bake_image.sh keep local images fresh. Auto-pulling
+# on every start overwrote fresh local builds with stale registry
+# versions, which was the dominant pain point. If you want to pull
+# explicitly: docker pull <full-image>.)
+# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # Auto-bake helpers (used by cmd_setup when local CMS env is sufficient)
@@ -707,14 +702,21 @@ drift_check() {
 #
 # Lightweight dev iteration path. Equivalent to running `content.sh
 # init-schema` against the source db, but targets the runtime db directly
-# via a one-shot python:3.11-slim sidecar container on the compose
-# network — so no image bake, no registry, no volume drop.
+# via a one-shot sidecar container on the compose network — so no image
+# bake, no registry, no volume drop.
 #
 # Why a sidecar: the runtime db container is postgres:15-alpine, which
-# has psql but no python. The migration runner is Python. We mount db/
-# and backend/ read-only into a python:3.11-slim sidecar, install
-# psycopg2 + sqlalchemy, and run `pipeline.migrations.runner` against
-# `db:5432` (the compose-network hostname of the runtime db).
+# has psql but no python. The migration runner is Python. We use the
+# already-cached `english_backend_dev:${TAG}` image as the sidecar —
+# it's FROM python:3.11-slim with psycopg2-binary + sqlalchemy already
+# pip-installed (the backend image's Dockerfile builds on them). So no
+# extra `docker pull` is needed and no network mirror is involved.
+#
+# We mount db/ and backend/ read-only into the sidecar and run
+# `pipeline.migrations.runner` against `db:5432` (the compose-network
+# hostname of the runtime db). PYTHONPATH=/db makes `pipeline.env` and
+# `pipeline.migrations.*` importable; runner.py + the migrations
+# auto-add `backend/` for the SQLAlchemy model imports in 0001_baseline.
 #
 # Idempotent: runner.py uses IF NOT EXISTS / IF EXISTS and stamps
 # applied versions in schema_migrations. Re-runs are no-ops.
@@ -725,7 +727,9 @@ drift_check() {
 #
 # Offline fallback: db/pipeline/migrations/apply_to_runtime.sql is a
 # pre-rolled SQL file that brings a stale db up to head in one shot.
-# Use it when python:3.11-slim can't be pulled (air-gapped envs).
+# Use it when no backend image is cached and python:3.11-slim can't be
+# pulled either. Only covers "upgrade old db to head" — does NOT handle
+# dev-iteration of a brand-new migration.
 # ---------------------------------------------------------------------------
 cmd_migrate() {
     info "=== dev db migrate ==="
@@ -769,15 +773,29 @@ cmd_migrate() {
     local pg_pass
     pg_pass="$(cat "$PG_PASSWORD_FILE")"
 
-    # Pre-pull python:3.11-slim — first run pulls ~150MB, subsequent runs
-    # hit the local cache and finish in a few seconds. Silent if cached.
-    info "确保 python:3.11-slim 镜像在本地 (首次 ~150MB,之后命中缓存)..."
-    if ! docker pull -q python:3.11-slim >/dev/null 2>&1; then
-        warn "pull python:3.11-slim 失败 (offline?)"
-        info "  离线 fallback: docker exec -i -e PGPASSWORD=\$(cat $PG_PASSWORD_FILE) \\"
-        info "    $db_cid psql -U $pg_user -d $pg_db \\"
-        info "    < db/pipeline/migrations/apply_to_runtime.sql"
-        return 1
+    # Pick the sidecar image. Prefer the running backend container's image
+    # (already on disk, has python + psycopg2 + sqlalchemy from the
+    # backend's Dockerfile.dev install) so we don't need to pull anything.
+    # Fall back to python:3.11-slim if the backend isn't running yet.
+    local sidecar_image
+    local backend_cid
+    backend_cid="$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" ps -q backend 2>/dev/null | head -1)"
+    if [ -n "$backend_cid" ]; then
+        sidecar_image="$(docker inspect "$backend_cid" --format '{{.Config.Image}}' 2>/dev/null)"
+        info "用 backend 镜像做 sidecar (无 pull 开销): $sidecar_image"
+    elif image_exists "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"; then
+        sidecar_image="${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"
+        info "用本地 backend 镜像做 sidecar (无 pull 开销): $sidecar_image"
+    else
+        info "backend 没在跑也没本地镜像 — 尝试拉 python:3.11-slim ..."
+        if ! docker pull -q python:3.11-slim >/dev/null 2>&1; then
+            warn "pull python:3.11-slim 失败 (offline?)"
+            info "  离线 fallback: docker exec -i -e PGPASSWORD=\$(cat $PG_PASSWORD_FILE) \\"
+            info "    $db_cid psql -U $pg_user -d $pg_db \\"
+            info "    < db/pipeline/migrations/apply_to_runtime.sql"
+            return 1
+        fi
+        sidecar_image="python:3.11-slim"
     fi
 
     echo ""
@@ -792,8 +810,9 @@ cmd_migrate() {
             -e POSTGRES_DB="$pg_db" \
             -e POSTGRES_PASSWORD="$pg_pass" \
             -e PYTHONPATH="/db" \
-            python:3.11-slim \
-            bash -c "pip install -q --no-cache-dir psycopg2-binary sqlalchemy && python3 -m pipeline.migrations.runner"
+            --entrypoint python \
+            "$sidecar_image" \
+            -m pipeline.migrations.runner
     then
         err "migrate 失败 — 见上面错误"
         return 1
@@ -812,13 +831,13 @@ cmd_start() {
         exit 1
     fi
     write_secrets
-    auto_pull_from_registry
     info "启动开发容器..."
-    # `--pull=never`: auto_pull_from_registry above is the single source
-    # of pull attempts (best-effort). Without this flag, compose up -d
-    # would default to `--pull=missing` and re-pull, hitting 429 on
-    # registries that don't host the image (or pulling mismatched tags
-    # when the local image was built without the registry prefix).
+    # `--pull=never`: dev never auto-pulls on start. Image lifecycle is
+    # local — `setup` does the one-time bootstrap pull when needed,
+    # otherwise build_image.sh / bake_image.sh keep local images
+    # fresh. Without --pull=never, compose up -d defaults to
+    # `--pull=missing` and would re-pull, overwriting a fresh local
+    # build or hitting 429 on registries that don't host the image.
     $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d --pull=never
     ok "服务已启动（热重载已开启）"
     echo -e "  前端:   ${_LIB_BLUE}http://localhost:3000${_LIB_NC}"
@@ -848,7 +867,6 @@ cmd_restart() {
         exit 1
     fi
     write_secrets
-    auto_pull_from_registry
     info "重启开发容器（重新加载 secrets）..."
 
     BACKEND_BEFORE=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}" 2>/dev/null || true)
@@ -896,7 +914,7 @@ usage() {
 命令:
   setup    首次环境引导: 拉/检查 db image,build 缺失的 dev app images,无 start 副作用
   doctor   跑完整环境检查（不修改任何东西，纯只读）
-  start    启动开发容器（热重载）。如 DOCKER_REGISTRY 配了就 auto-pull (db + backend + frontend)
+  start    启动开发容器（热重载）。用本地已有 image,不再 auto-pull
   stop     停止开发容器
   restart  重启容器并重新读取 secrets (≈5s, 不重 build image)
   reload   同 restart —— 别名，语义更清晰
@@ -907,7 +925,7 @@ usage() {
 典型工作流:
   ./scripts/ops/dev-host/run.sh setup         # 首次或重置后: 一次性就位所有 image
   ./scripts/ops/dev-host/run.sh doctor        # 跑一遍检查，看环境是否就绪
-  ./scripts/ops/dev-host/run.sh start         # 启动 (DOCKER_REGISTRY 配了会先 auto-pull)
+  ./scripts/ops/dev-host/run.sh start         # 启动 (本地 image,不再 auto-pull)
   ./scripts/ops/dev-host/run.sh restart       # 改 docker-compose.dev.yml / .secrets 后用这个
   ./scripts/ops/dev-host/run.sh migrate       # 改 db/pipeline/migrations/versions/*.py 后
   ./scripts/ops/dev-host/build_image.sh && \\

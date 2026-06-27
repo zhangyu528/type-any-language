@@ -133,7 +133,9 @@ ALLOWED_ORIGINS=https://my.domain ./scripts/ops/prod-host/run.sh start
 
 No `.env` is needed. `ALLOWED_ORIGINS` defaults to `http://localhost` in the prod compose — override via shell env (shown above) or edit the compose file directly. `POSTGRES_PASSWORD` is generated on first start.
 
-**Image registry model**: CMS host pushes the content-baked `db` image; each target host pushes its own `backend + frontend` images. Target hosts `docker pull` all 3 from `$DOCKER_REGISTRY` when `DOCKER_REGISTRY` is set (auto-pulled by `run.sh start`).
+**Image registry model**: CMS host pushes the content-baked `db` image; each target host pushes its own `backend + frontend` images.
+- **Prod target host**: `docker pull` all 3 from `$DOCKER_REGISTRY` on every `run.sh start` / `restart` (auto-pulled — registry is the source of truth for prod).
+- **Dev target host**: `run.sh setup` does the **one-time bootstrap pull** from `$DOCKER_REGISTRY` when local images are missing. `start` / `restart` **never auto-pull** — dev iteration is local-first; image lifecycle is owned by `build_image.sh` / `bake_image.sh` on the host. This avoids overwriting fresh local builds with stale registry versions. To pull explicitly: `docker pull <full-image>`.
 
 The registry namespace (e.g. `docker.io/zhangyu528`) is **shared project config** that the whole team uses. It is **not** a personal secret, so it lives in the committed `REGISTRY` file at the repo root (symmetric with `VERSION.dev` / `VERSION.prod`), not in `.env.db` (gitignored). See [Image registry namespace](#image-registry-namespace) below.
 
@@ -413,7 +415,11 @@ Runtime configuration is via shell env (passed to `run.sh` via `KEY=value run.sh
   ```bash
   ALLOWED_ORIGINS=https://my.domain ./scripts/ops/prod-host/run.sh start
   ```
-- `DOCKER_REGISTRY` — registry namespace to push to / pull from. Comes from the committed `REGISTRY` file at the repo root; shell env wins. When set, `run.sh start` auto-pulls the db image (and on dev, the backend + frontend images) on every start/restart. Empty = local-only mode.
+- `DOCKER_REGISTRY` — registry namespace to push to / pull from. Comes from the committed `REGISTRY` file at the repo root; shell env wins. Pull behavior is **asymmetric**:
+  - **Prod**: `run.sh start` auto-pulls the db + backend + frontend images on every start/restart — registry is the source of truth.
+  - **Dev**: `run.sh setup` does the **one-time bootstrap pull** when local images are missing. `start` / `restart` **never auto-pull** — image lifecycle is local (build_image.sh / bake_image.sh). Pull manually with `docker pull <full-image>` if needed.
+
+  Empty = local-only mode (no push to / pull from any registry).
 - `DB_IMAGE_TAG` — which baked db image to pull. Default: `VERSION.prod`.
 - `BACKEND_IMAGE_TAG`, `FRONTEND_IMAGE_TAG` — image tag for backend/frontend. Default: `VERSION.dev` on dev hosts, `VERSION.prod` on prod hosts (resolved by `scripts/lib.sh`). Override per image, or set `IMAGE_TAG` to bump all images at once (CI use):
   ```bash
