@@ -702,6 +702,109 @@ drift_check() {
     done
 }
 
+# ---------------------------------------------------------------------------
+# cmd_migrate — apply pending schema migrations to the running runtime db.
+#
+# Lightweight dev iteration path. Equivalent to running `content.sh
+# init-schema` against the source db, but targets the runtime db directly
+# via a one-shot python:3.11-slim sidecar container on the compose
+# network — so no image bake, no registry, no volume drop.
+#
+# Why a sidecar: the runtime db container is postgres:15-alpine, which
+# has psql but no python. The migration runner is Python. We mount db/
+# and backend/ read-only into a python:3.11-slim sidecar, install
+# psycopg2 + sqlalchemy, and run `pipeline.migrations.runner` against
+# `db:5432` (the compose-network hostname of the runtime db).
+#
+# Idempotent: runner.py uses IF NOT EXISTS / IF EXISTS and stamps
+# applied versions in schema_migrations. Re-runs are no-ops.
+#
+# Backend picks up the new schema on the next request (no restart needed
+# — uvicorn hot-reload handles Python changes; SQL schema is read per
+# query). But ./run.sh restart works fine too if you want to be sure.
+#
+# Offline fallback: db/pipeline/migrations/apply_to_runtime.sql is a
+# pre-rolled SQL file that brings a stale db up to head in one shot.
+# Use it when python:3.11-slim can't be pulled (air-gapped envs).
+# ---------------------------------------------------------------------------
+cmd_migrate() {
+    info "=== dev db migrate ==="
+    echo ""
+    require_docker
+
+    # Compose evaluates the whole file (incl. ${DB_USER:?...} /
+    # ${DB_NAME:?...} in the db service's environment block) for ANY
+    # subcommand — including `ps -q db`. Populate DB_USER / DB_NAME
+    # from image labels (or fall back to bake defaults) so compose can
+    # parse the file without dying. See export_db_identity_for_compose
+    # + the matching note in cmd_stop / cmd_logs.
+    export_db_identity_for_compose
+
+    # Find the running runtime db container (via compose, not the literal
+    # `type-any-language-db-1` — project name may differ).
+    local db_cid
+    db_cid="$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" ps -q db 2>/dev/null | head -1)"
+    if [ -z "$db_cid" ]; then
+        err "db 容器没在跑 — 先 ./scripts/ops/dev-host/run.sh start"
+        return 1
+    fi
+
+    # The compose network the db is on (don't hardcode ${project}_default).
+    local network
+    network="$(docker inspect "$db_cid" --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}' 2>/dev/null | head -1)"
+    if [ -z "$network" ]; then
+        err "找不到 db 容器的 compose network"
+        return 1
+    fi
+
+    # Connection params: user/db from .env.db defaults (matches the image
+    # label), password from .secrets/postgres_password written by
+    # write_secrets on first start.
+    local pg_user="${POSTGRES_USER:-english_user}"
+    local pg_db="${POSTGRES_DB:-english_learning}"
+    if [ ! -f "$PG_PASSWORD_FILE" ]; then
+        err "$PG_PASSWORD_FILE 不存在 — 先跑 start (它会现场生成)"
+        return 1
+    fi
+    local pg_pass
+    pg_pass="$(cat "$PG_PASSWORD_FILE")"
+
+    # Pre-pull python:3.11-slim — first run pulls ~150MB, subsequent runs
+    # hit the local cache and finish in a few seconds. Silent if cached.
+    info "确保 python:3.11-slim 镜像在本地 (首次 ~150MB,之后命中缓存)..."
+    if ! docker pull -q python:3.11-slim >/dev/null 2>&1; then
+        warn "pull python:3.11-slim 失败 (offline?)"
+        info "  离线 fallback: docker exec -i -e PGPASSWORD=\$(cat $PG_PASSWORD_FILE) \\"
+        info "    $db_cid psql -U $pg_user -d $pg_db \\"
+        info "    < db/pipeline/migrations/apply_to_runtime.sql"
+        return 1
+    fi
+
+    echo ""
+    info "在 sidecar 里跑 pipeline.migrations.runner (target=db:5432)..."
+    if ! docker run --rm \
+            --network "$network" \
+            -v "$PROJECT_DIR/db:/db:ro" \
+            -v "$PROJECT_DIR/backend:/backend:ro" \
+            -e POSTGRES_HOST="db" \
+            -e POSTGRES_PORT="5432" \
+            -e POSTGRES_USER="$pg_user" \
+            -e POSTGRES_DB="$pg_db" \
+            -e POSTGRES_PASSWORD="$pg_pass" \
+            -e PYTHONPATH="/db" \
+            python:3.11-slim \
+            bash -c "pip install -q --no-cache-dir psycopg2-binary sqlalchemy && python3 -m pipeline.migrations.runner"
+    then
+        err "migrate 失败 — 见上面错误"
+        return 1
+    fi
+
+    echo ""
+    ok "=== migrate 完成 ==="
+    info "  backend hot reload 自动捡新 schema;要确认:"
+    info "    ./scripts/ops/dev-host/run.sh restart"
+}
+
 cmd_start() {
     gate_preflight
     if ! inspect_db_image_labels; then
@@ -797,6 +900,7 @@ usage() {
   stop     停止开发容器
   restart  重启容器并重新读取 secrets (≈5s, 不重 build image)
   reload   同 restart —— 别名，语义更清晰
+  migrate  对运行中的 runtime db 跑 pending schema migrations (sidecar python + runner.py)
   logs     跟踪日志 (Ctrl+C 退出)
   status   查看容器状态
 
@@ -805,6 +909,7 @@ usage() {
   ./scripts/ops/dev-host/run.sh doctor        # 跑一遍检查，看环境是否就绪
   ./scripts/ops/dev-host/run.sh start         # 启动 (DOCKER_REGISTRY 配了会先 auto-pull)
   ./scripts/ops/dev-host/run.sh restart       # 改 docker-compose.dev.yml / .secrets 后用这个
+  ./scripts/ops/dev-host/run.sh migrate       # 改 db/pipeline/migrations/versions/*.py 后
   ./scripts/ops/dev-host/build_image.sh && \\
     ./scripts/ops/dev-host/run.sh restart     # 改代码 / Dockerfile 后
   ./scripts/ops/dev-host/run.sh logs backend  # 跟踪 backend 日志
@@ -825,6 +930,7 @@ case "${1:-}" in
     stop)    cmd_stop "$@" ;;
     restart) cmd_restart "$@" ;;
     reload)  cmd_reload "$@" ;;
+    migrate) cmd_migrate "$@" ;;
     logs)    shift; cmd_logs "$@" ;;
     status)  cmd_status "$@" ;;
     -h|--help|help|"") usage ;;

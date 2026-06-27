@@ -103,6 +103,7 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 ./scripts/ops/dev-host/run.sh start          # compose up (hot-reload, bind-mounted)
 ./scripts/ops/dev-host/run.sh stop
 ./scripts/ops/dev-host/run.sh restart        # Hard restart (recreate + re-read secrets)
+./scripts/ops/dev-host/run.sh migrate        # Apply pending schema migrations to runtime db
 ./scripts/ops/dev-host/run.sh logs
 # Optional image publishing (offline / first-time local setup → registry):
 ./scripts/ops/dev-host/build_image.sh        # build english_backend_dev + english_frontend_dev
@@ -309,6 +310,42 @@ Answer validation is **client-side**: the frontend normalizes (lowercase, strip 
 2. On first start, the db image's `/docker-entrypoint-initdb.d/` runs `01-content.sql` (creates schema, loads content) and `99-audio.sh` (copies `/seed/audio/*` → `/audio/`).
 3. Frontend fetches a sentence, browser plays its MP3 from `/audio/{hash}.mp3` (served by backend's `StaticFiles` mount, in dev proxied through nginx).
 4. User submits answer → `validate_answer()` normalizes (lowercase, strip punctuation/spaces) and compares.
+
+## Schema migrations
+
+Schema lives in two places that must stay in sync:
+- **`backend/app/models/*.py`** — SQLAlchemy declarative schema (the runtime truth)
+- **`db/init/01-content.sql`** — pg_dump snapshot baked into the db image (the *initial* truth for fresh volumes)
+- **`db/pipeline/migrations/versions/*.py`** — ordered DDL applied to existing volumes when schema evolves
+
+Migrations use a tiny hand-written runner (`db/pipeline/migrations/runner.py`, ~60 lines, no Alembic). Each version is a Python module exposing `upgrade(conn)` / `downgrade(conn)`. Idempotent via `ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` etc.
+
+### Dev iteration (light-touch)
+
+When you add or change a migration in `db/pipeline/migrations/versions/`:
+
+```bash
+# Source db (CMS pipeline, if running): the migrations apply so a future
+# bake has the new schema in 01-content.sql
+./scripts/ops/db/content.sh init-schema
+
+# Runtime db (the one your backend is actually querying): in-place upgrade,
+# no image bake, no registry push, no volume drop
+./scripts/ops/dev-host/run.sh migrate
+```
+
+`run.sh migrate` spins up a one-shot `python:3.11-slim` sidecar on the compose network and runs `pipeline.migrations.runner` against `db:5432`. Idempotent — re-runs are no-ops. The backend picks up the new schema on the next request (no restart needed; uvicorn hot-reload handles Python changes).
+
+**Offline fallback** (when `python:3.11-slim` can't be pulled, e.g. broken registry mirrors): `db/pipeline/migrations/apply_to_runtime.sql` is a pre-rolled SQL file that brings a stale runtime db up to the current head in one shot. `run.sh migrate` prints the exact `docker exec ... psql < apply_to_runtime.sql` command on pull failure. This file applies all known migrations and stamps them as done — it only works for upgrading an old db to head, not for dev-iteration of a brand-new migration (which needs the runner).
+
+### Production rollout
+
+When the operator merges new schema changes:
+1. CMS host: `content.sh init-schema` (already in `release.sh prod`'s flow once the bake-pipeline gap is closed)
+2. CMS host: `bake_image.sh` + `push_image.sh` — new db image has the latest schema baked into `01-content.sql`
+3. Target hosts: `run.sh restart` (or `setup` on a fresh host) auto-pulls the new image
+4. Fresh-volume target hosts: initdb picks up the new `01-content.sql` automatically
+5. Existing-volume target hosts: postgres skips initdb. Operator must either `docker compose down -v` (data = baked content, drop is safe) OR run `db/pipeline/migrations/apply_to_runtime.sql` first to migrate in place
 
 ## Environment variables
 

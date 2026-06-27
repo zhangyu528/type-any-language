@@ -38,6 +38,7 @@ CMS 主机把内容（词库 + AI 句子 + TTS 音频）烤进 db image，推到
 ./dev.sh logs       # 看日志
 ./dev.sh stop       # 停
 ./dev.sh restart    # 硬重启(≈5s,重新加载 secrets)
+./dev.sh migrate    # 改了 db/pipeline/migrations/versions/*.py 后:把新 schema 应用到正在跑的 runtime db
 ```
 
 > 没装 docker / daemon 没起,`./dev.sh doctor` 会直接报错,先装 docker。
@@ -67,6 +68,22 @@ CMS 主机把内容（词库 + AI 句子 + TTS 音频）烤进 db image，推到
 - 手动(不走 setup):`./scripts/ops/db/env.sh` 引导 `.env.db`,再 `./scripts/ops/db/bake_image.sh`。
 
 需要换 CORS 白名单:`ALLOWED_ORIGINS=https://my.domain ./dev.sh start`
+
+### schema 改了之后
+
+dev 改了 `db/pipeline/migrations/versions/*.py` 的话:
+
+```bash
+# 升 source db(给将来 bake 用):起 english_db 后跑
+./scripts/ops/db/content.sh init-schema
+
+# 升正在跑的 runtime db —— 轻量,不动 image、不 push、不 drop volume
+./dev.sh migrate
+```
+
+`migrate` 用一次性 `python:3.11-slim` sidecar 跑 `pipeline.migrations.runner`,幂等。backend 下次请求自动捡新 schema(uvicorn hot reload)。
+
+> 网络拉不到 `python:3.11-slim`(典型情况:docker registry mirrors 坏了)时,`migrate` 会失败并打印离线 fallback:用 `db/pipeline/migrations/apply_to_runtime.sql` 走 `docker exec ... psql`。但这个 SQL 只覆盖"老 db 升到当前 head",**不能**处理新加的 migration —— 那种情况得修 docker 网络。
 
 ## 镜像发布(可选,无 registry 时跳过)
 
