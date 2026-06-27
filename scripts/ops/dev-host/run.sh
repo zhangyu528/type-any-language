@@ -520,10 +520,13 @@ setup_auto_bake() {
 #      DB_NAME from its OCI labels — a hard requirement, not a convenience).
 #      If missing, try:
 #        - DOCKER_REGISTRY set → docker pull
-#        - .env.db present locally → suggest ./scripts/ops/db/bake_image.sh
-#        - otherwise → multi-step CMS path
-#      If still missing after auto-pickup, exit 1 with clear guidance (the
-#      dev app build below would fail with a less actionable error anyway).
+#        - .env.db present (or scaffolded via env.sh init, validated by
+#          doctor) → single-host auto-bake (full CMS pipeline on this host)
+#      env.sh init is idempotent (no-op when .env.db already exists); doctor
+#      runs unconditionally as a gate so empty templates / missing keys
+#      fail-fast before the expensive bake starts. If auto-bake itself
+#      fails, exit 1 with manual-troubleshooting pointers (the dev app build
+#      below would fail with a less actionable error anyway).
 #   3. dev app images: call ./scripts/ops/dev-host/build_image.sh (it
 #      builds both backend + frontend in one shot). Skipped if both
 #      already present (idempotent — no need to rebuild cached layers).
@@ -566,8 +569,11 @@ cmd_setup() {
     #    Resolution chain (each step falls through to the next on miss):
     #      a. local image already present
     #      b. DOCKER_REGISTRY set → docker pull (fast path; bypasses local CMS work)
-    #      c. .env.db present (single-host CMS+dev) → auto-bake
-    #      d. nothing works → print CMS path guidance and exit
+    #      c. .env.db present or scaffoldable via env.sh init (validated by
+    #         doctor) → single-host CMS+dev auto-bake (full pipeline)
+    #    env.sh init is idempotent — second run skips silently. Doctor runs
+    #    unconditionally as a gate so empty templates / partial .env.db
+    #    fail-fast before the expensive bake starts.
     info "Step 1/2: db image ($DB_FULL_IMAGE)"
     local got_image=0
     if image_exists "$DB_FULL_IMAGE"; then
@@ -586,15 +592,35 @@ cmd_setup() {
                 # Don't exit — fall through to auto-bake below. The pull
                 # might've failed because the registry is rate-limited
                 # (HTTP 429) or the image genuinely isn't there yet.
-                # If .env.db is local we can bake instead.
+                # Local content pipeline (scaffold → doctor → bake) can
+                # pick up the slack whether .env.db exists or not.
                 warn "  pull 失败 — fallback 到本地 auto-bake"
             fi
         fi
-        if [ "$got_image" = "0" ] && [ -f "$PROJECT_DIR/.env.db" ]; then
-            # Single-host setup: .env.db is here, so we can run the whole
-            # CMS chain ourselves — bring up source db, fill content, bake.
-            # Each step is idempotent so this is safe on populated hosts too.
-            info "  本机 .env.db 存在 — 尝试自动 bake (source db + 内容 + 烘焙)..."
+        if [ "$got_image" = "0" ]; then
+            # .env.db 缺失 → 先 scaffold (env.sh init 幂等,已存在会跳过)。
+            # 把 init 放在这里而不是 fallback 的最后,目的是把"先填 secrets"
+            # 接到同一个 setup 流程里 — 操作员不用切到另一条命令链。
+            if [ ! -f "$PROJECT_DIR/.env.db" ]; then
+                info "  本机没有 .env.db — 先 scaffold 一个:"
+                echo ""
+                if ! "$SCRIPT_DIR/../db/env.sh" init; then
+                    err "  env.sh init 失败 — 检查 .env.example.db 是否存在"
+                    return 1
+                fi
+                echo ""
+                warn "  ↑ 上面只是 scaffold,secrets 还要手动填 (nano .env.db)"
+                echo ""
+            fi
+            # doctor 当 gate:空模板 / 缺 key 都 fail-fast,避免带着空
+            # .env.db 进 auto_bake 浪费一次完整 bake。
+            if ! "$SCRIPT_DIR/../db/env.sh" doctor; then
+                err "  .env.db 还差 key — 填好后重跑 setup"
+                return 1
+            fi
+            # 单机 CMS+dev:auto-bake 跑完整链 (source db + 内容 + 烘焙)。
+            # 每步都是幂等的,已部署的 host 重跑也不会浪费 API 调用。
+            info "  调 setup_auto_bake (source db + 内容 + 烘焙)..."
             echo ""
             if setup_auto_bake; then
                 echo ""
@@ -607,18 +633,6 @@ cmd_setup() {
                 info "    ./scripts/ops/db/content.sh doctor   # 内容管线 preflight"
                 return 1
             fi
-        fi
-        if [ "$got_image" = "0" ]; then
-            info "  本机没有 .env.db — db image 需要在 CMS 主机上 bake:"
-            info "    1. CMS 主机: ./scripts/ops/db/env.sh                  # 初始化 .env.db"
-            info "    2. CMS 主机: ./scripts/ops/db/content.sh sync         # 导入 vocab CSVs"
-            info "    3. CMS 主机: ./scripts/ops/db/content.sh sentences    # 生成句子"
-            info "    4. CMS 主机: ./scripts/ops/db/content.sh audio        # 生成音频"
-            info "    5. CMS 主机: ./scripts/ops/db/bake_image.sh           # 烘焙"
-            info "    6. CMS 主机: ./scripts/ops/db/push_image.sh -y        # 推 registry"
-            info "  (单机开发 = CMS+dev 同机: 1-5 在本机跑,跳过 push)"
-            err "db image 缺失 — 完成上面的步骤后,再跑一次 ./dev.sh setup"
-            return 1
         fi
     fi
     if inspect_db_image_labels; then

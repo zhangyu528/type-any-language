@@ -111,7 +111,7 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 
 No `.env.dev` is needed. The dev compose file defaults `ALLOWED_ORIGINS` to `http://localhost,http://localhost:3000`; override via shell env. `POSTGRES_PASSWORD` is generated on first start.
 
-`setup` is the recommended entry point for a fresh checkout. It runs preflight (docker + compose), ensures the `db` image is present locally (auto-pulls from `DOCKER_REGISTRY` if set, otherwise prints the CMS-side bake steps), and builds the dev `backend + frontend` images. It does NOT start containers or create `.secrets/` — that's `start`'s job. Re-running `setup` is safe (idempotent).
+`setup` is the recommended entry point for a fresh checkout. It runs preflight (docker + compose), ensures the `db` image is present locally (auto-pulls from `DOCKER_REGISTRY` if set, otherwise — on a single-host CMS+dev machine — scaffolds `.env.db` via `env.sh init` + validates with `env.sh doctor`, then runs the full local content pipeline: source db → schema → vocab CSVs → AI sentences → TTS audio → `bake_image.sh`), and builds the dev `backend + frontend` images. It does NOT start containers or create `.secrets/` — that's `start`'s job. Re-running `setup` is safe (idempotent — every step short-circuits on existing state).
 
 ### Prod target host
 
