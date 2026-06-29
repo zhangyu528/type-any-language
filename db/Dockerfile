@@ -62,3 +62,24 @@ COPY init/99-audio.sh    /docker-entrypoint-initdb.d/99-audio.sh
 # If the dir is empty (e.g. vocabulary has no audio yet) COPY still
 # succeeds — empty src dir creates an empty dest dir.
 COPY seed/audio /seed/audio
+
+# Entrypoint wrapper: chowns the /audio volume mount to postgres:postgres
+# before handing off to the standard postgres entrypoint. See entrypoint.sh
+# for the why. Without this, 99-audio.sh (running as postgres inside the
+# standard entrypoint) can't `cp` into the root:root 755 volume mount.
+#
+# IMPORTANT: ENTRYPOINT uses a basename, not an absolute path. On
+# Docker Desktop + Git Bash, the OCI runtime translates paths starting
+# with a single `/` to Windows-style paths (e.g. `C:/Program Files/Git/...`),
+# which breaks container startup. The basename form is resolved via the
+# container's $PATH (/usr/local/bin) and isn't subject to that translation.
+#
+# CMD is `postgres` (inherited from postgres:15-alpine). The standard
+# entrypoint branches on `if [ "$1" = 'postgres' ]` — without an explicit
+# CMD, the wrapper would receive no args, the entrypoint would see $1="",
+# fall through to `exec "$@"` (empty), and the container would silently
+# exit 0.
+COPY entrypoint.sh /usr/local/bin/type-any-language-entrypoint.sh
+RUN chmod +x /usr/local/bin/type-any-language-entrypoint.sh
+ENTRYPOINT ["type-any-language-entrypoint.sh"]
+CMD ["postgres"]

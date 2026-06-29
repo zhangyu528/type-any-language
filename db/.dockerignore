@@ -1,0 +1,10 @@
+# Exclude the persistent CMS working dir from the db image's build context.
+# IMPORTANT: pattern must be `/audio` (root of build context only) — NOT
+# `audio/` (recursive: would also exclude db/seed/audio/ which IS in the image).
+# audio/ is where generate_audio.py writes TTS MP3s (gitignored).
+# bake_image.sh copies the *referenced* subset into db/seed/audio/ before
+# `docker build`, so only seed/audio/ ends up in the image.
+/audio
+
+# Also exclude any other CMS working artifacts that may live here in the future.
+# (bake_image.sh writes nothing else into db/ directly.)
