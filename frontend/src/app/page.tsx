@@ -787,14 +787,24 @@ export default function PracticePage() {
     return (
       <div className="immersive-container">
         <div className="score-summary">
-          <div className="score-summary__icon">{score.correct === score.total ? '🎉' : '📝'}</div>
+          {/* 円相 — the enso brush stroke, drawn once on mount */}
+          <svg className="score-summary__icon" viewBox="0 0 100 100" aria-hidden>
+            <circle
+              cx="50" cy="50" r="42"
+              fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
+              strokeDasharray="240 28"
+              transform="rotate(-30 50 50)"
+            />
+          </svg>
           <h2 className="score-summary__title">
             {score.correct} / {score.total}
           </h2>
           <p className="score-summary__text">
             {score.correct === score.total
-              ? 'Perfect score! Well done!'
-              : `${score.correct} correct out of ${score.total}`}
+              ? 'a complete breath.'
+              : score.correct === 0
+                ? 'the beginning of attention.'
+                : `${score.correct} of ${score.total} — quiet progress.`}
           </p>
           <button className="score-summary__button" onClick={() => {
             setShowScore(false);
@@ -803,7 +813,7 @@ export default function PracticePage() {
             setSentenceResults([]);
             initPractice();
           }}>
-            Try Again
+            begin again
           </button>
         </div>
       </div>
@@ -966,6 +976,12 @@ export default function PracticePage() {
       </aside>
 
       <div className="immersive-content">
+        {/* wabi-sabi masthead — a single quiet word, with breath to its right */}
+        <header className="masthead" aria-label="page header">
+          <h1 className="masthead__brand">dictation.</h1>
+          <p className="masthead__sub">no. {String(currentIndex + 1).padStart(2, '0')} of {String(sentences.length).padStart(2, '0')}</p>
+        </header>
+
         {currentSentence && (
           <>
             <AudioPlayerBar

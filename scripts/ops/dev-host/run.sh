@@ -3,17 +3,35 @@
 # dev-host/run.sh — manage DEVELOPMENT container lifecycle.
 #
 # ─── What this is ─────────────────────────────────────────────────────────
-# Runs dev containers with **hot-reload**:
-#   • ./backend  and  ./frontend  are bind-mounted INTO the container.
-#   • Backend  uses `uvicorn --reload` — restart on .py change.
-#   • Frontend uses `next dev` (Next.js dev server) — HMR on .tsx/.css change.
-#   • Backend pip deps are baked into the image at build time
-#     (backend/Dockerfile.dev). Edit requirements.txt → rebuild via
-#     build_image.sh, then restart.
-#   • Frontend npm deps are hash-gated at start via frontend/entrypoint.sh:
-#     npm install only when package.json / package-lock.json SHA256
-#     changes. Named docker volume (frontend_dev-node_modules) on
-#     /app/node_modules keeps installed deps across container recreates.
+# Runs dev containers with **hot-reload** via two mechanisms:
+#
+#   Backend  — bind-mounted: ./backend → /app, with `uvicorn --reload`
+#              picking up .py changes. Pip deps are baked into the image
+#              at build time (backend/Dockerfile.dev). Edit
+#              requirements.txt → rebuild via build_image.sh, then
+#              restart.
+#
+#   Frontend — compose-watch layout: source baked into the image as a
+#              baseline; `develop.watch` rules in docker-compose.dev.yml
+#              sync hot paths into the container at runtime via a
+#              background `docker compose watch` process. `start` spawns
+#              this process automatically (PID in
+#              .compose-frontend-watch.pid, log in
+#              .compose-frontend-watch.log); `stop` kills it. `watch`
+#              runs the same process in the foreground for users who
+#              want to see sync events live.
+#
+#              Hot path semantics:
+#                • src/* edits           → next dev HMR (live, no restart)
+#                • package.json edits    → sync overlay; run.sh restart
+#                                          makes entrypoint.sh detect
+#                                          hash mismatch and re-install
+#                • Dockerfile / configs  → build_image.sh && restart
+#
+#              npm deps are NOT protected by a named volume anymore —
+#              container recreate wipes node_modules. entrypoint.sh
+#              reinstalls on cold start (or skips on warm start via
+#              hash + .package-lock.json gate).
 #
 # ─── Database identity from image labels ─────────────────────────────────
 # Same as prod: the db image's labels (type-any-language.db.user / .db.name)
@@ -38,20 +56,27 @@
 # ─── Usage ────────────────────────────────────────────────────────────────
 #   ./scripts/ops/dev-host/run.sh setup    # first-time: 拉/检查 db image + build dev apps
 #   ./scripts/ops/dev-host/run.sh doctor   # run pre-flight environment checks
-#   ./scripts/ops/dev-host/run.sh start    # docker compose up -d (dev compose)
-#   ./scripts/ops/dev-host/run.sh stop     # docker compose down
+#   ./scripts/ops/dev-host/run.sh start    # docker compose up -d + background compose watch
+#   ./scripts/ops/dev-host/run.sh stop     # stop compose watch + docker compose down
 #   ./scripts/ops/dev-host/run.sh restart  # hard restart (recreate)
 #   ./scripts/ops/dev-host/run.sh reload   # alias for restart
+#   ./scripts/ops/dev-host/run.sh watch    # foreground compose watch (Ctrl+C to exit)
 #   ./scripts/ops/dev-host/run.sh logs     # docker compose logs -f
 #   ./scripts/ops/dev-host/run.sh status   # docker compose ps
 #
 # Quick reference — when to use what:
-#   • Edit backend/*.py / frontend/src/* → just save. Hot-reload handles it.
-#   • Edit backend/requirements.txt or frontend/package.json → just save.
-#     entrypoint.sh picks it up on next container recreate (use `restart`).
+#   • Edit backend/*.py              → just save. uvicorn --reload handles it.
+#   • Edit frontend/src/*            → just save. compose watch + next dev HMR.
+#   • Edit frontend/package.json     → save + ./run.sh restart (entrypoint re-installs).
+#   • Edit backend/requirements.txt  → ./scripts/ops/dev-host/build_image.sh && restart.
 #   • Edit Dockerfile / .dockerignore → ./scripts/ops/dev-host/build_image.sh && restart.
-#   • Edit docker-compose.dev.yml (e.g. ALLOWED_ORIGINS default) → restart.
+#   • Edit docker-compose.dev.yml (e.g. ALLOWED_ORIGINS default, develop.watch) → restart.
 #   • Edit nginx/* → not applicable (dev has no nginx).
+#
+# Troubleshooting the watch process:
+#   • tail -f .compose-frontend-watch.log   # see what compose watch is doing
+#   • kill $(cat .compose-frontend-watch.pid)  # kill it manually
+#   • rm .compose-frontend-watch.pid         # clear stale PID after manual kill
 #
 
 set -e
@@ -115,6 +140,15 @@ DB_URL_FILE="${SECRETS_DIR}/database_url"
 COMPOSE_FILE="docker-compose.dev.yml"
 BACKEND_IMAGE="english_backend_dev"
 FRONTEND_IMAGE="english_frontend_dev"
+
+# compose-watch background process. The frontend dev container doesn't
+# use a bind mount anymore (see docker-compose.dev.yml `develop.watch`)
+# — instead, `docker compose watch` runs as a long-lived process that
+# syncs src/ + package files into the container. We auto-spawn it from
+# cmd_start (nohup, detached) and kill it from cmd_stop. PID + log live
+# at the repo root so they're easy to inspect / clean.
+WATCH_PID_FILE=".compose-frontend-watch.pid"
+WATCH_LOG_FILE=".compose-frontend-watch.log"
 
 # ---------------------------------------------------------------------------
 # inspect_db_image_labels
@@ -210,6 +244,70 @@ write_secrets() {
     fi
     printf '%s' "$encoded_pw" > "$DB_URL_FILE"
     chmod 600 "$DB_URL_FILE"
+}
+
+# ---------------------------------------------------------------------------
+# start_compose_watch
+# Detach `docker compose watch` so it runs alongside the up -d containers.
+# No-op if already running (PID file + kill -0 check). The watch process
+# reads `develop.watch` from docker-compose.dev.yml and syncs src/ +
+# package files into the frontend container at runtime — replacing the
+# old bind-mount hot-reload path.
+#
+# Idempotent: re-running start while watch is alive just logs and returns.
+# ---------------------------------------------------------------------------
+start_compose_watch() {
+    if [ -f "$WATCH_PID_FILE" ]; then
+        local existing_pid
+        existing_pid="$(cat "$WATCH_PID_FILE" 2>/dev/null || echo '')"
+        if [ -n "$existing_pid" ] && kill -0 "$existing_pid" 2>/dev/null; then
+            info "compose watch 已在运行 (PID $existing_pid, log: $WATCH_LOG_FILE)"
+            return 0
+        fi
+        # Stale PID file (process gone) — clean up and proceed.
+        rm -f "$WATCH_PID_FILE"
+    fi
+
+    info "后台启动 docker compose watch (frontend sync)..."
+    # nohup + & detaches the process from this shell so it survives
+    # run.sh exit. Redirect to log file (not /dev/null) so operators
+    # can debug sync issues. The `disown` is belt-and-suspenders on
+    # shells that otherwise keep watch in the job table.
+    nohup $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" watch \
+        > "$WATCH_LOG_FILE" 2>&1 &
+    local pid=$!
+    disown "$pid" 2>/dev/null || true
+    echo "$pid" > "$WATCH_PID_FILE"
+    info "  compose watch PID=$pid → $WATCH_LOG_FILE"
+}
+
+# ---------------------------------------------------------------------------
+# stop_compose_watch
+# Kill the background compose watch (if running). SIGTERM first, escalate
+# to SIGKILL after a short grace period. Idempotent — safe to call when
+# no watch is running.
+# ---------------------------------------------------------------------------
+stop_compose_watch() {
+    if [ ! -f "$WATCH_PID_FILE" ]; then
+        return 0
+    fi
+    local pid
+    pid="$(cat "$WATCH_PID_FILE" 2>/dev/null || echo '')"
+    rm -f "$WATCH_PID_FILE"
+    if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then
+        return 0
+    fi
+    info "停止 compose watch (PID $pid)..."
+    kill "$pid" 2>/dev/null || true
+    local i
+    for i in 1 2 3 4 5; do
+        kill -0 "$pid" 2>/dev/null || break
+        sleep 1
+    done
+    if kill -0 "$pid" 2>/dev/null; then
+        warn "compose watch 5s 内未退出 — SIGKILL"
+        kill -9 "$pid" 2>/dev/null || true
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -329,180 +427,9 @@ cmd_doctor() {
 # explicitly: docker pull <full-image>.)
 # ---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# Auto-bake helpers (used by cmd_setup when local CMS env is sufficient)
-#
-# On a single-host CMS+dev setup (.env.db present + DOCKER_REGISTRY unset),
-# the CMS content-production pipeline normally requires several manual
-# steps (start postgres, sync, sentences, audio, bake). These helpers let
-# cmd_setup run the whole chain automatically. Every helper is idempotent
-# — re-running setup on a populated host is cheap, and `sentences` / `audio`
-# are skip-existing on their end so re-runs don't burn API calls.
-# ---------------------------------------------------------------------------
-
-# setup_resolve_pg_password — print POSTGRES_PASSWORD (no trailing newline).
-# Sources (in order): shell env > .secrets/postgres_password > .env.db.
-setup_resolve_pg_password() {
-    if [ -n "${POSTGRES_PASSWORD:-}" ]; then
-        printf '%s' "$POSTGRES_PASSWORD"
-        return 0
-    fi
-    if [ -f "$SECRETS_DIR/postgres_password" ]; then
-        cat "$SECRETS_DIR/postgres_password"
-        return 0
-    fi
-    if [ -f "$PROJECT_DIR/.env.db" ]; then
-        local pw
-        pw="$(grep -E '^POSTGRES_PASSWORD=' "$PROJECT_DIR/.env.db" | head -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//')"
-        if [ -n "$pw" ]; then
-            printf '%s' "$pw"
-            return 0
-        fi
-    fi
-    err "POSTGRES_PASSWORD 不可解析 — 在 .env.db 里设 POSTGRES_PASSWORD=... 或"
-    err "确保 .secrets/postgres_password 存在"
-    return 1
-}
-
-# setup_ensure_source_db — make sure a postgres source for the bake is
-# reachable. Tries three strategies, in order:
-#   1. english_db / english_db_dev container already running — use it.
-#   2. local postgres reachable at POSTGRES_HOST:POSTGRES_PORT — use it.
-#   3. spin up a fresh english_db container (postgres:15-alpine) with the
-#      right POSTGRES_USER / POSTGRES_DB / POSTGRES_PASSWORD, published on
-#      $POSTGRES_PORT (default 5432) so content.sh on the host can reach it.
-# Returns 0 if a source db is reachable after the call; 1 otherwise.
-setup_ensure_source_db() {
-    # 1. named container already running?
-    local running
-    running="$(docker ps --format '{{.Names}}' 2>/dev/null | grep -E '^(english_db|english_db_dev)$' | head -1 || true)"
-    if [ -n "$running" ]; then
-        ok "  source db: container '$running' 已在跑"
-        return 0
-    fi
-
-    local pg_user="${POSTGRES_USER:-english_user}"
-    local pg_db="${POSTGRES_DB:-english_learning}"
-    local pg_host="${POSTGRES_HOST:-localhost}"
-    local pg_port="${POSTGRES_PORT:-5432}"
-
-    # 2. local postgres reachable at POSTGRES_HOST:POSTGRES_PORT?
-    #    Skip silently if host has no psql — fall through to docker run.
-    if command -v psql &>/dev/null && \
-       PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$pg_host" -p "$pg_port" \
-            -U "$pg_user" -d "$pg_db" -tAc "SELECT 1" &>/dev/null; then
-        ok "  source db: 本地 postgres ($pg_host:$pg_port) 可达"
-        return 0
-    fi
-
-    # 3. spin up a fresh english_db container. Re-use a stopped one if present
-    #    (typical after a `docker stop` between sessions — keeps the data vol).
-    info "  source db: 本地无可达 postgres — 自动起 english_db 容器..."
-    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qE '^english_db$'; then
-        info "    english_db 容器存在但未跑 — 启动"
-        if ! docker start english_db >/dev/null; then
-            err "    docker start english_db 失败"
-            return 1
-        fi
-    else
-        info "    创建 english_db (postgres:15-alpine)..."
-        if ! docker run -d \
-                --name english_db \
-                -e "POSTGRES_USER=$pg_user" \
-                -e "POSTGRES_DB=$pg_db" \
-                -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
-                -p "${pg_port}:5432" \
-                -v cms-source-data:/var/lib/postgresql/data \
-                postgres:15-alpine >/dev/null; then
-            err "    docker run english_db 失败 — 检查 docker / 端口冲突 (${pg_host}:${pg_port})"
-            return 1
-        fi
-    fi
-
-    # Wait up to 30s for the container to accept connections. Use docker exec
-    # so this works even on hosts without psql (Windows / macOS without
-    # postgres-client installed) — pg_isready is bundled inside the image.
-    info "    等 english_db 就绪 (最多 30s)..."
-    local i
-    for i in $(seq 1 30); do
-        if docker exec english_db pg_isready -U "$pg_user" -d "$pg_db" &>/dev/null; then
-            ok "  source db: english_db 就绪"
-            return 0
-        fi
-        sleep 1
-    done
-    err "    english_db 30s 内未就绪 — 看 docker logs english_db 找原因"
-    return 1
-}
-
-# setup_run_content_step <desc> <subcommand> [args...]
-# Run a content.sh subcommand with progress logging. Returns 0/1.
-setup_run_content_step() {
-    local desc="$1"; shift
-    info "  [content.sh] $desc..."
-    if ! "$SCRIPT_DIR/../db/content.sh" "$@"; then
-        err "  [content.sh] $desc 失败 (退出码 $?)"
-        return 1
-    fi
-    ok "  [content.sh] $desc ok"
-    return 0
-}
-
-# setup_auto_bake — full auto-bake chain, used by cmd_setup when local
-# CMS env is sufficient (.env.db present + DOCKER_REGISTRY unset).
-#
-# Hard-fail on init-schema / sync / bake — those should only fail if env
-# is broken (no .env.db, no docker, etc.) and there's no useful recovery.
-# Best-effort on sentences / audio — those depend on external services
-# (OpenAI / Tencent TTS) that can rate-limit or run out of quota. If they
-# fail, log loud warnings and let the bake proceed with whatever content
-# sync produced. The dev runtime will still come up; /api/sentences just
-# returns [] until the next setup run fills them in.
-setup_auto_bake() {
-    # Resolve POSTGRES_PASSWORD (also exports it so content.sh + bake can read).
-    POSTGRES_PASSWORD="$(setup_resolve_pg_password)" || return 1
-    export POSTGRES_PASSWORD
-
-    # Source .env.db so POSTGRES_USER/HOST/PORT/DB / AI_* / TENCENT_* / AUDIO_DIR resolve.
-    set -a; . "$PROJECT_DIR/.env.db"; set +a
-
-    # (a) ensure source db.
-    info "  (a) ensure source db"
-    setup_ensure_source_db || return 1
-
-    # (b) schema (idempotent — CREATE TABLE IF NOT EXISTS).
-    setup_run_content_step "init-schema" init-schema || return 1
-
-    # (c) vocab CSVs → DB (idempotent — skip-existing per commit 0a14705).
-    setup_run_content_step "sync (CSVs → vocab)" sync || return 1
-
-    # (d) AI-fill sentences. Best-effort: AI_* missing → skip; API fails →
-    # warn and continue (dev will still come up, /api/sentences returns []).
-    if [ -n "${AI_API_KEY:-}" ] && [ -n "${AI_BASE_URL:-}" ] && [ -n "${AI_MODEL:-}" ]; then
-        setup_run_content_step "sentences (AI-fill)" sentences || \
-            warn "  sentences 失败 — 跳过 (dev 起来后 /api/sentences 会返回空)"
-    else
-        warn "  跳过 sentences (AI_API_KEY / AI_BASE_URL / AI_MODEL 没设齐)"
-    fi
-
-    # (e) TTS audio. All-or-nothing: any TENCENT_* missing → skip.
-    if [ -n "${TENCENT_SECRET_ID:-}" ] && [ -n "${TENCENT_SECRET_KEY:-}" ] && \
-       [ -n "${TENCENT_APP_ID:-}" ]; then
-        setup_run_content_step "audio (TTS-fill)" audio || \
-            warn "  audio 失败 — 跳过 (sentences.audio_url 没填 /audio/<hash>.mp3 会 404)"
-    else
-        warn "  跳过 audio (TENCENT_* 没填齐)"
-    fi
-
-    # (f) bake.
-    info "  (f) bake_image.sh"
-    if ! "$SCRIPT_DIR/../db/bake_image.sh"; then
-        err "  bake_image.sh 失败 — 看上面 export_bundle 的错误"
-        return 1
-    fi
-    ok "  bake_image.sh ok"
-    return 0
-}
+# Auto-bake chain lives in scripts/ops/db/full_bake.sh (single-host CMS+dev
+# fallback when .env.db is present and the registry has no db image to pull).
+# This file just calls it — see cmd_setup below.
 
 # ---------------------------------------------------------------------------
 # cmd_setup — first-time (or post-reset) environment bootstrap.
@@ -615,9 +542,9 @@ cmd_setup() {
             fi
             # 单机 CMS+dev:auto-bake 跑完整链 (source db + 内容 + 烘焙)。
             # 每步都是幂等的,已部署的 host 重跑也不会浪费 API 调用。
-            info "  调 setup_auto_bake (source db + 内容 + 烘焙)..."
+            info "  调 scripts/ops/db/full_bake.sh (source db + 内容 + 烘焙)..."
             echo ""
-            if setup_auto_bake; then
+            if "$SCRIPT_DIR/../db/full_bake.sh"; then
                 echo ""
                 ok "  自动 bake 完成"
                 got_image=1
@@ -625,7 +552,7 @@ cmd_setup() {
                 err "  自动 bake 失败 — 上面的错误说明哪步挂了"
                 info "  手动排查:"
                 info "    docker logs english_db          # 如果 source db 起不来"
-                info "    ./scripts/ops/db/content.sh doctor   # 内容管线 preflight"
+                info "    ./scripts/ops/db/full_bake.sh doctor   # 内容管线 preflight"
                 return 1
             fi
         fi
@@ -839,15 +766,30 @@ cmd_start() {
     # `--pull=missing` and would re-pull, overwriting a fresh local
     # build or hitting 429 on registries that don't host the image.
     $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d --pull=never
+
+    # Spawn the compose watch process in background — it consumes
+    # `develop.watch` from docker-compose.dev.yml and syncs src/ +
+    # package files into the frontend container (replacing the old
+    # bind-mount hot-reload). Detached via nohup; PID + log tracked so
+    # `stop` can clean up. Idempotent — re-running start is a no-op
+    # if watch is already alive.
+    start_compose_watch
+
     ok "服务已启动（热重载已开启）"
     echo -e "  前端:   ${_LIB_BLUE}http://localhost:3000${_LIB_NC}"
     echo -e "  后端:   ${_LIB_BLUE}http://localhost:8000${_LIB_NC}"
     echo -e "  API文档: ${_LIB_BLUE}http://localhost:8000/docs${_LIB_NC}"
     echo "  db.user=$DB_USER  db.name=$DB_NAME  content.version=$DB_VERSION"
+    echo "  compose watch: tail -f $WATCH_LOG_FILE   (前台跑: $0 watch)"
 }
 
 cmd_stop() {
     require_docker
+    # Stop the watch process FIRST so it doesn't try to sync into a
+    # container that's being torn down (would log noise + maybe race
+    # against file removal).
+    stop_compose_watch
+
     # Compose evaluates the full file at every subcommand (including
     # `down`), so DB_USER / DB_NAME must be exported first — otherwise
     # the ${DB_USER:?...} interpolation in the db service's environment
@@ -858,6 +800,23 @@ cmd_stop() {
     info "停止开发容器..."
     $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" down
     ok "服务已停止"
+}
+
+# ---------------------------------------------------------------------------
+# cmd_watch — foreground compose watch (alternative to the background one
+# auto-spawned by `start`). Useful when you want to SEE the sync events
+# in your terminal (Ctrl+C to stop). `start` already runs a detached
+# watch — running `watch` in another terminal is fine too (compose
+# tolerates multiple watchers but the second one just re-syncs whatever
+# the first already synced).
+# ---------------------------------------------------------------------------
+cmd_watch() {
+    require_docker
+    info "启动 compose watch (前台,Ctrl+C 退出)..."
+    # If a background watch is already running, kill it first so we
+    # don't end up with two watchers competing.
+    stop_compose_watch
+    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" watch
 }
 
 cmd_restart() {
@@ -914,10 +873,11 @@ usage() {
 命令:
   setup    首次环境引导: 拉/检查 db image,build 缺失的 dev app images,无 start 副作用
   doctor   跑完整环境检查（不修改任何东西，纯只读）
-  start    启动开发容器（热重载）。用本地已有 image,不再 auto-pull
-  stop     停止开发容器
+  start    启动开发容器（热重载）+ 后台 spawn compose watch,自动 sync 源码/依赖变更
+  stop     停止 compose watch + 开发容器
   restart  重启容器并重新读取 secrets (≈5s, 不重 build image)
   reload   同 restart —— 别名，语义更清晰
+  watch    前台跑 compose watch (Ctrl+C 退出) —— start 已自动 spawn 后台 watch,这个是给想看 sync 日志的人
   migrate  对运行中的 runtime db 跑 pending schema migrations (sidecar python + runner.py)
   logs     跟踪日志 (Ctrl+C 退出)
   status   查看容器状态
@@ -925,12 +885,19 @@ usage() {
 典型工作流:
   ./scripts/ops/dev-host/run.sh setup         # 首次或重置后: 一次性就位所有 image
   ./scripts/ops/dev-host/run.sh doctor        # 跑一遍检查，看环境是否就绪
-  ./scripts/ops/dev-host/run.sh start         # 启动 (本地 image,不再 auto-pull)
+  ./scripts/ops/dev-host/run.sh start         # 启动 (本地 image,不再 auto-pull,后台 watch 自动跑)
   ./scripts/ops/dev-host/run.sh restart       # 改 docker-compose.dev.yml / .secrets 后用这个
   ./scripts/ops/dev-host/run.sh migrate       # 改 db/pipeline/migrations/versions/*.py 后
   ./scripts/ops/dev-host/build_image.sh && \\
     ./scripts/ops/dev-host/run.sh restart     # 改代码 / Dockerfile 后
   ./scripts/ops/dev-host/run.sh logs backend  # 跟踪 backend 日志
+  tail -f .compose-frontend-watch.log         # 看前端 sync 日志
+  kill \$(cat .compose-frontend-watch.pid)     # 手动停后台 watch（一般不用）
+
+热重载机制:
+  • 改 frontend/src/*       → compose watch sync → next dev HMR（无需重启）
+  • 改 frontend/package.json → compose watch sync → run.sh restart 让 entrypoint 重装
+  • 改 Dockerfile / 配置     → run.sh build_image.sh && run.sh restart
 
 环境覆盖:
   ALLOWED_ORIGINS=https://my.domain ./scripts/ops/dev-host/run.sh start
@@ -948,6 +915,7 @@ case "${1:-}" in
     stop)    cmd_stop "$@" ;;
     restart) cmd_restart "$@" ;;
     reload)  cmd_reload "$@" ;;
+    watch)   cmd_watch "$@" ;;
     migrate) cmd_migrate "$@" ;;
     logs)    shift; cmd_logs "$@" ;;
     status)  cmd_status "$@" ;;

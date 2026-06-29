@@ -35,7 +35,7 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generat
 │   │   ├── schemas/     # Pydantic request/response models
 │   └── requirements.txt
 │
-├── frontend/             # React + TypeScript (react-scripts 5.0.1)
+├── frontend/             # Next.js 14 (App Router) + React 18 + TypeScript
 │   └── src/app/         # API client + main page
 │
 ├── db/                   # The DB service — image is content-baked
@@ -100,7 +100,7 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 ```bash
 ./scripts/ops/dev-host/run.sh setup          # First-time: 拉/检查 db image + build dev apps
 ./scripts/ops/dev-host/run.sh doctor         # Pre-flight
-./scripts/ops/dev-host/run.sh start          # compose up (hot-reload, bind-mounted)
+./scripts/ops/dev-host/run.sh start          # compose up + 后台 spawn compose watch(自动 sync src/package.json)
 ./scripts/ops/dev-host/run.sh stop
 ./scripts/ops/dev-host/run.sh restart        # Hard restart (recreate + re-read secrets)
 ./scripts/ops/dev-host/run.sh migrate        # Apply pending schema migrations to runtime db

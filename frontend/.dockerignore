@@ -1,0 +1,47 @@
+# frontend/.dockerignore — exclude everything that shouldn't be baked
+# into the dev image. Critical with the new compose-watch layout:
+# Dockerfile.dev does `COPY . .` to seed the container with a source
+# baseline; without this file, .next/, node_modules/ from the host
+# would get baked in and confuse the dev runtime.
+
+# ── Build artifacts (regenerated inside the container) ───────────────────
+node_modules/
+.next/
+out/
+build/
+
+# ── VCS metadata ─────────────────────────────────────────────────────────
+.git/
+.gitignore
+.gitattributes
+
+# ── Secrets — never bake into any image ──────────────────────────────────
+.env
+.env.*
+!.env.example*
+
+# ── Editor / IDE / OS junk ───────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# ── Logs and runtime artifacts ───────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.eslintcache
+
+# ── Test / coverage output ───────────────────────────────────────────────
+coverage/
+.nyc_output/
+
+# ── TypeScript incremental build cache ───────────────────────────────────
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# ── entrypoint hash file (runtime artifact, never bake in) ──────────────
+.package-lock.sha256

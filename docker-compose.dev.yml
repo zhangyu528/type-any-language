@@ -80,7 +80,31 @@ services:
         condition: service_healthy
 
   # -------------------------------------------------------------------------
-  # Frontend — CRA dev server (HMR) on :3000
+  # Frontend — Next.js dev server (HMR) on :3000
+  #
+  # Hot-reload layout (compose-watch based, no source bind mount):
+  #   • Dockerfile.dev bakes the source tree + `npm ci` deps into the
+  #     image as a baseline. .dockerignore keeps node_modules / .next /
+  #     .git out of the image.
+  #   • `develop.watch` (consumed by `docker compose watch`) syncs the
+  #     hot paths into /app at runtime:
+  #       - src/ + public/        → live HMR via next dev's watcher
+  #       - package*.json         → entrypoint detects hash change on
+  #                                 next start and runs `npm install`
+  #                                 (no image rebuild required)
+  #       - next.config.js / tsconfig.json / next-env.d.ts
+  #                               → sync overlay; restart picks up
+  #       - entrypoint.sh         → sync overlay; restart picks up
+  #   • node_modules is in the container filesystem (NOT a named volume):
+  #     container recreate wipes it, but entrypoint.sh reinstalls on
+  #     cold start and skips on warm start (hash + .package-lock.json
+  #     double-check). Trade-off vs the previous named-volume layout:
+  #     lose the "warm start with deps preserved across `compose down`"
+  #     property, gain "no bind mount needed, no race between bind and
+  #     volume mount, no host frontend/.next pollution".
+  #
+  # Run via:  docker compose watch   (or ./scripts/ops/dev-host/run.sh
+  #           start, which auto-spawns `compose watch` in background).
   # -------------------------------------------------------------------------
   frontend:
     image: english_frontend_dev:${FRONTEND_IMAGE_TAG:-latest}
@@ -97,16 +121,47 @@ services:
       # In dev, the React app talks to the backend on the host directly
       # (no nginx in the path). NEXT_PUBLIC_API_URL is build-time.
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
-    volumes:
-      # Hot-reload source mount — node_modules is kept in-container
-      - ./frontend:/app
-      # Named (not anonymous) volume so node_modules survives `compose down`.
-      # Anonymous volumes are deleted with the container on down, which
-      # races the entrypoint's hash-skip optimization into a state where
-      # the hash file (bind-mounted at /app) says "deps already installed"
-      # but /app/node_modules is empty → `next: not found` on every start.
-      # The frontend_dev-node_modules volume preserves deps across down/up.
-      - frontend_dev-node_modules:/app/node_modules
+    # No `volumes:` block — source is baked into the image, hot paths
+    # are synced by compose watch at runtime (see develop.watch below).
+    develop:
+      watch:
+        # --- Source code (live HMR) ---
+        - action: sync
+          path: ./frontend/src
+          target: /app/src
+        - action: sync
+          path: ./frontend/public
+          target: /app/public
+
+        # --- Package files (sync overlay; entrypoint picks up on restart) ---
+        - action: sync
+          path: ./frontend/package.json
+          target: /app/package.json
+        - action: sync
+          path: ./frontend/package-lock.json
+          target: /app/package-lock.json
+
+        # --- Configs (sync overlay; restart picks up changes) ---
+        - action: sync
+          path: ./frontend/next.config.js
+          target: /app/next.config.js
+        - action: sync
+          path: ./frontend/tsconfig.json
+          target: /app/tsconfig.json
+        - action: sync
+          path: ./frontend/next-env.d.ts
+          target: /app/next-env.d.ts
+
+        # --- Dev-only scripts ---
+        # entrypoint.sh sync: the running shell already has the old
+        # version mapped (sh re-reads line by line but doesn't re-parse
+        # the file mid-run). New containers / restarts pick up the
+        # synced version. `sh ./entrypoint.sh` doesn't need +x, so the
+        # mode bit isn't an issue.
+        - action: sync
+          path: ./frontend/entrypoint.sh
+          target: /app/entrypoint.sh
+
     ports:
       - "3000:3000"
     # Dev mode: Next.js dev server with HMR. The Dockerfile's CMD also
@@ -121,4 +176,3 @@ services:
 volumes:
   db-data:
   shared-audio:
-  frontend_dev-node_modules:

@@ -1,33 +1,62 @@
-/* ========================================
-   Type Any Language - Immersive Focus Theme
-   ======================================== */
+/* ============================================================
+   WABI-SABI · 侘寂
+   An exercise in listening, breath, and quiet attention.
+   ------------------------------------------------------------
+   Aesthetic — Japanese restraint:
+     · 和紙 washi paper, 墨 sumi ink, 朱 vermilion (used once)
+     · Fraunces as the only voice — italic for breath
+     · 円相 enso brush stroke as the only ornament
+     · 間 ma — negative space is the composition
+     · asymmetry, imperfection, slowness
+   ============================================================ */
+
 :root {
-  /* Colors - Immersive Focus (深炭灰 + 中心微暖光晕，告别纯黑疲劳) */
-  --color-bg-primary: #0A0A0A;
-  --color-text-primary: #E5E5E5;
-  --color-text-muted: #71717A;
-  --color-accent: #F59E0B;
-  --color-success: #22C55E;
-  --color-error: #F87171;             /* red-500 → red-400：柔和但仍醒目 */
+  /* Paper (和紙) */
+  --paper:        #F0EDE4;   /* warm washi — the ground */
+  --paper-warm:   #E8E2D2;   /* slightly deeper, for hover */
+  --paper-deep:   #DDD5C0;   /* deepest cream */
+
+  /* Sumi ink (墨) */
+  --ink:          #1B1A18;   /* sumi — almost black, slight warmth */
+  --ink-soft:     #3F3A33;   /* faded ink wash */
+  --ink-faint:    #807A6F;   /* very faded — ghost text */
+  --ink-ghost:    #B5AE9F;   /* barely visible */
+
+  /* Vermilion (朱色) — used sparingly, only for state */
+  --vermilion:        #B83A2B;
+  --vermilion-soft:   #D4624F;
+  --vermilion-fade:   rgba(184, 58, 43, 0.08);
+
+  /* Hairline rule (墨線) */
+  --rule:         #C5BDA9;   /* barely visible */
+  --rule-soft:    #D8D1BD;
 
   /* Typography */
   --font-display: 'Fraunces', Georgia, serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
-  --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-body:    'Fraunces', Georgia, 'PingFang SC', 'Microsoft YaHei', serif;
+  --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
 
-  /* Spacing */
+  /* Type voices — Fraunces, all italic by default in usage */
+  --voice-display: "opsz" 144, "SOFT" 40, "WONK" 0;   /* the lead — calligraphic */
+  --voice-title:   "opsz" 36,  "SOFT" 50, "WONK" 0;   /* masthead word */
+  --voice-card:    "opsz" 24,  "SOFT" 50, "WONK" 0;
+  --voice-body:    "opsz" 14,  "SOFT" 50, "WONK" 0;   /* UI labels */
+
+  /* Spacing — generous, breathing */
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
   --space-4: 1rem;
   --space-6: 1.5rem;
-  --space-8: 2rem;
-  --space-10: 2.5rem;
-  --space-12: 3rem;
-  --space-16: 4rem;
+  --space-8: 2.5rem;
+  --space-12: 5rem;
+  --space-16: 8rem;
+  --space-20: 12rem;
 }
 
-/* Reset */
-*,
-*::before,
-*::after {
+/* ============================================================
+   Reset
+   ============================================================ */
+*, *::before, *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
@@ -36,222 +65,643 @@
 html {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 body {
   font-family: var(--font-body);
-  background-color: var(--color-bg-primary);
-  color: var(--color-text-primary);
+  font-variation-settings: var(--voice-body);
+  font-style: italic;            /* default — everything is breath */
+  color: var(--ink);
   min-height: 100vh;
-  overflow: hidden;
-  font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
+  overflow-x: hidden;
+  font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1, 'onum' 1;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: var(--paper);
+  /* Washi texture: warm radial wash + faint grain */
+  background-image:
+    radial-gradient(ellipse 70% 50% at 50% 20%, rgba(255, 250, 235, 0.5) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 80% 80%, rgba(184, 58, 43, 0.025) 0%, transparent 70%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.10  0 0 0 0 0.09  0 0 0 0 0.07  0 0 0 0.10 0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.4'/></svg>");
+  background-attachment: fixed, fixed, fixed;
+  background-size: auto, auto, 240px 240px;
 }
 
 ::selection {
-  background: var(--color-accent);
-  color: var(--color-bg-primary);
+  background: var(--vermilion);
+  color: var(--paper);
 }
 
-/* 键盘焦点兜底：所有 button 默认可见焦点轮廓 */
-button:focus-visible {
-  outline: 2px solid var(--color-accent, #f59e0b);
-  outline-offset: 2px;
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 1px solid var(--vermilion);
+  outline-offset: 6px;
 }
 
-/* ========================================
-   Immersive Container
-   ======================================== */
+/* ============================================================
+   Immersive container — the scroll, the breath
+   ============================================================ */
 .immersive-container {
   min-height: 100vh;
-  width: 100vw;
+  width: 100%;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  background: var(--color-bg-primary);
+  padding: clamp(40px, 8vh, 96px) clamp(24px, 5vw, 80px);
   position: relative;
-  overflow: hidden;
 }
 
-/* Vignette Effect - 中心微暖光晕 + 边缘暗角 */
-.immersive-container::before {
+/* Single vermilion wash on feedback — a stain, not a glow */
+.immersive-container.feedback-correct::after,
+.immersive-container.feedback-incorrect::after {
   content: '';
-  position: absolute;
+  position: fixed;
   inset: 0;
-  background: radial-gradient(ellipse at center, rgba(245, 158, 11, 0.04) 0%, transparent 50%, rgba(0,0,0,0.8) 100%);
   pointer-events: none;
-  z-index: 1;
+  z-index: 0;
+  animation: inkBleed 1.2s ease-out;
 }
 
-/* Feedback Effects */
 .immersive-container.feedback-correct::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at center, rgba(34, 197, 94, 0.15) 0%, transparent 60%);
-  animation: pulse-feedback 0.6s ease-out;
-  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, var(--vermilion-fade) 0%, transparent 50%);
 }
 
 .immersive-container.feedback-incorrect::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at center, rgba(239, 68, 68, 0.15) 0%, transparent 60%);
-  animation: pulse-feedback 0.6s ease-out;
-  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, rgba(184, 58, 43, 0.05) 0%, transparent 50%);
 }
 
-@keyframes pulse-feedback {
-  0% { opacity: 0; transform: scale(0.8); }
-  50% { opacity: 1; }
-  100% { opacity: 0; transform: scale(1.2); }
+@keyframes inkBleed {
+  0%   { opacity: 0; transform: scale(0.95); }
+  30%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.05); }
 }
 
-/* ========================================
-   Loading State
-   ======================================== */
+/* ============================================================
+   Loading — three falling strokes
+   ============================================================ */
 .immersive-loading {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-6);
-  color: var(--color-text-muted);
+  gap: 24px;
+  margin: auto;
+  color: var(--ink-soft);
 }
 
 .immersive-loading p {
-  font-size: 0.875rem;
-  letter-spacing: 0.1em;
-}
-
-/* ========================================
-   Error State
-   ======================================== */
-.immersive-error {
-  color: var(--color-error);
-  font-size: 1rem;
-  padding: var(--space-6);
-}
-
-/* ========================================
-   Score Summary
-   ======================================== */
-.score-summary {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-6);
-  z-index: 10;
-  animation: fadeIn 0.5s ease-out;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.score-summary__icon {
-  font-size: 4rem;
-}
-
-.score-summary__title {
   font-family: var(--font-display);
-  font-size: 4rem;
-  font-weight: 700;
-  color: var(--color-accent);
+  font-variation-settings: var(--voice-title);
+  font-style: italic;
+  font-size: 0.95rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.08em;
 }
 
-.score-summary__text {
-  color: var(--color-text-muted);
-  font-size: 1rem;
+.immersive-loading .waveform {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
 }
 
-.score-summary__button {
-  margin-top: var(--space-8);
-  padding: var(--space-4) var(--space-10);
-  background: var(--color-accent);
-  color: var(--color-bg-primary);
-  border: none;
-  border-radius: 9999px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+.immersive-loading .waveform span {
+  display: inline-block;
+  width: 2px;
+  background: var(--ink-soft);
+  border-radius: 1px;
+  animation: inkDrop 1.4s ease-in-out infinite;
 }
 
-.score-summary__button:hover {
-  transform: scale(1.05);
-  box-shadow: 0 0 30px rgba(245, 158, 11, 0.4);
+.immersive-loading .waveform span:nth-child(1) { height: 6px;  animation-delay: 0.0s; }
+.immersive-loading .waveform span:nth-child(2) { height: 14px; animation-delay: 0.15s; }
+.immersive-loading .waveform span:nth-child(3) { height: 22px; animation-delay: 0.3s; }
+.immersive-loading .waveform span:nth-child(4) { height: 18px; animation-delay: 0.45s; }
+.immersive-loading .waveform span:nth-child(5) { height: 10px; animation-delay: 0.6s; }
+.immersive-loading .waveform span:nth-child(6) { height: 26px; animation-delay: 0.75s; }
+.immersive-loading .waveform span:nth-child(7) { height: 16px; animation-delay: 0.9s; }
+
+@keyframes inkDrop {
+  0%, 100% { opacity: 0.25; transform: scaleY(0.5); }
+  50%      { opacity: 0.85; transform: scaleY(1); }
 }
 
-/* ========================================
-   Immersive Content
-   ======================================== */
+.immersive-error {
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-title);
+  font-style: italic;
+  font-size: 1.1rem;
+  color: var(--vermilion);
+  padding: 24px;
+  margin: auto;
+  letter-spacing: 0.04em;
+}
+
+/* ============================================================
+   Immersive content — vertical scroll, lots of ma
+   ============================================================ */
 .immersive-content {
   width: 100%;
-  max-width: 800px;
-  padding: var(--space-8);
+  max-width: 680px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--space-10);
-  z-index: 10;
+  align-items: stretch;
+  gap: clamp(48px, 10vh, 96px);
+  position: relative;
+  z-index: 2;
+  animation: pageRise 1.2s ease-out;
 }
 
-/* ========================================
-   Waveform（已废弃：旧波形图被 AudioPlayerBar 替换）
-   .progress-text 仍保留给题号用
-   ======================================== */
+@keyframes pageRise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================================
+   Masthead — a single italicized word, floating
+   ============================================================ */
+.masthead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.masthead__brand {
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-title);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 1.15rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.masthead__brand .drop {
+  /* In wabi-sabi, no drop cap. Just a quiet dot. */
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--vermilion);
+  vertical-align: middle;
+  margin-right: 12px;
+  margin-bottom: 4px;
+}
+
+.masthead__rule {
+  display: none;  /* wabi-sabi removes the rule */
+}
+
+.masthead__sub {
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-body);
+  font-style: italic;
+  font-size: 0.85rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.04em;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   Library picker — text only, hairline underline
+   ============================================================ */
+.library-picker-bar {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: -24px;  /* tighten against masthead */
+}
+
+.picker {
+  display: inline-flex;
+  gap: 32px;
+  align-items: baseline;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+.picker--disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.picker--loading,
+.picker--error {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 0.85rem;
+  color: var(--ink-faint);
+  padding: 0;
+}
+
+.picker--error {
+  color: var(--vermilion);
+}
+
+.picker__field {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.picker__field--chips {
+  gap: 14px;
+}
+
+.picker__label {
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-body);
+  font-style: italic;
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  font-weight: 400;
+}
+
+.picker__label::after {
+  content: '·';
+  margin-left: 6px;
+  color: var(--rule);
+}
+
+.picker__select {
+  background: transparent;
+  border: none;
+  color: var(--ink-soft);
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-card);
+  font-style: italic;
+  font-size: 1rem;
+  padding: 4px 18px 4px 0;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.4s ease, color 0.4s ease;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='5'><path d='M1 1l3 3 3-3' fill='none' stroke='%23807A6F' stroke-width='1' stroke-linecap='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 2px center;
+  letter-spacing: 0.02em;
+}
+
+.picker__select:hover {
+  color: var(--ink);
+  border-bottom-color: var(--vermilion);
+}
+
+.picker__select option {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-style: italic;
+}
+
+.picker__chips {
+  display: inline-flex;
+  gap: 12px;
+}
+
+.picker__chip {
+  background: transparent;
+  border: none;
+  color: var(--ink-faint);
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-body);
+  font-style: italic;
+  font-size: 0.95rem;
+  padding: 2px 0;
+  cursor: pointer;
+  transition: color 0.4s ease;
+  letter-spacing: 0.02em;
+  position: relative;
+}
+
+.picker__chip:hover {
+  color: var(--ink);
+}
+
+.picker__chip--active {
+  color: var(--vermilion);
+}
+
+.picker__chip--active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 1px;
+  background: var(--vermilion);
+}
+
+/* ============================================================
+   Audio player bar — the enso circle, quiet text
+   ============================================================ */
+.audio-player-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 0;
+  margin: 0 auto;
+  color: var(--ink-soft);
+  flex-wrap: wrap;
+}
+
+/* Wave indicator — a single brush stroke */
+.audio-player-bar__waveform {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 32px;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: opacity 0.4s ease;
+}
+
+.audio-player-bar__waveform:hover {
+  opacity: 0.7;
+}
+
+.audio-player-bar__waveform svg {
+  width: 100%;
+  height: 100%;
+}
+
+.apb-bars {
+  display: block;
+  color: var(--ink-faint);
+}
+
+.apb-bar {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: opacity 0.4s ease;
+}
+
+.audio-player-bar__waveform:hover .apb-bar {
+  animation: hairline-breathe 1.6s ease-in-out infinite;
+}
+
+.apb-bars--playing .apb-bar {
+  animation: hairline-pulse 1.2s ease-in-out infinite;
+  fill: var(--vermilion);
+  opacity: 0.7;
+}
+
+@keyframes hairline-breathe {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 0.9; }
+}
+
+@keyframes hairline-pulse {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 1; }
+}
+
+/* Counter */
 .progress-text {
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-body);
+  font-style: italic;
+  font-size: 0.85rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.06em;
   font-variant-numeric: tabular-nums;
 }
 
-/* ========================================
-   Sentence Area
-   ======================================== */
+.progress-text::before { content: '· '; color: var(--rule); }
+.progress-text::after  { content: ' ·'; color: var(--rule); }
+
+/* Controls */
+.audio-player-bar__controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.apb__group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+
+.apb__divider {
+  display: inline-block;
+  width: 1px;
+  height: 20px;
+  background: var(--rule);
+  margin: 0 6px;
+}
+
+.apb__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 8px;
+  border: none;
+  background: transparent;
+  color: var(--ink-faint);
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-body);
+  font-style: italic;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: color 0.4s ease;
+}
+
+.apb__btn:hover {
+  color: var(--vermilion);
+}
+
+/* The play button — an enso circle (a single brushstroke ring, slightly imperfect) */
+.apb__btn--play {
+  width: 64px;
+  height: 64px;
+  min-width: 64px;
+  border: 1.5px solid var(--vermilion);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--vermilion);
+  padding: 0;
+  position: relative;
+  /* Subtle imperfection — the hand-drawn feel */
+  transform: rotate(-4deg);
+  transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.6s ease, color 0.6s ease;
+}
+
+.apb__btn--play:hover {
+  background: var(--vermilion);
+  color: var(--paper);
+  transform: rotate(0deg);
+}
+
+.apb__btn--play svg {
+  display: block;
+  margin-left: 2px;  /* optical centering for play triangle */
+}
+
+/* Speed dropdown */
+.apb__btn--text {
+  min-width: 36px;
+}
+
+.apb__btn--speed-trigger {
+  position: relative;
+}
+
+.apb__btn--speed-trigger[data-speed-default="false"] {
+  color: var(--vermilion);
+}
+
+.apb__btn--speed-trigger[aria-expanded="true"] {
+  color: var(--ink);
+}
+
+.apb__caret {
+  margin-left: 4px;
+  font-size: 0.65em;
+  opacity: 0.6;
+}
+
+.apb__speed-menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  min-width: 80px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  box-shadow: 0 12px 32px rgba(74, 65, 50, 0.10);
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translate(-50%, -4px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.apb__speed-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-width: 64px;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-body);
+  font-style: italic;
+  font-size: 0.85rem;
+  border-radius: 0;
+  cursor: pointer;
+  text-align: left;
+  transition: color 0.4s ease;
+}
+
+.apb__speed-option:hover {
+  color: var(--vermilion);
+}
+
+.apb__speed-option.is-active {
+  color: var(--vermilion);
+}
+
+.apb__speed-option-check {
+  margin-left: 8px;
+  color: var(--vermilion);
+}
+
+.apb__speed-option-label {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Loop button */
+.apb__btn--loop {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.apb__btn--loop[aria-pressed="true"] {
+  color: var(--vermilion);
+}
+
+.apb__btn--loop[aria-pressed="true"] svg text {
+  fill: var(--vermilion);
+}
+
+/* ============================================================
+   Sentence area — type in space, no card
+   ============================================================ */
 .sentence-area {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-8);
+  gap: clamp(40px, 6vh, 64px);
   width: 100%;
   position: relative;
+  padding: clamp(20px, 4vh, 40px) 0;
+  /* No box, no border. Just space. */
 }
 
+/* Chinese hint — a quiet preface */
 .sentence-hint {
-  font-size: 1.5rem;
-  color: #D4D4D8;             /* zinc-300：对比度 13:1，远超 WCAG AAA，仍比主文 #E5E5E5 略灰 */
-  opacity: 1;                  /* 颜色已亮，不再叠 opacity */
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-card);
   font-style: italic;
+  font-size: clamp(1rem, 2.2vw, 1.25rem);
+  color: var(--ink-faint);
   text-align: center;
   font-weight: 400;
-  letter-spacing: 0.01em;
-  margin-bottom: 12px;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  max-width: 520px;
+  padding: 0;
 }
 
+.sentence-hint::before,
+.sentence-hint::after {
+  display: none;  /* wabi-sabi — no rules */
+}
+
+/* Sentence display */
 .sentence-display {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: var(--space-3);
-  line-height: 2.5;
+  gap: 18px;
+  line-height: 2.4;
   position: relative;
+  padding: 0;
+  width: 100%;
 }
 
 .sentence-display.typewriter-mode {
   cursor: text;
-  padding: var(--space-4);
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 12px;
-}
-
-/* Typewriter Mode */
-.typewriter-mode {
-  cursor: text;
-  caret-color: transparent;
 }
 
 .typewriter-input {
@@ -262,324 +712,203 @@ button:focus-visible {
   height: 1px;
 }
 
-/* Floating Hint Box */
-.hint-box {
-  display: flex;
-  flex-direction: column;
+/* Mode selector — a single quiet line */
+.mode-selector {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 30;
+}
+
+.mode-selector__btn {
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-6);
-  background: var(--color-bg-secondary);
-  border: 1px solid var(--color-accent);
-  border-radius: 16px;
-  box-shadow: 0 0 30px rgba(245, 158, 11, 0.2);
-  animation: hintAppear 0.3s ease-out;
-  margin-top: var(--space-4);
-}
-
-@keyframes hintAppear {
-  from {
-    opacity: 0;
-    transform: translateY(10px) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.hint-box__label {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-
-.hint-box__word {
-  font-family: var(--font-mono);
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--color-accent);
-}
-
-.tips-area {
-  text-align: center;
-  margin-top: var(--space-4);
-}
-
-.tip-text {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  opacity: 0.7;
-}
-
-/* ========================================
-   Progress Dots
-   ======================================== */
-.progress-dots {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-}
-
-.dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-text-muted);
-  opacity: 0.3;
-  transition: all 0.3s;
-}
-
-.dot--current {
-  background: var(--color-accent);
-  opacity: 1;
-  transform: scale(1.3);
-  box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
-}
-
-.dot--done {
-  background: var(--color-success);
-  opacity: 0.6;
-}
-
-.dot--correct {
-  background: var(--color-success);
-  opacity: 0.9;
-}
-
-.dot--incorrect {
-  background: var(--color-error);
-  opacity: 0.9;
-}
-
-/* ========================================
-   Action Area
-   ======================================== */
-.action-area {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-4);
-  min-height: 80px;
-}
-
-.submit-btn {
-  padding: var(--space-4) var(--space-10);
-  background: var(--color-success);
-  color: var(--color-bg-primary);
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
   border: none;
-  border-radius: 9999px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.submit-btn:hover {
-  transform: scale(1.05);
-  box-shadow: 0 0 30px rgba(34, 197, 94, 0.4);
-}
-
-/* ========================================
-   Feedback
-   ======================================== */
-.feedback {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-6);
-  border-radius: 16px;
-  animation: slideUp 0.3s ease-out;
-}
-
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.feedback--correct {
-  background: rgba(34, 197, 94, 0.18);
-  border: 1px solid rgba(34, 197, 94, 0.35);
-  color: #fff;
-}
-
-.feedback--incorrect {
-  background: rgba(239, 68, 68, 0.18);
-  border: 1px solid rgba(239, 68, 68, 0.35);
-  color: #fff;
-}
-
-.feedback__header {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.feedback__title {
-  font-size: 1.25rem;
-  font-weight: 600;
-}
-
-.feedback__time {
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-  font-weight: 400;
+  background: transparent;
+  color: var(--ink-faint);
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-body);
   font-style: italic;
-  font-variant-numeric: tabular-nums;
-}
-
-.feedback--correct .feedback__title {
-  color: var(--color-success);
-}
-
-.feedback--incorrect .feedback__title {
-  color: var(--color-error);
-}
-
-.feedback__answer {
-  font-family: var(--font-mono);
-  color: var(--color-text-muted);
-}
-
-.next-btn {
-  padding: var(--space-3) var(--space-8);
-  background: var(--color-accent);
-  color: var(--color-bg-primary);
-  border: none;
-  border-radius: 9999px;
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
   cursor: pointer;
-  transition: transform 0.2s;
+  transition: color 0.4s ease;
 }
 
-.next-btn:hover {
-  transform: scale(1.05);
+.mode-selector__btn:hover {
+  color: var(--vermilion);
 }
 
-/* ========================================
-   Navigation Hint
-   ======================================== */
-.nav-hint {
-  position: static;
-  align-self: stretch;
-  margin-top: var(--space-6);
+.mode-selector__btn[aria-expanded="true"] {
+  color: var(--ink);
+}
+
+.mode-selector__menu {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  right: 0;
+  min-width: 220px;
+  margin: 0;
+  padding: 12px;
+  list-style: none;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  box-shadow: 0 12px 32px rgba(74, 65, 50, 0.10);
+  z-index: 50;
+  animation: fadeIn 0.4s ease-out;
+}
+
+.mode-selector__option {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--radius-md, 8px);
-  opacity: 0;
-  transform: translateY(8px);
-  transition: opacity 0.2s, transform 0.2s;
-  pointer-events: none;
-}
-
-.nav-hint.visible {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-}
-
-.nav-hint button {
-  padding: var(--space-2) var(--space-5);
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--color-text-primary);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 9999px;
-  font-size: 0.875rem;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 0;
+  color: var(--ink-soft);
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-body);
+  font-style: italic;
+  text-align: left;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: color 0.4s ease;
 }
 
-.nav-hint button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.15);
+.mode-selector__option:hover {
+  color: var(--vermilion);
 }
 
-.nav-hint button:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
+.mode-selector__option.is-active {
+  color: var(--vermilion);
 }
 
-.nav-hint span {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
+.mode-selector__option-icon {
+  font-family: var(--font-display);
+  font-style: normal;
+  font-size: 1rem;
+  color: var(--ink-faint);
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+  line-height: 1.3;
+  margin-top: 2px;
 }
 
-/* ========================================
-   Responsive
-   ======================================== */
-@media (max-width: 640px) {
-  .immersive-content {
-    padding: var(--space-6);
-  }
-
-  .sentence-display {
-    gap: var(--space-2);
-  }
-
-  .score-summary__title {
-    font-size: 3rem;
-  }
+.mode-selector__option.is-active .mode-selector__option-icon {
+  color: var(--vermilion);
 }
 
-/* ========================================
-   Sentence Line (纯下划线式)
-   ======================================== */
+.mode-selector__option-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.mode-selector__option-label {
+  font-size: 0.95rem;
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.3;
+}
+
+.mode-selector__option-desc {
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-body);
+  font-style: italic;
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+  line-height: 1.3;
+}
+
+.mode-selector__option-check {
+  font-family: var(--font-display);
+  font-style: italic;
+  color: var(--vermilion);
+  font-size: 1rem;
+  flex-shrink: 0;
+  line-height: 1.3;
+  margin-top: 2px;
+}
+
+/* ============================================================
+   Sentence line — the breath, the rhythm
+   ============================================================ */
 .sentence-line {
   display: flex;
-  align-items: flex-start;  /* 顶端对齐——所有 cell 顶部对齐 */
+  align-items: flex-start;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 2em;  /* 单词间距——大幅扩大 */
-  line-height: 2.5;
+  gap: 1.4em;
+  line-height: 2.4;
+  padding: 8px 0;
 }
 
-/* 单个 cell（包含单词 + 音标）—— 物理上同时包含两层，确保 wrap 同步 */
 .sentence-cell {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.4em;  /* 单词与音标之间的垂直间距 */
+  gap: 0.5em;
 }
 
-/* 单词单元 */
+/* Word cell — italic Fraunces */
 .line-word {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding: 0 0 4px 0;  /* 仅底部 4px 留给下划线 margin-top */
+  padding: 0 0 4px 0;
   position: relative;
   text-align: center;
-  letter-spacing: 0.01em;  /* 英文小间距，连字更协调 */
+  letter-spacing: 0.005em;
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-display);
+  font-size: clamp(2.2rem, 6vw, 3.4rem);
+  line-height: 1;
+  font-style: italic;
+  font-weight: 400;
 }
 
-/* Ghost 占位：撑出 cell 宽度（不可见） */
+/* Ghost spacer */
 .line-word-ghost {
   visibility: hidden;
-  font-family: var(--font-body);  /* 与 .line-word-text 一致 */
-  font-size: 2.5rem;
-  line-height: 1;  /* 必须与 .line-word-input/line-word-text 一致，否则 cell 高度被撑开 */
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-display);
+  font-size: clamp(2.2rem, 6vw, 3.4rem);
+  line-height: 1;
+  font-style: italic;
   font-weight: 400;
-  padding: 0 4px;  /* 与 .line-word-input padding 同步——保证水平中心一致 */
+  padding: 0 4px;
   pointer-events: none;
   user-select: none;
   display: inline-block;
 }
 
-/* 已正确词 - ghost 与 word-text 都用 font-weight 400，保持 cell 宽度不变 */
 .line-word--correct .line-word-ghost {
   font-weight: 400;
 }
 
-/* 已正确词 - 真实文本覆盖在 ghost 上（绝对定位） */
+/* A single hairline — the breath under each word */
+.line-word::after {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 1px;
+  background: var(--rule);
+  margin-top: 10px;
+  transition: all 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform-origin: left center;
+}
+
+/* Position absolute overlay for the input/text */
 .line-word--correct .line-word-text,
 .line-word--active .line-word-input {
   position: absolute;
@@ -591,49 +920,55 @@ button:focus-visible {
   justify-content: center;
 }
 
-/* 单词空白占位 - 不撑出空间，下划线紧贴 ghost 下方 */
+.line-word--correct {
+  /* completed — type settles */
+}
+
+.line-word--correct .line-word-text {
+  color: var(--vermilion);
+  font-variation-settings: "opsz" 144, "SOFT" 40, "WONK" 0;
+  font-weight: 400;
+}
+
+.line-word--correct::after {
+  opacity: 0;
+  transform: scaleX(0);
+}
+
 .line-word-empty {
   display: block;
   height: 0;
 }
 
-/* 所有单词的下划线 - 统一样式 */
-.line-word::after {
-  content: '';
-  display: block;
-  width: 100%;
-  height: 2px;
-  background: var(--color-text-muted);
-  opacity: 0.25;
-  border-radius: 2px;
-  margin-top: 4px;
+/* Active cell — a brush stroke appears */
+.line-word--active::after {
+  height: 1.5px;
+  background: var(--vermilion);
+  transform: scaleX(1);
+  animation: brushDraw 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 
-/* 激活词 - 琥珀色发光下划线 + 背景高亮 */
-.line-word--active::after {
-  height: 3px;
-  background: linear-gradient(90deg, var(--color-accent), #fbbf24);
-  box-shadow: 0 0 12px rgba(245, 158, 11, 0.6);
-  opacity: 1;
+@keyframes brushDraw {
+  from { transform: scaleX(0); opacity: 0.4; }
+  to   { transform: scaleX(1); opacity: 1; }
 }
 
 .line-word--active {
-  background: rgba(245, 158, 11, 0.15);
-  border-radius: 4px;
-  /* 不再使用 padding/margin 扩展——用 box-shadow 模拟高亮，避免 cell 宽度变化 */
-  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.15);
+  /* no halo — wabi-sabi doesn't shout */
 }
 
-/* 字符输入框 */
+/* The character input row */
 .line-word-input {
   display: flex;
   align-items: center;
-  justify-content: flex-start;  /* 左对齐——字符和光标按输入顺序排列 */
+  justify-content: flex-start;
   width: 100%;
-  padding: 0 4px;  /* 与 ghost 水平 padding 同步 */
-  font-family: var(--font-body);  /* 与 ghost 一致——避免宽度漂移 */
-  font-size: 2.5rem;
-  line-height: 1;  /* 必须与 ghost 一致——否则 cell 高度被撑开导致字符偏移 */
+  padding: 0 4px;
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-display);
+  font-size: clamp(2.2rem, 6vw, 3.4rem);
+  line-height: 1;
+  font-style: italic;
   color: transparent;
   border: none;
   background: transparent;
@@ -643,294 +978,125 @@ button:focus-visible {
 
 .line-char {
   display: inline-block;
-  font-family: var(--font-body);  /* 与 ghost 一致 */
-  font-size: 2.5rem;
-  width: 0.625em;  /* 等宽占位（与 ghost 单字符宽度一致） */
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-display);
+  font-size: clamp(2.2rem, 6vw, 3.4rem);
+  line-height: 1;
+  width: 0.625em;
   text-align: center;
+  font-style: italic;
+  transition: color 0.4s ease;
 }
 
-.line-char--correct { color: var(--color-accent); }
-.line-char--wrong { color: var(--color-error); }
-.line-char--pending { color: var(--color-text-muted); }
+.line-char--correct {
+  color: var(--vermilion);
+}
 
-/* 光标 - 固定在开头 */
+.line-char--wrong {
+  color: var(--ink-soft);
+  text-decoration: line-through;
+  text-decoration-color: var(--vermilion);
+  text-decoration-thickness: 1px;
+  opacity: 0.55;
+}
+
+.line-char--pending {
+  color: var(--ink-ghost);
+  opacity: 0.45;
+}
+
+/* Cursor — a single brush stroke */
 .line-cursor {
   display: inline-block;
-  width: 2px;
-  height: 1.2em;
-  background: var(--color-accent);
-  animation: blink 1s step-end infinite;
+  width: 1.5px;
+  height: 0.95em;
+  background: var(--vermilion);
+  animation: cursorBlink 1.4s ease-in-out infinite;
   margin-right: 2px;
 }
 
-@keyframes blink {
-  50% { opacity: 0; }
+@keyframes cursorBlink {
+  0%, 50%    { opacity: 1; }
+  50.01%, 100% { opacity: 0; }
 }
 
-/* 已正确词 - 隐藏下划线 */
-.line-word--correct::after {
-  opacity: 0 !important;
-}
-
-/* 已正确词 */
-.line-word--correct .line-word-text {
-  color: var(--color-success);
-  font-weight: 600;
-  font-size: 2.5rem;
-  line-height: 1;  /* 与 ghost 一致 */
-  width: 100%;
-  text-align: center;
-}
-
-/* 光标 - 琥珀色 */
-.line-cursor {
-  background: var(--color-accent);
-}
-
-/* 单词间距 */
 .line-space {
   display: inline-block;
-  width: 0.7em;
+  width: 0.5em;
 }
 
-/* ========================================
-   Top-right Toolbar
-   ======================================== */
-.toolbar {
-  position: fixed;
-  top: var(--space-6);
-  right: var(--space-6);
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.toolbar__btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 36px;
-  padding: 0 14px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  color: var(--color-text-primary);
-  font-family: var(--font-body);
-  font-size: 0.875rem;
-  font-weight: 500;
+/* Free-mode clickable */
+.line-word--clickable {
   cursor: pointer;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  transition: background 0.18s, border-color 0.18s, color 0.18s, transform 0.1s;
-  user-select: none;
+  transition: color 0.4s ease;
 }
 
-.toolbar__btn:hover {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(245, 158, 11, 0.5);
-  color: #FFFFFF;
+.line-word--clickable:hover {
+  color: var(--ink-soft);
 }
 
-.toolbar__btn:active {
-  transform: scale(0.97);
+@keyframes cell-shake {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-3px); }
+  75%      { transform: translateX(3px); }
 }
 
-.toolbar__btn--active {
-  background: rgba(245, 158, 11, 0.18);
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+.line-word--shake {
+  animation: cell-shake 0.4s ease-in-out;
 }
 
-.toolbar__btn--icon {
-  padding: 0 12px;
-  font-size: 1.125rem;
-  letter-spacing: 1px;
-  font-weight: 600;
-}
-
-.toolbar__icon {
-  font-size: 1rem;
-  line-height: 1;
-}
-
-.toolbar__caret {
-  font-size: 0.7rem;
-  line-height: 1;
-  margin-left: 2px;
-  opacity: 0.75;
-}
-
-.toolbar__dropdown {
-  position: relative;
-}
-
-.toolbar__menu {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  min-width: 200px;
-  padding: 6px;
-  background: rgba(20, 20, 20, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 10px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.02) inset;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  animation: toolbarMenuIn 0.16s ease-out;
-}
-
-@keyframes toolbarMenuIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.toolbar__menu-header {
-  padding: 8px 12px 6px;
-  font-size: 0.8125rem;
-  font-weight: 700;
-  color: var(--color-text-primary);
-  letter-spacing: 0.02em;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  margin-bottom: 4px;
-}
-
-.toolbar__menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 12px;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  color: var(--color-text-primary);
-  font-family: var(--font-body);
-  font-size: 0.875rem;
-  font-weight: 400;
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-.toolbar__menu-item:hover {
-  background: rgba(245, 158, 11, 0.12);
-  color: var(--color-accent);
-}
-
-.toolbar__menu-item--check {
-  cursor: pointer;
-  user-select: none;
-}
-
-.toolbar__menu-item--check input[type="checkbox"] {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-  width: 0;
-  height: 0;
-}
-
-.toolbar__checkbox {
-  position: relative;
-  display: inline-block;
-  flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.04);
-  transition: background 0.15s, border-color 0.15s;
-}
-
-.toolbar__menu-item--check:hover .toolbar__checkbox {
-  border-color: rgba(245, 158, 11, 0.6);
-}
-
-.toolbar__menu-item--check input[type="checkbox"]:checked + .toolbar__checkbox {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
-}
-
-.toolbar__menu-item--check input[type="checkbox"]:checked + .toolbar__checkbox::after {
-  content: '';
-  position: absolute;
-  left: 4px;
-  top: 1px;
-  width: 5px;
-  height: 9px;
-  border: solid #000;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-
-.toolbar__menu-item--check input[type="checkbox"]:checked ~ span:last-child {
-  color: var(--color-accent);
-}
-
-@media (max-width: 640px) {
-  .toolbar {
-    top: var(--space-4);
-    right: var(--space-4);
-    gap: 6px;
-  }
-  .toolbar__btn {
-    height: 32px;
-    padding: 0 10px;
-    font-size: 0.8125rem;
-  }
-  .toolbar__menu {
-    min-width: 180px;
-  }
-}
-
-/* ========================================
-   Phonetic Cell (音标 cell - 在 .sentence-cell 内)
-   ======================================== */
+/* ============================================================
+   Phonetic cell — italic mono in the margins
+   ============================================================ */
 .phonetic-cell {
   position: relative;
   display: inline-block;
   padding: 0;
   text-align: center;
   line-height: 1.1;
-  color: var(--color-text-muted);
-  opacity: 0.85;
-  letter-spacing: 0.02em;
+  color: var(--ink-faint);
+  letter-spacing: 0.04em;
+  min-height: 1em;
 }
 
-/* Ghost 占位：撑出 cell 宽度 */
 .phonetic-ghost {
   visibility: hidden;
-  font-family: var(--font-body);
-  font-size: 2.5rem;
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-display);
+  font-size: clamp(2.2rem, 6vw, 3.4rem);
   line-height: 1;
-  font-weight: 400;  /* 与 .line-word-ghost 同步——保证 wrap 边界一致 */
-  padding: 0 4px;  /* 与 .line-word-ghost padding 同步 */
+  font-weight: 400;
+  padding: 0 4px;
   display: inline-block;
 }
 
-/* 音标文本覆盖在 ghost 上 */
 .phonetic-text {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   line-height: 1.1;
+  font-weight: 400;
   text-align: center;
-  white-space: nowrap;  /* 禁止折行 */
-  overflow: visible;  /* 允许溢出——避免音标被切 */
+  color: var(--ink-faint);
+  white-space: nowrap;
+  overflow: visible;
+  font-style: italic;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
 }
+
+.phonetic-text::before,
+.phonetic-text::after {
+  color: var(--rule);
+  font-weight: 300;
+  font-style: normal;
+}
+
+.phonetic-text::before { content: '/'; margin-right: 1px; }
+.phonetic-text::after  { content: '/'; margin-left: 1px; }
 
 .phonetic-placeholder {
   position: absolute;
@@ -938,37 +1104,417 @@ button:focus-visible {
   left: 0;
   right: 0;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   line-height: 1.1;
-  opacity: 0.25;
+  color: var(--ink-ghost);
   text-align: center;
   white-space: nowrap;
 }
 
-/* ========================================
-   快捷键面板（右侧）
-   ======================================== */
+/* ============================================================
+   Hint box — a whispered answer
+   ============================================================ */
+.hint-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  animation: breath 0.8s ease-out;
+  margin-top: 0;
+}
+
+@keyframes breath {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.hint-box__label {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+}
+
+.hint-box__label::before,
+.hint-box__label::after {
+  content: '·';
+  margin: 0 8px;
+  color: var(--rule);
+}
+
+.hint-box__word {
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-display);
+  font-style: italic;
+  font-size: 1.6rem;
+  color: var(--vermilion);
+  line-height: 1;
+}
+
+/* ============================================================
+   Progress dots — small hairlines
+   ============================================================ */
+.progress-dots {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  align-items: center;
+  padding: 8px 0;
+  color: var(--ink-faint);
+}
+
+.dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rule);
+  transition: all 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.dot--current {
+  background: var(--vermilion);
+  transform: scale(1.4);
+  box-shadow: 0 0 0 4px rgba(184, 58, 43, 0.08);
+}
+
+.dot--done {
+  background: var(--ink-faint);
+}
+
+.dot--correct {
+  background: var(--ink);
+}
+
+.dot--incorrect {
+  background: transparent;
+  border: 1px solid var(--vermilion);
+}
+
+/* ============================================================
+   Action area — submit and feedback
+   ============================================================ */
+.action-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  min-height: 80px;
+  justify-content: center;
+}
+
+/* Submit — a single italicized word */
+.submit-btn {
+  padding: 12px 32px;
+  background: transparent;
+  color: var(--vermilion);
+  border: none;
+  border-bottom: 1px solid var(--vermilion);
+  border-radius: 0;
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-title);
+  font-style: italic;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 0.6s ease;
+}
+
+.submit-btn:hover {
+  background: var(--vermilion);
+  color: var(--paper);
+  border-bottom-color: var(--vermilion);
+}
+
+/* Feedback — minimal, the verdict is enough */
+.feedback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  animation: breath 0.8s ease-out;
+  text-align: center;
+}
+
+.feedback__header {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.feedback__title {
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-title);
+  font-style: italic;
+  font-size: 1.05rem;
+  font-weight: 400;
+  color: var(--ink);
+  letter-spacing: 0.04em;
+}
+
+.feedback--correct .feedback__title {
+  color: var(--vermilion);
+}
+
+.feedback__time {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.feedback__answer {
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-display);
+  font-style: italic;
+  font-size: 1.5rem;
+  color: var(--ink);
+  text-align: center;
+  line-height: 1.3;
+  padding: 0;
+  border: none;
+}
+
+.next-btn {
+  padding: 8px 0;
+  background: transparent;
+  color: var(--vermilion);
+  border: none;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-title);
+  font-style: italic;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: border-color 0.6s ease;
+}
+
+.next-btn::after {
+  content: ' →';
+  font-style: normal;
+  margin-left: 6px;
+  opacity: 0.7;
+}
+
+.next-btn:hover {
+  border-bottom-color: var(--vermilion);
+}
+
+/* ============================================================
+   Navigation hint — a quiet bar
+   ============================================================ */
+.nav-hint {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 24px;
+  padding: 8px 0;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+  pointer-events: none;
+}
+
+.nav-hint.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.nav-hint button {
+  padding: 0;
+  background: transparent;
+  color: var(--ink-faint);
+  border: none;
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-body);
+  font-style: italic;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: color 0.4s ease;
+  letter-spacing: 0.02em;
+}
+
+.nav-hint button:hover:not(:disabled) {
+  color: var(--vermilion);
+}
+
+.nav-hint button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.nav-hint span {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.08em;
+}
+
+/* ============================================================
+   Toolbar — a single whisper in the corner
+   ============================================================ */
+.toolbar {
+  position: fixed;
+  top: clamp(20px, 4vh, 36px);
+  right: clamp(20px, 4vw, 36px);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toolbar__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--ink-faint);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: color 0.4s ease;
+  user-select: none;
+}
+
+.toolbar__btn:hover {
+  color: var(--vermilion);
+}
+
+.toolbar__btn--active {
+  color: var(--vermilion);
+}
+
+.toolbar__menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  min-width: 160px;
+  padding: 8px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  box-shadow: 0 12px 32px rgba(74, 65, 50, 0.10);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  animation: fadeIn 0.4s ease-out;
+}
+
+.toolbar__menu-header {
+  padding: 6px 12px 8px;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--rule-soft);
+  margin-bottom: 4px;
+  text-transform: lowercase;
+}
+
+.toolbar__menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--ink-soft);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.4s ease;
+}
+
+.toolbar__menu-item:hover {
+  color: var(--vermilion);
+}
+
+/* ============================================================
+   Shortcuts panel — a quiet side note
+   ============================================================ */
+.shortcuts-toggle {
+  position: fixed;
+  bottom: clamp(20px, 4vh, 36px);
+  right: clamp(20px, 4vw, 36px);
+  z-index: 41;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 1.2rem;
+  transition: color 0.4s ease, transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.shortcuts-toggle:hover {
+  color: var(--vermilion);
+  transform: rotate(45deg);
+}
+
+.shortcuts-toggle[aria-expanded="true"] {
+  color: var(--vermilion);
+  transform: rotate(135deg);
+}
+
 .shortcuts-panel {
   position: fixed;
   top: 50%;
-  right: var(--space-6);
+  right: clamp(20px, 4vw, 36px);
   z-index: 40;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-6);
-  background: rgba(20, 20, 20, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  gap: 6px;
+  padding: 20px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  box-shadow: 0 12px 32px rgba(74, 65, 50, 0.10);
   user-select: none;
-
-  /* 折叠动画：默认收起（位移 20px + 透明），展开时归位 */
-  transform: translate(20px, -50%);
+  min-width: 220px;
+  max-width: 260px;
+  transform: translate(12px, -50%);
   opacity: 0;
   pointer-events: none;
-  transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+  transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.6s ease;
 }
 
 .shortcuts-panel.is-open {
@@ -977,59 +1523,68 @@ button:focus-visible {
   pointer-events: auto;
 }
 
-/* 折叠触发器：右下角浮动按钮（48×48 ghost 风） */
-.shortcuts-toggle {
-  position: fixed;
-  bottom: var(--space-6);
-  right: var(--space-6);
-  z-index: 41;
-  width: 48px;
-  height: 48px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(20, 20, 20, 0.6);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border-radius: 12px;
-  color: rgba(255, 255, 255, 0.7);
-  cursor: pointer;
-  font-family: inherit;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
+.shortcuts-panel__title {
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-title);
+  font-style: italic;
+  font-size: 0.95rem;
+  color: var(--ink);
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+  font-weight: 400;
 }
 
-.shortcuts-toggle:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.3);
-  color: #fff;
-}
-
-.shortcuts-toggle[aria-expanded="true"] {
-  background: rgba(245, 158, 11, 0.18);
-  border-color: rgba(245, 158, 11, 0.4);
-  color: #fff;
-}
-
-.shortcuts-toggle:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
-/* 分隔线（快捷键 ↔ 显示选项） */
 .shortcuts-panel__divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.1);
-  margin: var(--space-4) 0;  /* 上下间距扩大，避免拥挤 */
+  background: var(--rule-soft);
+  margin: 12px 0;
 }
 
-/* checkbox 容器——只对 checkbox 区域可点击 */
+.shortcuts-panel__list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+}
+
+.shortcuts-panel__list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-body);
+  font-style: italic;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.shortcuts-panel kbd {
+  display: inline-block;
+  min-width: 1.4em;
+  padding: 1px 5px;
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 1px;
+  font-family: var(--font-mono);
+  font-style: normal;
+  font-size: 0.68rem;
+  text-align: center;
+  color: var(--ink-faint);
+}
+
 .shortcuts-panel__check {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   cursor: pointer;
   user-select: none;
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-body);
+  font-style: italic;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
 }
 
 .shortcuts-panel__check input[type="checkbox"] {
@@ -1043,393 +1598,178 @@ button:focus-visible {
 .shortcuts-panel__checkbox {
   display: inline-block;
   flex: 0 0 auto;
-  width: 14px;
-  height: 14px;
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.04);
-  transition: background 0.15s, border-color 0.15s;
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--rule);
+  border-radius: 50%;  /* wabi-sabi: circles, not squares */
+  background: transparent;
+  transition: all 0.4s ease;
+  position: relative;
 }
 
 .shortcuts-panel__check:hover .shortcuts-panel__checkbox {
-  border-color: rgba(245, 158, 11, 0.6);
+  border-color: var(--vermilion);
 }
 
 .shortcuts-panel__check input[type="checkbox"]:checked + .shortcuts-panel__checkbox {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
+  background: var(--vermilion);
+  border-color: var(--vermilion);
 }
 
-.shortcuts-panel__check input[type="checkbox"]:checked + .shortcuts-panel__checkbox::after {
-  content: '';
-  position: absolute;
-  left: 3px;
-  top: 0px;
-  width: 4px;
-  height: 8px;
-  border: solid #000;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-
-.shortcuts-panel__title {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-weight: 600;
-  margin-bottom: var(--space-2);
-}
-
-.shortcuts-panel__list {
-  list-style: none;
+/* ============================================================
+   Score summary — the enso, the score, the breath
+   ============================================================ */
+.score-summary {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-}
-
-.shortcuts-panel__list li {
-  display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.8125rem;
-  color: var(--color-text-primary);
-}
-
-.shortcuts-panel kbd {
-  display: inline-block;
-  min-width: 1.5em;
-  padding: 2px 6px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
+  gap: 32px;
+  margin: auto;
   text-align: center;
-  color: var(--color-text-primary);
+  position: relative;
+  animation: pageRise 1.2s ease-out;
 }
 
+.score-summary__icon {
+  width: 120px;
+  height: 120px;
+  color: var(--vermilion);
+  margin-bottom: 8px;
+  animation: ensoDraw 1.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.score-summary__title {
+  font-family: var(--font-display);
+  font-variation-settings: "opsz" 144, "SOFT" 40, "WONK" 0;
+  font-style: italic;
+  font-size: clamp(3.5rem, 10vw, 5.5rem);
+  font-weight: 400;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.score-summary__text {
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-card);
+  font-style: italic;
+  font-size: 1.05rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
+  max-width: 360px;
+  line-height: 1.6;
+}
+
+.score-summary__button {
+  margin-top: 24px;
+  padding: 10px 0;
+  background: transparent;
+  color: var(--vermilion);
+  border: none;
+  border-bottom: 1px solid var(--vermilion);
+  border-radius: 0;
+  font-family: var(--font-display);
+  font-variation-settings: var(--voice-title);
+  font-style: italic;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 0.6s ease;
+}
+
+.score-summary__button:hover {
+  background: var(--vermilion);
+  color: var(--paper);
+}
+
+/* The enso brush stroke animation */
+@keyframes ensoDraw {
+  from {
+    stroke-dashoffset: 280;
+    opacity: 0;
+  }
+  to {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+/* ============================================================
+   Responsive — wabi-sabi holds together at every width
+   ============================================================ */
 @media (max-width: 640px) {
-  .shortcuts-panel {
-    top: var(--space-4);
-    right: var(--space-4);
-    padding: var(--space-4);
+  .immersive-container {
+    padding: 32px 20px 60px;
   }
-  .shortcuts-panel__list li {
-    font-size: 0.75rem;
+
+  .masthead {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
   }
-  .shortcuts-panel kbd {
-    font-size: 0.7rem;
+
+  .masthead__sub {
+    text-align: left;
   }
-}
 
-/* ============================================================
-   AudioPlayerBar (播放控制条) — 纯 UI 占位
-   ============================================================ */
-.audio-player-bar {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 16px 0;
-  margin: 0 auto 16px;
-  max-width: 960px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.audio-player-bar__waveform {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  max-width: 640px;
-  height: 36px;
-  color: rgba(255, 255, 255, 0.65);
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 6px;
-  transition: background 0.15s;
-}
-
-.audio-player-bar__waveform:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.audio-player-bar__waveform:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
-.audio-player-bar__waveform svg {
-  width: 100%;
-  height: 100%;
-}
-
-.audio-player-bar__controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding: 4px 0;
-}
-
-.apb__group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  position: relative;       /* 给 .apb__speed-menu 提供定位上下文 */
-}
-
-.apb__divider {
-  display: inline-block;
-  width: 1px;
-  height: 24px;
-  background: rgba(255, 255, 255, 0.15);
-  flex: 0 0 auto;
-}
-
-.apb__btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 40px;
-  height: 40px;
-  padding: 0 12px;
-  border: 0;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 14px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  font-family: inherit;
-}
-
-.apb__btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-}
-
-.apb__btn:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
-.apb__btn--text {
-  font-size: 14px;
-  min-width: 56px;
-  height: 40px;
-}
-
-.apb__btn--play {
-  width: 48px;
-  height: 48px;
-  min-width: 48px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: transparent;
-  color: #fff;
-  font-size: 14px;
-  border-radius: 8px;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-
-.apb__btn--play:hover {
-  border-color: rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-/* ============================================================
-   AudioPlayerBar 波形动画（播放时）
-   ============================================================ */
-.apb-bars {
-  display: block;
-  color: rgba(255, 255, 255, 0.65);
-}
-
-.apb-bar {
-  transform-box: fill-box;
-  transform-origin: center;
-  transition: opacity 0.2s;
-}
-
-/* hover 波形：持续轻微动画（不触播放，纯视觉） */
-.audio-player-bar__waveform:hover .apb-bar {
-  animation: apb-bar-hover 1.2s ease-in-out infinite;
-}
-
-.apb-bars--playing .apb-bar {
-  animation: apb-bar-pulse 0.9s ease-in-out infinite;
-}
-
-@keyframes apb-bar-hover {
-  0%, 100% { transform: scaleY(0.85); opacity: 0.7; }
-  50%      { transform: scaleY(1.15); opacity: 1;   }
-}
-
-@keyframes apb-bar-pulse {
-  0%, 100% { transform: scaleY(0.5); opacity: 0.5; }
-  50%      { transform: scaleY(1.4); opacity: 1;   }
-}
-
-/* ============================================================
-   AudioPlayerBar 倍速下拉弹层
-   ============================================================ */
-
-/* 倍速下拉触发器：弹层打开时的激活态 */
-.apb__btn--speed-trigger[aria-expanded="true"] {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-}
-
-/* 倍速下拉触发器：非默认 1x 时的"已选"状态（橙色背景） */
-.apb__btn--speed-trigger[data-speed-default="false"] {
-  background: rgba(245, 158, 11, 0.18);
-  color: #fff;
-  font-weight: 600;
-}
-
-.apb__btn--speed-trigger[data-speed-default="false"]:hover {
-  background: rgba(245, 158, 11, 0.28);
-}
-
-/* 触发器里的下拉小箭头 */
-.apb__btn--speed-trigger .apb__caret {
-  margin-left: 4px;
-  font-size: 10px;
-  opacity: 0.7;
-}
-
-/* 弹层：浮在触发器下方，不挤占布局 */
-.apb__speed-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 50;
-  list-style: none;
-  margin: 0;
-  padding: 4px;
-  min-width: 80px;
-  background: #1f2937;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-/* 弹层里的选项按钮 */
-.apb__speed-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  min-width: 72px;
-  min-height: 32px;
-  padding: 0 12px;
-  border: 0;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 13px;
-  font-family: inherit;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s;
-  text-align: left;
-}
-
-.apb__speed-option:hover,
-.apb__speed-option:focus-visible {
-  background: rgba(255, 255, 255, 0.06);
-  outline: none;
-}
-
-.apb__speed-option.is-active {
-  color: #fff;
-  font-weight: 600;
-  background: rgba(245, 158, 11, 0.18);
-}
-
-.apb__speed-option-check {
-  margin-left: 12px;
-  color: var(--color-accent, #f59e0b);
-}
-
-/* 倍速数字等宽（0.5/1/2 切换不抖） */
-.apb__btn--speed-trigger,
-.apb__speed-option-label {
-  font-variant-numeric: tabular-nums;
-}
-
-/* 倍速触发器 与 "文A 原始" 之间加 8px 间距（防误触） */
-.apb__btn--speed-trigger + .apb__btn--text {
-  margin-left: 8px;
-}
-
-/* ============================================================
-   触屏设备：触摸目标拉大到 WCAG AAA（48px）
-   ============================================================ */
-@media (hover: none) and (pointer: coarse) {
-  .apb__speed-option {
-    min-height: 48px;
-    font-size: 15px;
-    padding: 0 16px;
+  .library-picker-bar {
+    margin-top: 0;
   }
-  .apb__btn--speed-trigger {
-    min-height: 48px;
+
+  .picker {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
   }
+
+  .picker__field--chips {
+    gap: 8px;
+  }
+
+  .audio-player-bar {
+    gap: 16px;
+  }
+
   .apb__btn--play {
     width: 56px;
-    min-width: 56px;
     height: 56px;
-  }
-  .apb__btn--loop {
-    width: 56px;
     min-width: 56px;
-    height: 56px;
   }
-  .apb__btn--text {
-    min-height: 48px;
-    min-width: 64px;
+
+  .sentence-area {
+    gap: 32px;
+    padding: 16px 0;
+  }
+
+  .mode-selector {
+    position: static;
+    align-self: flex-end;
+    margin-bottom: -16px;
+  }
+
+  .immersive-content {
+    gap: 48px;
+  }
+
+  .toolbar {
+    top: 16px;
+    right: 16px;
+  }
+
+  .shortcuts-panel {
+    top: auto;
+    bottom: 70px;
+    right: 16px;
+    left: 16px;
+    max-width: none;
+    transform: translate(0, 12px);
+  }
+
+  .shortcuts-panel.is-open {
+    transform: translate(0, 0);
   }
 }
 
-/* ============================================================
-   AudioPlayerBar 循环按钮（🔁）
-   ============================================================ */
-
-/* 默认态：ghost button（透明背景 + 1px 边框） */
-.apb__btn--loop {
-  width: 48px;
-  min-width: 48px;
-  height: 48px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: transparent;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-
-/* hover 态：边框变实，背景淡 */
-.apb__btn--loop:hover {
-  border-color: rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-/* 循环按钮激活态：复用 .apb__speed-option.is-active 的橙色 0.18 */
-.apb__btn--loop[aria-pressed="true"] {
-  background: rgba(245, 158, 11, 0.18);
-  border-color: rgba(245, 158, 11, 0.4);
-  color: #fff;
-  font-weight: 600;
-}
-
-.apb__btn--loop[aria-pressed="true"]:hover {
-  background: rgba(245, 158, 11, 0.28);
-  border-color: rgba(245, 158, 11, 0.55);
-}
-
-/* ============================================================
-   手机（≤480px）彻底隐藏快捷键面板 + 齿轮按钮
-   ============================================================ */
 @media (max-width: 480px) {
   .shortcuts-panel,
   .shortcuts-toggle {
@@ -1437,255 +1777,19 @@ button:focus-visible {
   }
 }
 
-/* ============================================================
-   输入模式选择器：sentence-area 右上角触发按钮 + 弹层
-   风格与 AudioPlayerBar 倍速触发器同源
-   ============================================================ */
-.mode-selector {
-  position: absolute;
-  top: 0;
-  right: 0;
-  z-index: 30;
-}
-
-.mode-selector__btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 40px;
-  padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(20, 20, 20, 0.6);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border-radius: 8px;
-  color: rgba(255, 255, 255, 0.8);
-  font-family: inherit;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-
-.mode-selector__btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.3);
-  color: #fff;
-}
-
-.mode-selector__btn[aria-expanded="true"] {
-  background: rgba(245, 158, 11, 0.18);
-  border-color: rgba(245, 158, 11, 0.4);
-  color: #fff;
-}
-
-.mode-selector__btn:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
-/* 弹层：向上展开，避免遮挡 sentence-display */
-.mode-selector__menu {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  right: 0;
-  min-width: 220px;
-  margin: 0;
-  padding: 4px;
-  list-style: none;
-  background: rgba(20, 20, 20, 0.95);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  z-index: 50;
-}
-
-.mode-selector__option {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  width: 100%;
-  min-height: 56px;
-  padding: 8px 12px;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
-  color: rgba(255, 255, 255, 0.8);
-  font-family: inherit;
-  font-size: 14px;
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.1s;
-}
-
-.mode-selector__option:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-}
-
-.mode-selector__option.is-active {
-  color: #fff;
-  font-weight: 600;
-}
-
-.mode-selector__option-icon {
-  font-size: 16px;
-  width: 20px;
-  text-align: center;
-  flex-shrink: 0;
-  line-height: 1.3;
-}
-
-.mode-selector__option-body {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  min-width: 0;
-}
-
-.mode-selector__option-label {
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1.3;
-}
-
-.mode-selector__option-desc {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.55);
-  line-height: 1.3;
-}
-
-.mode-selector__option.is-active .mode-selector__option-desc {
-  color: rgba(255, 255, 255, 0.75);
-}
-
-.mode-selector__option-check {
-  color: var(--color-accent);
-  font-size: 14px;
-  flex-shrink: 0;
-  line-height: 1.3;
-}
-
-/* 自由模式：cell 可点击（视觉提示） */
-.line-word--clickable {
-  cursor: pointer;
-  transition: background 0.1s;
-}
-
-.line-word--clickable:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 4px;
-}
-
-/* 答错 cell 横向震动：空格键错答时触发，0.3s 一次性 */
-@keyframes cell-shake {
-  0%, 100% { transform: translateX(0); }
-  20%      { transform: translateX(-4px); }
-  40%      { transform: translateX(4px); }
-  60%      { transform: translateX(-3px); }
-  80%      { transform: translateX(2px); }
-}
-
-.line-word--shake {
-  animation: cell-shake 0.3s ease-in-out;
-}
-
-/* 触屏：触发器高度放大 */
 @media (hover: none) and (pointer: coarse) {
-  .mode-selector__btn {
-    height: 48px;
-    padding: 0 14px;
-    font-size: 15px;
+  .apb__btn--play {
+    width: 64px;
+    height: 64px;
+    min-width: 64px;
   }
-}
 
-/* ---------------------------------------------------------------------------
-   LibraryPicker (content selector: lib + difficulty)
-   --------------------------------------------------------------------------- */
-.library-picker-bar {
-  display: flex;
-  justify-content: center;
-  padding: 16px 24px 0;
-}
+  .apb__btn {
+    min-height: 44px;
+  }
 
-.picker {
-  display: inline-flex;
-  gap: 18px;
-  align-items: center;
-  background: var(--bg-elevated, rgba(255, 255, 255, 0.06));
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
-  border-radius: 10px;
-  padding: 10px 14px;
-}
-
-.picker--disabled {
-  opacity: 0.6;
-  pointer-events: none;
-}
-
-.picker--loading,
-.picker--error {
-  font-size: 13px;
-  opacity: 0.7;
-  padding: 14px;
-}
-
-.picker__field {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.picker__field--chips {
-  border-left: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
-  padding-left: 18px;
-}
-
-.picker__label {
-  font-size: 12px;
-  opacity: 0.6;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.picker__select {
-  background: transparent;
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.15));
-  border-radius: 6px;
-  color: inherit;
-  font-size: 14px;
-  padding: 6px 10px;
-  cursor: pointer;
-}
-
-.picker__select:hover {
-  border-color: var(--border-strong, rgba(255, 255, 255, 0.3));
-}
-
-.picker__chips {
-  display: inline-flex;
-  gap: 6px;
-}
-
-.picker__chip {
-  background: transparent;
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.15));
-  border-radius: 16px;
-  color: inherit;
-  font-size: 12px;
-  padding: 4px 12px;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-
-.picker__chip:hover {
-  border-color: var(--border-strong, rgba(255, 255, 255, 0.3));
-}
-
-.picker__chip--active {
-  background: var(--accent, #4a90e2);
-  border-color: var(--accent, #4a90e2);
-  color: #fff;
+  .shortcuts-toggle {
+    width: 44px;
+    height: 44px;
+  }
 }

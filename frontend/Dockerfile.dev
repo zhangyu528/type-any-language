@@ -1,17 +1,101 @@
+# ============================================================================
+# frontend/Dockerfile.dev — dev image for english_frontend_dev.
+#
+# 与 production image (Dockerfile, 烤 next build + standalone server) 完全不同。
+# 这个 image 跑 `next dev`,依赖外部 compose watch 进程 sync 源码到容器。
+#
+# 设计要点(改之前先读完,免得被"删了省事"诱惑踩坑):
+#   1. 不跑 `RUN npm ci` — 详见下方 "No `RUN npm ci` — deps install at runtime"
+#   2. `COPY . .` 是兜底 — 详见下方 "`COPY . .` is a baseline, not redundancy"
+#   3. entrypoint.sh 负责冷启动按需装包 — 详见 entrypoint.sh 顶部注释
+# ============================================================================
+
 FROM node:20-alpine
 
-# Project version (root ./VERSION, resolved by scripts/lib.sh) + git SHA.
+# OCI labels consumed by run.sh's drift_check (see scripts/ops/dev-host/run.sh).
+# APP_VERSION comes from scripts/lib.sh → resolve_image_tag → VERSION.dev.
 ARG APP_VERSION=latest
 ARG GIT_SHA=unknown
 LABEL type-any-language.app.version="${APP_VERSION}"
 LABEL type-any-language.app.git-sha="${GIT_SHA}"
 
+# /app is the conventional WORKDIR (Twelve-Factor App; matches backend's
+# WORKDIR for cross-service consistency). All COPY / ENTRYPOINT / CMD
+# paths below are relative to /app.
 WORKDIR /app
 
-COPY package*.json ./
-COPY entrypoint.sh ./
+# ----------------------------------------------------------------------------
+# Single COPY + No `RUN npm ci`
+#
+# 这一段只做两件事:烤源码 + 修 entrypoint 权限。曾经有一行 `COPY
+# package*.json ./` 配合 `RUN npm ci` 做"先锁 manifest 再装依赖再烤源
+# 码"的经典三层模式,后两行都删了 — 原因:
+#
+#   No `RUN npm ci`:
+#     - entrypoint.sh 的双 gate 检测保证 cold start 时按需重装:
+#         gate 1: package.json + package-lock.json 的 SHA256 是否变了
+#                 (或 HASH_FILE 缺失 — 容器重建总是缺失)
+#         gate 2: node_modules/.package-lock.json 是否存在 (npm 装完会写)
+#     - HASH_FILE (/app/.package-lock.sha256) 运行时由 entrypoint 写,
+#       且 .dockerignore 排除 → image 里没有 → cold start 必触发 gate 1
+#       重装,即使 image 里已经烤好了 node_modules 也白搭
+#     - 烤 deps 的成本:
+#         * image build 时间(几十秒到几分钟)
+#         * image 体积(node_modules 通常几百 MB)
+#         * image push/pull 时间
+#     - 删了之后:build 极快,image 小几百 MB,cold start 走 entrypoint
+#       装包(10s~1min)。总时长不变,只是从 build 阶段挪到 start 阶段。
+#
+#   `COPY . .` is a baseline, not redundancy:
+#     - 表面看跟 compose watch 的 develop.watch 重复(watch 会 sync
+#       src/、public/、configs、entrypoint.sh)。但保留有真实理由:
+#
+#       1. 启动鲁棒性:run.sh 顺序是 `compose up -d` → 再 spawn watch。
+#          容器先起、entrypoint 装包、`next dev` 启动,然后 watch 才 sync。
+#          没有 `COPY . .`,next dev 启动时 /app/src/ 是空的 → crash。
+#          有了这行,next dev 拿 image-baked 源码先跑起来,watch 后续
+#          sync 是增强(拿到最新源码),不是必需。
+#
+#       2. 调试便利:`docker run -it english_frontend_dev:v0.x.x bash`
+#          进容器能看到完整源码,不用先启 watch。
+#
+#       3. watch 配置改动的容错:改了 develop.watch 漏配某个路径,容器
+#          不会立刻炸 — 还有 image-baked 的旧版本兜底。
+#
+#     - 代价:image 大几 MB(源码相对 node_modules 很小),完全值得。
+#     - .dockerignore 排除 .git / node_modules / .next / .package-lock
+#       .sha256 等,保证 COPY 进来的是干净源码而不是脏的开发环境。
+#
+# 想恢复 `RUN npm ci`:加回 RUN + 把 HASH_FILE 的 hash 在 Dockerfile 里
+# 算出来写入(否则冷启空重装一次)。详见 entrypoint.sh 顶部注释。
+# ----------------------------------------------------------------------------
+COPY . .
+RUN chmod +x ./entrypoint.sh
 
 EXPOSE 3000
 
+# ----------------------------------------------------------------------------
+# ENTRYPOINT + CMD: hash-aware npm install → exec dev server
+#
+# entrypoint.sh 在 exec CMD 之前会:
+#   - 算 package.json + package-lock.json 的 SHA256
+#   - 跟 /app/.package-lock.sha256 (HASH_FILE) 比
+#   - 不一致 OR node_modules/.package-lock.json 不存在 → 跑 npm ci
+#   - 一致 → 跳过(秒启)
+#
+# gate 双保险:
+#   - gate 1 (hash mismatch)  抓 package.json 改了
+#   - gate 2 (deps wiped)     抓 node_modules 被 wipe 了(冷启、容器重建)
+#
+# compose watch 在 docker-compose.dev.yml 配的 develop.watch 同步以下热路径:
+#   src/、public/、package*.json、next.config.js、tsconfig.json、
+#   next-env.d.ts、entrypoint.sh。
+# 改了 package.json → sync 覆盖容器内文件 → 必须 `run.sh restart` 让
+# entrypoint 重新算 hash、检测 mismatch、重装。改 src/* 不需要 restart。
+#
+# CMD ["npm", "run", "dev"] 是兜底默认值;docker-compose.dev.yml 的
+# command: 会覆盖它,但保留可以让 `docker run <image>` 不带 command 也跑
+# `next dev`,方便裸跑调试。
+# ----------------------------------------------------------------------------
 ENTRYPOINT ["sh", "./entrypoint.sh"]
 CMD ["npm", "run", "dev"]
