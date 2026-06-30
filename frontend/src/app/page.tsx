@@ -1014,7 +1014,22 @@ export default function PracticePage() {
                 >
                   <span aria-hidden>{MODE_METADATA[inputMode].icon}</span>
                   <span>{MODE_METADATA[inputMode].label}</span>
-                  <span className="apb__caret" aria-hidden>▾</span>
+                  <svg
+                    className="mode-selector__caret"
+                    width="10"
+                    height="10"
+                    viewBox="0 0 10 10"
+                    aria-hidden
+                  >
+                    <path
+                      d="M2 4 L5 7 L8 4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
                 </button>
                 {modeMenuOpen && (
                   <ul

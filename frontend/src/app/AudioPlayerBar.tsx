@@ -10,19 +10,19 @@ interface AudioPlayerBarProps {
   onSpeedChange: (speed: number) => void;
   isLooping: boolean;       // 循环播放开关
   onToggleLoop: () => void;
-  onPlay: () => void;       // 波形点击/hover 回调：总是播放
+  onPlay: () => void;       // 波形点击回调：总是播放
   onTogglePlay: () => void; // ▶ 按钮：智能切换播放/暂停
 }
 
 /**
- * 播放控制条（替换旧波形图）
+ * 播放控制条 — Apple HIG，web-adapted
  *
  * 布局：竖排
- * - 上：装饰性 SVG 波形（点击/hover 触发 onPlay）
- * - 中：题号 "currentIndex+1 / totalCount"
- * - 下：按钮行（倍速下拉 / 文A 原始 / ▶⏸ / 🔁）
+ * - 上：32 根 SVG 波形条（点击 → onPlay；hover 颜色加深；playing 时中性色 + 呼吸）
+ * - 中：题号 "{n} / {total}"（JetBrains Mono 等宽）
+ * - 下：按钮行（倍速下拉 + 文A 原始（ghost 占位） + 主播放 + 循环）
  *
- * 不接：currentTime / duration / loop / 字幕模式
+ * 调色板只用中性 + label 阶；red 留给得分页 enso。
  */
 export default function AudioPlayerBar({
   isPlaying,
@@ -35,8 +35,8 @@ export default function AudioPlayerBar({
   onPlay,
   onTogglePlay,
 }: AudioPlayerBarProps) {
-  // 装饰性波形：32 根高度不一的条
-  const barHeights = [
+  // 装饰性波形：32 根高度不一的条（横向均匀分布）
+  const BAR_HEIGHTS = [
     8, 14, 22, 28, 18, 10, 24, 30, 26, 12, 6, 20, 28, 24, 14, 8,
     16, 24, 12, 20, 28, 18, 10, 26, 30, 22, 14, 8, 18, 26, 20, 12,
   ];
@@ -71,139 +71,192 @@ export default function AudioPlayerBar({
 
   return (
     <div className="audio-player-bar" aria-label="播放控制">
-      {/* 1. 波形区（点击播放；hover 仅 CSS 视觉反馈，不播音频） */}
-      <div
+      {/* 1. 波形（button：可聚焦、可键盘触发） */}
+      <button
+        type="button"
         className="audio-player-bar__waveform"
-        role="button"
-        tabIndex={0}
         aria-label="点击播放音频"
         onClick={onPlay}
       >
         <svg
+          className={
+            'audio-player-bar__bars' +
+            (isPlaying ? ' audio-player-bar__bars--playing' : '')
+          }
           width="100%"
           height="36"
           viewBox="0 0 640 36"
           preserveAspectRatio="none"
-          style={{ display: 'block' }}
-          className={isPlaying ? 'apb-bars apb-bars--playing' : 'apb-bars'}
+          aria-hidden
         >
-          {barHeights.map((h, i) => (
+          {BAR_HEIGHTS.map((h, i) => (
             <rect
               key={i}
-              className="apb-bar"
+              className="audio-player-bar__bar"
               x={i * 20 + 2}
               y={(36 - h) / 2}
               width="4"
               height={h}
               rx="1"
               fill="currentColor"
-              opacity={0.4 + (i % 4) * 0.15}
-              style={{
-                transformBox: 'fill-box',
-                transformOrigin: 'center',
-                animationDelay: `${(i % 8) * 0.08}s`,
-              }}
+              style={{ animationDelay: `${(i % 8) * 0.08}s` }}
             />
           ))}
         </svg>
-      </div>
+      </button>
 
-      {/* 2. 题号（沿用旧 .progress-text 样式） */}
-      <span className="progress-text">
+      {/* 2. 题号（JetBrains Mono，tabular-nums） */}
+      <span
+        className="audio-player-bar__progress"
+        aria-label={`第 ${currentIndex + 1} 题，共 ${totalCount} 题`}
+      >
         {currentIndex + 1} / {totalCount}
       </span>
 
       {/* 3. 按钮行：左组 + 主操作 + 右组，竖线分隔 */}
       <div className="audio-player-bar__controls">
-        {/* 左组：倍速下拉 + 文A 原始 */}
-        <div className="apb__group">
+        {/* 左组：倍速下拉 + 文A 原始（ghost 占位） */}
+        <div className="audio-player-bar__group">
           {/* 倍速下拉触发器 */}
           <button
             ref={speedBtnRef}
             type="button"
-            className="apb__btn apb__btn--text apb__btn--speed-trigger"
-            data-speed-default={speed === 1}
+            className="audio-player-bar__btn audio-player-bar__btn--speed"
             aria-label="播放速度"
             aria-haspopup="listbox"
             aria-expanded={speedMenuOpen}
             onClick={() => setSpeedMenuOpen((v) => !v)}
           >
-            {speed}x <span className="apb__caret" aria-hidden>▾</span>
+            <span className="audio-player-bar__speed-label">{speed}x</span>
+            <svg
+              className="audio-player-bar__caret"
+              width="10"
+              height="10"
+              viewBox="0 0 10 10"
+              aria-hidden
+            >
+              <path
+                d="M2 4 L5 7 L8 4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
 
           {/* 倍速下拉弹层（仅 open 时渲染） */}
           {speedMenuOpen && (
             <ul
               ref={speedMenuRef}
-              className="apb__speed-menu"
+              className="audio-player-bar__speed-menu"
               role="listbox"
               aria-label="选择播放速度"
             >
-              {[0.5, 1, 2].map((s) => (
-                <li key={s} role="presentation">
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected={speed === s}
-                    className={`apb__speed-option ${speed === s ? 'is-active' : ''}`}
-                    onClick={() => {
-                      onSpeedChange(s);
-                      setSpeedMenuOpen(false);
-                    }}
-                  >
-                    <span className="apb__speed-option-label">{s}x</span>
-                    {speed === s && (
-                      <span className="apb__speed-option-check" aria-hidden>✓</span>
-                    )}
-                  </button>
-                </li>
-              ))}
+              {[0.5, 1, 2].map((s) => {
+                const active = speed === s;
+                return (
+                  <li key={s} role="presentation">
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={active}
+                      className={
+                        'audio-player-bar__speed-option' +
+                        (active ? ' audio-player-bar__speed-option--active' : '')
+                      }
+                      onClick={() => {
+                        onSpeedChange(s);
+                        setSpeedMenuOpen(false);
+                      }}
+                    >
+                      <span className="audio-player-bar__speed-option-label">{s}x</span>
+                      {active && (
+                        <svg
+                          className="audio-player-bar__speed-option-check"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 12 12"
+                          aria-hidden
+                        >
+                          <path
+                            d="M2.5 6.5 L5 9 L9.5 3.5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.75"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
 
+          {/* 文A 原始：PRD §10 残留 UI —— ghost 样式，aria-disabled，tabIndex=-1 */}
           <button
             type="button"
-            className="apb__btn apb__btn--text"
-            aria-label="字幕模式"
+            className="audio-player-bar__btn audio-player-bar__btn--ghost"
+            aria-label="字幕模式（暂不可用）"
+            aria-disabled="true"
+            tabIndex={-1}
           >
             文A 原始
           </button>
         </div>
 
-        <span className="apb__divider" aria-hidden />
+        <span className="audio-player-bar__divider" aria-hidden />
 
-        {/* 主操作：▶/⏸（stroke SVG，居中布局） */}
+        {/* 主操作：▶/⏸（filled 中性圆，无旋转） */}
         <button
           type="button"
-          className="apb__btn apb__btn--play"
+          className="audio-player-bar__btn audio-player-bar__btn--play"
           onClick={onTogglePlay}
           aria-label={isPlaying ? '暂停' : '播放'}
         >
           {isPlaying ? (
-            <svg className="apb__btn--play-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-              <line x1="9"  y1="6" x2="9"  y2="18" />
-              <line x1="15" y1="6" x2="15" y2="18" />
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              aria-hidden
+              fill="currentColor"
+            >
+              <rect x="8" y="6" width="3" height="12" rx="1" />
+              <rect x="13" y="6" width="3" height="12" rx="1" />
             </svg>
           ) : (
-            <svg className="apb__btn--play-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M8 6 L18 12 L8 18 Z" />
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              aria-hidden
+              fill="currentColor"
+            >
+              <path d="M8 5.2 V18.8 L19 12 Z" />
             </svg>
           )}
         </button>
 
-        <span className="apb__divider" aria-hidden />
+        <span className="audio-player-bar__divider" aria-hidden />
 
-        {/* 右组：🔁（C 方案：两段 180° 弧 + 两 polyline 箭头，激活时中心加 "1"） */}
-        <div className="apb__group">
+        {/* 右组：🔁 */}
+        <div className="audio-player-bar__group">
           <button
             type="button"
-            className="apb__btn apb__btn--loop"
+            className={
+              'audio-player-bar__btn audio-player-bar__btn--loop' +
+              (isLooping ? ' audio-player-bar__btn--active' : '')
+            }
             aria-label={isLooping ? '关闭循环' : '循环播放'}
             aria-pressed={isLooping}
             onClick={onToggleLoop}
           >
             <svg
-              className="apb__btn--loop-icon"
               width="20"
               height="20"
               viewBox="0 0 24 24"
@@ -227,7 +280,7 @@ export default function AudioPlayerBar({
                   fontWeight="700"
                   fill="currentColor"
                   stroke="none"
-                  fontFamily="ui-monospace, 'SF Mono', Menlo, monospace"
+                  fontFamily="'JetBrains Mono', 'Fira Code', ui-monospace, monospace"
                 >
                   1
                 </text>
