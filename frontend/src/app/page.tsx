@@ -316,6 +316,24 @@ export default function PracticePage() {
     }
   }, [currentWordIndex, isCorrect, currentIndex]);
 
+  // 兜底焦点续命：document 捕获阶段监听 click
+  // ——即使按钮 / cell onClick 调用 e.stopPropagation() 阻断冒泡，捕获阶段也会先于 target 触发，
+  //   把焦点强制续回 typewriter-input，跳过文本输入框 / 打开中的菜单避免抢焦点。
+  // 见 dda5385 之前的「点 mode-selector / 工具栏 3-dot 后键盘失效」bug。
+  useEffect(() => {
+    const refocus = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      // 不抢：用户正在文本输入框打字（除 typewriter-input 本身）
+      if (target.closest('input:not(.typewriter-input), textarea, [contenteditable="true"]')) return;
+      // 不抢：菜单 / 列表打开中（用户可能在用键盘上下选）
+      if (target.closest('[role="menu"], [role="listbox"]')) return;
+      inputRefs.current[0]?.focus();
+    };
+    document.addEventListener('click', refocus, true);
+    return () => document.removeEventListener('click', refocus, true);
+  }, []);
+
   // Audio playback on user interaction only (browsers block auto-play without user gesture)
 
   useEffect(() => {
@@ -1125,8 +1143,10 @@ export default function PracticePage() {
                             (inputMode === 'free' ? ' cell--clickable' : '') +
                             (justErred && isActive ? ' cell--shake' : '')
                           }
-                          onClick={(e) => {
-                            e.stopPropagation();
+                          onClick={() => {
+                            // 不 stopPropagation —— 让 click 冒泡到 document 级监听，
+                            // 由那里把焦点续回 typewriter-input（cell 是 span 本身不会偷焦点，
+                            // 但 stopPropagation 是埋雷）。
                             if (inputMode === 'free' && !isComposingRef.current) {
                               setCurrentWordIndex(index);
                             }
