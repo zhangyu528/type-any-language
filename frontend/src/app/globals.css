@@ -33,12 +33,6 @@
   --accent:                #D70015;            /* desaturated system red, enso + correct */
   --accent-tint:           #FBE9EB;            /* systemRed6 — soft wash behind correct */
 
-  /* ----- Color: Feedback ----- */
-  --feedback-correct:      #D70015;
-  --feedback-correct-tint: #FBE9EB;
-  --feedback-incorrect:    #3C3C43;            /* quiet gray, not alarming */
-  --feedback-incorrect-tint: #F2F2F7;
-
   /* ----- Typography ----- */
   --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text",
                "PingFang SC", "Helvetica Neue", Arial, sans-serif;
