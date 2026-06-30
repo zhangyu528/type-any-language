@@ -287,7 +287,7 @@ export default function PracticePage() {
     if (!shortcutsOpen) return;
     const onDocClick = (e: MouseEvent) => {
       const panel = document.getElementById('shortcuts-panel');
-      const toggle = document.querySelector('.shortcuts-toggle');
+      const toggle = document.querySelector('.shortcuts__toggle');
       if (panel?.contains(e.target as Node)) return;
       if (toggle?.contains(e.target as Node)) return;
       setShortcutsOpen(false);
@@ -764,31 +764,30 @@ export default function PracticePage() {
 
   if (loading) {
     return (
-      <div className="immersive-container">
-        <div className="immersive-loading">
-          <div className="waveform">
-            <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-          </div>
-          <p>Loading...</p>
+      <div className="practice practice--loading">
+        <div className="practice__loader" aria-hidden>
+          <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
         </div>
+        <p className="practice__loader-text">Loading…</p>
       </div>
     );
   }
 
   if (error && sentences.length === 0) {
     return (
-      <div className="immersive-container">
-        <div className="immersive-error">{error}</div>
+      <div className="practice practice--error">
+        <p className="practice__error-text">{error}</p>
       </div>
     );
   }
 
   if (showScore) {
     return (
-      <div className="immersive-container">
-        <div className="score-summary">
-          {/* 円相 — the enso brush stroke, drawn once on mount */}
-          <svg className="score-summary__icon" viewBox="0 0 100 100" aria-hidden>
+      <div className="practice">
+        <div className="score">
+          {/* 円相 — the enso brand mark, drawn once on mount. The only place
+              where the reserved --accent color appears. */}
+          <svg className="score__enso" viewBox="0 0 100 100" aria-hidden>
             <circle
               cx="50" cy="50" r="42"
               fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
@@ -796,17 +795,17 @@ export default function PracticePage() {
               transform="rotate(-30 50 50)"
             />
           </svg>
-          <h2 className="score-summary__title">
+          <h2 className="score__title">
             {score.correct} / {score.total}
           </h2>
-          <p className="score-summary__text">
+          <p className="score__text">
             {score.correct === score.total
               ? 'a complete breath.'
               : score.correct === 0
                 ? 'the beginning of attention.'
                 : `${score.correct} of ${score.total} — quiet progress.`}
           </p>
-          <button className="score-summary__button" onClick={() => {
+          <button className="score__again" onClick={() => {
             setShowScore(false);
             setCurrentIndex(0);
             setScore({ correct: 0, total: sentences.length });
@@ -822,7 +821,11 @@ export default function PracticePage() {
 
   return (
     <div
-      className={`immersive-container ${isCorrect === true ? 'feedback-correct' : ''} ${isCorrect === false ? 'feedback-incorrect' : ''}`}
+      className={
+        'practice' +
+        (isCorrect === true  ? ' practice--feedback-correct' : '') +
+        (isCorrect === false ? ' practice--feedback-incorrect' : '')
+      }
       onClick={handleContainerClick}
     >
       <audio
@@ -835,7 +838,7 @@ export default function PracticePage() {
 
       {/* Content selector — picks which vocab lib + difficulty to practice. */}
       {selectedLibId && selectedDifficulty && (
-        <div className="library-picker-bar">
+        <div className="practice__library">
           <LibraryPicker
             selectedLibId={selectedLibId}
             selectedDifficulty={selectedDifficulty}
@@ -855,14 +858,13 @@ export default function PracticePage() {
           e.nativeEvent.stopImmediatePropagation();
         }}
       >
-        {/* 1. 音频播放（UI 已删除，playAudio() 由 AudioPlayerBar 调用，逻辑保留） */}
-        {/* 2. 显示选项（UI 已删除，showSentence 仍由 shortcuts-panel 的"显示句子"复选框控制，逻辑保留） */}
-
-        {/* 3. 页面工具 */}
-        <div className="toolbar__dropdown">
+        <div className="toolbar__group">
           <button
             type="button"
-            className={`toolbar__btn toolbar__btn--icon ${isToolsOpen ? 'toolbar__btn--active' : ''}`}
+            className={
+              'toolbar__btn toolbar__btn--icon' +
+              (isToolsOpen ? ' toolbar__btn--active' : '')
+            }
             onClick={(e) => {
               e.stopPropagation();
               setIsToolsOpen(v => !v);
@@ -873,7 +875,17 @@ export default function PracticePage() {
             aria-label="页面工具"
             title="页面工具"
           >
-            …
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 18 18"
+              fill="currentColor"
+              aria-hidden
+            >
+              <circle cx="3" cy="9" r="1.6" />
+              <circle cx="9" cy="9" r="1.6" />
+              <circle cx="15" cy="9" r="1.6" />
+            </svg>
           </button>
           {isToolsOpen && (
             <div className="toolbar__menu" role="menu" onClick={(e) => e.stopPropagation()}>
@@ -886,18 +898,18 @@ export default function PracticePage() {
         </div>
       </div>
 
-      {/* 折叠触发器：右下角浮动齿轮按钮 */}
+      {/* 折叠触发器：右下角浮动按钮 */}
       <button
         type="button"
-        className="shortcuts-toggle"
+        className="shortcuts__toggle"
         aria-label={shortcutsOpen ? '关闭快捷键面板' : '打开快捷键面板'}
         aria-expanded={shortcutsOpen}
         aria-controls="shortcuts-panel"
         onClick={() => setShortcutsOpen((v) => !v)}
       >
         <svg
-          width="22"
-          height="22"
+          width="20"
+          height="20"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -911,7 +923,7 @@ export default function PracticePage() {
           ) : (
             <>
               <circle cx="12" cy="12" r="3" />
-              <path d="M12 2 L12 5 M12 19 L12 22 M2 12 L5 12 M19 12 L22 12 M4.93 4.93 L7.05 7.05 M16.95 16.95 L19.07 19.07 M4.93 19.07 L7.05 16.95 M16.95 7.05 L19.07 4.93" />
+              <path d="M12 2 L12 5 M12 19 L12 22 M2 12 L5 12 M19 12 L22 12 M4.93 4.93 L7.05 7.05 M16.95 16.95 M19.07 19.07 M4.93 19.07 L7.05 16.95 M16.95 7.05 L19.07 4.93" />
             </>
           )}
         </svg>
@@ -920,12 +932,12 @@ export default function PracticePage() {
       {/* 右侧面板：快捷键 + 显示选项 */}
       <aside
         id="shortcuts-panel"
-        className={`shortcuts-panel ${shortcutsOpen ? 'is-open' : ''}`}
+        className={'shortcuts' + (shortcutsOpen ? ' shortcuts--open' : '')}
         aria-label="快捷键和选项"
         aria-hidden={!shortcutsOpen}
       >
-        <div className="shortcuts-panel__title">快捷键</div>
-        <ul className="shortcuts-panel__list">
+        <div className="shortcuts__title">快捷键</div>
+        <ul className="shortcuts__list">
           <li><kbd>Space</kbd><span>提交 / 跳过（空时）</span></li>
           <li><kbd>Enter</kbd><span>跳过 / 末位提交</span></li>
           <li><kbd>Tab</kbd><span>下一 cell</span></li>
@@ -935,51 +947,52 @@ export default function PracticePage() {
           <li><kbd>←</kbd><kbd>→</kbd><span>上一句/下一句</span></li>
         </ul>
 
-        <div className="shortcuts-panel__divider" />
+        <div className="shortcuts__divider" />
 
-        <div className="shortcuts-panel__title">显示选项</div>
-        <ul className="shortcuts-panel__list">
+        <div className="shortcuts__title">显示选项</div>
+        <ul className="shortcuts__list">
           <li>
-            <label className="shortcuts-panel__check">
+            <label className="shortcuts__check">
               <input
                 type="checkbox"
                 checked={showSentence}
                 onChange={(e) => handleShowSentenceChange(e.target.checked)}
               />
-              <span className="shortcuts-panel__checkbox" aria-hidden></span>
+              <span className="shortcuts__checkbox" aria-hidden></span>
               <span>显示句子</span>
             </label>
           </li>
           <li>
-            <label className="shortcuts-panel__check">
+            <label className="shortcuts__check">
               <input
                 type="checkbox"
                 checked={showPhonetics}
                 onChange={(e) => handleShowPhoneticsChange(e.target.checked)}
               />
-              <span className="shortcuts-panel__checkbox" aria-hidden></span>
+              <span className="shortcuts__checkbox" aria-hidden></span>
               <span>显示音标</span>
             </label>
           </li>
           <li>
-            <label className="shortcuts-panel__check">
+            <label className="shortcuts__check">
               <input
                 type="checkbox"
                 checked={correctSoundEnabled}
                 onChange={(e) => setCorrectSoundEnabled(e.target.checked)}
               />
-              <span className="shortcuts-panel__checkbox" aria-hidden></span>
+              <span className="shortcuts__checkbox" aria-hidden></span>
               <span>答对提示音</span>
             </label>
           </li>
         </ul>
       </aside>
 
-      <div className="immersive-content">
-        {/* wabi-sabi masthead — a single quiet word, with breath to its right */}
+      <div className="practice__content">
         <header className="masthead" aria-label="page header">
           <h1 className="masthead__brand">dictation.</h1>
-          <p className="masthead__sub">no. {String(currentIndex + 1).padStart(2, '0')} of {String(sentences.length).padStart(2, '0')}</p>
+          <p className="masthead__sub">
+            {String(currentIndex + 1).padStart(2, '0')} / {String(sentences.length).padStart(2, '0')}
+          </p>
         </header>
 
         {currentSentence && (
@@ -996,9 +1009,8 @@ export default function PracticePage() {
               onTogglePlay={handleTogglePlay}
             />
 
-
-            <div className="sentence-area" onClick={() => inputRefs.current[0]?.focus()}>
-              {/* 输入模式选择器：sentence-area 右上角触发按钮 + 弹层 */}
+            <div className="sentence" onClick={() => inputRefs.current[0]?.focus()}>
+              {/* 输入模式选择器：sentence 右上角触发按钮 + 弹层 */}
               <div className="mode-selector">
                 <button
                   ref={modeBtnRef}
@@ -1044,7 +1056,10 @@ export default function PracticePage() {
                           type="button"
                           role="option"
                           aria-selected={inputMode === m}
-                          className={`mode-selector__option ${inputMode === m ? 'is-active' : ''}`}
+                          className={
+                            'mode-selector__option' +
+                            (inputMode === m ? ' mode-selector__option--active' : '')
+                          }
                           onClick={() => {
                             setInputMode(m);
                             setModeMenuOpen(false);
@@ -1056,7 +1071,24 @@ export default function PracticePage() {
                             <span className="mode-selector__option-label">{MODE_METADATA[m].label}</span>
                             <span className="mode-selector__option-desc">{MODE_METADATA[m].desc}</span>
                           </span>
-                          {inputMode === m && <span className="mode-selector__option-check" aria-hidden>✓</span>}
+                          {inputMode === m && (
+                            <svg
+                              className="mode-selector__option-check"
+                              width="12"
+                              height="12"
+                              viewBox="0 0 12 12"
+                              aria-hidden
+                            >
+                              <path
+                                d="M2.5 6.5 L5 9 L9.5 3.5"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.75"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          )}
                         </button>
                       </li>
                     ))}
@@ -1064,14 +1096,17 @@ export default function PracticePage() {
                 )}
               </div>
 
-              <p className="sentence-hint" lang="zh-CN">{currentSentence.chinese_text || 'Listen and type the sentence'}</p>
+              <p className="sentence__hint" lang="zh-CN">{currentSentence.chinese_text || 'Listen and type the sentence'}</p>
 
-              <div className="sentence-display typewriter-mode" onClick={(e) => {
-                e.stopPropagation();
-                inputRefs.current[0]?.focus();
-              }}>
+              <div
+                className="sentence__display"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  inputRefs.current[0]?.focus();
+                }}
+              >
                 {/* 所有 cell 共享一个 flex 容器，wrap 边界物理同步 */}
-                <div className="sentence-line" data-phonetics-version={phoneticsVersion}>
+                <div className="sentence__cells" data-phonetics-version={phoneticsVersion}>
                   {currentSentence.text.split(/\s+/).map((word, index) => {
                     const isCorrectWord = wordResults[index];
                     const isActive = currentWordIndex === index && isCorrect === null;
@@ -1080,10 +1115,16 @@ export default function PracticePage() {
                     const phonetic = showPhonetics ? phoneticsMap.current[wordKey] || '' : '';
 
                     return (
-                      <span key={`cell-${index}`} className="sentence-cell">
+                      <span key={`cell-${index}`} className="cells__item">
                         {/* 单词行（带下划线） */}
                         <span
-                          className={`line-word ${isCorrectWord ? 'line-word--correct' : ''} ${isActive ? 'line-word--active' : ''} ${inputMode === 'free' ? 'line-word--clickable' : ''} ${justErred && isActive ? 'line-word--shake' : ''}`}
+                          className={
+                            'cell' +
+                            (isCorrectWord ? ' cell--correct' : '') +
+                            (isActive ? ' cell--active' : '') +
+                            (inputMode === 'free' ? ' cell--clickable' : '') +
+                            (justErred && isActive ? ' cell--shake' : '')
+                          }
                           onClick={(e) => {
                             e.stopPropagation();
                             if (inputMode === 'free' && !isComposingRef.current) {
@@ -1091,27 +1132,29 @@ export default function PracticePage() {
                             }
                           }}
                         >
-                          <span className="line-word-ghost" aria-hidden>{word}</span>
+                          <span className="cell__ghost" aria-hidden>{word}</span>
                           {isCorrectWord ? (
-                            <span className="line-word-text">{word}</span>
+                            <span className="cell__text">{word}</span>
                           ) : isActive ? (
-                            <span className="line-word-input">
+                            <span className="cell__input">
                               {input.split('').map((char, i) => {
                                 const status = char?.toLowerCase() === word[i]?.toLowerCase() ? 'correct' : 'wrong';
-                                return <span key={i} className={`line-char line-char--${status}`}>{char}</span>;
+                                return <span key={i} className={`cell__char cell__char--${status}`}>{char}</span>;
                               })}
-                              <span className="line-cursor">|</span>
+                              <span className="cell__cursor" aria-hidden>|</span>
                             </span>
                           ) : (
-                            <span className="line-word-empty"></span>
+                            <span className="cell__placeholder"></span>
                           )}
                         </span>
 
                         {/* 音标行 */}
                         {showPhonetics && (
-                          <span className="phonetic-cell">
-                            <span className="phonetic-ghost" aria-hidden>{word}</span>
-                            {phonetic ? <span className="phonetic-text">{phonetic}</span> : <span className="phonetic-placeholder">·</span>}
+                          <span className="phonetic">
+                            <span className="phonetic__ghost" aria-hidden>{word}</span>
+                            {phonetic
+                              ? <span className="phonetic__text">{phonetic}</span>
+                              : <span className="phonetic__placeholder">·</span>}
                           </span>
                         )}
                       </span>
@@ -1154,46 +1197,64 @@ export default function PracticePage() {
 
               {/* Answer hint box - only shows when Space pressed */}
               {spaceHintActive && (
-                <div className="hint-box">
-                  <span className="hint-box__label">Answer:</span>
-                  <span className="hint-box__word">
+                <div className="hint">
+                  <span className="hint__label">Answer</span>
+                  <span className="hint__word">
                     {currentSentence.text.split(/\s+/)[currentWordIndex]}
                   </span>
                 </div>
               )}
 
-              <div className="progress-dots">
+              <div className="progress" role="list" aria-label="题目进度">
                 {sentences.map((_, i) => {
                   const result = sentenceResults[i];
                   const doneClass = i < currentIndex
-                    ? (result === true ? 'dot--correct' : result === false ? 'dot--incorrect' : 'dot--done')
+                    ? (result === true
+                        ? 'progress__dot--correct'
+                        : result === false
+                          ? 'progress__dot--incorrect'
+                          : 'progress__dot--done')
                     : '';
                   return (
                     <span
                       key={i}
-                      className={`dot ${doneClass} ${i === currentIndex ? 'dot--current' : ''}`}
+                      className={
+                        'progress__dot' +
+                        (doneClass ? ' ' + doneClass : '') +
+                        (i === currentIndex ? ' progress__dot--current' : '')
+                      }
+                      role="listitem"
+                      aria-label={
+                        i === currentIndex
+                          ? `第 ${i + 1} 题（当前）`
+                          : result === true
+                            ? `第 ${i + 1} 题（答对）`
+                            : result === false
+                              ? `第 ${i + 1} 题（答错）`
+                              : `第 ${i + 1} 题`
+                      }
                     />
                   );
                 })}
               </div>
             </div>
 
-            <div className="action-area">
+            <div className="actions">
               {isCorrect === null && allWordsFilled && (
-                <button className="submit-btn" onClick={handleSubmit}>
-                  ✓ Submit
+                <button className="actions__submit" onClick={handleSubmit}>
+                  Submit
                 </button>
               )}
 
               {isCorrect !== null && (
-                <div className={`feedback ${isCorrect ? 'feedback--correct' : 'feedback--incorrect'}`}>
+                <div className={'feedback' + (isCorrect ? ' feedback--correct' : ' feedback--incorrect')}>
                   <div className="feedback__header">
-                    <span className="feedback__title">{isCorrect ? 'Correct!' : 'Incorrect'}</span>
-                    <span className="feedback__time">用了 {Math.round((Date.now() - sentenceStartTime) / 1000)}s</span>
+                    <span className="feedback__title">{isCorrect ? 'Correct' : 'Incorrect'}</span>
+                    <span className="feedback__time">{Math.round((Date.now() - sentenceStartTime) / 1000)}s</span>
                   </div>
                   {!isCorrect && <p className="feedback__answer">{correctAnswer}</p>}
-                  <button className="next-btn" onClick={handleNext}>
-                    {currentIndex < sentences.length - 1 ? 'Next →' : 'Finish'}
+                  <button className="feedback__next" onClick={handleNext}>
+                    {currentIndex < sentences.length - 1 ? 'Next' : 'Finish'}
                   </button>
                 </div>
               )}
@@ -1201,7 +1262,7 @@ export default function PracticePage() {
           </>
         )}
 
-        <div className={`nav-hint ${showNav ? 'visible' : ''}`}>
+        <div className={'nav-hint' + (showNav ? ' nav-hint--visible' : '')}>
           <button onClick={handlePrev} disabled={currentIndex === 0}>← Prev</button>
           <span>Press Esc for score</span>
           <button onClick={handleNext}>Next →</button>
