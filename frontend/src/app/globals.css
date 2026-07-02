@@ -13,25 +13,47 @@
    ============================================================ */
 
 :root {
-  /* ----- Color: Apple HIG semantic surfaces ----- */
-  --surface:               #FFFFFF;            /* default ground */
-  --surface-elevated:      #FFFFFF;            /* raised cards/panels */
-  --surface-secondary:     #F2F2F7;            /* systemGray6 — chip/menu bg */
-  --surface-tertiary:      #E5E5EA;            /* systemGray5 — pressed/hover */
+  /* ----- Color: cool ink & slate (DESIGN.md v2d) -----
+     Single cool palette, four surface tones, four label tones.
+     Warm vermilion (`--accent`) is RESERVED for the enso brand
+     mark + correct-cell text only — never buttons, links, errors. */
 
-  /* ----- Color: Apple HIG label hierarchy (4 levels) ----- */
-  --label-primary:         #1C1C1E;            /* primary text */
-  --label-secondary:       #3C3C43;            /* muted text / feedback-incorrect */
-  --label-tertiary:        #8E8E93;            /* secondaryLabel — captions, hints */
-  --label-quaternary:      #C7C7CC;            /* tertiaryLabel — placeholders */
+  /* Surfaces — cool white + slate-mist grays */
+  --surface:               #FBFCFD;            /* cool white page bg */
+  --surface-elevated:      #FFFFFF;            /* pure white — popovers / lifted layers */
+  --surface-secondary:     #F0F2F5;            /* mist blue-gray — sunken panel bg */
+  --surface-tertiary:      #E5E9EE;            /* deeper mist — pressed / hover */
 
-  /* ----- Color: Apple HIG separators ----- */
-  --separator:             rgba(60, 60, 67, 0.29);  /* non-opaque hairline */
-  --separator-opaque:      #E5E5EA;            /* opaque separator */
+  /* Labels — 4-step cool hierarchy (charcoal → slate → cool mid → cool light) */
+  --label-primary:         #1A1F26;            /* charcoal — body text, brand mark, active cell */
+  --label-secondary:       #2F3741;            /* deep slate — kbd fill, primary hover */
+  --label-tertiary:        #5C6773;            /* cool mid-gray — action labels, captions */
+  --label-quaternary:      #8E97A3;            /* cool light — placeholders, dividers */
+  --label-mist:            #B8BFC8;            /* mist on dark — kbd text, checkbox off */
 
-  /* ----- Color: Accent (vermilion) — enso + correct only ----- */
-  --accent:                #D70015;            /* desaturated system red, enso + correct */
-  --accent-tint:           #FBE9EB;            /* systemRed6 — soft wash behind correct */
+  /* Separators — opaque cool hairline */
+  --separator:             #D6DBE2;            /* cool hairline */
+  --separator-opaque:      #D6DBE2;            /* opaque alias for older references */
+
+  /* Primary / Secondary — fills for interactive controls */
+  --primary:               #1A1F26;            /* charcoal fill — play button, "begin again" */
+  --on-primary:            #E8ECF1;            /* mist white — text on dark fills */
+  --secondary:             #2F3741;            /* deep slate — kbd badges, checkbox on */
+  --on-secondary:          #E8ECF1;
+
+  /* Accent — warm vermilion, RESERVED for the enso brand mark and
+     the "begin again" / "next" button outlines only. */
+  --accent:                #C73E1D;            /* slightly warmer than #D70015 — fits cool page */
+  --accent-tint:           #FBE6E0;            /* soft warm wash (no longer used by correct
+                                                 feedback; kept for any future warm surface) */
+
+  /* Correct — sage green for positive feedback (cell typed right,
+     progress dot, full-screen feedback wash). Pairs with the cool
+     palette without shouting. Distinct from --accent (red) which
+     stays reserved for the brand mark. */
+  --correct:               #5C7A4A;            /* sage green — answered-correctly state */
+  --correct-tint:          #E5ECDF;            /* pale sage wash for the feedback-correct
+                                                 full-screen radial gradient */
 
   /* ----- Typography ----- */
   --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text",
@@ -168,7 +190,7 @@ select:focus-visible {
 }
 
 .practice--feedback-correct::after {
-  background: radial-gradient(circle at 50% 50%, var(--accent-tint) 0%, transparent 55%);
+  background: radial-gradient(circle at 50% 50%, var(--correct-tint) 0%, transparent 55%);
 }
 
 .practice--feedback-incorrect::after {
@@ -307,13 +329,17 @@ select:focus-visible {
 
 /* ============================================================
    LibraryPicker — Apple HIG web-adapted
-   Quiet, focused, single-row. Red reserved for the score enso.
+   Single, deliberate card + custom popover menu. The native
+   <select> was removed because its dropdown is platform-controlled
+   (and dismisses itself on mouseup on many setups). Now the card
+   is a <button> that toggles a role="listbox" popover below it.
+   Red reserved for the score enso.
    ============================================================ */
 .picker {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-5);  /* 24px between fields */
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);   /* caption → field */
   padding: 0;
   background: transparent;
   border: none;
@@ -325,18 +351,7 @@ select:focus-visible {
   pointer-events: none;
 }
 
-/* Field row: small caption label + control, baseline-aligned */
-.picker__field {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);  /* 12px label → control */
-}
-
-.picker__field--chips {
-  gap: var(--space-3);
-}
-
-/* Caption label — Apple secondaryLabel, lowercase caption */
+/* Caption — sits above the field on its own line, Apple secondaryLabel */
 .picker__label {
   font-family: var(--font-body);
   font-size: var(--type-caption);
@@ -348,143 +363,196 @@ select:focus-visible {
   user-select: none;
 }
 
-/* Library select — compact control wrapping native <select> */
-.picker__select-wrap {
+/* Field — anchors the popover (position: relative).
+   The card and the popover are siblings inside this field. */
+.picker__field {
   position: relative;
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* Card row: text block (name + meta) on the left, chevron on the right.
+   Renders as a <button> for the multi-lib case, a <div> for single-lib. */
+.picker__card {
+  display: flex;
   align-items: center;
-  min-height: 28px;
-  padding: 0 var(--space-4);
-  background: var(--surface-secondary);
-  border: none;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-4) var(--space-5);  /* 16 / 20 */
+  background: var(--surface-elevated);
+  border: 1px solid var(--separator);
   border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  color: var(--label-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+.picker__card:hover:not(:disabled) {
+  border-color: var(--label-quaternary);
+}
+
+.picker__card:disabled {
+  cursor: not-allowed;
+}
+
+/* Open state — slightly darker border for affordance. */
+.picker__card--open {
+  border-color: var(--label-quaternary);
+}
+
+/* Static card (single lib) — same look, no hover/cursor affordance. */
+.picker__card--static {
+  cursor: default;
+}
+
+.picker__card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.picker__card-name {
+  font-family: var(--font-body);
+  font-size: var(--type-body-emphasis);
+  font-weight: var(--type-title-3-weight);
+  color: var(--label-primary);
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.picker__card-meta {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  font-weight: var(--type-body-weight);
+  color: var(--label-tertiary);
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Chevron — rotates 180° when popover is open. */
+.picker__chevron {
+  display: inline-flex;
+  color: var(--label-tertiary);
   transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    box-shadow      var(--duration-fast) var(--ease-standard);
+    color     var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+  flex-shrink: 0;
 }
 
-.picker__select-wrap:hover {
-  background: var(--surface-tertiary);
+.picker__chevron--open {
+  transform: rotate(180deg);
+  color: var(--label-secondary);
 }
 
-.picker__select-wrap:focus-within {
-  /* Apple focus ring: 1px inset outline + 4px outer halo */
-  box-shadow:
-    0 0 0 1px var(--label-primary) inset,
-    0 0 0 4px rgba(60, 60, 67, 0.12);
+.picker__card:hover .picker__chevron {
+  color: var(--label-secondary);
 }
 
-.picker__select {
-  appearance: none;
-  -webkit-appearance: none;
+/* Popover — role="listbox", anchored to the field below the card.
+   Single source of truth for option row layout, hover, active state. */
+.picker__popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  padding: var(--space-1);
+  background: var(--surface-elevated);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  max-height: 320px;
+  overflow-y: auto;
+  animation: picker-popover-in 140ms var(--ease-standard);
+}
+
+@keyframes picker-popover-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.picker__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-3);
   background: transparent;
   border: 0;
-  outline: none;
+  border-radius: var(--radius-sm);
   font-family: var(--font-body);
-  font-size: var(--type-body);
-  font-weight: var(--type-body-emphasis-weight);
-  line-height: var(--type-body-lh);
   color: var(--label-primary);
-  padding: var(--space-1) var(--space-5) var(--space-1) 0;
+  text-align: left;
   cursor: pointer;
-  min-width: 12ch;
-  font-variant-numeric: tabular-nums;
+  transition: background-color var(--duration-fast) var(--ease-standard);
 }
 
-.picker__select:disabled {
-  cursor: not-allowed;
-  color: var(--label-quaternary);
-}
-
-.picker__select option {
-  background: var(--surface-elevated);
-  color: var(--label-primary);
-  font-family: var(--font-body);
-  font-style: normal;
-}
-
-/* Chevron — inline SVG, inherits label color */
-.picker__chevron {
-  position: absolute;
-  right: var(--space-3);
-  top: 50%;
-  transform: translateY(-50%);
-  display: inline-flex;
-  pointer-events: none;
-  color: var(--label-tertiary);
-  transition: color var(--duration-fast) var(--ease-standard);
-}
-
-.picker__select-wrap:hover .picker__chevron {
-  color: var(--label-secondary);
-}
-
-/* Difficulty chips — Apple pill idiom */
-.picker__chips {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.picker__chip {
-  appearance: none;
-  -webkit-appearance: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 28px;
-  padding: 0 var(--space-3);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-circle);
-  font-family: var(--font-body);
-  font-size: var(--type-body);
-  font-weight: var(--type-body-weight);
-  line-height: var(--type-body-lh);
-  color: var(--label-secondary);
-  cursor: pointer;
-  font-variant-numeric: tabular-nums;
-  transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    border-color     var(--duration-fast) var(--ease-standard),
-    color            var(--duration-fast) var(--ease-standard);
-}
-
-.picker__chip:hover:not(.picker__chip--active):not(:disabled) {
+.picker__option:hover,
+.picker__option:focus-visible {
   background: var(--surface-secondary);
+  outline: none;
+}
+
+.picker__option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.picker__option-name {
+  font-size: var(--type-body);
+  font-weight: var(--type-body-emphasis-weight);
+  line-height: 1.25;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.picker__option-meta {
+  font-size: var(--type-caption);
+  font-weight: var(--type-body-weight);
+  color: var(--label-tertiary);
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.picker__option-check {
+  flex-shrink: 0;
   color: var(--label-primary);
 }
 
-/* Active: filled background, never a red underline */
-.picker__chip--active {
-  background: var(--label-primary);
-  color: var(--surface);
-  border-color: var(--label-primary);
-  font-weight: var(--type-body-emphasis-weight);
-}
-
-.picker__chip:focus-visible {
-  outline: none;
-  box-shadow:
-    0 0 0 1px var(--label-primary) inset,
-    0 0 0 4px rgba(60, 60, 67, 0.12);
-}
-
-.picker__chip:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-/* Loading state — skeleton, not text */
+/* Loading state — single skeleton placeholder, full card width */
 .picker--loading {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-5);
-  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .picker__skeleton {
   display: block;
+  width: 100%;
+  height: 56px;
   background: linear-gradient(
     90deg,
     var(--surface-secondary) 0%,
@@ -493,18 +561,7 @@ select:focus-visible {
   );
   background-size: 200% 100%;
   animation: pickerSkeletonShimmer 1.4s var(--ease-standard) infinite;
-}
-
-.picker__skeleton--select {
-  width: 160px;
-  height: 28px;
   border-radius: var(--radius-md);
-}
-
-.picker__skeleton--chips {
-  width: 96px;
-  height: 28px;
-  border-radius: var(--radius-circle);
 }
 
 @keyframes pickerSkeletonShimmer {
@@ -535,345 +592,6 @@ select:focus-visible {
   letter-spacing: 0.02em;
 }
 
-/* Responsive: stack to a column on narrow screens */
-@media (max-width: 640px) {
-  .picker {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-3);
-  }
-}
-
-/* ============================================================
-   Audio player bar — Apple HIG, web-adapted
-   Neutral only. No accent color.
-   ============================================================ */
-.audio-player-bar {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-3);            /* 12px between waveform / progress / controls */
-  padding: var(--space-4) var(--space-5);   /* 16px / 20px */
-  margin: 0 auto;
-  width: 100%;
-  max-width: 480px;
-  font-family: var(--font-body);
-  -webkit-font-smoothing: antialiased;
-}
-
-/* ----- Waveform ----- */
-.audio-player-bar__waveform {
-  display: block;
-  width: 100%;
-  padding: var(--space-2) 0;       /* 8px vertical breathing room */
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  color: var(--label-quaternary);  /* base idle state */
-  transition: color var(--duration-fast) var(--ease-standard);
-}
-
-.audio-player-bar__waveform:hover {
-  color: var(--label-tertiary);
-}
-
-.audio-player-bar__waveform:focus-visible {
-  outline: none;
-  border-radius: var(--radius-md);
-  box-shadow: 0 0 0 3px rgba(28, 28, 30, 0.18);   /* Apple-style focus halo */
-}
-
-.audio-player-bar__bars {
-  display: block;
-  width: 100%;
-}
-
-.audio-player-bar__bar {
-  /* base idle: faint, neutral, no motion */
-  opacity: 0.55;
-  transform-origin: center;
-  transform-box: fill-box;
-}
-
-/* playing — neutral label color, opacity breathes 0.4 → 1.0 */
-.audio-player-bar__bars--playing {
-  color: var(--label-primary);
-}
-
-.audio-player-bar__bars--playing .audio-player-bar__bar {
-  animation: audio-player-bar-breathe 1.6s var(--ease-standard) infinite;
-  opacity: 0.4;
-}
-
-@keyframes audio-player-bar-breathe {
-  0%, 100% { opacity: 0.4; transform: scaleY(0.85); }
-  50%      { opacity: 1.0; transform: scaleY(1.0);  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .audio-player-bar__bars--playing .audio-player-bar__bar {
-    animation: none;
-    opacity: 0.85;
-  }
-}
-
-/* ----- Progress ----- */
-.audio-player-bar__progress {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  color: var(--label-tertiary);
-  font-variant-numeric: tabular-nums;
-  user-select: none;
-}
-
-/* ----- Controls row ----- */
-.audio-player-bar__controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-3);            /* 12px between groups / play */
-  width: 100%;
-}
-
-.audio-player-bar__group {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);            /* 8px between sibling buttons in a group */
-  position: relative;             /* anchor for speed menu */
-}
-
-.audio-player-bar__divider {
-  width: 1px;
-  height: 20px;
-  background: var(--separator);
-  flex-shrink: 0;
-}
-
-/* ----- Buttons — shared base ----- */
-.audio-player-bar__btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  height: 32px;
-  padding: 0 var(--space-3);      /* 0 12px */
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-md);
-  color: var(--label-secondary);
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1;
-  cursor: pointer;
-  transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    color            var(--duration-fast) var(--ease-standard);
-  -webkit-tap-highlight-color: transparent;
-}
-
-.audio-player-bar__btn:hover {
-  background: var(--surface-secondary);
-  color: var(--label-primary);
-}
-
-.audio-player-bar__btn:active {
-  background: var(--surface-tertiary);
-}
-
-.audio-player-bar__btn:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(28, 28, 30, 0.18);
-}
-
-.audio-player-bar__btn[disabled],
-.audio-player-bar__btn[aria-disabled="true"] {
-  cursor: not-allowed;
-}
-
-/* ----- Play button (center, 64×64, filled neutral) ----- */
-.audio-player-bar__btn--play {
-  width: 64px;
-  height: 64px;
-  padding: 0;
-  border-radius: var(--radius-circle);
-  background: var(--label-primary);
-  color: #FFFFFF;
-  box-shadow: var(--shadow-sm);
-  transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    box-shadow        var(--duration-fast) var(--ease-standard),
-    transform         var(--duration-fast) var(--ease-standard);
-}
-
-.audio-player-bar__btn--play:hover {
-  background: var(--label-primary);
-  opacity: 0.88;
-  box-shadow: var(--shadow-md);
-}
-
-.audio-player-bar__btn--play:active {
-  opacity: 0.72;
-  transform: scale(0.97);
-}
-
-.audio-player-bar__btn--play:focus-visible {
-  box-shadow:
-    0 0 0 4px rgba(28, 28, 30, 0.32),   /* outer ring */
-    var(--shadow-sm);                   /* keep elevation */
-}
-
-/* ----- Ghost (dead UI: 文A 原始) ----- */
-.audio-player-bar__btn--ghost {
-  color: var(--label-tertiary);
-  opacity: 0.45;
-  font-weight: 400;
-  letter-spacing: 0.01em;
-}
-
-.audio-player-bar__btn--ghost:hover {
-  background: transparent;
-  color: var(--label-tertiary);
-  opacity: 0.55;
-}
-
-.audio-player-bar__btn--ghost:active {
-  background: transparent;
-}
-
-/* ----- Speed button + menu ----- */
-.audio-player-bar__btn--speed {
-  min-width: 56px;
-  font-variant-numeric: tabular-nums;
-}
-
-.audio-player-bar__speed-label {
-  font-feature-settings: "tnum";
-}
-
-.audio-player-bar__caret {
-  flex-shrink: 0;
-  margin-top: 1px;
-  opacity: 0.7;
-}
-
-.audio-player-bar__btn--speed[aria-expanded="true"] {
-  background: var(--surface-secondary);
-  color: var(--label-primary);
-}
-
-.audio-player-bar__speed-menu {
-  position: absolute;
-  bottom: calc(100% + var(--space-2));
-  left: 50%;
-  transform: translateX(-50%);
-  list-style: none;
-  margin: 0;
-  padding: var(--space-1);
-  min-width: 120px;
-  background: var(--surface);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  animation: audio-player-bar-menu-in var(--duration-fast) var(--ease-standard);
-}
-
-@keyframes audio-player-bar-menu-in {
-  from { opacity: 0; transform: translate(-50%, 4px); }
-  to   { opacity: 1; transform: translate(-50%, 0);   }
-}
-
-.audio-player-bar__speed-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--label-secondary);
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
-  transition: background-color var(--duration-fast) var(--ease-standard);
-  text-align: left;
-}
-
-.audio-player-bar__speed-option:hover {
-  background: var(--surface-secondary);
-}
-
-.audio-player-bar__speed-option:focus-visible {
-  outline: none;
-  background: var(--surface-secondary);
-  box-shadow: 0 0 0 2px rgba(28, 28, 30, 0.18);
-}
-
-.audio-player-bar__speed-option:active {
-  background: var(--surface-tertiary);
-}
-
-.audio-player-bar__speed-option--active {
-  color: var(--label-primary);
-  font-weight: 600;
-}
-
-.audio-player-bar__speed-option-check {
-  color: var(--label-primary);
-  flex-shrink: 0;
-}
-
-/* ----- Loop button ----- */
-.audio-player-bar__btn--loop {
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border-radius: var(--radius-circle);
-  color: var(--label-secondary);
-}
-
-.audio-player-bar__btn--loop.audio-player-bar__btn--active {
-  color: var(--label-primary);
-  background: var(--surface-secondary);
-}
-
-.audio-player-bar__btn--loop.audio-player-bar__btn--active:hover {
-  background: var(--surface-tertiary);
-}
-
-/* ----- 640px responsive collapse ----- */
-@media (max-width: 640px) {
-  .audio-player-bar {
-    padding: var(--space-3) var(--space-4);     /* 12px / 16px */
-    gap: var(--space-2);                        /* 8px */
-  }
-
-  .audio-player-bar__controls {
-    gap: var(--space-2);
-  }
-
-  .audio-player-bar__divider {
-    height: 16px;
-  }
-
-  .audio-player-bar__btn--play {
-    width: 56px;
-    height: 56px;
-  }
-
-  .audio-player-bar__btn--ghost {
-    display: none;            /* hide dead stub on mobile — saves space */
-  }
-}
-
 /* ============================================================
    Sentence — single column, generous whitespace, no card
    ============================================================ */
@@ -889,9 +607,9 @@ select:focus-visible {
 
 .sentence__hint {
   font-family: var(--font-body);
-  font-size: clamp(1rem, 2.2vw, 1.15rem);
-  font-weight: var(--type-body-weight);
-  color: var(--label-secondary);
+  font-size: clamp(1.125rem, 2.8vw, 1.5rem);   /* 18 → 24px: 中文翻译从"灰色小提示"升级为"明显的中文标题",跟 cell 大字形成对位 */
+  font-weight: 500;                             /* 略加重,PingFang SC 500 仍清晰 */
+  color: var(--label-primary);                  /* label-secondary → label-primary(炭黑):更显眼 */
   text-align: center;
   letter-spacing: 0.005em;
   line-height: 1.5;
@@ -917,153 +635,6 @@ select:focus-visible {
   pointer-events: none;
   width: 1px;
   height: 1px;
-}
-
-/* ============================================================
-   Mode selector — Apple HIG popover anchored to top-right of sentence
-   ============================================================ */
-.mode-selector {
-  position: absolute;
-  top: 0;
-  right: 0;
-  z-index: 30;
-}
-
-.mode-selector__btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 var(--space-3);
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-md);
-  color: var(--label-tertiary);
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  font-weight: var(--type-body-weight);
-  letter-spacing: 0.005em;
-  cursor: pointer;
-  transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    color            var(--duration-fast) var(--ease-standard);
-}
-
-.mode-selector__btn:hover {
-  background: var(--surface-secondary);
-  color: var(--label-primary);
-}
-
-.mode-selector__btn[aria-expanded="true"] {
-  background: var(--surface-secondary);
-  color: var(--label-primary);
-}
-
-.mode-selector__caret {
-  flex-shrink: 0;
-  margin-top: 1px;
-  opacity: 0.7;
-}
-
-.mode-selector__menu {
-  position: absolute;
-  bottom: calc(100% + var(--space-2));
-  right: 0;
-  min-width: 240px;
-  margin: 0;
-  padding: var(--space-1);
-  list-style: none;
-  background: var(--surface-elevated);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-  z-index: 50;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  animation: practice-fade-in var(--duration-fast) var(--ease-standard);
-}
-
-@keyframes practice-fade-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.mode-selector__option {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  width: 100%;
-  min-height: 48px;
-  padding: var(--space-2) var(--space-3);
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-sm);
-  color: var(--label-secondary);
-  font-family: var(--font-body);
-  font-size: var(--type-body);
-  font-weight: var(--type-body-weight);
-  text-align: left;
-  cursor: pointer;
-  transition: background-color var(--duration-fast) var(--ease-standard);
-}
-
-.mode-selector__option:hover {
-  background: var(--surface-secondary);
-  color: var(--label-primary);
-}
-
-.mode-selector__option:focus-visible {
-  outline: none;
-  background: var(--surface-secondary);
-  box-shadow: 0 0 0 2px rgba(28, 28, 30, 0.18);
-}
-
-.mode-selector__option--active {
-  color: var(--label-primary);
-  font-weight: 600;
-}
-
-.mode-selector__option-icon {
-  font-family: var(--font-body);
-  font-style: normal;
-  font-size: var(--type-body);
-  color: var(--label-tertiary);
-  width: 18px;
-  text-align: center;
-  flex-shrink: 0;
-  line-height: 1.4;
-  margin-top: 2px;
-}
-
-.mode-selector__option--active .mode-selector__option-icon {
-  color: var(--label-primary);
-}
-
-.mode-selector__option-body {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  min-width: 0;
-}
-
-.mode-selector__option-label {
-  font-size: var(--type-body);
-  font-weight: 600;
-  line-height: 1.3;
-}
-
-.mode-selector__option-desc {
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  color: var(--label-tertiary);
-  line-height: 1.4;
-}
-
-.mode-selector__option-check {
-  color: var(--label-primary);
-  flex-shrink: 0;
-  margin-top: 4px;
 }
 
 /* ============================================================
@@ -1130,9 +701,12 @@ select:focus-visible {
     opacity   var(--duration-base) var(--ease-standard);
 }
 
-/* Position absolute overlay for the input/text */
+/* Position absolute overlay for the input/text. .cell--active .cell__text--peek
+   is included so peek doesn't stack UNDER the ghost and double the cell height
+   (the ghost sets the cell's width; the visible content overlays it absolutely). */
 .cell--correct .cell__text,
-.cell--active .cell__input {
+.cell--active .cell__input,
+.cell--active .cell__text--peek {
   position: absolute;
   top: 0;
   left: 0;
@@ -1142,14 +716,24 @@ select:focus-visible {
   justify-content: center;
 }
 
-/* Completed cell — text settles in accent color, baseline fades out */
+/* Peek text in an active cell — same sage green + bold as the answered-correctly
+   state, so holding `/` looks like a "preview of the correct outcome". */
+.cell--active .cell__text--peek {
+  color: var(--correct);
+  font-weight: 600;
+}
+
+/* Completed cell — the celebration: sage green + bold, baseline fades out.
+   While typing, correct chars inherit the cell's --label-primary charcoal
+   (see .cell__char--correct below), so the user reads them as plain text;
+   only when the word is finished does the whole cell switch to --correct. */
 .cell--correct {
-  color: var(--accent);
+  color: var(--correct);
   font-weight: 600;
 }
 
 .cell--correct .cell__text {
-  color: var(--accent);
+  color: var(--correct);
 }
 
 .cell--correct::after {
@@ -1211,7 +795,10 @@ select:focus-visible {
 }
 
 .cell__char--correct {
-  color: var(--accent);
+  /* While typing, correctly-entered chars look like normal body text
+     (charcoal). The sage-green celebration is reserved for the moment
+     the whole word is finished (.cell--correct above). */
+  color: var(--label-primary);
 }
 
 .cell__char--wrong {
@@ -1243,16 +830,6 @@ select:focus-visible {
 @keyframes cell-cursor-blink {
   0%, 50%    { opacity: 1; }
   50.01%, 100% { opacity: 0; }
-}
-
-/* Free-mode clickable */
-.cell--clickable {
-  cursor: pointer;
-  transition: color var(--duration-fast) var(--ease-standard);
-}
-
-.cell--clickable:hover {
-  color: var(--label-primary);
 }
 
 /* Wrong-answer shake (300ms) */
@@ -1329,46 +906,6 @@ select:focus-visible {
 }
 
 /* ============================================================
-   Hint — whispered answer for the active cell
-   ============================================================ */
-.hint {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-1);
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-  animation: practice-breath var(--duration-base) var(--ease-standard);
-  margin-top: 0;
-}
-
-@keyframes practice-breath {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.hint__label {
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  font-weight: var(--type-body-weight);
-  color: var(--label-tertiary);
-  letter-spacing: 0.04em;
-  text-transform: none;
-  user-select: none;
-}
-
-.hint__word {
-  font-family: var(--font-body);
-  font-size: var(--type-title-3);
-  font-weight: 600;
-  color: var(--label-primary);
-  line-height: 1;
-}
-
-/* ============================================================
    Progress — sentence stepper
    ============================================================ */
 .progress {
@@ -1376,7 +913,7 @@ select:focus-visible {
   gap: var(--space-3);
   justify-content: center;
   align-items: center;
-  padding: var(--space-2) 0;
+  padding: var(--space-3) 0 var(--space-5);
   color: var(--label-tertiary);
 }
 
@@ -1385,7 +922,7 @@ select:focus-visible {
   width: 8px;
   height: 8px;
   border-radius: var(--radius-circle);
-  background: var(--separator-opaque);
+  background: var(--separator);
   transition:
     background-color var(--duration-fast) var(--ease-standard),
     transform         var(--duration-fast) var(--ease-standard);
@@ -1401,7 +938,7 @@ select:focus-visible {
 }
 
 .progress__dot--correct {
-  background: var(--accent);
+  background: var(--correct);
 }
 
 .progress__dot--incorrect {
@@ -1410,105 +947,119 @@ select:focus-visible {
 }
 
 /* ============================================================
-   Actions — Submit button (appears when all cells correct)
+   Sunken shortcut bar — DESIGN.md v2d
+   Lives inline in the practice column (NOT floating, NOT a drawer).
+   Vertical list of horizontal rows: kbd badge(s) on the left,
+   action label on the right. The kbd column has a fixed min-width
+   so labels align across rows (matters for the Shift+Tab case which
+   has 2 badges -- without the min-width, the labels would jitter).
    ============================================================ */
-.actions {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-5);
-  min-height: 80px;
-  justify-content: center;
+.shortcuts-bar {
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-secondary);
+  border-radius: var(--radius-lg);
+  user-select: none;
 }
 
-.actions__submit {
+.shortcuts-bar__list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2) var(--space-4);   /* row-gap / col-gap */
+}
+
+.shortcuts-bar__row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.shortcuts-bar__keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.shortcuts-bar__kbd {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 44px;
-  padding: 0 var(--space-7);
-  background: var(--label-primary);
-  color: #FFFFFF;
+  height: 24px;
+  min-width: 24px;
+  padding: 0 6px;
+  background: var(--label-secondary);
+  color: var(--label-mist);
   border: none;
-  border-radius: var(--radius-md);
-  font-family: var(--font-body);
-  font-size: var(--type-body);
-  font-weight: 600;
-  letter-spacing: 0.005em;
-  cursor: pointer;
-  transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    transform         var(--duration-fast) var(--ease-standard);
-}
-
-.actions__submit:hover {
-  opacity: 0.88;
-}
-
-.actions__submit:active {
-  opacity: 0.72;
-  transform: scale(0.98);
-}
-
-.actions__submit:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 4px rgba(28, 28, 30, 0.32);
-}
-
-/* ============================================================
-   Feedback — appears after submit on incorrect
-   ============================================================ */
-.feedback {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-4);
-  padding: 0;
-  border: none;
-  background: transparent;
-  animation: practice-breath var(--duration-base) var(--ease-standard);
-  text-align: center;
-}
-
-.feedback__header {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.feedback__title {
-  font-family: var(--font-body);
-  font-size: var(--type-body);
-  font-weight: 600;
-  color: var(--label-secondary);
-  letter-spacing: 0.005em;
-}
-
-.feedback--correct .feedback__title {
-  color: var(--accent);
-}
-
-.feedback__time {
+  border-radius: var(--radius-sm);
   font-family: var(--font-mono);
-  font-size: var(--type-caption);
+  font-size: 12px;
   font-weight: 500;
-  color: var(--label-tertiary);
   letter-spacing: 0.02em;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 
-.feedback__answer {
+.shortcuts-bar__label {
   font-family: var(--font-body);
-  font-size: var(--type-title-3);
-  font-weight: 500;
-  color: var(--label-primary);
-  text-align: center;
+  font-size: var(--type-caption);
+  font-weight: var(--type-body-weight);
+  color: var(--label-secondary);
+  letter-spacing: 0.02em;
   line-height: 1.3;
-  padding: 0;
-  border: none;
+  white-space: nowrap;
 }
+
+/* Toggle row — same visual language as the other shortcut rows (kbd badge
+   + label), but the whole row is interactive. Negative margin compensates
+   for the padding so the row still aligns with its non-toggle siblings in
+   the flex-wrap list. Hover bg + focus ring signal clickability without
+   adding a new visual element type to the bar. */
+.shortcuts-bar__row--toggle {
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+  margin: calc(-1 * var(--space-1)) calc(-1 * var(--space-2));
+  border-radius: var(--radius-sm);
+  user-select: none;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.shortcuts-bar__row--toggle:hover {
+  background: var(--surface-tertiary);
+}
+
+.shortcuts-bar__row--toggle:active {
+  background: var(--label-quaternary);
+}
+
+.shortcuts-bar__row--toggle:focus-visible {
+  outline: 2px solid var(--label-primary);
+  outline-offset: 2px;
+}
+
+/* State suffix — "· 开" / "· 关" inline at the end of the label. Color
+   encodes state: --label-primary (炭黑, active emphasis) when on, falls
+   back to --label-secondary (the rest of the label) when off. */
+.shortcuts-bar__state {
+  margin-left: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.shortcuts-bar__state--on {
+  color: var(--label-primary);
+  font-weight: var(--type-body-emphasis-weight);
+}
+
+.shortcuts-bar__state--off {
+  color: var(--label-tertiary);
+}
+
+/* Note: the autoplay toggle that used to live here was removed -- audio
+   now always auto-plays on new sentence, no toggle surface needed. */
 
 .feedback__next {
   display: inline-flex;
@@ -1541,348 +1092,9 @@ select:focus-visible {
 }
 
 /* ============================================================
-   Nav hint — Prev / score hint / Next, auto-hidden after 2s
+   (DESIGN.md v2d removed these blocks: nav-hint, toolbar, right-edge
+   shortcuts drawer. The sunken shortcut bar above replaces them all.)
    ============================================================ */
-.nav-hint {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: var(--space-5);
-  padding: var(--space-2) 0;
-  background: transparent;
-  border: none;
-  border-top: 1px solid var(--separator);
-  border-bottom: 1px solid var(--separator);
-  border-radius: 0;
-  opacity: 0;
-  transform: translateY(4px);
-  transition:
-    opacity   var(--duration-base) var(--ease-standard),
-    transform var(--duration-base) var(--ease-standard);
-  pointer-events: none;
-}
-
-.nav-hint--visible {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-}
-
-.nav-hint button {
-  padding: var(--space-1) var(--space-3);
-  background: transparent;
-  color: var(--label-secondary);
-  border: none;
-  border-radius: var(--radius-md);
-  font-family: var(--font-body);
-  font-size: var(--type-body);
-  font-weight: 500;
-  cursor: pointer;
-  transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    color            var(--duration-fast) var(--ease-standard);
-}
-
-.nav-hint button:hover:not(:disabled) {
-  background: var(--surface-secondary);
-  color: var(--label-primary);
-}
-
-.nav-hint button:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(28, 28, 30, 0.18);
-}
-
-.nav-hint button:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-.nav-hint span {
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  color: var(--label-tertiary);
-  letter-spacing: 0.04em;
-  user-select: none;
-}
-
-/* ============================================================
-   Toolbar — top-right menu trigger
-   ============================================================ */
-.toolbar {
-  position: fixed;
-  top: clamp(20px, 4vh, 36px);
-  right: clamp(20px, 4vw, 36px);
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.toolbar__group {
-  position: relative;
-}
-
-.toolbar__btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-md);
-  color: var(--label-tertiary);
-  cursor: pointer;
-  transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    color            var(--duration-fast) var(--ease-standard);
-}
-
-.toolbar__btn:hover {
-  background: var(--surface-secondary);
-  color: var(--label-primary);
-}
-
-.toolbar__btn:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(28, 28, 30, 0.18);
-}
-
-.toolbar__btn--active {
-  background: var(--surface-secondary);
-  color: var(--label-primary);
-}
-
-.toolbar__menu {
-  position: absolute;
-  top: calc(100% + var(--space-2));
-  right: 0;
-  min-width: 180px;
-  padding: var(--space-1);
-  background: var(--surface-elevated);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  animation: practice-fade-in var(--duration-fast) var(--ease-standard);
-}
-
-.toolbar__menu-header {
-  padding: var(--space-2) var(--space-3) var(--space-1);
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  font-weight: 500;
-  color: var(--label-tertiary);
-  letter-spacing: 0.02em;
-}
-
-.toolbar__menu-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  width: 100%;
-  min-height: 32px;
-  padding: 0 var(--space-3);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--label-secondary);
-  font-family: var(--font-body);
-  font-size: var(--type-body);
-  font-weight: var(--type-body-weight);
-  text-align: left;
-  cursor: pointer;
-  transition: background-color var(--duration-fast) var(--ease-standard);
-}
-
-.toolbar__menu-item:hover {
-  background: var(--surface-secondary);
-  color: var(--label-primary);
-}
-
-.toolbar__menu-item:focus-visible {
-  outline: none;
-  background: var(--surface-secondary);
-  box-shadow: 0 0 0 2px rgba(28, 28, 30, 0.18);
-}
-
-/* ============================================================
-   Shortcuts panel — bottom-right toggle + right-edge drawer
-   ============================================================ */
-.shortcuts__toggle {
-  position: fixed;
-  bottom: clamp(20px, 4vh, 36px);
-  right: clamp(20px, 4vw, 36px);
-  z-index: 41;
-  width: 36px;
-  height: 36px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-md);
-  color: var(--label-tertiary);
-  cursor: pointer;
-  transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    color            var(--duration-fast) var(--ease-standard);
-}
-
-.shortcuts__toggle:hover {
-  background: var(--surface-secondary);
-  color: var(--label-primary);
-}
-
-.shortcuts__toggle:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(28, 28, 30, 0.18);
-}
-
-.shortcuts__toggle[aria-expanded="true"] {
-  background: var(--surface-secondary);
-  color: var(--label-primary);
-}
-
-.shortcuts {
-  position: fixed;
-  top: 50%;
-  right: clamp(20px, 4vw, 36px);
-  z-index: 40;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-5);
-  background: var(--surface-elevated);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  user-select: none;
-  min-width: 240px;
-  max-width: 280px;
-  transform: translate(12px, -50%);
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    transform var(--duration-base) var(--ease-standard),
-    opacity   var(--duration-base) var(--ease-standard);
-}
-
-.shortcuts--open {
-  transform: translate(0, -50%);
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.shortcuts__title {
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  font-weight: 600;
-  color: var(--label-secondary);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  margin-bottom: var(--space-2);
-}
-
-.shortcuts__divider {
-  height: 1px;
-  background: var(--separator);
-  margin: var(--space-3) 0;
-}
-
-.shortcuts__list {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-}
-
-.shortcuts__list li {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  color: var(--label-secondary);
-}
-
-.shortcuts kbd {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 6px;
-  background: var(--surface-secondary);
-  border: 1px solid var(--separator);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 500;
-  text-align: center;
-  color: var(--label-secondary);
-  line-height: 1;
-}
-
-.shortcuts__check {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  cursor: pointer;
-  user-select: none;
-  font-family: var(--font-body);
-  font-size: var(--type-body);
-  font-weight: var(--type-body-weight);
-  color: var(--label-secondary);
-  min-height: 28px;
-}
-
-.shortcuts__check input[type="checkbox"] {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-  width: 0;
-  height: 0;
-}
-
-.shortcuts__checkbox {
-  display: inline-block;
-  flex: 0 0 auto;
-  width: 18px;
-  height: 18px;
-  border: 1px solid var(--separator);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    border-color     var(--duration-fast) var(--ease-standard);
-  position: relative;
-}
-
-.shortcuts__check:hover .shortcuts__checkbox {
-  border-color: var(--label-tertiary);
-}
-
-.shortcuts__check input[type="checkbox"]:checked + .shortcuts__checkbox {
-  background: var(--label-primary);
-  border-color: var(--label-primary);
-}
-
-.shortcuts__check input[type="checkbox"]:checked + .shortcuts__checkbox::after {
-  content: '';
-  position: absolute;
-  left: 5px;
-  top: 1px;
-  width: 5px;
-  height: 10px;
-  border: solid #FFFFFF;
-  border-width: 0 1.75px 1.75px 0;
-  transform: rotate(45deg);
-}
 
 /* ============================================================
    Score — enso brand mark + score + encouragement + begin again
@@ -1995,15 +1207,7 @@ select:focus-visible {
   .picker {
     flex-direction: column;
     gap: var(--space-3);
-    align-items: flex-start;
-  }
-
-  .picker__field--chips {
-    gap: var(--space-2);
-  }
-
-  .audio-player-bar {
-    gap: var(--space-4);
+    align-items: stretch;
   }
 
   .sentence {
@@ -2011,58 +1215,10 @@ select:focus-visible {
     padding: var(--space-4) 0;
   }
 
-  .mode-selector {
-    position: static;
-    align-self: flex-end;
-    margin-bottom: calc(-1 * var(--space-4));
-  }
-
   .practice__content {
     gap: var(--space-9);
   }
 
-  .toolbar {
-    top: var(--space-4);
-    right: var(--space-4);
-  }
-
-  .shortcuts {
-    top: auto;
-    bottom: 70px;
-    right: var(--space-4);
-    left: var(--space-4);
-    max-width: none;
-    transform: translate(0, var(--space-3));
-  }
-
-  .shortcuts--open {
-    transform: translate(0, 0);
-  }
-}
-
-@media (max-width: 480px) {
-  .shortcuts,
-  .shortcuts__toggle {
-    display: none;
-  }
-}
-
-@media (hover: none) and (pointer: coarse) {
-  .audio-player-bar__btn {
-    min-height: 44px;
-  }
-
-  .shortcuts__toggle {
-    width: 44px;
-    height: 44px;
-  }
-
-  .toolbar__btn {
-    min-width: 44px;
-    min-height: 44px;
-  }
-
-  .mode-selector__btn {
-    min-height: 36px;
-  }
+  /* Shortcut bar: list is a flex-wrap row, so on narrow screens it
+     naturally wraps to a second line. No special rules needed. */
 }

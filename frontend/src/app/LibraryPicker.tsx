@@ -1,23 +1,36 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { getContentCatalog, Catalog, VocabularyLib } from './api';
 
 interface LibraryPickerProps {
   /** Currently selected lib id (VocabularyLib.id, a UUID). */
   selectedLibId: string | null;
-  /** Currently selected difficulty bucket. */
-  selectedDifficulty: string;
-  /** Called whenever the user picks a new (lib, difficulty) combo. */
-  onChange: (libId: string, difficulty: string) => void;
+  /** Called whenever the user picks a new lib. */
+  onChange: (libId: string) => void;
   /** Disable while a sentence batch is loading; prevents mid-flight swaps. */
   disabled?: boolean;
 }
 
+/**
+ * LibraryPicker — Apple HIG, web-adapted
+ *
+ * A custom popover menu. The native <select> was removed because its
+ * dropdown is platform-controlled (and dismisses itself on mouseup on
+ * many setups, which is exactly what we couldn't fix). Now the card is
+ * a <button> that toggles a role="listbox" popover anchored below it.
+ *
+ * - Closes on: outside click / touch, Escape, option select
+ * - Single lib → static card, no chevron, no popover
+ * - Active lib → checkmark on the right
+ */
 export default function LibraryPicker(props: LibraryPickerProps) {
-  const { selectedLibId, selectedDifficulty, onChange, disabled = false } = props;
+  const { selectedLibId, onChange, disabled = false } = props;
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [error, setError] = useState<string>('');
+  const [open, setOpen] = useState(false);
+  const cardRef = useRef<HTMLButtonElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -36,6 +49,32 @@ export default function LibraryPicker(props: LibraryPickerProps) {
     };
   }, []);
 
+  // Close on outside pointer + Escape. Re-binds when open flips.
+  useEffect(() => {
+    if (!open) return;
+    const handlePointer = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (cardRef.current?.contains(target)) return;
+      if (popoverRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false);
+        cardRef.current?.focus();
+      }
+    };
+    document.addEventListener('mousedown', handlePointer);
+    document.addEventListener('touchstart', handlePointer);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handlePointer);
+      document.removeEventListener('touchstart', handlePointer);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [open]);
+
   if (error) {
     return (
       <div className="picker picker--error" role="status">
@@ -47,93 +86,120 @@ export default function LibraryPicker(props: LibraryPickerProps) {
   if (!catalog || catalog.libs.length === 0) {
     return (
       <div className="picker picker--loading" role="status" aria-live="polite">
-        <span className="picker__skeleton picker__skeleton--select" aria-hidden="true" />
-        <span className="picker__skeleton picker__skeleton--chips" aria-hidden="true" />
+        <span className="picker__skeleton" aria-hidden="true" />
       </div>
     );
   }
 
-  const activeLib: VocabularyLib | undefined =
+  const activeLib: VocabularyLib =
     catalog.libs.find((l) => l.id === selectedLibId) ?? catalog.libs[0];
-
-  // Per-lib difficulties; fall back to defaults if the lib isn't in the map.
-  const availableDifficulties: string[] =
-    catalog.difficulties_by_lib[activeLib.level] ?? [catalog.defaults.difficulty];
-
-  // If the current selection isn't valid for this lib, snap to the first available.
-  const effectiveDifficulty = availableDifficulties.includes(selectedDifficulty)
-    ? selectedDifficulty
-    : availableDifficulties[0];
+  const hasMultiple = catalog.libs.length > 1;
 
   return (
     <div className={`picker${disabled ? ' picker--disabled' : ''}`}>
-      {/* Library: Apple-style compact control wrapping a native <select> */}
-      <div className="picker__field picker__field--library">
-        <span className="picker__label" id="picker-lib-label">词库</span>
-        <div className="picker__select-wrap">
-          <select
-            className="picker__select"
-            value={activeLib.id}
-            disabled={disabled}
-            aria-labelledby="picker-lib-label"
-            onChange={(e) => {
-              const nextLib = catalog.libs.find((l) => l.id === e.target.value);
-              if (!nextLib) return;
-              const nextDiffs = catalog.difficulties_by_lib[nextLib.level] ?? availableDifficulties;
-              // Keep current difficulty if it's available for the new lib; else snap.
-              const nextDifficulty = nextDiffs.includes(effectiveDifficulty)
-                ? effectiveDifficulty
-                : nextDiffs[0];
-              onChange(nextLib.id, nextDifficulty);
-            }}
-          >
-            {catalog.libs.map((lib) => (
-              <option key={lib.id} value={lib.id}>
-                {lib.name} ({lib.word_count})
-              </option>
-            ))}
-          </select>
-          <span className="picker__chevron" aria-hidden="true">
-            <svg viewBox="0 0 10 6" width="10" height="6">
-              <path
-                d="M1 1l4 4 4-4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.25"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </span>
-        </div>
-      </div>
+      <span className="picker__label" id="picker-lib-label">当前词库</span>
 
-      {/* Difficulty: filled pill when active, transparent when not */}
-      <div
-        className="picker__field picker__field--chips"
-        role="radiogroup"
-        aria-labelledby="picker-diff-label"
-      >
-        <span className="picker__label" id="picker-diff-label">难度</span>
-        <div className="picker__chips">
-          {availableDifficulties.map((d) => {
-            const isActive = d === effectiveDifficulty;
-            return (
-              <button
-                key={d}
-                type="button"
-                role="radio"
-                aria-checked={isActive}
-                className={`picker__chip${isActive ? ' picker__chip--active' : ''}`}
-                disabled={disabled}
-                onClick={() => onChange(activeLib.id, d)}
-              >
-                {d}
-              </button>
-            );
-          })}
+      {hasMultiple ? (
+        <div className="picker__field">
+          <button
+            ref={cardRef}
+            type="button"
+            className={`picker__card${open ? ' picker__card--open' : ''}`}
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            aria-labelledby="picker-lib-label"
+            disabled={disabled}
+            onClick={() => setOpen((o) => !o)}
+          >
+            <span className="picker__card-text">
+              <span className="picker__card-name">{activeLib.name}</span>
+              <span className="picker__card-meta">
+                {activeLib.level} · {activeLib.word_count} 词
+              </span>
+            </span>
+            <span
+              className={`picker__chevron${open ? ' picker__chevron--open' : ''}`}
+              aria-hidden="true"
+            >
+              <svg viewBox="0 0 10 6" width="10" height="6">
+                <path
+                  d="M1 1l4 4 4-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.25"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+          </button>
+
+          {open && (
+            <div
+              ref={popoverRef}
+              className="picker__popover"
+              role="listbox"
+              aria-labelledby="picker-lib-label"
+            >
+              {catalog.libs.map((lib) => {
+                const isActive = lib.id === activeLib.id;
+                return (
+                  <button
+                    key={lib.id}
+                    type="button"
+                    role="option"
+                    aria-selected={isActive}
+                    className={`picker__option${isActive ? ' picker__option--active' : ''}`}
+                    onClick={() => {
+                      if (lib.id !== activeLib.id) {
+                        onChange(lib.id);
+                      }
+                      setOpen(false);
+                    }}
+                  >
+                    <span className="picker__option-text">
+                      <span className="picker__option-name">{lib.name}</span>
+                      <span className="picker__option-meta">
+                        {lib.level} · {lib.word_count} 词
+                      </span>
+                    </span>
+                    {isActive && (
+                      <svg
+                        className="picker__option-check"
+                        viewBox="0 0 12 12"
+                        width="12"
+                        height="12"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M2 6 L5 9 L10 3"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
-      </div>
+      ) : (
+        // Single lib: static display, no chevron, not clickable.
+        <div className="picker__field">
+          <div className="picker__card picker__card--static">
+            <span className="picker__card-text">
+              <span className="picker__card-name">{activeLib.name}</span>
+              <span className="picker__card-meta">
+                {activeLib.level} · {activeLib.word_count} 词
+              </span>
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

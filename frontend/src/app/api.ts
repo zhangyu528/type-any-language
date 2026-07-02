@@ -49,16 +49,19 @@ export async function getVocabularyLibs(): Promise<VocabularyLib[]> {
 
 export async function generateSentences(
   libId: string,
-  count: number = 10,
-  difficulty: string = 'beginner'
+  count: number = 10
 ): Promise<Sentence[]> {
   // Read-layer backend (commit f26265d "strip to read-layer") serves
   // pre-baked sentences via GET. No session, no cache-miss flow —
   // sentences come straight from the content baked into the db image.
+  //
+  // The backend still accepts a `difficulty` query param (default 'beginner')
+  // for forward compat with future per-bucket selection; the frontend does
+  // not surface a difficulty picker (see CLAUDE.md design notes) and lets
+  // the backend apply its default.
   const params = new URLSearchParams({
     lib_id: libId,
     count: String(count),
-    difficulty,
   });
   const response = await fetch(`${API_BASE_URL}/api/sentences/random?${params}`);
   if (!response.ok) {
