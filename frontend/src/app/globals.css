@@ -1183,6 +1183,483 @@ select:focus-visible {
 }
 
 /* ============================================================
+   Lesson list — home screen
+   ============================================================ */
+.lesson-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  width: 100%;
+}
+
+.lesson-list__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+}
+
+.lesson-list__caption {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  font-weight: var(--type-body-weight);
+  color: var(--label-tertiary);
+  letter-spacing: 0.06em;
+  line-height: var(--type-caption-lh);
+  text-transform: none;
+  user-select: none;
+}
+
+.lesson-list__title {
+  font-family: var(--font-body);
+  font-size: var(--type-title-1);
+  font-weight: var(--type-title-1-weight);
+  color: var(--label-primary);
+  letter-spacing: -0.01em;
+  line-height: var(--type-title-1-lh);
+}
+
+.lesson-list__meta {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  font-weight: var(--type-body-weight);
+  color: var(--label-tertiary);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.lesson-list__items {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+  margin: 0;
+}
+
+.lesson-list__item {
+  margin: 0;
+  padding: 0;
+}
+
+.lesson-list__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface-elevated);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  color: var(--label-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+.lesson-list__row:hover:not(:disabled) {
+  border-color: var(--label-quaternary);
+}
+
+.lesson-list__row:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.lesson-list__row--current {
+  border-color: var(--label-primary);
+}
+
+.lesson-list__row--completed {
+  border-color: var(--correct);
+}
+
+.lesson-list__index {
+  font-family: var(--font-mono);
+  font-size: var(--type-body-emphasis);
+  font-weight: 500;
+  color: var(--label-tertiary);
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  min-width: 2.5em;
+  text-align: center;
+}
+
+.lesson-list__row--current .lesson-list__index {
+  color: var(--label-primary);
+  font-weight: 600;
+}
+
+.lesson-list__row--completed .lesson-list__index {
+  color: var(--correct);
+}
+
+.lesson-list__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.lesson-list__row-title {
+  font-family: var(--font-body);
+  font-size: var(--type-body-emphasis);
+  font-weight: var(--type-title-3-weight);
+  color: var(--label-primary);
+  letter-spacing: -0.005em;
+  line-height: 1.25;
+}
+
+.lesson-list__row-meta {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  font-weight: var(--type-body-weight);
+  color: var(--label-tertiary);
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+
+.lesson-list__glyph {
+  font-size: 1.25rem;
+  color: var(--label-tertiary);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.lesson-list__row--current .lesson-list__glyph {
+  color: var(--label-primary);
+}
+
+.lesson-list__row--completed .lesson-list__glyph {
+  color: var(--correct);
+}
+
+.lesson-list--loading,
+.lesson-list--error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.lesson-list__skeleton {
+  display: block;
+  width: 100%;
+  height: 72px;
+  background: linear-gradient(
+    90deg,
+    var(--surface-secondary) 0%,
+    var(--surface-tertiary) 50%,
+    var(--surface-secondary) 100%
+  );
+  background-size: 200% 100%;
+  animation: pickerSkeletonShimmer 1.4s var(--ease-standard) infinite;
+  border-radius: var(--radius-md);
+}
+
+.lesson-list__error-text {
+  font-family: var(--font-body);
+  font-size: var(--type-body);
+  color: var(--label-secondary);
+  text-align: center;
+  padding: var(--space-5);
+}
+
+/* ============================================================
+   Lesson session — orchestrator (header + 10-dot stepper + active stage)
+   ============================================================ */
+.lesson-session {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  width: 100%;
+}
+
+.lesson-session__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0;
+}
+
+.lesson-session__back-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-circle);
+  color: var(--label-primary);
+  font-size: 18px;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-standard);
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.lesson-session__back-button:hover {
+  border-color: var(--label-quaternary);
+}
+
+.lesson-session__caption {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  font-weight: var(--type-body-weight);
+  color: var(--label-tertiary);
+  letter-spacing: 0.06em;
+  line-height: var(--type-caption-lh);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.lesson-session__finished-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.lesson-session__back {
+  margin-top: var(--space-5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 var(--space-7);
+  background: transparent;
+  color: var(--label-primary);
+  border: 1px solid var(--label-primary);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: var(--type-body);
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.lesson-session__back:hover {
+  background: var(--label-primary);
+  color: var(--surface);
+}
+
+.lesson-session__error-text {
+  font-family: var(--font-body);
+  font-size: var(--type-body);
+  color: var(--label-secondary);
+  text-align: center;
+  padding: var(--space-5);
+}
+
+/* ============================================================
+   Recognition stage — Stage 1 (识词)
+   ============================================================ */
+.recognition {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-7);
+  padding: var(--space-7) 0;
+  width: 100%;
+  animation: practice-rise var(--duration-base) var(--ease-standard);
+}
+
+.recognition__caption {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  font-weight: var(--type-body-weight);
+  color: var(--label-tertiary);
+  letter-spacing: 0.06em;
+  text-transform: none;
+  user-select: none;
+}
+
+.recognition__word-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6) 0;
+  min-width: 60%;
+}
+
+.recognition__word {
+  font-family: var(--font-body);
+  font-size: clamp(2.5rem, 8vw, 4rem);
+  font-weight: 700;
+  color: var(--label-primary);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.recognition__phonetic {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--label-tertiary);
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.recognition__translation {
+  font-family: var(--font-body);
+  font-size: var(--type-title-3);
+  font-weight: 500;
+  color: var(--label-secondary);
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+  text-align: center;
+  max-width: 520px;
+}
+
+.recognition__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.recognition__play {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-5);
+  background: transparent;
+  color: var(--label-primary);
+  border: 1px solid var(--label-primary);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: var(--type-body);
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.recognition__play:hover {
+  background: var(--label-primary);
+  color: var(--surface);
+}
+
+.recognition__play-glyph {
+  font-size: 1.1em;
+  line-height: 1;
+}
+
+.recognition__next {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-7);
+  background: var(--label-primary);
+  color: var(--surface);
+  border: 1px solid var(--label-primary);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: var(--type-body);
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  cursor: pointer;
+  transition: opacity var(--duration-fast) var(--ease-standard);
+}
+
+.recognition__next:hover {
+  opacity: 0.85;
+}
+
+.recognition__no-audio {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  color: var(--label-quaternary);
+  font-style: italic;
+  user-select: none;
+}
+
+/* ============================================================
+   Dictation stage — Stage 2 (听写) wrapper
+   The cell rendering inside it reuses the existing .sentence /
+   .cell styles from the practice block.
+   ============================================================ */
+.dictation {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-6);
+  width: 100%;
+  animation: practice-rise var(--duration-base) var(--ease-standard);
+}
+
+.dictation__caption {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  font-weight: var(--type-body-weight);
+  color: var(--label-tertiary);
+  letter-spacing: 0.06em;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.dictation__hint {
+  font-family: var(--font-body);
+  font-size: clamp(1.125rem, 2.8vw, 1.5rem);
+  font-weight: 500;
+  color: var(--label-primary);
+  text-align: center;
+  letter-spacing: 0.005em;
+  line-height: 1.5;
+  max-width: 520px;
+  padding: 0;
+}
+
+.dictation__actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: var(--space-2);
+}
+
+.dictation__skip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 var(--space-5);
+  background: transparent;
+  color: var(--label-tertiary);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-standard),
+              color var(--duration-fast) var(--ease-standard);
+}
+
+.dictation__skip:hover {
+  border-color: var(--label-quaternary);
+  color: var(--label-primary);
+}
+
+.dictation__no-sentence {
+  font-family: var(--font-body);
+  font-size: var(--type-body);
+  color: var(--label-tertiary);
+  text-align: center;
+  padding: var(--space-5);
+}
+
+/* ============================================================
    Responsive — Apple HIG, holds together at every width
    ============================================================ */
 @media (max-width: 640px) {
@@ -1217,6 +1694,18 @@ select:focus-visible {
 
   .practice__content {
     gap: var(--space-9);
+  }
+
+  .lesson-list__row {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .lesson-list__index {
+    min-width: 2em;
+  }
+
+  .lesson-session {
+    gap: var(--space-5);
   }
 
   /* Shortcut bar: list is a flex-wrap row, so on narrow screens it

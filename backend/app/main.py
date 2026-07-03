@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.database import engine, Base
-from app.routers import content, sentences, vocabulary
+from app.routers import content, lessons, sentences, vocabulary
 
 settings = get_settings()
 
@@ -49,6 +49,7 @@ app.add_middleware(
 app.include_router(vocabulary.router)
 app.include_router(sentences.router)
 app.include_router(content.router)
+app.include_router(lessons.router)
 
 
 @app.get("/")

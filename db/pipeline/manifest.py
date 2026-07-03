@@ -58,12 +58,14 @@ class LibDef:
     csv_path: Path               # absolute, project-root-relative resolved
     difficulties: tuple[str, ...]
     csv_exists: bool             # False → file missing on disk, sync will skip
+    lesson_size: int             # words per lesson (Target-Word Lesson feature)
 
 
 @dataclass(frozen=True)
 class Defaults:
     difficulty: str
     bucket_target_size: int
+    lesson_size: int
 
 
 @dataclass(frozen=True)
@@ -101,6 +103,13 @@ class Manifest:
 
     def bucket_target_size(self) -> int:
         return self.defaults.bucket_target_size
+
+    def lesson_size_for(self, lib_id: str) -> int:
+        """Words-per-lesson for a given lib (per-lib override or default)."""
+        lib = self.get_lib(lib_id)
+        if lib is not None:
+            return lib.lesson_size
+        return self.defaults.lesson_size
 
 
 # ---------------------------------------------------------------------------
@@ -186,7 +195,7 @@ def load_manifest(path: Path | None = None) -> Manifest:
     if not default_difficulty:
         sys.exit("manifest defaults.difficulty is required and non-empty")
     all_diffs = Manifest(  # noqa: F841 — used only to call all_difficulties below
-        version=version, libs=tuple(libs), defaults=Defaults("", 0)
+        version=version, libs=tuple(libs), defaults=Defaults("", 0, 5)
     ).all_difficulties()
     if default_difficulty not in all_diffs:
         sys.exit(
@@ -202,10 +211,49 @@ def load_manifest(path: Path | None = None) -> Manifest:
     if bucket_size <= 0:
         sys.exit(f"manifest defaults.bucket_target_size must be > 0, got {bucket_size}")
 
+    lesson_size_raw = raw_defaults.get("lesson_size", 5)
+    try:
+        default_lesson_size = int(lesson_size_raw)
+    except (TypeError, ValueError):
+        sys.exit(f"manifest defaults.lesson_size must be an int, got {lesson_size_raw!r}")
+    if default_lesson_size <= 0:
+        sys.exit(f"manifest defaults.lesson_size must be > 0, got {default_lesson_size}")
+
+    # Per-lib lesson_size override. Libs may declare `lesson_size: N` to
+    # override the default (e.g. ielts ships 7-word lessons). Missing or
+    # invalid values fall back to the default.
+    enriched_libs: list[LibDef] = []
+    for i, entry in enumerate(raw_libs):
+        lib_size_raw = entry.get("lesson_size", default_lesson_size)
+        try:
+            lib_size = int(lib_size_raw)
+            if lib_size <= 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            sys.exit(
+                f"manifest libs[{i}] ({entry.get('id')}) lesson_size must be a positive int, "
+                f"got {lib_size_raw!r}"
+            )
+        base = libs[len(enriched_libs)]
+        enriched_libs.append(LibDef(
+            id=base.id,
+            display=base.display,
+            level=base.level,
+            csv_path=base.csv_path,
+            difficulties=base.difficulties,
+            csv_exists=base.csv_exists,
+            lesson_size=lib_size,
+        ))
+    libs = enriched_libs
+
     return Manifest(
         version=version,
         libs=tuple(libs),
-        defaults=Defaults(difficulty=default_difficulty, bucket_target_size=bucket_size),
+        defaults=Defaults(
+            difficulty=default_difficulty,
+            bucket_target_size=bucket_size,
+            lesson_size=default_lesson_size,
+        ),
     )
 
 
@@ -214,13 +262,18 @@ def load_manifest(path: Path | None = None) -> Manifest:
 # ---------------------------------------------------------------------------
 def _print_summary(m: Manifest) -> None:
     print(f"manifest version={m.version}")
-    print(f"defaults: difficulty={m.defaults.difficulty} bucket_target_size={m.defaults.bucket_target_size}")
+    print(
+        f"defaults: difficulty={m.defaults.difficulty} "
+        f"bucket_target_size={m.defaults.bucket_target_size} "
+        f"lesson_size={m.defaults.lesson_size}"
+    )
     print(f"libs ({len(m.libs)}):")
     for lib in m.libs:
         marker = "ok" if lib.csv_exists else "MISSING"
         print(
             f"  [{marker:7s}] {lib.id:10s} display={lib.display!r:30s} "
-            f"difficulties={list(lib.difficulties)} csv={lib.csv_path}"
+            f"difficulties={list(lib.difficulties)} lesson_size={lib.lesson_size} "
+            f"csv={lib.csv_path}"
         )
 
 

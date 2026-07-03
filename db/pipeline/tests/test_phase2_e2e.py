@@ -9,6 +9,9 @@ localhost:55432 from this session) and exercises:
   Test 3: import_vocab -- old 4-col CSV works AND new 9-col CSV lands the
           metadata columns correctly.
   Test 4: sentence_word_links -- insert_sentences populates links via FK join.
+  Test 5: lesson_index -- migration 0007 adds the column + backfills by
+          positional rank, and import_vocab's assign_lesson_indexes re-buckets
+          on subsequent syncs.
 
 Run with DATABASE_URL set:
 
@@ -79,7 +82,7 @@ def test_1_fresh_db():
         assert v0 is None, f"expected None, got {v0!r}"
         applied = upgrade_head(conn)
         print(f"  applied: {applied}")
-        assert len(applied) == 6, f"expected 6 migrations, got {len(applied)}"
+        assert len(applied) == 7, f"expected 7 migrations, got {len(applied)}"
         expected = [
             "0001_baseline",
             "0002_vocab_metadata",
@@ -87,6 +90,7 @@ def test_1_fresh_db():
             "0004_sentence_word_links",
             "0005_drop_dead_columns",
             "0006_sentence_natural_key",
+            "0007_lesson_index",
         ]
         assert applied == expected, f"order mismatch: {applied}"
 
@@ -105,7 +109,7 @@ def test_1_fresh_db():
         # vocabulary_words metadata columns
         vw = column_names(conn, "vocabulary_words")
         print(f"  vocab_words cols: {vw}")
-        for c in ("frequency", "register", "domain", "example", "tags"):
+        for c in ("frequency", "register", "domain", "example", "tags", "lesson_index"):
             assert c in vw, f"missing vocab column: {c}"
 
         # sentences metadata columns
@@ -222,7 +226,7 @@ def test_2_pre_phase2_baseline():
         print(f"  pre-migration version: {v0!r}")
         applied = upgrade_head(conn)
         print(f"  applied: {applied}")
-        assert len(applied) == 6, f"expected 6 versions stamped, got {len(applied)}"
+        assert len(applied) == 7, f"expected 7 versions stamped, got {len(applied)}"
 
         # Verify the post-migration schema matches the fresh-DB target.
         vw2 = column_names(conn, "vocabulary_words")
@@ -452,11 +456,186 @@ def test_4_sentence_word_links():
     print("Test 4: PASS")
 
 
+def test_5_lesson_index():
+    """Migration 0007 adds lesson_index + backfills by positional rank,
+    and import_vocab's assign_lesson_indexes re-buckets on re-sync.
+
+    The migration's backfill is a one-shot at migration time. Production
+    flow is:
+      - Fresh DB: migration runs on empty tables (no-op backfill), then
+        `content.sh sync` imports CSVs → import_words → assign_lesson_indexes.
+      - Existing DB: migration adds the column and backfills existing rows;
+        subsequent re-syncs re-bucket via assign_lesson_indexes.
+
+    This test exercises both paths."""
+    print("\n=== Test 5: lesson_index backfill + import_vocab re-bucketing ===")
+    conn = fresh_db()
+    try:
+        from pipeline.migrations import upgrade_head
+        upgrade_head(conn)
+        conn.commit()
+
+        from pipeline.import_vocab import assign_lesson_indexes
+
+        # ---- Path 1: pre-populated DB, migration backfills ----
+        # Drop+recreate to simulate an existing DB with words already
+        # present when the migration runs.
+        conn.close()
+        conn = fresh_db()
+        # Only apply baseline (no metadata columns yet). Insert 7 words.
+        from pipeline.migrations.runner import (
+            ensure_schema_migrations_table,
+            get_current_version,
+        )
+        from app.database import Base  # noqa: F401  (registers models)
+        from app.models import vocabulary, sentence  # noqa: F401
+
+        # Apply baseline only (it just calls SQLAlchemy create_all).
+        ensure_schema_migrations_table(conn)
+        # Manually create the 3 tables via SQLAlchemy against this conn.
+        from sqlalchemy import create_engine
+        cfg_db_url = os.environ["DATABASE_URL"]
+        eng = create_engine(cfg_db_url)
+        Base.metadata.create_all(eng)
+        eng.dispose()
+
+        # Stamp 0001 so the next migration run doesn't re-apply it.
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO schema_migrations (version) VALUES ('0001_baseline')"
+            )
+        conn.commit()
+
+        lib_id = str(uuid.uuid4())
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO vocabulary_libs (id, name, level, word_count, created_at) "
+                "VALUES (%s, %s, %s, %s, now())",
+                (lib_id, "Pre-existing Lib", "pre", 7),
+            )
+            for i in range(1, 8):
+                cur.execute(
+                    "INSERT INTO vocabulary_words (id, lib_id, word, phonetic, "
+                    "translation, part_of_speech, created_at) "
+                    "VALUES (%s, %s, %s, '', '', '', now())",
+                    (str(uuid.uuid4()), lib_id, f"pre{i}"),
+                )
+        conn.commit()
+
+        # Now run the rest of the migrations including 0007.
+        # upgrade_head will skip 0001 (already stamped) and apply 0002-0007.
+        applied = upgrade_head(conn)
+        print(f"  migration applied on pre-populated DB: {applied}")
+        assert "0007_lesson_index" in applied, f"0007 not in {applied}"
+
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT word, lesson_index FROM vocabulary_words "
+                "WHERE lib_id = %s ORDER BY created_at, id",
+                (lib_id,),
+            )
+            rows = cur.fetchall()
+        print(f"  post-migration backfill rows: {rows}")
+        assert [r[1] for r in rows] == [1, 1, 1, 1, 1, 2, 2], (
+            f"migration backfill wrong: {[r[1] for r in rows]}"
+        )
+
+        # ---- Path 2: post-migration insert + assign_lesson_indexes ----
+        # Insert another 7 words (a new lib) — migration already ran, so
+        # the new rows start with lesson_index = NULL. Then exercise
+        # assign_lesson_indexes, which is the production code path for
+        # new content.
+        lib_id_2 = str(uuid.uuid4())
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO vocabulary_libs (id, name, level, word_count, created_at) "
+                "VALUES (%s, %s, %s, %s, now())",
+                (lib_id_2, "Post-migration Lib", "post", 7),
+            )
+            for i in range(1, 8):
+                cur.execute(
+                    "INSERT INTO vocabulary_words (id, lib_id, word, phonetic, "
+                    "translation, part_of_speech, created_at) "
+                    "VALUES (%s, %s, %s, '', '', '', now())",
+                    (str(uuid.uuid4()), lib_id_2, f"post{i}"),
+                )
+        conn.commit()
+
+        # New rows: lesson_index is NULL.
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT lesson_index FROM vocabulary_words "
+                "WHERE lib_id = %s ORDER BY created_at, id",
+                (lib_id_2,),
+            )
+            pre = [r[0] for r in cur.fetchall()]
+        print(f"  new rows before assign: {pre}")
+        assert pre == [None] * 7
+
+        # Run assign_lesson_indexes with default size 5.
+        updated = assign_lesson_indexes(conn, lib_id_2, lesson_size=5)
+        print(f"  assign_lesson_indexes(5) updated {updated} rows")
+        assert updated == 7
+
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT lesson_index FROM vocabulary_words "
+                "WHERE lib_id = %s ORDER BY created_at, id",
+                (lib_id_2,),
+            )
+            lesson_indexes = [r[0] for r in cur.fetchall()]
+        assert lesson_indexes == [1, 1, 1, 1, 1, 2, 2], (
+            f"assign_lesson_indexes wrong: {lesson_indexes}"
+        )
+
+        # Re-bucket with lesson_size=3.
+        assign_lesson_indexes(conn, lib_id_2, lesson_size=3)
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT lesson_index FROM vocabulary_words "
+                "WHERE lib_id = %s ORDER BY created_at, id",
+                (lib_id_2,),
+            )
+            assert [r[0] for r in cur.fetchall()] == [1, 1, 1, 2, 2, 2, 3]
+
+        # Idempotency: same size, same result.
+        assign_lesson_indexes(conn, lib_id_2, lesson_size=3)
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT lesson_index FROM vocabulary_words "
+                "WHERE lib_id = %s ORDER BY created_at, id",
+                (lib_id_2,),
+            )
+            assert [r[0] for r in cur.fetchall()] == [1, 1, 1, 2, 2, 2, 3]
+
+        # Edge case: lesson_size=1 → every word is its own lesson.
+        assign_lesson_indexes(conn, lib_id_2, lesson_size=1)
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT lesson_index FROM vocabulary_words "
+                "WHERE lib_id = %s ORDER BY created_at, id",
+                (lib_id_2,),
+            )
+            assert [r[0] for r in cur.fetchall()] == [1, 2, 3, 4, 5, 6, 7]
+
+        # Bad input: lesson_size=0 raises.
+        try:
+            assign_lesson_indexes(conn, lib_id_2, lesson_size=0)
+        except ValueError as e:
+            print(f"  lesson_size=0 rejected: {e}")
+        else:
+            raise AssertionError("expected ValueError for lesson_size=0")
+    finally:
+        conn.close()
+    print("Test 5: PASS")
+
+
 def main():
     test_1_fresh_db()
     test_2_pre_phase2_baseline()
     test_3_import_vocab()
     test_4_sentence_word_links()
+    test_5_lesson_index()
     print("\n*** ALL PHASE 2 E2E TESTS PASSED ***")
 
 

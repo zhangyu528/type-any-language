@@ -727,19 +727,49 @@ cmd_migrate() {
 
     echo ""
     info "在 sidecar 里跑 pipeline.migrations.runner (target=db:5432)..."
-    if ! docker run --rm \
+    # On Windows (Git Bash + Docker Desktop), MSYS path translation turns
+    # MSYS-style paths like /d/work/... into Windows paths when bash
+    # interpolates them into `docker -v`. That translation is unreliable
+    # across mount points, so we explicitly convert via cygpath -w and
+    # feed a Windows-style absolute path that Docker Desktop accepts
+    # verbatim. POSIX hosts leave $PROJECT_DIR unchanged and cygpath
+    # errors out — fall through to the original POSIX path in that case.
+    local db_mount backend_mount env_mount secrets_mount
+    if command -v cygpath >/dev/null 2>&1; then
+        db_mount="$(cygpath -w "$PROJECT_DIR/db")"
+        backend_mount="$(cygpath -w "$PROJECT_DIR/backend")"
+        env_mount="$(cygpath -w "$PROJECT_DIR/.env.db")"
+        secrets_mount="$(cygpath -w "$PROJECT_DIR/.secrets")"
+    else
+        db_mount="$PROJECT_DIR/db"
+        backend_mount="$PROJECT_DIR/backend"
+        env_mount="$PROJECT_DIR/.env.db"
+        secrets_mount="$PROJECT_DIR/.secrets"
+    fi
+    # PYTHONPATH is set inside the container via the bash -c wrapper
+    # rather than via `docker -e PYTHONPATH=/db`. Docker Desktop on
+    # Windows rewrites single-leading-slash env values (e.g. /db →
+    # C:/Program Files/Git/db), which corrupts Python's sys.path.
+    # Setting it inside the shell sidesteps that rewriting entirely.
+    # We also mount .env.db + .secrets/ at the container's filesystem
+    # root — pipeline.env._project_root() walks up from /db/pipeline to
+    # `/`, and setup_env() expects .env.db + .secrets/postgres_password
+    # there. 0001_baseline imports app.database (backend models), so
+    # /backend goes on PYTHONPATH too.
+    if ! MSYS_NO_PATHCONV=1 docker run --rm \
             --network "$network" \
-            -v "$PROJECT_DIR/db:/db:ro" \
-            -v "$PROJECT_DIR/backend:/backend:ro" \
+            -v "$db_mount:/db:ro" \
+            -v "$backend_mount:/backend:ro" \
+            -v "$env_mount:/.env.db:ro" \
+            -v "$secrets_mount:/.secrets:ro" \
             -e POSTGRES_HOST="db" \
             -e POSTGRES_PORT="5432" \
             -e POSTGRES_USER="$pg_user" \
             -e POSTGRES_DB="$pg_db" \
             -e POSTGRES_PASSWORD="$pg_pass" \
-            -e PYTHONPATH="/db" \
-            --entrypoint python \
+            --entrypoint bash \
             "$sidecar_image" \
-            -m pipeline.migrations.runner
+            -c "PYTHONPATH=/db:/backend exec python -m pipeline.migrations.runner"
     then
         err "migrate 失败 — 见上面错误"
         return 1

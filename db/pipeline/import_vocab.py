@@ -185,6 +185,40 @@ def update_word_count(conn, lib_id: str, count: int) -> None:
         )
 
 
+def assign_lesson_indexes(conn, lib_id: str, lesson_size: int) -> int:
+    """Stamp `lesson_index` on every word of `lib_id`.
+
+    The grouping is positional: words 1..N → lesson 1, (N+1)..2N → lesson 2, etc.
+    Ordering matches what `import_words` produces (created_at, id), so the
+    first row inserted ends up as the first word of lesson 1.
+
+    Idempotent: re-runs overwrite the previous lesson_index with the same
+    value (positional math is stable). If the operator changes lesson_size
+    in the manifest and re-syncs, this function will re-bucket correctly.
+    """
+    if lesson_size <= 0:
+        raise ValueError(f"lesson_size must be > 0, got {lesson_size}")
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            WITH ranked AS (
+                SELECT id,
+                       ((ROW_NUMBER() OVER (
+                           ORDER BY created_at, id
+                       ) - 1) / %s) + 1 AS new_lesson_index
+                FROM vocabulary_words
+                WHERE lib_id = %s
+            )
+            UPDATE vocabulary_words vw
+            SET lesson_index = ranked.new_lesson_index
+            FROM ranked
+            WHERE vw.id = ranked.id
+            """,
+            (lesson_size, lib_id),
+        )
+    return cur.rowcount
+
+
 def import_one(conn, lib: LibDef, force: bool, dry_run: bool) -> dict:
     """Import one lib. Manifest-driven — lib's display/level/csv are pre-resolved."""
     csv_path = lib.csv_path
@@ -224,6 +258,9 @@ def import_one(conn, lib: LibDef, force: bool, dry_run: bool) -> dict:
     inserted = import_words(conn, lib_id, csv_path)
     if not force:
         update_word_count(conn, lib_id, inserted)
+    # Re-bucket lesson_index even on re-import (--force) so changing
+    # lesson_size in the manifest takes effect on the next sync.
+    assign_lesson_indexes(conn, lib_id, lib.lesson_size)
     conn.commit()
 
     return {

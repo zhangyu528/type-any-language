@@ -15,6 +15,9 @@
 #   defaults:
 #     difficulty:        fallback when caller doesn't specify
 #     bucket_target_size: sentences-per-(lib,difficulty) target (DEFAULT_BUCKET_TARGET_SIZE)
+#     lesson_size:       words-per-lesson for the "Target-Word Lesson" feature
+#                        (PRD v0.4.0+). Defaults to 5. Per-lib override lives
+#                        on libs[].lesson_size; falls back to defaults.lesson_size.
 #
 # After editing this file, run ./scripts/ops/db/content.sh sync to import.
 # Adding a new lib = add a `libs:` entry + drop a matching CSV. Nothing else.
@@ -53,3 +56,4 @@ libs:
 defaults:
   difficulty: beginner
   bucket_target_size: 200
+  lesson_size: 5

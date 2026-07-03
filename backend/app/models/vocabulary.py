@@ -34,6 +34,9 @@ class VocabularyWord(Base):
     domain = Column(String(50), nullable=True)     # business | travel | tech | ...
     example = Column(Text, nullable=True)
     tags = Column(ARRAY(String), nullable=True)    # free-form array
+    # Target-Word Lesson feature (PRD v0.4.0+): groups words into fixed-size
+    # lessons within a lib. Nullable for rows that pre-date migration 0007.
+    lesson_index = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     lib = relationship("VocabularyLib", back_populates="words")
