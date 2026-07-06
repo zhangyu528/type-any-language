@@ -228,7 +228,7 @@ export default function TranslationLessonList({
           const lessonProgress = progress[selectedLibId]?.[lesson.lesson_index];
           const wordCount = lessonProgress
             ? Object.values(lessonProgress.words).filter(
-                (w) => w.en2zhCorrect && w.zh2enCorrect
+                (w) => w.zh2enCorrect
               ).length
             : 0;
 

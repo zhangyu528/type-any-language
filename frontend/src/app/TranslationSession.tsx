@@ -6,9 +6,9 @@ import {
   loadTranslationProgress,
   saveTranslationProgress,
   TranslationProgress,
+  LessonSentence,
 } from './api';
-import { pickSentence } from './pickSentence';
-import TranslationStage, { TranslationDirection } from './TranslationStage';
+import TranslationStage from './TranslationStage';
 
 interface TranslationSessionProps {
   libId: string;
@@ -19,28 +19,29 @@ interface TranslationSessionProps {
 
 type StepState = 'loading' | 'running' | 'finished' | 'error';
 
+interface FlatStep {
+  /** The target word this step is exercising (already-lowercased key
+   *  matches the progress blob). */
+  wordKey: string;
+  /** The sentence to render. `undefined` when the word has no baked
+   *  sentences — `handleStepComplete` will auto-pass these. */
+  sentence: LessonSentence | undefined;
+}
+
 /**
- * TranslationSession — 5-step orchestrator for the standalone translation
- * drill. Lighter than LessonSession: no RecognitionStage, no per-cell
- * typewriter, just one sentence per word × two directions (alternating).
+ * TranslationSession — multi-step ZH→EN drill orchestrator.
  *
- * Direction alternation per step (5 steps total):
- *   step 0 → EN→ZH   (read English, type Chinese)
- *   step 1 → ZH→EN   (read Chinese, type English)
- *   step 2 → EN→ZH
- *   step 3 → ZH→EN
- *   step 4 → EN→ZH
+ * Each lesson is a flat sequence of (word, sentence) pairs:
+ *   word_1 sentence_1, word_1 sentence_2, ..., word_1 sentence_N,
+ *   word_2 sentence_1, ...,
+ *   ... word_M sentence_N.
  *
- * Progress is written to `translationProgress` (the only progress blob
- * the app writes). No lock cascade — lessons are independent.
+ * M = `lesson.words.length` (typically 5), N varies per word — every
+ * baked sentence for the word gets used in order. A word with no
+ * sentences is treated as auto-passed so the lesson can complete.
  *
- * Missing-data edge cases (handled gracefully):
- *   - Word has no baked sentences → step shows "暂无句子，自动跳过", mark
- *     both flags true and advance.
- *   - Sentence missing chinese_text → EN→ZH step shows "暂无中文翻译，自动
- *     跳过", mark en2zhCorrect true and advance.
- *   - Sentence missing audio_url → EN→ZH step still works (no autoplay),
- *     🔊 button hidden.
+ * Progress writes only the `zh2enCorrect` flag (single-direction).
+ * A lesson is complete when every word's `zh2enCorrect` is true.
  */
 export default function TranslationSession({
   libId,
@@ -77,31 +78,38 @@ export default function TranslationSession({
     return () => { cancelled = true; };
   }, [libId, lessonIndex]);
 
-  /** Direction for a given step index — alternates EN→ZH / ZH→EN. */
-  const directionFor = useCallback((stepIdx: number): TranslationDirection => {
-    return stepIdx % 2 === 0 ? 'en2zh' : 'zh2en';
-  }, []);
+  /** Flatten (word × sentence) into a single step array. Words with
+   *  zero baked sentences are recorded as `sentence: undefined` so the
+   *  handler can auto-pass them — without this, the lesson would
+   *  never finish when the CMS hasn't filled a particular bucket yet. */
+  const flatSteps = useMemo<FlatStep[]>(() => {
+    if (!lesson) return [];
+    const out: FlatStep[] = [];
+    for (const w of lesson.words) {
+      const wordKey = w.word.toLowerCase();
+      const sentences = lesson.sentences_by_word[wordKey] ?? [];
+      if (sentences.length === 0) {
+        out.push({ wordKey, sentence: undefined });
+      } else {
+        for (const s of sentences) {
+          out.push({ wordKey, sentence: s });
+        }
+      }
+    }
+    return out;
+  }, [lesson]);
 
-  /** Look up the active word + sentence for the current step. */
-  const activeStep = useMemo(() => {
-    if (!lesson || stepState !== 'running') return null;
-    const wordIdx = currentStep; // 1:1 mapping — 5 steps, 5 words.
-    const word = lesson.words[wordIdx];
-    if (!word) return null;
-    const sentences = lesson.sentences_by_word[word.word.toLowerCase()] ?? [];
-    const sentence = pickSentence(sentences, 'beginner');
-    return { word, sentence };
-  }, [lesson, stepState, currentStep]);
+  const totalSteps = flatSteps.length;
+  const activeStep = stepState === 'running' ? flatSteps[currentStep] ?? null : null;
 
   /**
-   * Persist per-word progress flags into the blob.
-   * Returns the updated blob so we can decide completion in one place.
+   * Update one word's `zh2enCorrect` flag. Returns the updated blob so
+   * we can decide completion in one place.
    */
   const recordStep = useCallback(
     (
       next: TranslationProgress,
       wordKey: string,
-      dir: TranslationDirection,
       correct: boolean
     ): TranslationProgress => {
       const libBucket = next[libId] ?? {};
@@ -109,10 +117,9 @@ export default function TranslationSession({
         words: {},
       };
       const wordBucket = lessonBucket.words[wordKey] ?? {
-        en2zhCorrect: false,
         zh2enCorrect: false,
       };
-      wordBucket[dir === 'en2zh' ? 'en2zhCorrect' : 'zh2enCorrect'] = correct;
+      wordBucket.zh2enCorrect = correct;
 
       const updatedLesson = {
         ...lessonBucket,
@@ -132,9 +139,9 @@ export default function TranslationSession({
 
   /**
    * Decide whether the lesson is fully translated and stamp `completedAt`.
-   * A lesson is complete when EVERY word has both en2zhCorrect and
-   * zh2enCorrect true. The active step's update is already merged into
-   * `candidates`; we re-check after each step.
+   * A lesson is complete when EVERY word has `zh2enCorrect` true. Words
+   * with no baked sentences are auto-passed here (they show up in the
+   * flat steps as `sentence: undefined` and trigger auto-pass on advance).
    */
   const maybeStampCompletion = useCallback(
     (candidates: TranslationProgress): TranslationProgress => {
@@ -144,7 +151,7 @@ export default function TranslationSession({
       const wordKeys = lesson.words.map((w) => w.word.toLowerCase());
       const allDone = wordKeys.every((k) => {
         const w = lessonBucket.words[k];
-        return w && w.en2zhCorrect && w.zh2enCorrect;
+        return Boolean(w?.zh2enCorrect);
       });
       if (allDone && !lessonBucket.completedAt) {
         return {
@@ -166,39 +173,14 @@ export default function TranslationSession({
   const handleStepComplete = useCallback(
     (correct: boolean) => {
       if (!activeStep) return;
-      const { word, sentence } = activeStep;
-      const dir = directionFor(currentStep);
-      const wordKey = word.word.toLowerCase();
+      const { wordKey, sentence } = activeStep;
 
-      // Edge case: no sentence baked for this word — auto-pass both
-      // directions so the lesson can complete.
+      // No sentence baked for this word → auto-pass (mark zh2enCorrect true)
+      // so the lesson can complete. We don't care if the user got it "right"
+      // because there's nothing to translate.
       if (!sentence) {
         let next: TranslationProgress = progress;
-        next = recordStep(next, wordKey, 'en2zh', true);
-        next = recordStep(next, wordKey, 'zh2en', true);
-        next = maybeStampCompletion(next);
-        setProgress(next);
-        saveTranslationProgress(next);
-        advanceOrFinish();
-        return;
-      }
-
-      // Edge case: EN→ZH direction with missing chinese_text — auto-pass
-      // that direction.
-      if (correct && dir === 'en2zh' && !sentence.chinese_text) {
-        let next: TranslationProgress = progress;
-        next = recordStep(next, wordKey, dir, true);
-        next = maybeStampCompletion(next);
-        setProgress(next);
-        saveTranslationProgress(next);
-        advanceOrFinish();
-        return;
-      }
-
-      // Edge case: ZH→EN direction with missing english text — auto-pass.
-      if (correct && dir === 'zh2en' && !sentence.text) {
-        let next: TranslationProgress = progress;
-        next = recordStep(next, wordKey, dir, true);
+        next = recordStep(next, wordKey, true);
         next = maybeStampCompletion(next);
         setProgress(next);
         saveTranslationProgress(next);
@@ -207,27 +189,26 @@ export default function TranslationSession({
       }
 
       let next: TranslationProgress = progress;
-      next = recordStep(next, wordKey, dir, correct);
+      next = recordStep(next, wordKey, correct);
       next = maybeStampCompletion(next);
       setProgress(next);
       saveTranslationProgress(next);
       advanceOrFinish();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeStep, currentStep, progress, directionFor, recordStep, maybeStampCompletion]
+    [activeStep, currentStep, progress, recordStep, maybeStampCompletion]
   );
 
   const advanceOrFinish = useCallback(() => {
     setCurrentStep((s) => {
       const next = s + 1;
-      if (!lesson) return s;
-      if (next >= lesson.words.length) {
+      if (next >= totalSteps) {
         setStepState('finished');
         return s;
       }
       return next;
     });
-  }, [lesson]);
+  }, [totalSteps]);
 
   // ---- Render ----
 
@@ -289,17 +270,23 @@ export default function TranslationSession({
     );
   }
 
-  const { word, sentence } = activeStep;
-  const totalSteps = lesson.words.length;
-  const dir = directionFor(currentStep);
+  const { wordKey, sentence } = activeStep;
+  const word = lesson.words.find((w) => w.word.toLowerCase() === wordKey);
+  if (!word) {
+    return (
+      <div className="translation translation--error">
+        <p className="translation__error-text">课程数据缺失</p>
+      </div>
+    );
+  }
 
-  // Edge: word has no sentences baked.
+  // Edge: word has no sentences baked → auto-pass with a friendly explainer.
   if (!sentence) {
     return (
       <div className="translation translation--empty-step">
-        <p className="translation__caption">翻译 · {word.word}</p>
+        <p className="translation__caption">看中文写英文 · {word.word}</p>
         <p className="translation__empty-text">
-          该词暂无听写句子，已自动跳过
+          该词暂无翻译句子，已自动跳过
         </p>
         <div className="translation__actions">
           <button
@@ -317,7 +304,6 @@ export default function TranslationSession({
   return (
     <TranslationStage
       sentence={sentence}
-      direction={dir}
       stepIndex={currentStep}
       totalSteps={totalSteps}
       targetWord={word}

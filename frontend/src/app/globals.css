@@ -1329,6 +1329,222 @@ select:focus-visible {
 }
 
 /* ============================================================
+   Sentence cells — per-word dictation grid with underscore
+   placeholders. Reused by TranslationStage (ZH→EN cell typing).
+   Ghost spacer keeps each cell's width stable; cell__input shows
+   the user-typed chars with correct/wrong coloring; cell__cursor
+   blinks at the rightmost position.
+   ============================================================ */
+.sentence {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(40px, 6vh, 64px);
+  width: 100%;
+  position: relative;
+  padding: clamp(20px, 4vh, 40px) 0;
+}
+
+.sentence__display {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 18px;
+  line-height: 2.4;
+  position: relative;
+  padding: 0;
+  width: 100%;
+  cursor: text;
+}
+
+.typewriter-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+  height: 1px;
+}
+
+.sentence__cells {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1.4em;
+  line-height: 2.4;
+  padding: 8px 0;
+}
+
+.cells__item {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.cell {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 0 4px 0;
+  position: relative;
+  text-align: center;
+  letter-spacing: -0.005em;
+  font-family: var(--font-body);
+  font-size: clamp(2rem, 6vw, 2.75rem);
+  line-height: 1;
+  font-weight: 500;
+  color: var(--label-tertiary);
+}
+
+.cell__ghost {
+  visibility: hidden;
+  font-family: var(--font-body);
+  font-size: clamp(2rem, 6vw, 2.75rem);
+  line-height: 1;
+  font-weight: 500;
+  padding: 0 4px;
+  pointer-events: none;
+  user-select: none;
+  display: inline-block;
+}
+
+.cell::after {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 1px;
+  background: var(--separator);
+  margin-top: 10px;
+  transform-origin: left center;
+  transition:
+    transform var(--duration-base) var(--ease-standard),
+    opacity   var(--duration-base) var(--ease-standard);
+}
+
+.cell--correct .cell__text,
+.cell--active .cell__input,
+.cell--active .cell__text--peek {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cell--active .cell__text--peek {
+  color: var(--correct);
+  font-weight: 600;
+}
+
+.cell--correct {
+  color: var(--correct);
+  font-weight: 600;
+}
+
+.cell--correct .cell__text {
+  color: var(--correct);
+}
+
+.cell--correct::after {
+  opacity: 0;
+  transform: scaleX(0);
+}
+
+.cell__placeholder {
+  display: block;
+  height: 0;
+}
+
+.cell--active {
+  color: var(--label-primary);
+}
+
+.cell--active::after {
+  height: 1.5px;
+  background: var(--label-primary);
+  transform: scaleX(1);
+  animation: cell-underline-in var(--duration-base) var(--ease-standard) forwards;
+}
+
+@keyframes cell-underline-in {
+  from { transform: scaleX(0); opacity: 0.4; }
+  to   { transform: scaleX(1); opacity: 1; }
+}
+
+.cell__input {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  padding: 0 4px;
+  font-family: var(--font-body);
+  font-size: clamp(2rem, 6vw, 2.75rem);
+  line-height: 1;
+  font-weight: 500;
+  color: transparent;
+  border: none;
+  background: transparent;
+  outline: none;
+  caret-color: transparent;
+}
+
+.cell__char {
+  display: inline-block;
+  font-family: var(--font-body);
+  font-size: clamp(2rem, 6vw, 2.75rem);
+  line-height: 1;
+  width: 0.625em;
+  text-align: center;
+  font-weight: 500;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.cell__char--correct {
+  color: var(--label-primary);
+}
+
+.cell__char--wrong {
+  color: var(--label-tertiary);
+  text-decoration: line-through;
+  text-decoration-color: var(--label-tertiary);
+  text-decoration-thickness: 1.5px;
+  text-decoration-skip-ink: none;
+}
+
+.cell__char--pending {
+  color: var(--label-quaternary);
+  opacity: 0.6;
+}
+
+.cell__cursor {
+  display: inline-block;
+  width: 1.5px;
+  height: 0.95em;
+  background: var(--label-primary);
+  animation: cell-cursor-blink 1.4s var(--ease-standard) infinite;
+  margin-right: 2px;
+}
+
+@keyframes cell-cursor-blink {
+  0%, 50%    { opacity: 1; }
+  50.01%, 100% { opacity: 0; }
+}
+
+.cell--shake {
+  animation: cell-shake 0.4s ease-in-out;
+}
+
+@keyframes cell-shake {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-3px); }
+  75%      { transform: translateX(3px); }
+}
+
+/* ============================================================
    Responsive — Apple HIG, holds together at every width
    ============================================================ */
 @media (max-width: 640px) {

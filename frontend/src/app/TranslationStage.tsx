@@ -1,27 +1,24 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   getAudioUrl,
   LessonSentence,
   WordInLesson,
 } from './api';
-import { validateEn, validateZh } from './normalize';
 import SunkenShortcutBar from './SunkenShortcutBar';
 
-export type TranslationDirection = 'en2zh' | 'zh2en';
-
 interface TranslationStageProps {
-  /** The sentence being practiced. `chinese_text` is the reference for EN→ZH;
-   *  `text` is the reference for ZH→EN. */
+  /** The sentence being practiced — `chinese_text` is the prompt (what
+   *  the user sees), `text` is the English reference shown after a
+   *  wrong answer. */
   sentence: LessonSentence;
-  /** Which direction this step is. */
-  direction: TranslationDirection;
-  /** 0-based step index in the lesson's 5-step ladder. */
+  /** 0-based step index in the lesson's flat step ladder (all words ×
+   *  all sentences for that word, in order). */
   stepIndex: number;
-  /** Total steps in the lesson (5 for a normal lesson). */
+  /** Total steps in the lesson. */
   totalSteps: number;
-  /** Target word — used only for the caption "翻译 · {word}". */
+  /** Target word — used only for the caption "看中文写英文 · {word}". */
   targetWord: WordInLesson;
   /** Called when the user finishes a step. `correct` is true on a clean
    *  check, false on "skip". */
@@ -29,147 +26,246 @@ interface TranslationStageProps {
 }
 
 /**
- * TranslationStage — single step of the standalone translation drill.
+ * TranslationStage — single step of the standalone ZH→EN drill.
  *
  * UX:
  *   - Top: step dots + counter
- *   - Middle: prompt (English sentence for EN→ZH, Chinese for ZH→EN)
- *   - Below prompt: textarea for user input
- *   - Bottom: play / check / skip button row + SunkenShortcutBar
+ *   - Middle: Chinese prompt (large)
+ *   - Below: per-word cell row — each English word in the answer is
+ *     rendered as an underscore cell that fills as the user types.
+ *     Auto-advances on the last correct char; the whole word flips to
+ *     sage green when finished.
+ *   - Below cells: shortcut bar + skip button
  *
- * Validation (per direction):
- *   - EN→ZH: validateZh(input, sentence.chinese_text)
- *   - ZH→EN: validateEn(input, sentence.text)
- *
- * On correct: 300ms chime + onComplete(true).
- * On wrong: reveal reference + "再试一次" button (resets input, stays on step).
+ * On last cell correct: 300ms chime + onComplete(true).
+ * On wrong typed char: per-char red + cell shake.
  * On skip: onComplete(false).
  *
- * Audio:
- *   - EN→ZH: autoplay English sentence audio on mount; user can replay via 🔊.
- *   - ZH→EN: no audio (chinese_text has no TTS). The 🔊 button is hidden.
+ * Audio is MANUAL only — no autoplay. User clicks 🔊 or presses Space
+ * (when focus is outside any cell) to play the English sentence audio.
  */
 export default function TranslationStage({
   sentence,
-  direction,
   stepIndex,
   totalSteps,
   targetWord,
   onComplete,
 }: TranslationStageProps) {
-  const [input, setInput] = useState('');
-  const [error, setError] = useState('');
+  const expectedWords = sentence.text.split(/\s+/);
+
+  const [userInputs, setUserInputs] = useState<string[]>([]);
+  const [wordResults, setWordResults] = useState<boolean[]>([]);
+  const [currentWordIndex, setCurrentWordIndex] = useState(0);
+  const [justErred, setJustErred] = useState(false);
+  const [isPeeking, setIsPeeking] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const inputRef = useRef<HTMLTextAreaElement | null>(null);
-  // IME composition state — same pattern as DictationStage.
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const isComposingRef = useRef(false);
   const compositionTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Reset state when the step changes.
+  // Per-sentence reset on mount or sentence change.
   useEffect(() => {
-    setInput('');
-    setError('');
+    setUserInputs(new Array(expectedWords.length).fill(''));
+    setWordResults(new Array(expectedWords.length).fill(false));
+    setCurrentWordIndex(0);
     if (compositionTimerRef.current) {
       clearTimeout(compositionTimerRef.current);
       compositionTimerRef.current = null;
     }
     isComposingRef.current = false;
-  }, [sentence.id, direction]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sentence.id]);
 
-  // Autoplay English audio on mount for EN→ZH. 400ms matches DictationStage.
+  // Focus the hidden typewriter input on mount / step change.
   useEffect(() => {
-    if (direction !== 'en2zh') return;
-    if (!sentence.audio_url) return;
-    const t = window.setTimeout(() => {
-      try {
-        if (audioRef.current) {
-          audioRef.current.currentTime = 0;
-          audioRef.current.play().catch(() => { /* autoplay-blocked 静默 */ });
-        }
-      } catch {
-        /* 静默 */
-      }
-    }, 400);
+    const t = window.setTimeout(() => inputRef.current?.focus(), 80);
     return () => window.clearTimeout(t);
-  }, [sentence.id, direction, sentence.audio_url]);
+  }, [sentence.id]);
 
-  const playAudio = () => {
-    if (direction !== 'en2zh' || !sentence.audio_url) return;
+  // Refocus the typewriter if a stray click lands somewhere outside
+  // editable surfaces — same pattern DictationStage used. Without this,
+  // stopPropagation'd button clicks can leave focus stranded and
+  // subsequent keypresses won't reach the cells.
+  useEffect(() => {
+    const refocus = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest('input:not(.typewriter-input), textarea, [contenteditable="true"]')) return;
+      if (target.closest('[role="menu"], [role="listbox"]')) return;
+      inputRef.current?.focus();
+    };
+    document.addEventListener('click', refocus, true);
+    return () => document.removeEventListener('click', refocus, true);
+  }, []);
+
+  const playAudio = useCallback(() => {
+    if (!sentence.audio_url) return;
     try {
       if (audioRef.current) {
+        audioRef.current.src = getAudioUrl(sentence.audio_url);
         audioRef.current.currentTime = 0;
         audioRef.current.play().catch(() => { /* 静默 */ });
       }
     } catch {
       /* 静默 */
     }
-  };
-
-  const check = () => {
-    const inputNow = input;
-    const ok =
-      direction === 'en2zh'
-        ? validateZh(inputNow, sentence.chinese_text)
-        : validateEn(inputNow, sentence.text);
-    if (ok) {
-      // 300ms chime + advance.
-      playCorrectChime();
-      window.setTimeout(() => onComplete(true), 300);
-    } else {
-      setError(direction === 'en2zh' ? '参考答案已显示，可再试一次或跳过' : '参考答案已显示，可再试一次或跳过');
-    }
-  };
-
-  const retry = () => {
-    setInput('');
-    setError('');
-    inputRef.current?.focus();
-  };
+  }, [sentence.audio_url]);
 
   const skip = () => {
     onComplete(false);
   };
 
-  // Keyboard shortcuts.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        if (!error) check();
-        else retry();
-        return;
+  const playCorrectChime = useCallback(() => {
+    try {
+      const Ctx: typeof AudioContext =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext })
+          .webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = audioCtxRef.current ?? new Ctx();
+      audioCtxRef.current = ctx;
+      if (ctx.state === 'suspended') ctx.resume();
+
+      const notes = [659.25, 783.99, 1046.5]; // E5, G5, C6
+      const masterGain = ctx.createGain();
+      masterGain.gain.value = 0.25;
+      masterGain.connect(ctx.destination);
+
+      const now = ctx.currentTime;
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        const start = now + i * 0.09;
+        const stop = start + 0.18;
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(0.18, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, stop);
+        osc.connect(gain).connect(masterGain);
+        osc.start(start);
+        osc.stop(stop);
+      });
+    } catch {
+      /* 静默 */
+    }
+  }, []);
+
+  // ---- Cell typing ----
+  const handleWordChange = (index: number, value: string) => {
+    if (isComposingRef.current) {
+      return;
+    }
+
+    const newInputs = [...userInputs];
+    newInputs[index] = value;
+    setUserInputs(newInputs);
+
+    const expected = expectedWords[index]?.toLowerCase().replace(/[.,!?;:'"]/g, '');
+    const input = value.toLowerCase().replace(/[.,!?;:'"]/g, '');
+
+    const isWordCorrect = input === expected;
+    const newResults = [...wordResults];
+    newResults[index] = isWordCorrect;
+    setWordResults(newResults);
+
+    if (isWordCorrect) {
+      // Auto-complete with correct case.
+      newInputs[index] = expectedWords[index];
+      setUserInputs(newInputs);
+
+      if (index < expectedWords.length - 1) {
+        setCurrentWordIndex(index + 1);
+      } else {
+        // Last cell correct → 300ms celebration, then advance.
+        window.setTimeout(() => {
+          playCorrectChime();
+          onComplete(true);
+        }, 300);
       }
-      if (e.key === ' ' && direction === 'en2zh' && !isComposingRef.current) {
-        const tag = (e.target as HTMLElement | null)?.tagName;
-        if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+    } else if (value.length >= (expectedWords[index]?.length ?? 0)) {
+      // Typed enough chars but the word is wrong → shake.
+      setJustErred(true);
+      window.setTimeout(() => setJustErred(false), 400);
+    }
+  };
+
+  // Typewriter onKeyDown: IME housekeeping + preventDefault for the
+  // keys the global handler also catches.
+  const handleTypewriterKeyDown = (e: React.KeyboardEvent) => {
+    if (e.nativeEvent.isComposing || e.keyCode === 229) {
+      return;
+    }
+    if (isComposingRef.current) {
+      isComposingRef.current = false;
+      if (compositionTimerRef.current) {
+        clearTimeout(compositionTimerRef.current);
+        compositionTimerRef.current = null;
+      }
+    }
+    if (e.key === 'Tab' || e.key === ' ' || e.key === '/') {
+      e.preventDefault();
+    }
+  };
+
+  // Global keyboard handler — Space (play audio), Tab (cycle cells), /
+  // (peek the active cell's answer).
+  useEffect(() => {
+    const isEditableTarget = (target: EventTarget | null) => {
+      const el = target as HTMLElement | null;
+      if (!el) return false;
+      return !!el.closest(
+        'input:not(.typewriter-input), textarea, [contenteditable="true"]'
+      );
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (isEditableTarget(e.target)) return;
+
+      if ((e.key === ' ' || e.code === 'Space') && sentence.audio_url) {
         e.preventDefault();
         playAudio();
         return;
       }
-      if (e.key === 'Tab' && !isComposingRef.current) {
-        if (error) {
-          e.preventDefault();
-          retry();
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        if (expectedWords.length === 0) return;
+        if (e.shiftKey) {
+          setCurrentWordIndex(
+            (currentWordIndex - 1 + expectedWords.length) % expectedWords.length
+          );
+        } else {
+          setCurrentWordIndex((currentWordIndex + 1) % expectedWords.length);
         }
+        inputRef.current?.focus();
+        return;
+      }
+      if (e.key === '/') {
+        e.preventDefault();
+        setIsPeeking(true);
+        return;
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [direction, error, input, sentence.id]);
 
-  const prompt = direction === 'en2zh' ? sentence.text : sentence.chinese_text;
-  const reference = direction === 'en2zh' ? sentence.chinese_text : sentence.text;
-  const promptLang = direction === 'en2zh' ? 'en' : 'zh';
-  const placeholder = direction === 'en2zh' ? '输入中文翻译…' : 'Type the English translation…';
-  const directionLabel = direction === 'en2zh' ? 'EN → 中文' : '中文 → EN';
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === '/') setIsPeeking(false);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [currentWordIndex, expectedWords, playAudio, sentence.audio_url]);
 
   return (
     <div className="translation">
       <header className="translation__header">
-        <p className="translation__caption">翻译 · {targetWord.word}</p>
-        <p className="translation__direction">{directionLabel}</p>
+        <p className="translation__caption">看中文写英文 · {targetWord.word}</p>
         <div className="translation__steps" aria-label="step progress">
           {Array.from({ length: totalSteps }).map((_, i) => (
             <span
@@ -188,127 +284,106 @@ export default function TranslationStage({
         </p>
       </header>
 
-      <div className="translation__prompt" lang={promptLang}>
-        {prompt}
-      </div>
-
-      {error && (
-        <div className="translation__answer" role="status">
-          <p className="translation__answer-label">参考答案</p>
-          <p className="translation__answer-text" lang={promptLang === 'en' ? 'zh' : 'en'}>
-            {reference}
+      <div className="sentence">
+        {sentence.chinese_text && (
+          <p className="translation__prompt" lang="zh">
+            {sentence.chinese_text}
           </p>
-        </div>
-      )}
-
-      <textarea
-        ref={inputRef}
-        className={
-          'translation__textarea' +
-          (error ? ' translation__textarea--error' : '')
-        }
-        value={input}
-        onChange={(e) => {
-          setInput(e.target.value);
-          if (error) setError('');
-        }}
-        onCompositionStart={() => {
-          isComposingRef.current = true;
-          if (compositionTimerRef.current) {
-            clearTimeout(compositionTimerRef.current);
-          }
-        }}
-        onCompositionEnd={() => {
-          // 一些 IME 在 Enter 后不发 compositionend — 加 3s 兜底
-          compositionTimerRef.current = setTimeout(() => {
-            isComposingRef.current = false;
-          }, 0);
-        }}
-        placeholder={placeholder}
-        rows={2}
-        autoFocus
-        spellCheck={false}
-        lang={direction === 'en2zh' ? 'zh' : 'en'}
-      />
-
-      <div className="translation__actions">
-        {direction === 'en2zh' && sentence.audio_url ? (
-          <button type="button" className="translation__btn translation__btn--ghost" onClick={playAudio}>
-            🔊 播放
-          </button>
-        ) : null}
-
-        {error ? (
-          <button type="button" className="translation__btn translation__btn--ghost" onClick={retry}>
-            再试一次
-          </button>
-        ) : (
-          <button type="button" className="translation__btn translation__btn--primary" onClick={check}>
-            检查 ✓
-          </button>
         )}
 
-        <button type="button" className="translation__btn translation__btn--ghost" onClick={skip}>
-          跳过 ⏭
-        </button>
+        <div className="sentence__display">
+          <div className="sentence__cells">
+            {expectedWords.map((word, index) => {
+              const isCorrectWord = wordResults[index];
+              const isActive = currentWordIndex === index;
+              const input = userInputs[index] || '';
+              const showPeek = isPeeking && isActive;
+
+              return (
+                <span key={`cell-${index}`} className="cells__item">
+                  <span
+                    className={
+                      'cell' +
+                      (isCorrectWord ? ' cell--correct' : '') +
+                      (isActive ? ' cell--active' : '') +
+                      (justErred && isActive ? ' cell--shake' : '')
+                    }
+                  >
+                    <span className="cell__ghost" aria-hidden>{word}</span>
+                    {showPeek ? (
+                      <span className="cell__text cell__text--peek">{word}</span>
+                    ) : isCorrectWord ? (
+                      <span className="cell__text">{word}</span>
+                    ) : isActive ? (
+                      <span className="cell__input">
+                        {input.split('').map((char, i) => {
+                          const status = char?.toLowerCase() === word[i]?.toLowerCase() ? 'correct' : 'wrong';
+                          return <span key={i} className={`cell__char cell__char--${status}`}>{char}</span>;
+                        })}
+                        <span className="cell__cursor" aria-hidden>|</span>
+                      </span>
+                    ) : (
+                      <span className="cell__placeholder"></span>
+                    )}
+                  </span>
+                </span>
+              );
+            })}
+          </div>
+
+          <input
+            ref={inputRef}
+            type="text"
+            className="typewriter-input"
+            value={userInputs[currentWordIndex] || ''}
+            onChange={(e) => handleWordChange(currentWordIndex, e.target.value)}
+            onKeyDown={handleTypewriterKeyDown}
+            onCompositionStart={() => {
+              isComposingRef.current = true;
+              if (compositionTimerRef.current) clearTimeout(compositionTimerRef.current);
+              compositionTimerRef.current = setTimeout(() => {
+                isComposingRef.current = false;
+                compositionTimerRef.current = null;
+              }, 3000);
+            }}
+            onCompositionEnd={(e) => {
+              isComposingRef.current = false;
+              if (compositionTimerRef.current) {
+                clearTimeout(compositionTimerRef.current);
+                compositionTimerRef.current = null;
+              }
+              const finalValue = (e.target as HTMLInputElement).value;
+              handleWordChange(currentWordIndex, finalValue);
+            }}
+            autoFocus
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </div>
+
+        <audio ref={audioRef} />
       </div>
 
       <SunkenShortcutBar
         hints={
-          direction === 'en2zh'
+          sentence.audio_url
             ? [
                 { keys: ['Space'], label: '播放' },
-                { keys: ['Cmd', 'Enter'], label: '检查' },
-                { keys: ['Tab'], label: '再试一次' },
+                { keys: ['Tab'], label: '切换格子' },
+                { keys: ['/'], label: '偷看' },
               ]
             : [
-                { keys: ['Cmd', 'Enter'], label: '检查' },
-                { keys: ['Tab'], label: '再试一次' },
+                { keys: ['Tab'], label: '切换格子' },
+                { keys: ['/'], label: '偷看' },
               ]
         }
       />
 
-      {direction === 'en2zh' && sentence.audio_url && (
-        <audio
-          ref={audioRef}
-          src={getAudioUrl(sentence.audio_url)}
-          preload="auto"
-        />
-      )}
+      <div className="translation__actions">
+        <button type="button" className="translation__btn translation__btn--ghost" onClick={skip}>
+          跳过 ⏭
+        </button>
+      </div>
     </div>
   );
-}
-
-/**
- * 300ms E5→G5→C6 triangle-wave chime via Web Audio. Same pattern
- * DictationStage uses for sentence completion — cheap, no asset, sounds nice.
- */
-function playCorrectChime(): void {
-  try {
-    const Ctx: typeof AudioContext =
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext })
-        .webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
-    const notes = [659.25, 783.99, 1046.5]; // E5, G5, C6
-    notes.forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.value = freq;
-      const start = ctx.currentTime + i * 0.09;
-      const stop = start + 0.18;
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(0.18, start + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, stop);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(start);
-      osc.stop(stop);
-    });
-    // Clean up context after the last note.
-    setTimeout(() => ctx.close().catch(() => {}), 800);
-  } catch {
-    /* 静默 */
-  }
 }

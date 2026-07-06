@@ -116,19 +116,21 @@ export async function getPhonetics(words: string[]): Promise<Record<string, stri
 // Translation progress (Standalone Translation Drill mode)
 //
 // Independent localStorage key — the only progress blob the app writes.
-// A lesson is "completed" (completedAt set) when every word has both
-// en2zhCorrect AND zh2enCorrect true.
+// A lesson is "completed" (completedAt set) when every word has
+// `zh2enCorrect` true. The legacy `en2zhCorrect` flag (from the previous
+// dual-direction design) is read on load as a best-effort migration:
+// if the old blob had `en2zhCorrect === true`, treat the word as already
+// mastered in the new single-direction world. New writes only set
+// `zh2enCorrect`.
 // ---------------------------------------------------------------------------
 export type TranslationWordProgress = {
-  /** 该词的 EN→ZH 翻译步骤是否通过 */
-  en2zhCorrect: boolean;
-  /** 该词的 ZH→EN 翻译步骤是否通过 */
+  /** 该词的中文→英文翻译是否通过 */
   zh2enCorrect: boolean;
 };
 
 export type TranslationLessonProgress = {
   /** key: lowercase target word. May be missing for words skipped due to
-   *  missing sentences / missing chinese_text. */
+   *  missing sentences / missing english text. */
   words: Record<string, TranslationWordProgress>;
   /** ms epoch; set only when every word in the lesson is fully complete. */
   completedAt?: number;
@@ -146,7 +148,31 @@ export function loadTranslationProgress(): TranslationProgress {
   try {
     const raw = window.localStorage.getItem(TRANSLATION_PROGRESS_KEY);
     if (!raw) return {};
-    return JSON.parse(raw) as TranslationProgress;
+    const parsed = JSON.parse(raw) as TranslationProgress;
+    // Lazy migration from the legacy dual-direction shape
+    // ({en2zhCorrect, zh2enCorrect}) to the single-direction shape
+    // ({zh2enCorrect}). If a word was previously marked en2zhCorrect
+    // but never finished the zh2en step, treat it as already done in
+    // the new world — losing that flag would silently regress
+    // completion.
+    for (const libId in parsed) {
+      const libBucket = parsed[libId];
+      if (!libBucket) continue;
+      for (const lessonIdx in libBucket) {
+        const lessonBucket = libBucket[lessonIdx];
+        if (!lessonBucket?.words) continue;
+        for (const wordKey in lessonBucket.words) {
+          const w = lessonBucket.words[wordKey] as TranslationWordProgress & {
+            en2zhCorrect?: boolean;
+          };
+          if (typeof w.zh2enCorrect !== 'boolean') {
+            w.zh2enCorrect = Boolean(w.en2zhCorrect);
+          }
+          delete w.en2zhCorrect;
+        }
+      }
+    }
+    return parsed;
   } catch {
     return {};
   }
