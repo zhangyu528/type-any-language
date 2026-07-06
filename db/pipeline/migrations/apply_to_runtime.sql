@@ -1,4 +1,4 @@
--- apply_to_runtime.sql — inline application of db/pipeline/migrations/versions/0001-0006
+-- apply_to_runtime.sql — inline application of db/pipeline/migrations/versions/0001-0009
 -- to the running runtime db (type-any-language-db-1).
 --
 -- Equivalent to running `python3 -m pipeline.migrations.runner` against the
@@ -104,6 +104,23 @@ ALTER TABLE sentences
     UNIQUE (lib_id, text, difficulty);
 
 INSERT INTO schema_migrations (version) VALUES ('0006_sentence_natural_key')
+    ON CONFLICT DO NOTHING;
+
+-- ============================================================================
+-- 0007_lesson_index: +lesson_index on vocabulary_words (computed on backfill)
+-- 0008_sentence_word_links_backfill: backfill FK rows from sentences.target_words
+-- Both already applied to the current runtime db via the migration runner;
+-- kept out of this fallback to avoid diverging from runner semantics
+-- (see 0007/0008 versions for the exact DDL the runner uses).
+-- ============================================================================
+
+-- ============================================================================
+-- 0009_vocab_lib_description: +description (nullable, set from manifest)
+-- ============================================================================
+ALTER TABLE vocabulary_libs
+    ADD COLUMN IF NOT EXISTS description TEXT;
+
+INSERT INTO schema_migrations (version) VALUES ('0009_vocab_lib_description')
     ON CONFLICT DO NOTHING;
 
 -- ============================================================================

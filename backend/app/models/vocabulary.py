@@ -13,6 +13,9 @@ class VocabularyLib(Base):
     name = Column(String(100), nullable=False)
     level = Column(String(20), nullable=False)  # beginner/cet4/cet6/ielts
     word_count = Column(Integer, default=0)
+    # Optional user-facing description (one-line tagline shown on the home card).
+    # Nullable for libs baked before migration 0009 — UI hides the line when empty.
+    description = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     words = relationship("VocabularyWord", back_populates="lib")

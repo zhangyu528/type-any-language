@@ -51,14 +51,20 @@ def _default_manifest_path() -> Path:
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True)
 class LibDef:
-    """One entry from manifest.yaml's `libs:` list."""
+    """One entry from manifest.yaml's `libs:` list.
+
+    `lesson_size` and `description` have defaults so the first-pass libs list
+    (built before defaults are parsed) can construct valid objects. The
+    enriched-libs pass below replaces them with the actual manifest values.
+    """
     id: str
     display: str
     level: str
-    csv_path: Path               # absolute, project-root-relative resolved
-    difficulties: tuple[str, ...]
-    csv_exists: bool             # False → file missing on disk, sync will skip
-    lesson_size: int             # words per lesson (Target-Word Lesson feature)
+    description: Optional[str] = None  # user-facing tagline; nullable, backward compat
+    csv_path: Path = field(default_factory=Path)  # absolute, project-root-relative resolved
+    difficulties: tuple[str, ...] = ()
+    csv_exists: bool = False            # False → file missing on disk, sync will skip
+    lesson_size: int = 5               # words per lesson (Target-Word Lesson feature)
 
 
 @dataclass(frozen=True)
@@ -162,6 +168,16 @@ def load_manifest(path: Path | None = None) -> Manifest:
         lib_id = str(entry["id"]).strip()
         display = str(entry["display"]).strip()
         level = str(entry["level"]).strip()
+        # `description` is optional for backward compatibility with existing
+        # manifests. Empty string / missing key both normalize to None, which
+        # downstream code (import_vocab.py + UI) treats as "no tagline".
+        desc_raw = entry.get("description")
+        description: Optional[str] = None
+        if desc_raw is not None:
+            desc_str = str(desc_raw).strip()
+            if desc_str:
+                description = desc_str
+
         csv_rel = str(entry["csv"]).strip()
         diffs_raw = entry["difficulties"]
         if not isinstance(diffs_raw, list) or not diffs_raw:
@@ -182,6 +198,7 @@ def load_manifest(path: Path | None = None) -> Manifest:
             id=lib_id,
             display=display,
             level=level,
+            description=description,
             csv_path=csv_path,
             difficulties=difficulties,
             csv_exists=csv_exists,
@@ -239,6 +256,7 @@ def load_manifest(path: Path | None = None) -> Manifest:
             id=base.id,
             display=base.display,
             level=base.level,
+            description=base.description,
             csv_path=base.csv_path,
             difficulties=base.difficulties,
             csv_exists=base.csv_exists,

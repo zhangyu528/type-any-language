@@ -8,6 +8,7 @@ class VocabularyLibResponse(BaseModel):
     name: str
     level: str
     word_count: int
+    description: Optional[str] = None  # nullable; populated from manifest on bake
 
     class Config:
         from_attributes = True

@@ -56,7 +56,8 @@ else:
 import psycopg2
 
 
-def upsert_lib(conn, level: str, display: str, word_count: int, force: bool) -> str | None:
+def upsert_lib(conn, level: str, display: str, description: str | None,
+               word_count: int, force: bool) -> str | None:
     """INSERT a vocabulary_libs row if missing; return its id.
 
     Returns None when the lib already exists and `force=False`. The caller
@@ -64,6 +65,10 @@ def upsert_lib(conn, level: str, display: str, word_count: int, force: bool) -> 
     treated as source-of-truth only for empty dbs. (Previous behavior
     returned the existing id but didn't gate the caller's insert, which
     caused double-insertion on every re-run.)
+
+    On the re-import path (`force=True`) we always UPDATE the description
+    too — the manifest is the single source of truth, so editing the tagline
+    there should be reflected in the runtime db on the next sync.
     """
     with conn.cursor() as cur:
         cur.execute(
@@ -73,6 +78,13 @@ def upsert_lib(conn, level: str, display: str, word_count: int, force: bool) -> 
         existing = cur.fetchone()
 
         if existing:
+            # Always sync the description on re-import. Cheap (single-row
+            # UPDATE on PK) and lets operators tweak taglines without a
+            # migration.
+            cur.execute(
+                "UPDATE vocabulary_libs SET description = %s WHERE id = %s",
+                (description, existing[0]),
+            )
             if force:
                 cur.execute(
                     "DELETE FROM vocabulary_words WHERE lib_id = %s",
@@ -90,10 +102,10 @@ def upsert_lib(conn, level: str, display: str, word_count: int, force: bool) -> 
         lib_id = str(uuid.uuid4())
         cur.execute(
             """
-            INSERT INTO vocabulary_libs (id, name, level, word_count, created_at)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO vocabulary_libs (id, name, level, description, word_count, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s)
             """,
-            (lib_id, display, level, word_count, datetime.now(timezone.utc)),
+            (lib_id, display, level, description, word_count, datetime.now(timezone.utc)),
         )
         return lib_id
 
@@ -240,10 +252,11 @@ def import_one(conn, lib: LibDef, force: bool, dry_run: bool) -> dict:
             "rows": n,
             "display": lib.display,
             "level": lib.level,
+            "description": lib.description,
             "difficulties": list(lib.difficulties),
         }
 
-    lib_id = upsert_lib(conn, lib.level, lib.display, n, force)
+    lib_id = upsert_lib(conn, lib.level, lib.display, lib.description, n, force)
     if lib_id is None:
         # skip-existing path: lib was already imported, CSV is a no-op.
         # Don't insert words, don't touch word_count, don't commit.

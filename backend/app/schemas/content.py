@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 
@@ -8,6 +8,7 @@ class CatalogLib(BaseModel):
     name: str
     level: str
     word_count: int
+    description: Optional[str] = None  # nullable; from manifest on bake
 
     class Config:
         from_attributes = True

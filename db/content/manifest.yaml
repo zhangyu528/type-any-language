@@ -28,18 +28,21 @@ libs:
   - id: beginner
     display: Beginner Vocabulary
     level: beginner
+    description: 生活中最高频的 3000 词，配 200 句基础听写
     csv: db/content/vocabulary/beginner.csv
     difficulties: [beginner, intermediate, advanced]
 
   - id: cet4
     display: CET-4
     level: cet4
+    description: 大学英语四级核心词表，覆盖阅读与写作高频词
     csv: db/content/vocabulary/cet4.csv
     difficulties: [beginner, intermediate, advanced]
 
   - id: cet6
     display: CET-6
     level: cet6
+    description: 大学英语六级词汇，学术与商务场景重点
     csv: db/content/vocabulary/cet6.csv
     difficulties: [beginner, intermediate, advanced]
 
@@ -50,6 +53,7 @@ libs:
   - id: ielts
     display: IELTS
     level: ielts
+    description: 雅思核心词表，偏学术与留学场景（暂未启用）
     csv: db/content/vocabulary/ielts.csv
     difficulties: [intermediate, advanced]
 
