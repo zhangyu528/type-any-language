@@ -8,6 +8,9 @@ export interface VocabularyLib {
   name: string;
   level: string;
   word_count: number;
+  /** Optional tagline shown on the home card. Null/undefined for libs baked
+   *  before migration 0009. UI hides the line when missing. */
+  description?: string | null;
 }
 
 export interface CatalogDefaults {
@@ -30,48 +33,15 @@ export async function getContentCatalog(): Promise<Catalog> {
 }
 
 // ---------------------------------------------------------------------------
-// Sentences (kept for backwards compat — DictationStage still uses it
-// for the per-sentence audio_url when a lesson returns no beginner
-// sentence for a target word)
-// ---------------------------------------------------------------------------
-export interface Sentence {
-  id: string;
-  text: string;
-  chinese_text: string;
-  target_words: string[];
-  difficulty: string;
-  audio_url: string | null;
-  is_cached: boolean;
-}
-
-export async function getVocabularyLibs(): Promise<VocabularyLib[]> {
-  const response = await fetch(`${API_BASE_URL}/api/vocabulary/libs`);
-  if (!response.ok) {
-    throw new Error('获取词库列表失败');
-  }
-  return response.json();
-}
-
-export async function generateSentences(
-  libId: string,
-  count: number = 10
-): Promise<Sentence[]> {
-  // Read-layer backend serves pre-baked sentences via GET. Kept around
-  // for fallback / debug; the lesson flow uses the lessons endpoint
-  // (see listLessons + getLesson below).
-  const params = new URLSearchParams({
-    lib_id: libId,
-    count: String(count),
-  });
-  const response = await fetch(`${API_BASE_URL}/api/sentences/random?${params}`);
-  if (!response.ok) {
-    throw new Error('生成句子失败');
-  }
-  return response.json();
-}
-
-// ---------------------------------------------------------------------------
-// Lessons — Target-Word Lesson feature (PRD v0.4.0+)
+// Lessons — Target-Word Lesson feature
+//
+// The dictation ladder UI was removed (LessonList / LessonSession /
+// DictationStage / RecognitionStage) but the lesson data shape is what
+// TranslationStage + TranslationSession consume. The future-facing lesson
+// surface is now ONLY translation, but the underlying sentences / words
+// load through the same API. Keep these types stable.
+//
+// (dictation ladder — see git history if you need it back)
 // ---------------------------------------------------------------------------
 export interface LessonSummary {
   lesson_index: number;
@@ -143,50 +113,51 @@ export async function getPhonetics(words: string[]): Promise<Record<string, stri
 }
 
 // ---------------------------------------------------------------------------
-// Lesson progress (localStorage)
+// Translation progress (Standalone Translation Drill mode)
 //
-// All cross-session state for the lesson feature lives here. Shape:
-//   lessonProgress: {
-//     [libId]: {
-//       [lessonIndex]: {
-//         words: { [word]: { maxStage: 1|2; completedAt?: number } };
-//         completedAt?: number;  // when all words reached maxStage=2
-//       };
-//     };
-//   }
-//
-// Privacy-mode failure is silently swallowed (matches the existing
-// prefs.libId / prefs.autoPlay pattern in page.tsx).
+// Independent localStorage key — the only progress blob the app writes.
+// A lesson is "completed" (completedAt set) when every word has both
+// en2zhCorrect AND zh2enCorrect true.
 // ---------------------------------------------------------------------------
-export type LessonWordProgress = {
-  maxStage: 1 | 2;
+export type TranslationWordProgress = {
+  /** 该词的 EN→ZH 翻译步骤是否通过 */
+  en2zhCorrect: boolean;
+  /** 该词的 ZH→EN 翻译步骤是否通过 */
+  zh2enCorrect: boolean;
+};
+
+export type TranslationLessonProgress = {
+  /** key: lowercase target word. May be missing for words skipped due to
+   *  missing sentences / missing chinese_text. */
+  words: Record<string, TranslationWordProgress>;
+  /** ms epoch; set only when every word in the lesson is fully complete. */
   completedAt?: number;
 };
 
-export type LessonProgress = {
+export type TranslationProgress = {
   [libId: string]: {
-    [lessonIndex: number]: {
-      words: { [word: string]: LessonWordProgress };
-      completedAt?: number;
-    };
+    [lessonIndex: number]: TranslationLessonProgress;
   };
 };
 
-const LESSON_PROGRESS_KEY = 'lessonProgress';
+const TRANSLATION_PROGRESS_KEY = 'translationProgress';
 
-export function loadLessonProgress(): LessonProgress {
+export function loadTranslationProgress(): TranslationProgress {
   try {
-    const raw = window.localStorage.getItem(LESSON_PROGRESS_KEY);
+    const raw = window.localStorage.getItem(TRANSLATION_PROGRESS_KEY);
     if (!raw) return {};
-    return JSON.parse(raw) as LessonProgress;
+    return JSON.parse(raw) as TranslationProgress;
   } catch {
     return {};
   }
 }
 
-export function saveLessonProgress(progress: LessonProgress): void {
+export function saveTranslationProgress(progress: TranslationProgress): void {
   try {
-    window.localStorage.setItem(LESSON_PROGRESS_KEY, JSON.stringify(progress));
+    window.localStorage.setItem(
+      TRANSLATION_PROGRESS_KEY,
+      JSON.stringify(progress)
+    );
   } catch {
     /* 隐私模式静默 */
   }

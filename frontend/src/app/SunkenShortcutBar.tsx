@@ -1,12 +1,5 @@
 'use client';
 
-const SHORTCUTS: ReadonlyArray<{ keys: ReadonlyArray<string>; label: string }> = [
-  { keys: ['Space'],        label: '播放 / 暂停' },
-  { keys: ['Tab'],          label: '下一词' },
-  { keys: ['Shift', 'Tab'], label: '上一词' },
-  { keys: ['/'],            label: '偷看' },
-];
-
 interface AutoPlayToggle {
   active: boolean;
   onToggle: () => void;
@@ -14,11 +7,22 @@ interface AutoPlayToggle {
 
 interface SunkenShortcutBarProps {
   /**
-   * When provided, renders a 5th interactive row at the end of the bar —
-   * the autoPlay toggle. Whole row is clickable, role="button" +
+   * Mode-specific shortcut hints to render. Required — the bar should
+   * always reflect the keys the user can actually use in the current
+   * mode, not a fixed default. TranslationStage is the only caller and
+   * always supplies a translation-specific list (Cmd+Enter for check,
+   * Tab for retry, optional Space for audio replay).
+   */
+  hints: ReadonlyArray<{ keys: ReadonlyArray<string>; label: string }>;
+  /**
+   * When provided, renders an additional interactive row at the end of
+   * the bar — the autoPlay toggle. Whole row is clickable, role="button" +
    * aria-pressed for screen readers, Enter activates. Space is intentionally
-   * NOT captured here so the global Space=play/pause still works when the
-   * toggle has focus.
+   * NOT captured here so a parent Space=play/pause handler still works when
+   * the toggle has focus.
+   *
+   * Currently unused (translation mode has no autoPlay concept); kept
+   * available in case a future mode wants it.
    */
   autoPlay?: AutoPlayToggle;
 }
@@ -31,16 +35,17 @@ interface SunkenShortcutBarProps {
  * gap-separated. Wraps to the next line on narrow screens. Compact, like
  * a "key bindings" hint strip in a code editor's status bar.
  *
- * Optional 5th row: autoPlay toggle. Same row visual language as the other
- * shortcuts (kbd badge + label), but the row is interactive — click or
- * Enter to flip. State suffix "· 开" / "· 关" + subtle color shift signals
- * current value. The whole row has hover bg + focus ring.
+ * `hints` is required — the caller owns the binding list. No fixed
+ * default; each mode declares its own binding set.
  */
-export default function SunkenShortcutBar({ autoPlay }: SunkenShortcutBarProps = {}) {
+export default function SunkenShortcutBar({
+  hints,
+  autoPlay,
+}: SunkenShortcutBarProps) {
   return (
     <section className="shortcuts-bar" aria-label="快捷键参考">
       <div className="shortcuts-bar__list">
-        {SHORTCUTS.map((sc) => (
+        {hints.map((sc) => (
           <div key={sc.label} className="shortcuts-bar__row">
             <span className="shortcuts-bar__keys">
               {sc.keys.map((k, i) => (
