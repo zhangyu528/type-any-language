@@ -13,12 +13,7 @@ interface TranslationStageProps {
    *  the user sees), `text` is the English reference shown after a
    *  wrong answer. */
   sentence: LessonSentence;
-  /** 0-based step index in the lesson's flat step ladder (all words ×
-   *  all sentences for that word, in order). */
-  stepIndex: number;
-  /** Total steps in the lesson. */
-  totalSteps: number;
-  /** Target word — used only for the caption "看中文写英文 · {word}". */
+  /** Target word for the word-card at the top of the stage. */
   targetWord: WordInLesson;
   /** Called when the user finishes a step. `correct` is true on a clean
    *  check, false on "skip". */
@@ -29,7 +24,8 @@ interface TranslationStageProps {
  * TranslationStage — single step of the standalone ZH→EN drill.
  *
  * UX:
- *   - Top: step dots + counter
+ *   - Top: word card (word + phonetic + Chinese translation)
+ *   - Caption: "看中文写英文"
  *   - Middle: Chinese prompt (large)
  *   - Below: per-word cell row — each English word in the answer is
  *     rendered as an underscore cell that fills as the user types.
@@ -43,11 +39,13 @@ interface TranslationStageProps {
  *
  * Audio is MANUAL only — no autoplay. User clicks 🔊 or presses Space
  * (when focus is outside any cell) to play the English sentence audio.
+ *
+ * Step number / progress dots are owned by the parent (the parent
+ * drives a stateless, randomised step pipeline). This component is
+ * the rendering of a single (word, sentence) pair.
  */
 export default function TranslationStage({
   sentence,
-  stepIndex,
-  totalSteps,
   targetWord,
   onComplete,
 }: TranslationStageProps) {
@@ -58,6 +56,10 @@ export default function TranslationStage({
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [justErred, setJustErred] = useState(false);
   const [isPeeking, setIsPeeking] = useState(false);
+  // Track which shortcut keys the user is holding down so the matching
+  // kbd badges in the shortcut bar light up. Strings are normalized
+  // (lowercase) — see SunkenShortcutBar's matching logic.
+  const [activeKeys, setActiveKeys] = useState<string[]>([]);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -225,6 +227,22 @@ export default function TranslationStage({
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (isEditableTarget(e.target)) return;
 
+      // Mark this key as held — lights up the matching kbd badge in
+      // the shortcut bar. We only track keys that have a registered
+      // shortcut in this stage (Space / Tab / '/') so the bar only
+      // shows what the user can actually do.
+      const trackedKey =
+        e.key === ' ' || e.code === 'Space'
+          ? 'space'
+          : e.key === 'Tab'
+            ? 'tab'
+            : e.key === '/'
+              ? '/'
+              : null;
+      if (trackedKey) {
+        setActiveKeys((prev) => (prev.includes(trackedKey) ? prev : [...prev, trackedKey]));
+      }
+
       if ((e.key === ' ' || e.code === 'Space') && sentence.audio_url) {
         e.preventDefault();
         playAudio();
@@ -252,36 +270,49 @@ export default function TranslationStage({
 
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === '/') setIsPeeking(false);
+      // Drop the released key from activeKeys. Same normalization as
+      // keydown so ' ' (space) matches 'space'.
+      const trackedKey =
+        e.key === ' ' || e.code === 'Space'
+          ? 'space'
+          : e.key === 'Tab'
+            ? 'tab'
+            : e.key === '/'
+              ? '/'
+              : null;
+      if (trackedKey) {
+        setActiveKeys((prev) => prev.filter((k) => k !== trackedKey));
+      }
     };
+
+    // Safety net: if the user alt-tabs away while holding a key, the
+    // keyup never fires and the badge would stay lit forever. Clear
+    // all tracked keys on window blur.
+    const handleBlur = () => setActiveKeys([]);
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
     };
   }, [currentWordIndex, expectedWords, playAudio, sentence.audio_url]);
 
   return (
     <div className="translation">
       <header className="translation__header">
-        <p className="translation__caption">看中文写英文 · {targetWord.word}</p>
-        <div className="translation__steps" aria-label="step progress">
-          {Array.from({ length: totalSteps }).map((_, i) => (
-            <span
-              key={i}
-              className={
-                'translation__step-dot' +
-                (i < stepIndex ? ' translation__step-dot--done' : '') +
-                (i === stepIndex ? ' translation__step-dot--current' : '')
-              }
-              aria-hidden
-            />
-          ))}
+        <div className="translation__word-card">
+          <h2 className="translation__word-card-word">{targetWord.word}</h2>
+          {targetWord.phonetic && (
+            <span className="translation__word-card-phonetic">{targetWord.phonetic}</span>
+          )}
+          {targetWord.translation && (
+            <p className="translation__word-card-translation">{targetWord.translation}</p>
+          )}
         </div>
-        <p className="translation__counter">
-          {stepIndex + 1} / {totalSteps}
-        </p>
+        <p className="translation__caption">看中文写英文</p>
       </header>
 
       <div className="sentence">
@@ -377,6 +408,7 @@ export default function TranslationStage({
                 { keys: ['/'], label: '偷看' },
               ]
         }
+        activeKeys={activeKeys}
       />
 
       <div className="translation__actions">
