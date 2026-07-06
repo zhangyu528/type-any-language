@@ -8,7 +8,6 @@ import {
   TranslationProgress,
 } from './api';
 import Home from './Home';
-import TranslationLessonList from './TranslationLessonList';
 import TranslationSession from './TranslationSession';
 
 /**
@@ -17,16 +16,20 @@ import TranslationSession from './TranslationSession';
  * URL conventions (single-route + query-string state machine, so
  * refreshing on a lesson page takes the user straight back):
  *
- *   /                       → lib picker (if multi-lib catalog),
- *                             or straight into the only lib
- *   /?lib=X                 → TranslationLessonList for lib X
- *   /?lib=X&lesson=N        → TranslationSession for lib X / N
+ *   /            → Home picker (always — the canonical landing)
+ *   /?lib=X      → TranslationSession for lib X (random-step drill)
  *
  * Translation is the only mode. There is no listening/dictation
  * surface — the dictation ladder (LessonList / LessonSession /
  * RecognitionStage / DictationStage) was removed entirely.
  *
- * Persistence: selected libId lives in localStorage (`prefs.libId`).
+ * The "lesson" intermediate layer was removed too: clicking a lib
+ * goes straight into a weighted random step drill (TranslationSession),
+ * not a per-lesson picker.
+ *
+ * Persistence: `prefs.libId` is still written to localStorage on
+ * selection, but NOT read back on init — Home is always the landing
+ * page when the URL has no `?lib=` param.
  */
 export default function PracticePage() {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
@@ -35,24 +38,12 @@ export default function PracticePage() {
   const [error, setError] = useState('');
   const [selectedLibId, setSelectedLibId] = useState<string | null>(null);
 
-  // Read ?lib and ?lesson from the URL. Defaults: no lib → first
-  // loaded lib (or picker if multi-lib); no lesson → lesson list.
+  // Read ?lib from the URL. Default: no lib → null (Home renders).
   const readUrl = useCallback(() => {
-    if (typeof window === 'undefined') return { lib: null, lesson: null };
+    if (typeof window === 'undefined') return { lib: null };
     const params = new URLSearchParams(window.location.search);
-    const lib = params.get('lib');
-    const lessonRaw = params.get('lesson');
-    const lesson = lessonRaw ? parseInt(lessonRaw, 10) : null;
-    return {
-      lib,
-      lesson: lesson !== null && !isNaN(lesson) ? lesson : null,
-    };
+    return { lib: params.get('lib') };
   }, []);
-
-  const [urlState, setUrlState] = useState<{
-    lib: string | null;
-    lesson: number | null;
-  }>({ lib: null, lesson: null });
 
   // Catalog + initial lib resolution.
   useEffect(() => {
@@ -68,33 +59,22 @@ export default function PracticePage() {
         setCatalog(c);
         setTranslationProgress(tp);
 
+        // Initial route resolution:
+        //   - URL `?lib=X`            → TranslationSession for lib X
+        //   - no URL params           → Home picker (always)
+        //
+        // Home is the canonical landing surface. We do NOT auto-resume
+        // from `prefs.libId` (the last-picked lib) — the user wants
+        // Home every time they land on `/` without query params.
+        // `prefs.libId` is still written (for any future cross-tab
+        // sync / debug), but ignored on init.
         const initial = readUrl();
         if (initial.lib && c.libs.some((l) => l.id === initial.lib)) {
           setSelectedLibId(initial.lib);
-        } else {
-          // Fall back to localStorage. Skip auto-pick when there are
-          // multiple libs and no memory — Home should render instead.
-          const savedLibId = (() => {
-            try {
-              return window.localStorage.getItem('prefs.libId');
-            } catch {
-              return null;
-            }
-          })();
-          const remembered = savedLibId
-            ? c.libs.find((l) => l.id === savedLibId)
-            : undefined;
-          if (remembered) {
-            setSelectedLibId(remembered.id);
-          } else if (c.libs.length === 1) {
-            // Single-lib catalog: skip the picker, jump straight in.
-            setSelectedLibId(c.libs[0].id);
-          }
-          // else: leave selectedLibId null → Home renders.
         }
-        setUrlState(readUrl());
+        // else: leave selectedLibId null → Home renders.
       } catch {
-        // lesson components will surface their own errors
+        // session / home will surface their own errors
       }
     })();
     return () => {
@@ -102,7 +82,8 @@ export default function PracticePage() {
     };
   }, [readUrl]);
 
-  // Persist selected libId so the next visit resumes on the same lib.
+  // Persist selected libId (debug / future cross-tab use). Reads of
+  // this key have been intentionally removed from the init path above.
   useEffect(() => {
     if (!selectedLibId) return;
     try {
@@ -112,51 +93,32 @@ export default function PracticePage() {
     }
   }, [selectedLibId]);
 
-  // Update the URL when entering a lesson (history.pushState so the
-  // back button works as expected).
-  const pushUrl = useCallback(
-    (params: { lib: string; lesson?: number | null }) => {
-      const url = new URL(window.location.href);
-      url.pathname = '/';
-      url.search = '';
-      url.searchParams.set('lib', params.lib);
-      if (params.lesson != null) {
-        url.searchParams.set('lesson', String(params.lesson));
-      }
-      window.history.pushState({}, '', url.toString());
-    },
-    []
-  );
-
-  const navigateToLesson = useCallback(
-    (libId: string, lessonIndex: number) => {
-      pushUrl({ lib: libId, lesson: lessonIndex });
-      setSelectedLibId(libId);
-      setUrlState({ lib: libId, lesson: lessonIndex });
-    },
-    [pushUrl]
-  );
-
-  const navigateToList = useCallback(
-    (libId: string) => {
-      pushUrl({ lib: libId, lesson: null });
-      setSelectedLibId(libId);
-      setUrlState({ lib: libId, lesson: null });
-    },
-    [pushUrl]
-  );
-
-  // Navigate to home picker (clear ?lib= and ?lesson=). Without this
-  // a remembered `prefs.libId` would silently route every visit past
-  // Home and there'd be no UI to get back to the picker.
-  const navigateToHome = useCallback(() => {
+  // Update the URL when entering a lib (history.pushState so the back
+  // button works as expected). `?lesson=N` is gone — there's no
+  // intermediate lesson picker anymore.
+  const pushUrl = useCallback((libId: string | null) => {
     const url = new URL(window.location.href);
     url.pathname = '/';
     url.search = '';
+    if (libId != null) {
+      url.searchParams.set('lib', libId);
+    }
     window.history.pushState({}, '', url.toString());
-    setSelectedLibId(null);
-    setUrlState({ lib: null, lesson: null });
   }, []);
+
+  const navigateToSession = useCallback(
+    (libId: string) => {
+      pushUrl(libId);
+      setSelectedLibId(libId);
+    },
+    [pushUrl]
+  );
+
+  // Navigate to home picker (clear ?lib=).
+  const navigateToHome = useCallback(() => {
+    pushUrl(null);
+    setSelectedLibId(null);
+  }, [pushUrl]);
 
   // Back/forward button support: re-read URL on popstate so the
   // selected libId follows history.
@@ -164,7 +126,6 @@ export default function PracticePage() {
     const onPop = () => {
       const u = readUrl();
       setSelectedLibId(u.lib);
-      setUrlState(u);
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
@@ -208,7 +169,9 @@ export default function PracticePage() {
     );
   }
 
-  // Multi-lib catalog with no remembered selection → render Home picker.
+  // No lib selected → render Home picker. With a single-lib catalog
+  // the parent page could auto-select, but the user has explicitly
+  // asked for "always go to Home on /" — keep this branch unconditional.
   if (!selectedLibId) {
     return (
       <div className="practice">
@@ -216,14 +179,12 @@ export default function PracticePage() {
           <Home
             libs={catalog.libs}
             translationProgress={translationProgress}
-            onPickLib={(libId) => navigateToList(libId)}
+            onPickLib={(libId) => navigateToSession(libId)}
           />
         </div>
       </div>
     );
   }
-
-  const activeLesson = urlState.lesson;
 
   return (
     <div className="practice">
@@ -237,24 +198,14 @@ export default function PracticePage() {
               navigateToHome();
             }}
           >
-            translate.
+            ← 返回
           </a>
         </header>
 
-        {activeLesson !== null ? (
-          <TranslationSession
-            libId={selectedLibId}
-            lessonIndex={activeLesson}
-            onBack={() => navigateToList(selectedLibId)}
-            onNextLesson={() => navigateToLesson(selectedLibId, activeLesson + 1)}
-          />
-        ) : (
-          <TranslationLessonList
-            selectedLibId={selectedLibId}
-            onSelectLesson={(idx) => navigateToLesson(selectedLibId, idx)}
-            onSwitchLib={(newLibId) => navigateToList(newLibId)}
-          />
-        )}
+        <TranslationSession
+          libId={selectedLibId}
+          onBack={navigateToHome}
+        />
       </div>
     </div>
   );

@@ -68,6 +68,70 @@ def list_lessons(
     ]
 
 
+@router.get("/{lib_id}/all", response_model=LessonDetail)
+def get_lib_full(
+    lib_id: UUID,
+    db: Session = Depends(get_db),
+):
+    """Whole-lib fetch — all words + all baked sentences in one round-trip.
+
+    Used by the random-step drill in the translation UI. The
+    `lesson_index` field on the response is always 0 — the response
+    shape is borrowed from LessonDetail (so the frontend can reuse the
+    same type), but this is a LIB-shaped payload, not a single lesson.
+
+    `words` covers every target word in the lib (any lesson_index,
+    including NULL pre-migration-0007 data is skipped — same defensive
+    filter as `list_lessons`). `sentences_by_word` is keyed by
+    lowercased word, exactly like the per-lesson endpoint.
+
+    NB: this route MUST be registered before `/{lib_id}/{lesson_index}`,
+    otherwise FastAPI will try to parse "all" as an int and 422.
+    """
+    if not db.query(VocabularyLib.id).filter(VocabularyLib.id == lib_id).first():
+        raise HTTPException(status_code=404, detail="lib not found")
+
+    words = (
+        db.query(VocabularyWord)
+        .filter(VocabularyWord.lib_id == lib_id)
+        .filter(VocabularyWord.lesson_index.isnot(None))
+        .order_by(VocabularyWord.created_at, VocabularyWord.id)
+        .all()
+    )
+    word_ids = [w.id for w in words]
+    sentence_rows = (
+        db.query(Sentence, VocabularyWord.word)
+        .join(SentenceWordLink, SentenceWordLink.sentence_id == Sentence.id)
+        .join(VocabularyWord, VocabularyWord.id == SentenceWordLink.word_id)
+        .filter(VocabularyWord.id.in_(word_ids))
+        .all()
+    )
+    bucket: Dict[str, List[LessonSentence]] = defaultdict(list)
+    for sent, word in sentence_rows:
+        bucket[word.lower()].append(LessonSentence(
+            id=sent.id,
+            text=sent.text,
+            chinese_text=sent.chinese_text or '',
+            difficulty=sent.difficulty,
+            audio_url=sent.audio_url or '',
+        ))
+
+    return LessonDetail(
+        lib_id=lib_id,
+        lesson_index=0,  # sentinel — the response is lib-shaped, not lesson-shaped
+        words=[
+            WordInLesson(
+                id=w.id,
+                word=w.word,
+                phonetic=w.phonetic or '',
+                translation=w.translation or '',
+            )
+            for w in words
+        ],
+        sentences_by_word=dict(bucket),
+    )
+
+
 @router.get("/{lib_id}/{lesson_index}", response_model=LessonDetail)
 def get_lesson(
     lib_id: UUID,

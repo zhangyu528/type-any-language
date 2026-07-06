@@ -79,15 +79,21 @@ export async function listLessons(libId: string): Promise<LessonSummary[]> {
   return response.json();
 }
 
-export async function getLesson(
-  libId: string,
-  lessonIndex: number
-): Promise<LessonDetail> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/lessons/${libId}/${lessonIndex}`
-  );
+/**
+ * Fetch the entire lib's words + sentences in one round-trip.
+ *
+ * Used by the random-step drill (TranslationSession) — the "lesson"
+ * intermediate layer is gone, so we no longer drill lesson-by-lesson;
+ * instead the whole lib is one giant step pool.
+ *
+ * The response uses the same `LessonDetail` shape as the legacy
+ * per-lesson endpoint; `lesson_index` is always 0 in this response
+ * (sentinel — see backend `routers/lessons.py::get_lib_full`).
+ */
+export async function getLib(libId: string): Promise<LessonDetail> {
+  const response = await fetch(`${API_BASE_URL}/api/lessons/${libId}/all`);
   if (!response.ok) {
-    throw new Error('获取课程详情失败');
+    throw new Error('获取词库内容失败');
   }
   return response.json();
 }
@@ -116,30 +122,63 @@ export async function getPhonetics(words: string[]): Promise<Record<string, stri
 // Translation progress (Standalone Translation Drill mode)
 //
 // Independent localStorage key — the only progress blob the app writes.
-// A lesson is "completed" (completedAt set) when every word has
-// `zh2enCorrect` true. The legacy `en2zhCorrect` flag (from the previous
-// dual-direction design) is read on load as a best-effort migration:
-// if the old blob had `en2zhCorrect === true`, treat the word as already
-// mastered in the new single-direction world. New writes only set
-// `zh2enCorrect`.
+// Progress is per-lib (NOT per-lesson), keyed by sentence.id. The
+// "lesson" intermediate layer was removed: clicking a lib goes
+// straight into a random-step drill, so the lessonIndex grouping is
+// gone too. The weighted-random draw in TranslationSession reads from
+// `TranslationProgress[libId].sentences` to decide which step to
+// show next.
+//
+// Legacy blob shape (per-word, dual-direction):
+//   { words: { wordKey: { en2zhCorrect, zh2enCorrect } } }
+// New shape (per-sentence, single-direction):
+//   { sentences: { sentenceId: { correct: boolean } } }
+//
+// `loadTranslationProgress` drops `words` on read — the old shape
+// cannot be losslessly mapped to the new one. The `TranslationLessonProgress`
+// type still exists for the per-lesson write/read (used by
+// TranslationSession) but its parent index has flattened from
+// `libId → lessonIndex → TranslationLessonProgress` to
+// `libId → TranslationLibProgress`.
+//
+// The `completedAt` field is preserved on the legacy lesson shape
+// for backward read compat but is no longer written.
 // ---------------------------------------------------------------------------
-export type TranslationWordProgress = {
-  /** 该词的中文→英文翻译是否通过 */
-  zh2enCorrect: boolean;
+export type TranslationSentenceProgress = {
+  /** 该句子的中文→英文翻译是否通过 */
+  correct: boolean;
 };
 
+/** @deprecated Use TranslationSentenceProgress. Kept as a type alias
+ *  for any callers still wired to the old per-word shape. */
+export type TranslationWordProgress = TranslationSentenceProgress;
+
+/**
+ * Per-lesson progress (legacy grouping; no longer written by new code
+ * but kept readable for backward compat). `completedAt` is ignored
+ * by the new drill.
+ */
 export type TranslationLessonProgress = {
-  /** key: lowercase target word. May be missing for words skipped due to
-   *  missing sentences / missing english text. */
-  words: Record<string, TranslationWordProgress>;
-  /** ms epoch; set only when every word in the lesson is fully complete. */
+  /** key: sentence.id (string UUID). Each sentence in the lesson gets
+   *  its own correct/incorrect state. */
+  sentences: Record<string, TranslationSentenceProgress>;
+  /** @deprecated — lessons no longer have a "completed" state. Random
+   *  step practice is unbounded. Kept as `number | undefined` for
+   *  backward read compat with old blobs (the value is just ignored). */
   completedAt?: number;
 };
 
+/**
+ * Per-lib progress. All sentences for the lib live in one flat
+ * `sentences` map; there's no lesson grouping anymore. Stored under
+ * `TranslationProgress[libId]`.
+ */
+export type TranslationLibProgress = {
+  sentences: Record<string, TranslationSentenceProgress>;
+};
+
 export type TranslationProgress = {
-  [libId: string]: {
-    [lessonIndex: number]: TranslationLessonProgress;
-  };
+  [libId: string]: TranslationLibProgress;
 };
 
 const TRANSLATION_PROGRESS_KEY = 'translationProgress';
@@ -148,31 +187,44 @@ export function loadTranslationProgress(): TranslationProgress {
   try {
     const raw = window.localStorage.getItem(TRANSLATION_PROGRESS_KEY);
     if (!raw) return {};
-    const parsed = JSON.parse(raw) as TranslationProgress;
-    // Lazy migration from the legacy dual-direction shape
-    // ({en2zhCorrect, zh2enCorrect}) to the single-direction shape
-    // ({zh2enCorrect}). If a word was previously marked en2zhCorrect
-    // but never finished the zh2en step, treat it as already done in
-    // the new world — losing that flag would silently regress
-    // completion.
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    // Two-step normalisation:
+    //  1. Drop legacy `words` key on per-lesson buckets.
+    //  2. Flatten the { lessonIndex → bucket } grouping into a single
+    //     per-lib bucket (the new shape no longer has lessonIndex
+    //     because there's no lesson concept).
+    const out: TranslationProgress = {};
     for (const libId in parsed) {
       const libBucket = parsed[libId];
-      if (!libBucket) continue;
-      for (const lessonIdx in libBucket) {
-        const lessonBucket = libBucket[lessonIdx];
-        if (!lessonBucket?.words) continue;
-        for (const wordKey in lessonBucket.words) {
-          const w = lessonBucket.words[wordKey] as TranslationWordProgress & {
-            en2zhCorrect?: boolean;
-          };
-          if (typeof w.zh2enCorrect !== 'boolean') {
-            w.zh2enCorrect = Boolean(w.en2zhCorrect);
+      if (!libBucket || typeof libBucket !== 'object') continue;
+      const lb = libBucket as {
+        sentences?: Record<string, TranslationSentenceProgress>;
+        // legacy fields
+        [lessonIndex: string]: unknown;
+      };
+      // Collect all `sentences` maps from legacy lesson buckets AND
+      // the new top-level `sentences` field. Merge them.
+      const merged: Record<string, TranslationSentenceProgress> = {};
+      if (lb.sentences && typeof lb.sentences === 'object') {
+        Object.assign(merged, lb.sentences);
+      }
+      for (const key in lb) {
+        if (key === 'sentences' || key === 'completedAt') continue;
+        const legacyLesson = lb[key];
+        if (
+          legacyLesson &&
+          typeof legacyLesson === 'object' &&
+          'sentences' in (legacyLesson as object)
+        ) {
+          const lm = (legacyLesson as { sentences: Record<string, TranslationSentenceProgress> }).sentences;
+          if (lm && typeof lm === 'object') {
+            Object.assign(merged, lm);
           }
-          delete w.en2zhCorrect;
         }
       }
+      out[libId] = { sentences: merged };
     }
-    return parsed;
+    return out;
   } catch {
     return {};
   }
