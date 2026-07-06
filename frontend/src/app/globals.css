@@ -177,8 +177,7 @@ select:focus-visible {
   background: var(--surface);
 }
 
-/* Feedback wash: kept for visual continuity (the practice brief calls this
-   out in §4.3 "答错时…给出视觉提示"), but it's a quiet neutral tint, not a glow. */
+/* Feedback wash — kept for visual continuity, but a quiet neutral tint. */
 .practice--feedback-correct::after,
 .practice--feedback-incorrect::after {
   content: '';
@@ -288,13 +287,6 @@ select:focus-visible {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Library bar wrapper — small top-of-page container */
-.practice__library {
-  display: flex;
-  justify-content: flex-start;
-  margin-top: calc(-1 * var(--space-4));
-}
-
 /* ============================================================
    Masthead — single word on the left, tabular counter on the right
    ============================================================ */
@@ -314,6 +306,18 @@ select:focus-visible {
   color: var(--label-primary);
   letter-spacing: -0.01em;
   line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.masthead__brand:hover {
+  opacity: 0.7;
+}
+
+.masthead__brand:focus-visible {
+  outline: 2px solid var(--label-primary);
+  outline-offset: 4px;
+  border-radius: 2px;
 }
 
 .masthead__sub {
@@ -328,631 +332,11 @@ select:focus-visible {
 }
 
 /* ============================================================
-   LibraryPicker — Apple HIG web-adapted
-   Single, deliberate card + custom popover menu. The native
-   <select> was removed because its dropdown is platform-controlled
-   (and dismisses itself on mouseup on many setups). Now the card
-   is a <button> that toggles a role="listbox" popover below it.
-   Red reserved for the score enso.
-   ============================================================ */
-.picker {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--space-3);   /* caption → field */
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 0;
-}
-
-.picker--disabled {
-  opacity: 0.4;
-  pointer-events: none;
-}
-
-/* Caption — sits above the field on its own line, Apple secondaryLabel */
-.picker__label {
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  font-weight: var(--type-body-weight);
-  color: var(--label-tertiary);
-  letter-spacing: 0.06em;
-  line-height: var(--type-caption-lh);
-  text-transform: none;
-  user-select: none;
-}
-
-/* Field — anchors the popover (position: relative).
-   The card and the popover are siblings inside this field. */
-.picker__field {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-}
-
-/* Card row: text block (name + meta) on the left, chevron on the right.
-   Renders as a <button> for the multi-lib case, a <div> for single-lib. */
-.picker__card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  width: 100%;
-  padding: var(--space-4) var(--space-5);  /* 16 / 20 */
-  background: var(--surface-elevated);
-  border: 1px solid var(--separator);
-  border-radius: var(--radius-md);
-  font-family: var(--font-body);
-  color: var(--label-primary);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color var(--duration-fast) var(--ease-standard);
-}
-
-.picker__card:hover:not(:disabled) {
-  border-color: var(--label-quaternary);
-}
-
-.picker__card:disabled {
-  cursor: not-allowed;
-}
-
-/* Open state — slightly darker border for affordance. */
-.picker__card--open {
-  border-color: var(--label-quaternary);
-}
-
-/* Static card (single lib) — same look, no hover/cursor affordance. */
-.picker__card--static {
-  cursor: default;
-}
-
-.picker__card-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  flex: 1;
-}
-
-.picker__card-name {
-  font-family: var(--font-body);
-  font-size: var(--type-body-emphasis);
-  font-weight: var(--type-title-3-weight);
-  color: var(--label-primary);
-  letter-spacing: -0.01em;
-  line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.picker__card-meta {
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  font-weight: var(--type-body-weight);
-  color: var(--label-tertiary);
-  letter-spacing: 0.02em;
-  line-height: 1.3;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Chevron — rotates 180° when popover is open. */
-.picker__chevron {
-  display: inline-flex;
-  color: var(--label-tertiary);
-  transition:
-    color     var(--duration-fast) var(--ease-standard),
-    transform var(--duration-fast) var(--ease-standard);
-  flex-shrink: 0;
-}
-
-.picker__chevron--open {
-  transform: rotate(180deg);
-  color: var(--label-secondary);
-}
-
-.picker__card:hover .picker__chevron {
-  color: var(--label-secondary);
-}
-
-/* Popover — role="listbox", anchored to the field below the card.
-   Single source of truth for option row layout, hover, active state. */
-.picker__popover {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  right: 0;
-  z-index: 50;
-  padding: var(--space-1);
-  background: var(--surface-elevated);
-  border: 1px solid var(--separator);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-  max-height: 320px;
-  overflow-y: auto;
-  animation: picker-popover-in 140ms var(--ease-standard);
-}
-
-@keyframes picker-popover-in {
-  from { opacity: 0; transform: translateY(-4px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.picker__option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  width: 100%;
-  padding: var(--space-3) var(--space-3);
-  background: transparent;
-  border: 0;
-  border-radius: var(--radius-sm);
-  font-family: var(--font-body);
-  color: var(--label-primary);
-  text-align: left;
-  cursor: pointer;
-  transition: background-color var(--duration-fast) var(--ease-standard);
-}
-
-.picker__option:hover,
-.picker__option:focus-visible {
-  background: var(--surface-secondary);
-  outline: none;
-}
-
-.picker__option-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  flex: 1;
-}
-
-.picker__option-name {
-  font-size: var(--type-body);
-  font-weight: var(--type-body-emphasis-weight);
-  line-height: 1.25;
-  letter-spacing: -0.005em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.picker__option-meta {
-  font-size: var(--type-caption);
-  font-weight: var(--type-body-weight);
-  color: var(--label-tertiary);
-  line-height: 1.3;
-  letter-spacing: 0.02em;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.picker__option-check {
-  flex-shrink: 0;
-  color: var(--label-primary);
-}
-
-/* Loading state — single skeleton placeholder, full card width */
-.picker--loading {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.picker__skeleton {
-  display: block;
-  width: 100%;
-  height: 56px;
-  background: linear-gradient(
-    90deg,
-    var(--surface-secondary) 0%,
-    var(--surface-tertiary) 50%,
-    var(--surface-secondary) 100%
-  );
-  background-size: 200% 100%;
-  animation: pickerSkeletonShimmer 1.4s var(--ease-standard) infinite;
-  border-radius: var(--radius-md);
-}
-
-@keyframes pickerSkeletonShimmer {
-  0%   { background-position: 100% 0; }
-  100% { background-position: -100% 0; }
-}
-
-/* Error state — muted gray, not red */
-.picker--error {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  font-weight: var(--type-body-weight);
-  line-height: var(--type-caption-lh);
-  color: var(--label-secondary);
-  padding: 0;
-}
-
-.picker__error-glyph {
-  color: var(--label-tertiary);
-  font-size: var(--type-body);
-  line-height: 1;
-}
-
-.picker__error-text {
-  letter-spacing: 0.02em;
-}
-
-/* ============================================================
-   Sentence — single column, generous whitespace, no card
-   ============================================================ */
-.sentence {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: clamp(40px, 6vh, 64px);
-  width: 100%;
-  position: relative;
-  padding: clamp(20px, 4vh, 40px) 0;
-}
-
-.sentence__hint {
-  font-family: var(--font-body);
-  font-size: clamp(1.125rem, 2.8vw, 1.5rem);   /* 18 → 24px: 中文翻译从"灰色小提示"升级为"明显的中文标题",跟 cell 大字形成对位 */
-  font-weight: 500;                             /* 略加重,PingFang SC 500 仍清晰 */
-  color: var(--label-primary);                  /* label-secondary → label-primary(炭黑):更显眼 */
-  text-align: center;
-  letter-spacing: 0.005em;
-  line-height: 1.5;
-  max-width: 520px;
-  padding: 0;
-}
-
-.sentence__display {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 18px;
-  line-height: 2.4;
-  position: relative;
-  padding: 0;
-  width: 100%;
-  cursor: text;
-}
-
-.typewriter-input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-  width: 1px;
-  height: 1px;
-}
-
-/* ============================================================
-   Sentence cells — the heart of the dictation experience
-   ============================================================ */
-.sentence__cells {
-  display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 1.4em;
-  line-height: 2.4;
-  padding: 8px 0;
-}
-
-.cells__item {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5em;
-}
-
-/* Each cell: word or placeholder. Font: system, NOT italic, NOT a display voice. */
-.cell {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  padding: 0 0 4px 0;
-  position: relative;
-  text-align: center;
-  letter-spacing: -0.005em;
-  font-family: var(--font-body);
-  font-size: clamp(2rem, 6vw, 2.75rem);
-  line-height: 1;
-  font-weight: 500;
-  color: var(--label-tertiary);
-}
-
-/* Ghost spacer — holds layout space; visibility:hidden keeps it from rendering. */
-.cell__ghost {
-  visibility: hidden;
-  font-family: var(--font-body);
-  font-size: clamp(2rem, 6vw, 2.75rem);
-  line-height: 1;
-  font-weight: 500;
-  padding: 0 4px;
-  pointer-events: none;
-  user-select: none;
-  display: inline-block;
-}
-
-/* Hairline baseline — appears under every cell, fades on correct. */
-.cell::after {
-  content: '';
-  display: block;
-  width: 100%;
-  height: 1px;
-  background: var(--separator);
-  margin-top: 10px;
-  transform-origin: left center;
-  transition:
-    transform var(--duration-base) var(--ease-standard),
-    opacity   var(--duration-base) var(--ease-standard);
-}
-
-/* Position absolute overlay for the input/text. .cell--active .cell__text--peek
-   is included so peek doesn't stack UNDER the ghost and double the cell height
-   (the ghost sets the cell's width; the visible content overlays it absolutely). */
-.cell--correct .cell__text,
-.cell--active .cell__input,
-.cell--active .cell__text--peek {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Peek text in an active cell — same sage green + bold as the answered-correctly
-   state, so holding `/` looks like a "preview of the correct outcome". */
-.cell--active .cell__text--peek {
-  color: var(--correct);
-  font-weight: 600;
-}
-
-/* Completed cell — the celebration: sage green + bold, baseline fades out.
-   While typing, correct chars inherit the cell's --label-primary charcoal
-   (see .cell__char--correct below), so the user reads them as plain text;
-   only when the word is finished does the whole cell switch to --correct. */
-.cell--correct {
-  color: var(--correct);
-  font-weight: 600;
-}
-
-.cell--correct .cell__text {
-  color: var(--correct);
-}
-
-.cell--correct::after {
-  opacity: 0;
-  transform: scaleX(0);
-}
-
-.cell__placeholder {
-  display: block;
-  height: 0;
-}
-
-/* Active cell — baseline becomes accent and grows in (only place besides
-   the score enso where --accent appears in this block). */
-.cell--active {
-  color: var(--label-primary);
-}
-
-.cell--active::after {
-  height: 1.5px;
-  background: var(--label-primary);
-  transform: scaleX(1);
-  animation: cell-underline-in var(--duration-base) var(--ease-standard) forwards;
-}
-
-@keyframes cell-underline-in {
-  from { transform: scaleX(0); opacity: 0.4; }
-  to   { transform: scaleX(1); opacity: 1; }
-}
-
-/* Hidden typewriter input row — keeps char positions, transparent text */
-.cell__input {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  width: 100%;
-  padding: 0 4px;
-  font-family: var(--font-body);
-  font-size: clamp(2rem, 6vw, 2.75rem);
-  line-height: 1;
-  font-weight: 500;
-  color: transparent;
-  border: none;
-  background: transparent;
-  outline: none;
-  caret-color: transparent;
-}
-
-/* Each character slot — width fixed at 0.625em to keep spacing stable */
-.cell__char {
-  display: inline-block;
-  font-family: var(--font-body);
-  font-size: clamp(2rem, 6vw, 2.75rem);
-  line-height: 1;
-  width: 0.625em;
-  text-align: center;
-  font-weight: 500;
-  transition: color var(--duration-fast) var(--ease-standard);
-}
-
-.cell__char--correct {
-  /* While typing, correctly-entered chars look like normal body text
-     (charcoal). The sage-green celebration is reserved for the moment
-     the whole word is finished (.cell--correct above). */
-  color: var(--label-primary);
-}
-
-.cell__char--wrong {
-  /* 错字符：从近隐形（#C7C7CC × 0.7）改为可见的 #8E8E93 实色。
-     旧值在白底上几乎看不见，用户反馈「输入后没显示」即源于此。
-     保留 line-through 作为错误信号，颜色提至 tertiary 不透明度 1。 */
-  color: var(--label-tertiary);
-  text-decoration: line-through;
-  text-decoration-color: var(--label-tertiary);
-  text-decoration-thickness: 1.5px;
-  text-decoration-skip-ink: none;
-}
-
-.cell__char--pending {
-  color: var(--label-quaternary);
-  opacity: 0.6;
-}
-
-/* Cursor — a single neutral hairline */
-.cell__cursor {
-  display: inline-block;
-  width: 1.5px;
-  height: 0.95em;
-  background: var(--label-primary);
-  animation: cell-cursor-blink 1.4s var(--ease-standard) infinite;
-  margin-right: 2px;
-}
-
-@keyframes cell-cursor-blink {
-  0%, 50%    { opacity: 1; }
-  50.01%, 100% { opacity: 0; }
-}
-
-/* Wrong-answer shake (300ms) */
-@keyframes cell-shake {
-  0%, 100% { transform: translateX(0); }
-  25%      { transform: translateX(-3px); }
-  75%      { transform: translateX(3px); }
-}
-
-.cell--shake {
-  animation: cell-shake 0.4s ease-in-out;
-}
-
-/* ============================================================
-   Phonetic — IPA below each cell (optional, user-toggled)
-   ============================================================ */
-.phonetic {
-  position: relative;
-  display: inline-block;
-  padding: 0;
-  text-align: center;
-  line-height: 1.1;
-  color: var(--label-tertiary);
-  letter-spacing: 0.02em;
-  min-height: 1em;
-}
-
-.phonetic__ghost {
-  visibility: hidden;
-  font-family: var(--font-body);
-  font-size: clamp(2rem, 6vw, 2.75rem);
-  line-height: 1;
-  font-weight: 500;
-  padding: 0 4px;
-  display: inline-block;
-}
-
-.phonetic__text {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.1;
-  font-weight: 400;
-  text-align: center;
-  color: var(--label-tertiary);
-  white-space: nowrap;
-  overflow: visible;
-  letter-spacing: 0.02em;
-}
-
-.phonetic__text::before,
-.phonetic__text::after {
-  color: var(--label-quaternary);
-  font-weight: 300;
-}
-
-.phonetic__text::before { content: '/'; margin-right: 1px; }
-.phonetic__text::after  { content: '/'; margin-left: 1px; }
-
-.phonetic__placeholder {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.1;
-  color: var(--label-quaternary);
-  text-align: center;
-  white-space: nowrap;
-}
-
-/* ============================================================
-   Progress — sentence stepper
-   ============================================================ */
-.progress {
-  display: flex;
-  gap: var(--space-3);
-  justify-content: center;
-  align-items: center;
-  padding: var(--space-3) 0 var(--space-5);
-  color: var(--label-tertiary);
-}
-
-.progress__dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--radius-circle);
-  background: var(--separator);
-  transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    transform         var(--duration-fast) var(--ease-standard);
-}
-
-.progress__dot--current {
-  background: var(--label-primary);
-  transform: scale(1.4);
-}
-
-.progress__dot--done {
-  background: var(--label-quaternary);
-}
-
-.progress__dot--correct {
-  background: var(--correct);
-}
-
-.progress__dot--incorrect {
-  background: transparent;
-  border: 1px solid var(--label-tertiary);
-}
-
-/* ============================================================
-   Sunken shortcut bar — DESIGN.md v2d
+   Sunken shortcut bar — Apple HIG web-adapted
    Lives inline in the practice column (NOT floating, NOT a drawer).
    Vertical list of horizontal rows: kbd badge(s) on the left,
-   action label on the right. The kbd column has a fixed min-width
-   so labels align across rows (matters for the Shift+Tab case which
-   has 2 badges -- without the min-width, the labels would jitter).
+   action label on the right. General-purpose styling — calls
+   pass `hints` to define the rows.
    ============================================================ */
 .shortcuts-bar {
   width: 100%;
@@ -1014,203 +398,301 @@ select:focus-visible {
   white-space: nowrap;
 }
 
-/* Toggle row — same visual language as the other shortcut rows (kbd badge
-   + label), but the whole row is interactive. Negative margin compensates
-   for the padding so the row still aligns with its non-toggle siblings in
-   the flex-wrap list. Hover bg + focus ring signal clickability without
-   adding a new visual element type to the bar. */
-.shortcuts-bar__row--toggle {
-  cursor: pointer;
-  padding: var(--space-1) var(--space-2);
-  margin: calc(-1 * var(--space-1)) calc(-1 * var(--space-2));
-  border-radius: var(--radius-sm);
-  user-select: none;
-  transition: background-color var(--duration-fast) var(--ease-standard);
-}
-
-.shortcuts-bar__row--toggle:hover {
-  background: var(--surface-tertiary);
-}
-
-.shortcuts-bar__row--toggle:active {
-  background: var(--label-quaternary);
-}
-
-.shortcuts-bar__row--toggle:focus-visible {
-  outline: 2px solid var(--label-primary);
-  outline-offset: 2px;
-}
-
-/* State suffix — "· 开" / "· 关" inline at the end of the label. Color
-   encodes state: --label-primary (炭黑, active emphasis) when on, falls
-   back to --label-secondary (the rest of the label) when off. */
-.shortcuts-bar__state {
-  margin-left: 4px;
-  font-variant-numeric: tabular-nums;
-}
-
-.shortcuts-bar__state--on {
-  color: var(--label-primary);
-  font-weight: var(--type-body-emphasis-weight);
-}
-
-.shortcuts-bar__state--off {
-  color: var(--label-tertiary);
-}
-
-/* Note: the autoplay toggle that used to live here was removed -- audio
-   now always auto-plays on new sentence, no toggle surface needed. */
-
-.feedback__next {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 36px;
-  padding: 0 var(--space-5);
-  background: transparent;
-  color: var(--accent);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-md);
-  font-family: var(--font-body);
-  font-size: var(--type-body);
-  font-weight: 600;
-  letter-spacing: 0.005em;
-  cursor: pointer;
-  transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    color            var(--duration-fast) var(--ease-standard);
-}
-
-.feedback__next:hover {
-  background: var(--accent);
-  color: #FFFFFF;
-}
-
-.feedback__next:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(215, 0, 21, 0.32);
-}
-
 /* ============================================================
-   (DESIGN.md v2d removed these blocks: nav-hint, toolbar, right-edge
-   shortcuts drawer. The sunken shortcut bar above replaces them all.)
+   Home — course picker (lib cards grid)
+   Aligned with TranslationLessonList's typography & spacing scale:
+     - title  : --type-title-1 (28px, same as .translation-list__title)
+     - caption: caption + 0.06em tracking, same rhythm
+     - card   : same padding, radius, border as .translation-list__row
+     - stats  : tabular-nums, mirror the jumper's numeric feel
    ============================================================ */
-
-/* ============================================================
-   Score — enso brand mark + score + encouragement + begin again
-   The enso is the ONE place --accent appears in this block; the
-   only spot in the entire app where vermilion is used as a brand mark.
-   ============================================================ */
-.score {
+.home {
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: var(--space-6);
-  margin: auto;
-  text-align: center;
-  position: relative;
-  animation: practice-rise var(--duration-slow) var(--ease-standard);
-}
-
-.score__enso {
-  width: 120px;
-  height: 120px;
-  color: var(--accent);
-  margin-bottom: var(--space-2);
-  animation: score-enso-draw var(--duration-slow) var(--ease-emphasized) forwards;
-}
-
-.score__title {
-  font-family: var(--font-body);
-  font-size: clamp(3rem, 10vw, 5rem);
-  font-weight: 700;
-  color: var(--label-primary);
-  letter-spacing: -0.02em;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
-.score__text {
-  font-family: var(--font-body);
-  font-size: var(--type-body);
-  font-weight: var(--type-body-weight);
-  color: var(--label-secondary);
-  letter-spacing: 0.005em;
-  max-width: 360px;
-  line-height: 1.5;
-}
-
-.score__again {
-  margin-top: var(--space-4);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  padding: 0 var(--space-7);
-  background: transparent;
-  color: var(--accent);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-md);
-  font-family: var(--font-body);
-  font-size: var(--type-body);
-  font-weight: 600;
-  letter-spacing: 0.005em;
-  cursor: pointer;
-  transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    color            var(--duration-fast) var(--ease-standard);
-}
-
-.score__again:hover {
-  background: var(--accent);
-  color: #FFFFFF;
-}
-
-.score__again:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 4px rgba(215, 0, 21, 0.32);
-}
-
-@keyframes score-enso-draw {
-  from {
-    stroke-dashoffset: 280;
-    opacity: 0;
-  }
-  to {
-    stroke-dashoffset: 0;
-    opacity: 1;
-  }
-}
-
-/* ============================================================
-   Lesson list — home screen
-   ============================================================ */
-.lesson-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
   width: 100%;
 }
 
-.lesson-list__header {
+.home__header {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   padding: 0;
 }
 
-.lesson-list__caption {
+.home__caption {
   font-family: var(--font-body);
   font-size: var(--type-caption);
   font-weight: var(--type-body-weight);
   color: var(--label-tertiary);
   letter-spacing: 0.06em;
   line-height: var(--type-caption-lh);
-  text-transform: none;
   user-select: none;
 }
 
-.lesson-list__title {
+.home__title {
+  font-family: var(--font-body);
+  font-size: var(--type-title-1);
+  font-weight: var(--type-title-1-weight);
+  color: var(--label-primary);
+  letter-spacing: -0.01em;
+  line-height: var(--type-title-1-lh);
+  margin: 0;
+}
+
+.home__meta {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  font-weight: var(--type-body-weight);
+  color: var(--label-tertiary);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+.home__progress {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  font-weight: var(--type-body-weight);
+  color: var(--label-secondary);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+  padding-top: var(--space-1);
+}
+
+/* Tiles — 3-column on desktop, 2 on tablet, 1 on mobile.
+   Container width equals .practice__content (680px) so the grid
+   stays inside the content column instead of overflowing. */
+.home__tiles {
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+  padding: 0;
+  margin: 0;
+  width: 100%;
+}
+
+@media (min-width: 560px) {
+  .home__tiles {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+  }
+}
+
+.home__tile-item {
+  margin: 0;
+  padding: 0;
+  display: flex;
+}
+
+/* Card — same skeleton as .translation-list__row: padding
+   var(--space-4)/var(--space-5), radius var(--radius-md), 1px
+   separator border. Min-height keeps the grid tidy when
+   descriptions vary in length. */
+.home__tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 168px;
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface-elevated);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  color: var(--label-primary);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+.home__tile:hover {
+  background: var(--surface-secondary);
+  border-color: var(--label-quaternary);
+}
+
+.home__tile:active {
+  transform: scale(0.98);
+  background: var(--surface-tertiary);
+}
+
+.home__tile-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.home__tile-name {
+  font-size: var(--type-title-3);
+  font-weight: var(--type-title-3-weight);
+  color: var(--label-primary);
+  letter-spacing: -0.01em;
+  line-height: var(--type-title-3-lh);
+}
+
+.home__tile-level {
+  font-family: var(--font-mono);
+  font-size: var(--type-caption);
+  font-weight: 500;
+  color: var(--label-tertiary);
+  letter-spacing: 0.04em;
+  padding: var(--space-1) var(--space-2);
+  background: var(--surface-secondary);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  text-transform: lowercase;
+}
+
+.home__tile-desc {
+  font-size: var(--type-body);
+  color: var(--label-secondary);
+  line-height: var(--type-body-lh);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Stats — semantic <dl> with dt/dd pairs. Flex row, tabular nums. */
+.home__tile-stats {
+  display: flex;
+  gap: var(--space-5);
+  padding-top: var(--space-1);
+  margin: 0;
+}
+
+.home__tile-stat {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.home__tile-stat-num {
+  font-family: var(--font-mono);
+  font-size: var(--type-body-emphasis);
+  font-weight: var(--type-body-emphasis-weight);
+  color: var(--label-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.home__tile-stat-label {
+  font-size: var(--type-caption);
+  color: var(--label-tertiary);
+  margin: 0;
+}
+
+/* Hairline separator above the progress block — adds visual
+   rhythm between "stats" and "progress" without using a heavier
+   background or border on the parent. */
+.home__tile-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  margin-top: auto;
+  border-top: 1px solid var(--separator);
+}
+
+.home__progress-track {
+  width: 100%;
+  height: 3px;
+  background: var(--surface-tertiary);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.home__progress-fill {
+  height: 100%;
+  background: var(--correct);
+  border-radius: var(--radius-sm);
+  transition: width var(--duration-base) var(--ease-emphasized);
+}
+
+.home__progress-label {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  font-weight: var(--type-body-weight);
+  color: var(--label-tertiary);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+/* ============================================================
+   Empty catalog state
+   ============================================================ */
+.practice--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: auto;
+  padding: var(--space-9) var(--space-5);
+  gap: var(--space-3);
+  text-align: center;
+}
+
+.practice__empty-text {
+  font-family: var(--font-body);
+  font-size: var(--type-title-3);
+  font-weight: var(--type-title-3-weight);
+  color: var(--label-secondary);
+  margin: 0;
+}
+
+.practice__empty-hint {
+  font-family: var(--font-mono);
+  font-size: var(--type-caption);
+  color: var(--label-tertiary);
+  margin: 0;
+  max-width: 32em;
+}
+
+.practice__empty-hint code {
+  background: var(--surface-secondary);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 1em;
+}
+
+/* ============================================================
+   Translation list — lesson picker for translation mode
+   Windowed rows (current + next 4 + last completed) + jumper.
+   ============================================================ */
+.translation-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  width: 100%;
+}
+
+.translation-list__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+}
+
+.translation-list__caption {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  font-weight: var(--type-body-weight);
+  color: var(--label-tertiary);
+  letter-spacing: 0.06em;
+  line-height: var(--type-caption-lh);
+  user-select: none;
+}
+
+.translation-list__title {
   font-family: var(--font-body);
   font-size: var(--type-title-1);
   font-weight: var(--type-title-1-weight);
@@ -1219,7 +701,7 @@ select:focus-visible {
   line-height: var(--type-title-1-lh);
 }
 
-.lesson-list__meta {
+.translation-list__meta {
   font-family: var(--font-body);
   font-size: var(--type-caption);
   font-weight: var(--type-body-weight);
@@ -1228,7 +710,25 @@ select:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
-.lesson-list__items {
+.translation-list__progress {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  color: var(--label-secondary);
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+  padding-top: var(--space-1);
+}
+
+.translation-list__hint {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  color: var(--label-quaternary);
+  margin: 0;
+  padding-top: var(--space-1);
+  font-style: italic;
+}
+
+.translation-list__items {
   list-style: none;
   display: flex;
   flex-direction: column;
@@ -1237,12 +737,12 @@ select:focus-visible {
   margin: 0;
 }
 
-.lesson-list__item {
+.translation-list__item {
   margin: 0;
   padding: 0;
 }
 
-.lesson-list__row {
+.translation-list__row {
   display: flex;
   align-items: center;
   gap: var(--space-4);
@@ -1258,24 +758,19 @@ select:focus-visible {
   transition: border-color var(--duration-fast) var(--ease-standard);
 }
 
-.lesson-list__row:hover:not(:disabled) {
+.translation-list__row:hover {
   border-color: var(--label-quaternary);
 }
 
-.lesson-list__row:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-.lesson-list__row--current {
+.translation-list__row--current {
   border-color: var(--label-primary);
 }
 
-.lesson-list__row--completed {
+.translation-list__row--completed {
   border-color: var(--correct);
 }
 
-.lesson-list__index {
+.translation-list__index {
   font-family: var(--font-mono);
   font-size: var(--type-body-emphasis);
   font-weight: 500;
@@ -1286,16 +781,16 @@ select:focus-visible {
   text-align: center;
 }
 
-.lesson-list__row--current .lesson-list__index {
+.translation-list__row--current .translation-list__index {
   color: var(--label-primary);
   font-weight: 600;
 }
 
-.lesson-list__row--completed .lesson-list__index {
+.translation-list__row--completed .translation-list__index {
   color: var(--correct);
 }
 
-.lesson-list__text {
+.translation-list__text {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -1303,7 +798,7 @@ select:focus-visible {
   min-width: 0;
 }
 
-.lesson-list__row-title {
+.translation-list__row-title {
   font-family: var(--font-body);
   font-size: var(--type-body-emphasis);
   font-weight: var(--type-title-3-weight);
@@ -1312,7 +807,7 @@ select:focus-visible {
   line-height: 1.25;
 }
 
-.lesson-list__row-meta {
+.translation-list__row-meta {
   font-family: var(--font-body);
   font-size: var(--type-caption);
   font-weight: var(--type-body-weight);
@@ -1322,29 +817,30 @@ select:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
-.lesson-list__glyph {
+.translation-list__glyph {
   font-size: 1.25rem;
-  color: var(--label-tertiary);
+  color: var(--label-quaternary);
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
 }
 
-.lesson-list__row--current .lesson-list__glyph {
+.translation-list__row--current .translation-list__glyph {
   color: var(--label-primary);
 }
 
-.lesson-list__row--completed .lesson-list__glyph {
+.translation-list__row--completed .translation-list__glyph {
   color: var(--correct);
 }
 
-.lesson-list--loading,
-.lesson-list--error {
+/* Loading + error states */
+.translation-list--loading,
+.translation-list--error {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
-.lesson-list__skeleton {
+.translation-list__skeleton {
   display: block;
   width: 100%;
   height: 72px;
@@ -1355,11 +851,16 @@ select:focus-visible {
     var(--surface-secondary) 100%
   );
   background-size: 200% 100%;
-  animation: pickerSkeletonShimmer 1.4s var(--ease-standard) infinite;
+  animation: translationListShimmer 1.4s var(--ease-standard) infinite;
   border-radius: var(--radius-md);
 }
 
-.lesson-list__error-text {
+@keyframes translationListShimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+.translation-list__error-text {
   font-family: var(--font-body);
   font-size: var(--type-body);
   color: var(--label-secondary);
@@ -1367,296 +868,464 @@ select:focus-visible {
   padding: var(--space-5);
 }
 
-/* ============================================================
-   Lesson session — orchestrator (header + 10-dot stepper + active stage)
-   ============================================================ */
-.lesson-session {
+/* Jumper */
+.translation-list__jumper {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--surface-secondary);
+  border-radius: var(--radius-md);
+  margin-top: var(--space-4);
+}
+
+.translation-list__jumper-label {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  color: var(--label-tertiary);
+}
+
+.translation-list__jumper-input {
+  font-family: var(--font-mono);
+  font-size: var(--type-body);
+  color: var(--label-primary);
+  background: var(--surface-elevated);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  width: 4em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+}
+
+.translation-list__jumper-input::-webkit-outer-spin-button,
+.translation-list__jumper-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.translation-list__jumper-input:focus {
+  outline: none;
+  border-color: var(--label-primary);
+}
+
+.translation-list__jumper-suffix {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  color: var(--label-tertiary);
+  flex: 1;
+}
+
+.translation-list__jumper-submit {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  font-weight: var(--type-body-emphasis-weight);
+  color: var(--on-primary);
+  background: var(--primary);
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard);
+}
+
+.translation-list__jumper-submit:hover {
+  background: var(--label-secondary);
+}
+
+/* ============================================================
+   Translation lib switcher — in-flow dropdown on the
+   TranslationLessonList header.
+   ============================================================ */
+.translation-lib-switcher {
   width: 100%;
 }
 
-.lesson-session__header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: 0;
-}
-
-.lesson-session__back-button {
+.translation-lib-switcher__summary {
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  background: transparent;
-  border: 1px solid var(--separator);
-  border-radius: var(--radius-circle);
-  color: var(--label-primary);
-  font-size: 18px;
+  align-items: baseline;
+  gap: var(--space-2);
+  list-style: none;
   cursor: pointer;
-  transition: border-color var(--duration-fast) var(--ease-standard);
-  flex-shrink: 0;
+  font-family: var(--font-body);
+  user-select: none;
   padding: 0;
 }
 
-.lesson-session__back-button:hover {
-  border-color: var(--label-quaternary);
+.translation-lib-switcher__summary::-webkit-details-marker {
+  display: none;
 }
 
-.lesson-session__caption {
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  font-weight: var(--type-body-weight);
+.translation-lib-switcher__current-name {
+  font-size: var(--type-title-1);
+  font-weight: var(--type-title-1-weight);
+  color: var(--label-primary);
+  letter-spacing: -0.01em;
+  line-height: var(--type-title-1-lh);
+}
+
+.translation-lib-switcher__chevron {
+  font-size: var(--type-title-3);
   color: var(--label-tertiary);
-  letter-spacing: 0.06em;
-  line-height: var(--type-caption-lh);
-  font-variant-numeric: tabular-nums;
-  user-select: none;
+  transition: transform var(--duration-fast) var(--ease-standard);
 }
 
-.lesson-session__finished-actions {
+.translation-lib-switcher[open] .translation-lib-switcher__chevron {
+  transform: rotate(180deg);
+}
+
+.translation-lib-switcher__menu {
+  list-style: none;
+  margin: var(--space-3) 0 0 0;
+  padding: var(--space-2) 0;
+  background: var(--surface-elevated);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-md);
   display: flex;
   flex-direction: column;
+  gap: 2px;
+  box-shadow: 0 4px 12px rgba(26, 31, 38, 0.06);
+  position: relative;
+  z-index: 1;
+}
+
+.translation-lib-switcher__item {
+  display: grid;
+  grid-template-columns: 1fr auto var(--space-5);
   align-items: center;
   gap: var(--space-3);
-  margin-top: var(--space-2);
-}
-
-.lesson-session__back {
-  margin-top: var(--space-5);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  padding: 0 var(--space-7);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
   background: transparent;
+  border: 0;
+  font-family: var(--font-body);
+  font-size: var(--type-body);
   color: var(--label-primary);
-  border: 1px solid var(--label-primary);
-  border-radius: var(--radius-md);
-  font-family: var(--font-body);
-  font-size: var(--type-body);
-  font-weight: 600;
-  letter-spacing: 0.005em;
+  text-align: left;
   cursor: pointer;
-  transition: background-color var(--duration-fast) var(--ease-standard);
+  border-radius: var(--radius-sm);
+  transition: background var(--duration-fast) var(--ease-standard);
 }
 
-.lesson-session__back:hover {
-  background: var(--label-primary);
-  color: var(--surface);
+.translation-lib-switcher__item:hover {
+  background: var(--surface-secondary);
 }
 
-.lesson-session__error-text {
-  font-family: var(--font-body);
+.translation-lib-switcher__item--active {
+  background: var(--surface-secondary);
+  font-weight: var(--type-body-emphasis-weight);
+}
+
+.translation-lib-switcher__item-name {
+  flex: 1;
+}
+
+.translation-lib-switcher__item-level {
+  font-family: var(--font-mono);
+  font-size: var(--type-caption);
+  color: var(--label-tertiary);
+}
+
+.translation-lib-switcher__item-check {
+  color: var(--correct);
   font-size: var(--type-body);
-  color: var(--label-secondary);
   text-align: center;
-  padding: var(--space-5);
 }
 
 /* ============================================================
-   Recognition stage — Stage 1 (识词)
+   Translation — single-step drill UI
+   Single-column stack: header → prompt → answer panel (if wrong) →
+   textarea → actions → shortcut bar.
    ============================================================ */
-.recognition {
+.translation {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--space-7);
-  padding: var(--space-7) 0;
+  align-items: stretch;
+  gap: var(--space-5);
   width: 100%;
   animation: practice-rise var(--duration-base) var(--ease-standard);
 }
 
-.recognition__caption {
+.translation__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+}
+
+.translation__caption {
   font-family: var(--font-body);
   font-size: var(--type-caption);
   font-weight: var(--type-body-weight);
   color: var(--label-tertiary);
   letter-spacing: 0.06em;
-  text-transform: none;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+.translation__direction {
+  font-family: var(--font-body);
+  font-size: var(--type-body-emphasis);
+  font-weight: var(--type-body-emphasis-weight);
+  color: var(--label-secondary);
+  letter-spacing: 0.01em;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.translation__steps {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: center;
+  align-items: center;
+  padding: var(--space-2) 0;
+  color: var(--label-tertiary);
+}
+
+.translation__step-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-circle);
+  background: var(--separator);
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    transform         var(--duration-fast) var(--ease-standard);
+}
+
+.translation__step-dot--current {
+  background: var(--label-primary);
+  transform: scale(1.4);
+}
+
+.translation__step-dot--done {
+  background: var(--label-quaternary);
+}
+
+.translation__counter {
+  font-family: var(--font-mono);
+  font-size: var(--type-caption);
+  color: var(--label-quaternary);
+  font-variant-numeric: tabular-nums;
+  margin: 0;
   user-select: none;
 }
 
-.recognition__word-block {
+/* Prompt — large centered text, the sentence being translated. */
+.translation__prompt {
+  font-family: var(--font-body);
+  font-size: clamp(1.5rem, 5vw, 2.25rem);
+  font-weight: 500;
+  color: var(--label-primary);
+  text-align: center;
+  letter-spacing: -0.005em;
+  line-height: 1.4;
+  padding: var(--space-6) 0;
+  max-width: 560px;
+  margin: 0 auto;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Reference answer panel — shows on wrong answers. */
+.translation__answer {
   display: flex;
   flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface-secondary);
+  border-radius: var(--radius-md);
+  max-width: 560px;
+  margin: 0 auto;
+  width: 100%;
+  animation: practice-rise var(--duration-fast) var(--ease-standard);
+}
+
+.translation__answer-label {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  color: var(--label-tertiary);
+  letter-spacing: 0.06em;
+  margin: 0;
+  user-select: none;
+}
+
+.translation__answer-text {
+  font-family: var(--font-body);
+  font-size: var(--type-body-emphasis);
+  color: var(--label-primary);
+  line-height: 1.5;
+  margin: 0;
+  word-wrap: break-word;
+}
+
+/* Input — textarea, full width, generous spacing. */
+.translation__textarea {
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  font-family: var(--font-body);
+  font-size: var(--type-body-emphasis);
+  line-height: 1.6;
+  color: var(--label-primary);
+  background: var(--surface-elevated);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  resize: vertical;
+  min-height: 4em;
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background   var(--duration-fast) var(--ease-standard);
+  letter-spacing: -0.005em;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+
+.translation__textarea:focus {
+  outline: none;
+  border-color: var(--label-primary);
+}
+
+.translation__textarea--error {
+  border-color: var(--label-tertiary);
+}
+
+/* Action button row — play / check / retry / skip */
+.translation__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-6) 0;
-  min-width: 60%;
+  padding: var(--space-3) 0;
 }
 
-.recognition__word {
-  font-family: var(--font-body);
-  font-size: clamp(2.5rem, 8vw, 4rem);
-  font-weight: 700;
-  color: var(--label-primary);
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-  text-align: center;
-}
-
-.recognition__phonetic {
-  font-family: var(--font-mono);
-  font-size: 18px;
-  font-weight: 400;
-  color: var(--label-tertiary);
-  letter-spacing: 0.02em;
-  line-height: 1.4;
-  text-align: center;
-}
-
-.recognition__translation {
-  font-family: var(--font-body);
-  font-size: var(--type-title-3);
-  font-weight: 500;
-  color: var(--label-secondary);
-  letter-spacing: 0.01em;
-  line-height: 1.4;
-  text-align: center;
-  max-width: 520px;
-}
-
-.recognition__actions {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.recognition__play {
+.translation__btn {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  justify-content: center;
   min-height: 44px;
   padding: 0 var(--space-5);
-  background: transparent;
-  color: var(--label-primary);
-  border: 1px solid var(--label-primary);
-  border-radius: var(--radius-md);
   font-family: var(--font-body);
   font-size: var(--type-body);
   font-weight: 600;
   letter-spacing: 0.005em;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background-color var(--duration-fast) var(--ease-standard);
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    color            var(--duration-fast) var(--ease-standard),
+    border-color     var(--duration-fast) var(--ease-standard);
+  white-space: nowrap;
 }
 
-.recognition__play:hover {
-  background: var(--label-primary);
-  color: var(--surface);
+.translation__btn:focus-visible {
+  outline: 2px solid var(--label-primary);
+  outline-offset: 2px;
 }
 
-.recognition__play-glyph {
-  font-size: 1.1em;
-  line-height: 1;
-}
-
-.recognition__next {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 44px;
-  padding: 0 var(--space-7);
+.translation__btn--primary {
   background: var(--label-primary);
   color: var(--surface);
   border: 1px solid var(--label-primary);
-  border-radius: var(--radius-md);
-  font-family: var(--font-body);
-  font-size: var(--type-body);
-  font-weight: 600;
-  letter-spacing: 0.005em;
-  cursor: pointer;
-  transition: opacity var(--duration-fast) var(--ease-standard);
 }
 
-.recognition__next:hover {
+.translation__btn--primary:hover {
   opacity: 0.85;
 }
 
-.recognition__no-audio {
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  color: var(--label-quaternary);
-  font-style: italic;
-  user-select: none;
-}
-
-/* ============================================================
-   Dictation stage — Stage 2 (听写) wrapper
-   The cell rendering inside it reuses the existing .sentence /
-   .cell styles from the practice block.
-   ============================================================ */
-.dictation {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-6);
-  width: 100%;
-  animation: practice-rise var(--duration-base) var(--ease-standard);
-}
-
-.dictation__caption {
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  font-weight: var(--type-body-weight);
-  color: var(--label-tertiary);
-  letter-spacing: 0.06em;
-  user-select: none;
-  font-variant-numeric: tabular-nums;
-}
-
-.dictation__hint {
-  font-family: var(--font-body);
-  font-size: clamp(1.125rem, 2.8vw, 1.5rem);
-  font-weight: 500;
-  color: var(--label-primary);
-  text-align: center;
-  letter-spacing: 0.005em;
-  line-height: 1.5;
-  max-width: 520px;
-  padding: 0;
-}
-
-.dictation__actions {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-top: var(--space-2);
-}
-
-.dictation__skip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 36px;
-  padding: 0 var(--space-5);
+.translation__btn--ghost {
   background: transparent;
-  color: var(--label-tertiary);
+  color: var(--label-secondary);
   border: 1px solid var(--separator);
-  border-radius: var(--radius-md);
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  cursor: pointer;
-  transition: border-color var(--duration-fast) var(--ease-standard),
-              color var(--duration-fast) var(--ease-standard);
 }
 
-.dictation__skip:hover {
+.translation__btn--ghost:hover {
   border-color: var(--label-quaternary);
   color: var(--label-primary);
 }
 
-.dictation__no-sentence {
+/* Empty / loading / error / finished / empty-step variants */
+.translation--loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+  gap: var(--space-4);
+}
+
+.translation__loader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+}
+
+.translation__loader span {
+  display: inline-block;
+  width: 2px;
+  background: var(--label-tertiary);
+  border-radius: 1px;
+  animation: practice-loader-bounce 1.4s var(--ease-standard) infinite;
+}
+
+.translation__loader span:nth-child(1) { height: 6px;  animation-delay: 0.00s; }
+.translation__loader span:nth-child(2) { height: 14px; animation-delay: 0.15s; }
+.translation__loader span:nth-child(3) { height: 22px; animation-delay: 0.30s; }
+.translation__loader span:nth-child(4) { height: 18px; animation-delay: 0.45s; }
+.translation__loader span:nth-child(5) { height: 10px; animation-delay: 0.60s; }
+.translation__loader span:nth-child(6) { height: 26px; animation-delay: 0.75s; }
+.translation__loader span:nth-child(7) { height: 16px; animation-delay: 0.90s; }
+
+.translation__loader-text {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  color: var(--label-tertiary);
+  letter-spacing: 0.04em;
+  user-select: none;
+}
+
+.translation--error,
+.translation--empty-step,
+.translation--finished {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-5);
+  margin: auto;
+  padding: var(--space-9) var(--space-5);
+  text-align: center;
+}
+
+.translation__error-text,
+.translation__empty-text {
+  font-family: var(--font-body);
+  font-size: var(--type-body);
+  color: var(--label-secondary);
+  margin: 0;
+  max-width: 360px;
+}
+
+.translation__end-title {
+  font-family: var(--font-body);
+  font-size: var(--type-title-1);
+  font-weight: var(--type-title-1-weight);
+  color: var(--label-primary);
+  letter-spacing: -0.01em;
+  line-height: var(--type-title-1-lh);
+  margin: 0;
+}
+
+.translation__end-meta {
   font-family: var(--font-body);
   font-size: var(--type-body);
   color: var(--label-tertiary);
-  text-align: center;
-  padding: var(--space-5);
+  margin: 0;
 }
 
 /* ============================================================
@@ -1677,37 +1346,51 @@ select:focus-visible {
     text-align: left;
   }
 
-  .practice__library {
-    margin-top: 0;
-  }
-
-  .picker {
-    flex-direction: column;
-    gap: var(--space-3);
-    align-items: stretch;
-  }
-
-  .sentence {
-    gap: var(--space-7);
-    padding: var(--space-4) 0;
-  }
-
   .practice__content {
     gap: var(--space-9);
   }
 
-  .lesson-list__row {
-    padding: var(--space-3) var(--space-4);
+  .home__title {
+    font-size: var(--type-title-2);
   }
 
-  .lesson-list__index {
-    min-width: 2em;
+  .home__tiles {
+    gap: var(--space-3);
   }
 
-  .lesson-session {
-    gap: var(--space-5);
+  .home__tile {
+    min-height: 0;
+    padding: var(--space-4);
   }
 
-  /* Shortcut bar: list is a flex-wrap row, so on narrow screens it
-     naturally wraps to a second line. No special rules needed. */
+  .translation-list__jumper {
+    flex-wrap: wrap;
+  }
+
+  .translation-list__title {
+    font-size: var(--type-title-2);
+  }
+
+  .translation-lib-switcher__current-name {
+    font-size: var(--type-title-2);
+  }
+
+  .translation__prompt {
+    font-size: clamp(1.25rem, 5vw, 1.75rem);
+    padding: var(--space-4) 0;
+  }
+
+  .translation__textarea {
+    font-size: var(--type-body);
+  }
+
+  .translation__actions {
+    gap: var(--space-2);
+  }
+
+  .translation__btn {
+    flex: 1 1 40%;
+    min-height: 40px;
+    font-size: var(--type-caption);
+  }
 }
