@@ -137,6 +137,7 @@ export BACKEND_FULL_IMAGE FRONTEND_FULL_IMAGE
 SECRETS_DIR=".secrets"
 PG_PASSWORD_FILE="${SECRETS_DIR}/postgres_password"
 DB_URL_FILE="${SECRETS_DIR}/database_url"
+JWT_SECRET_FILE="${SECRETS_DIR}/jwt_secret"
 COMPOSE_FILE="docker-compose.dev.yml"
 BACKEND_IMAGE="english_backend_dev"
 FRONTEND_IMAGE="english_frontend_dev"
@@ -203,6 +204,8 @@ export_db_identity_for_compose() {
 #                                              reused across restarts
 #   .secrets/database_url        (chmod 600) — assembled from above +
 #                                              DB_USER / DB_NAME from image
+#   .secrets/jwt_secret          (chmod 600) — generated on first start,
+#                                              reused across restarts (v1 auth)
 #
 # Idempotent: existing .secrets/postgres_password is preserved across
 # restarts so the db volume's password stays stable. To reset the dev
@@ -244,6 +247,20 @@ write_secrets() {
     fi
     printf '%s' "$encoded_pw" > "$DB_URL_FILE"
     chmod 600 "$DB_URL_FILE"
+
+    # jwt_secret: HMAC secret for the backend's JWT signing (v1 auth).
+    # 48 chars = 288 bits, plenty for HS256. Same first-start-then-reuse
+    # pattern as POSTGRES_PASSWORD — rotating this would invalidate every
+    # active session, by design (see auth_service.py docstring).
+    if [ -f "$JWT_SECRET_FILE" ]; then
+        JWT_SECRET="$(cat "$JWT_SECRET_FILE")"
+        info "复用现有 $(basename "$JWT_SECRET_FILE")"
+    else
+        JWT_SECRET="$(gen_secret 48)"
+        info "新生成 JWT_SECRET → $(basename "$JWT_SECRET_FILE")"
+    fi
+    printf '%s' "$JWT_SECRET" > "$JWT_SECRET_FILE"
+    chmod 600 "$JWT_SECRET_FILE"
 }
 
 # ---------------------------------------------------------------------------
@@ -370,6 +387,12 @@ cmd_doctor() {
         ok ".secrets/postgres_password 存在（密码稳定，db 不会重置）"
     else
         info ".secrets/postgres_password 缺失 — 下次 start 会现场生成"
+    fi
+
+    if [ -f "$JWT_SECRET_FILE" ]; then
+        ok ".secrets/jwt_secret 存在（JWT 签名稳定，重启不会让所有用户掉登录）"
+    else
+        info ".secrets/jwt_secret 缺失 — 下次 start 会现场生成"
     fi
 
     if check_docker_installed && check_docker_daemon_running; then

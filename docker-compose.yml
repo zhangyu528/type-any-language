@@ -33,6 +33,8 @@ secrets:
     file: ./.secrets/postgres_password
   database_url:
     file: ./.secrets/database_url
+  jwt_secret:
+    file: ./.secrets/jwt_secret
 
 services:
   # -------------------------------------------------------------------------
@@ -86,8 +88,13 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost}
       # DB connection assembled host-side by run.sh and read from file
       DATABASE_URL_FILE: /run/secrets/database_url
+      # JWT signing secret (v1 auth) — also a host-side file.
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      # Prod runs over HTTPS — set the Secure cookie flag.
+      COOKIE_SECURE: "true"
     secrets:
       - database_url
+      - jwt_secret
     volumes:
       # shared-audio is read-only here; backend serves /audio/* via
       # the /audio mount.

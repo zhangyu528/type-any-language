@@ -1,4 +1,4 @@
--- apply_to_runtime.sql — inline application of db/pipeline/migrations/versions/0001-0006
+-- apply_to_runtime.sql — inline application of db/pipeline/migrations/versions/0001-0007
 -- to the running runtime db (type-any-language-db-1).
 --
 -- Equivalent to running `python3 -m pipeline.migrations.runner` against the
@@ -9,7 +9,7 @@
 -- except 0006's ADD CONSTRAINT, which assumes the constraint doesn't exist
 -- (verified: the runtime db never had 0006 applied, so this is safe).
 --
--- Bookkeeping: pre-mark all 6 versions in schema_migrations so the
+-- Bookkeeping: pre-mark all 7 versions in schema_migrations so the
 -- migration runner thinks everything is up-to-date and becomes a no-op
 -- on future `content.sh init-schema` calls.
 
@@ -104,6 +104,27 @@ ALTER TABLE sentences
     UNIQUE (lib_id, text, difficulty);
 
 INSERT INTO schema_migrations (version) VALUES ('0006_sentence_natural_key')
+    ON CONFLICT DO NOTHING;
+
+-- ============================================================================
+-- 0007_add_users: users table (v1 auth: email/password)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS users (
+    id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    email         VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    display_name  VARCHAR(50)  NOT NULL,
+    role          VARCHAR(20)  NULL,
+    tier          VARCHAR(20)  NULL,
+    is_active     BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at    TIMESTAMP    NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMP    NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email_lower ON users (LOWER(email));
+CREATE INDEX IF NOT EXISTS ix_users_role ON users (role) WHERE role IS NOT NULL;
+
+INSERT INTO schema_migrations (version) VALUES ('0007_add_users')
     ON CONFLICT DO NOTHING;
 
 -- ============================================================================

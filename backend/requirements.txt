@@ -5,3 +5,14 @@ psycopg2-binary==2.9.9
 pydantic==2.5.3
 pydantic-settings==2.1.0
 cmudict==1.0.2
+
+# --- v1 auth ---
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+pyjwt==2.8.0
+email-validator==2.1.0
+
+# --- tests ---
+# pytest-asyncio intentionally omitted: TestClient is sync, no async tests.
+pytest==8.0.0
+httpx==0.26.0

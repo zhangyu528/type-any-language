@@ -55,6 +55,34 @@ class Settings(BaseSettings):
         description="Path to a file containing DATABASE_URL. Read once, then discarded from env.",
     )
 
+    # --- Auth (v1) ---------------------------------------------------------
+    # JWT_SECRET or JWT_SECRET_FILE (preferred). The JWT signing secret
+    # is delivered via file mount (compose secrets:) so it never appears
+    # in `docker inspect container` output. Mirrors the DATABASE_URL
+    # indirection pattern.
+    JWT_SECRET: Optional[str] = Field(
+        default=None,
+        description="HMAC secret for signing JWTs. If unset, JWT_SECRET_FILE is consulted.",
+    )
+    JWT_SECRET_FILE: Optional[str] = Field(
+        default=None,
+        description="Path to a file containing JWT_SECRET. Read once, then discarded from env.",
+    )
+    JWT_ALGORITHM: str = Field(
+        default="HS256",
+        description="JWT signing algorithm. HS256 is the canonical choice for self-contained services.",
+    )
+    JWT_EXPIRES_DAYS: int = Field(
+        default=7,
+        description="JWT lifetime in days. Mirrored as the session cookie's max_age.",
+    )
+    # Cookie hardening — `Secure` flag must be off in dev (HTTP localhost)
+    # and on in prod (HTTPS). Set via compose env in prod.
+    COOKIE_SECURE: bool = Field(
+        default=False,
+        description="Set Secure flag on the session cookie. MUST be True in prod (HTTPS).",
+    )
+
     # -----------------------------------------------------------------------
     @field_validator("ALLOWED_ORIGINS")
     @classmethod
@@ -87,6 +115,19 @@ class Settings(BaseSettings):
             "DATABASE_URL is not set: provide DATABASE_URL or DATABASE_URL_FILE"
         )
 
+    def resolved_jwt_secret(self) -> str:
+        """JWT_SECRET, with _FILE indirection resolved. Same semantics as
+        `resolved_database_url()` — explicit env wins over file."""
+        if self.JWT_SECRET:
+            return self.JWT_SECRET
+        if self.JWT_SECRET_FILE:
+            value = _read_secret_file(self.JWT_SECRET_FILE)
+            if value:
+                return value
+        raise RuntimeError(
+            "JWT_SECRET is not set: provide JWT_SECRET or JWT_SECRET_FILE"
+        )
+
 
 # ---------------------------------------------------------------------------
 # _read_secret_file — read a secret file path safely. Strips trailing
@@ -115,14 +156,20 @@ def _apply_file_indirection() -> None:
     value in the normal field.
     """
     file_path = os.environ.get("DATABASE_URL_FILE")
-    if not file_path:
-        return
-    # Explicit DATABASE_URL wins over file indirection.
-    if os.environ.get("DATABASE_URL"):
-        return
-    value = _read_secret_file(file_path)
-    if value is not None:
-        os.environ["DATABASE_URL"] = value
+    if file_path:
+        # Explicit DATABASE_URL wins over file indirection.
+        if not os.environ.get("DATABASE_URL"):
+            value = _read_secret_file(file_path)
+            if value is not None:
+                os.environ["DATABASE_URL"] = value
+
+    # JWT secret — same pattern.
+    jwt_file_path = os.environ.get("JWT_SECRET_FILE")
+    if jwt_file_path:
+        if not os.environ.get("JWT_SECRET"):
+            value = _read_secret_file(jwt_file_path)
+            if value is not None:
+                os.environ["JWT_SECRET"] = value
 
 
 # ---------------------------------------------------------------------------
@@ -136,6 +183,14 @@ def _require_secrets(settings: "Settings") -> None:
         raise RuntimeError(
             f"Database is not configured: {exc}. "
             "Mount DATABASE_URL_FILE (compose secret) or set DATABASE_URL."
+        ) from exc
+    # Same fail-fast for JWT_SECRET — backend refuses to boot without it.
+    try:
+        settings.resolved_jwt_secret()
+    except RuntimeError as exc:
+        raise RuntimeError(
+            f"JWT_SECRET is not configured: {exc}. "
+            "Mount JWT_SECRET_FILE (compose secret) or set JWT_SECRET."
         ) from exc
 
 

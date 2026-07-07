@@ -20,6 +20,8 @@ secrets:
     file: ./.secrets/postgres_password
   database_url:
     file: ./.secrets/database_url
+  jwt_secret:
+    file: ./.secrets/jwt_secret
 
 services:
   # -------------------------------------------------------------------------
@@ -64,8 +66,12 @@ services:
       #   ALLOWED_ORIGINS=... ./scripts/ops/dev-host/run.sh start
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost,http://localhost:3000}
       DATABASE_URL_FILE: /run/secrets/database_url
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      # Dev runs over HTTP localhost — Secure cookie flag must be OFF.
+      COOKIE_SECURE: "false"
     secrets:
       - database_url
+      - jwt_secret
     volumes:
       # Hot-reload source mount
       - ./backend:/app

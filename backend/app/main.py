@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.database import engine, Base
-from app.routers import content, sentences, vocabulary
+from app.routers import content, sentences, vocabulary, auth, me
 
 settings = get_settings()
 
@@ -36,7 +36,13 @@ app = FastAPI(
 )
 
 # Serve MP3s from the shared-audio volume that the db image seeds.
-app.mount("/audio", StaticFiles(directory="/audio"), name="audio")
+# Mount is conditional — when running tests or in non-docker contexts
+# where /audio doesn't exist (read-only host fs on macOS), skip the
+# mount so the app doesn't crash on import. The audio volume is only
+# meaningful in the compose runtime; in tests we never hit /audio/*.
+import os as _os
+if _os.path.isdir("/audio"):
+    app.mount("/audio", StaticFiles(directory="/audio"), name="audio")
 
 app.add_middleware(
     CORSMiddleware,
@@ -49,6 +55,8 @@ app.add_middleware(
 app.include_router(vocabulary.router)
 app.include_router(sentences.router)
 app.include_router(content.router)
+app.include_router(auth.router)
+app.include_router(me.router)
 
 
 @app.get("/")

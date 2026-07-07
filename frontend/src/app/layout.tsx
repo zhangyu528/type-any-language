@@ -1,5 +1,7 @@
 import Home from './page';
 import './globals.css';
+import { AuthProvider } from './lib/auth';
+import { Header } from './components/Header';
 
 export default function RootLayout({
   children,
@@ -27,7 +29,18 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {/*
+          AuthProvider wraps the whole tree so Header can call useAuth().
+          Header sits above children — practice + auth + history pages
+          all get the same top bar. The (auth) route group's own layout
+          still wins for /login + /signup because nested layouts override.
+        */}
+        <AuthProvider>
+          <Header />
+          {children}
+        </AuthProvider>
+      </body>
     </html>
   );
 }
