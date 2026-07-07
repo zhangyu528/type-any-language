@@ -32,10 +32,10 @@ export default function HistoryPage() {
     return (
       <main className="history-shell">
         <p className="history-loading">载入中…</p>
-        <style>{`
+        <style dangerouslySetInnerHTML={{ __html: `
           .history-shell { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
           .history-loading { color: var(--label-tertiary); font-size: var(--type-body); }
-        `}</style>
+        ` }} />
       </main>
     );
   }
@@ -54,7 +54,7 @@ export default function HistoryPage() {
         <Link href="/" className="history__cta">开始练习</Link>
       </section>
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .history {
           max-width: 720px;
           margin: 0 auto;
@@ -104,7 +104,7 @@ export default function HistoryPage() {
           font-weight: var(--type-body-emphasis-weight);
           border-radius: var(--radius-md);
         }
-      `}</style>
+      ` }} />
     </main>
   );
 }

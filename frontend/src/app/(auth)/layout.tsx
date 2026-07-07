@@ -30,7 +30,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {children}
       </div>
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .auth-shell {
           position: relative;
           min-height: 100vh;
@@ -112,7 +112,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           margin-bottom: var(--space-6);
           text-align: center;
         }
-      `}</style>
+      ` }} />
     </main>
   );
 }

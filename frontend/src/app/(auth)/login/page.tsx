@@ -113,7 +113,7 @@ export default function LoginPage() {
         还没有账号？<Link href="/signup">注册</Link>
       </p>
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .auth-form { display: flex; flex-direction: column; gap: var(--space-4); }
         .auth-field { display: flex; flex-direction: column; gap: var(--space-2); }
         .auth-field__label {
@@ -199,7 +199,7 @@ export default function LoginPage() {
           font-weight: var(--type-body-emphasis-weight);
         }
         .auth-form__alt a:hover { text-decoration: underline; }
-      `}</style>
+      ` }} />
     </form>
   );
 }

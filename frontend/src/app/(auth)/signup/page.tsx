@@ -142,7 +142,7 @@ export default function SignupPage() {
         已经有账号？<Link href="/login">登录</Link>
       </p>
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .auth-form { display: flex; flex-direction: column; gap: var(--space-4); }
         .auth-field { display: flex; flex-direction: column; gap: var(--space-2); }
         .auth-field__label {
@@ -245,7 +245,7 @@ export default function SignupPage() {
           font-weight: var(--type-body-emphasis-weight);
         }
         .auth-form__alt a:hover { text-decoration: underline; }
-      `}</style>
+      ` }} />
     </form>
   );
 }
