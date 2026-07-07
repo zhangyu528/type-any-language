@@ -3,9 +3,7 @@
 /**
  * /signup — email + password + display_name registration.
  *
- * Mirrors the login form layout. Pydantic on the backend enforces
- * password length (8-72) and email format, but we also client-validate
- * for better UX.
+ * Same refresh-then-navigate pattern as login. See KNOWN_ISSUES.md §4.4.
  */
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
@@ -33,8 +31,6 @@ export default function SignupPage() {
         password,
         display_name: displayName.trim(),
       });
-      // Same as login: refresh AuthProvider state before navigate, otherwise
-      // /history's `!user` guard fires and we bounce right back to /signup.
       await refresh();
       router.replace('/history');
     } catch (err) {
@@ -105,35 +101,56 @@ export default function SignupPage() {
         .auth-field__label {
           font-size: var(--type-caption);
           color: var(--label-tertiary);
+          letter-spacing: 0.02em;
         }
         .auth-field__input {
-          height: 40px;
-          padding: 0 var(--space-3);
+          height: 44px;
+          padding: 0 var(--space-4);
           font-family: inherit;
           font-size: var(--type-body);
           color: var(--label-primary);
-          background: var(--surface);
-          border: 1px solid var(--separator-opaque);
+          background: rgba(255, 255, 255, 0.7);
+          border: 1px solid rgba(0, 0, 0, 0.08);
           border-radius: var(--radius-sm);
+          transition: background var(--duration-fast) var(--ease-standard),
+                      border-color var(--duration-fast) var(--ease-standard);
         }
-        .auth-field__input:focus { outline: 2px solid var(--label-primary); outline-offset: 2px; }
+        .auth-field__input::placeholder { color: var(--label-quaternary); }
+        .auth-field__input:hover {
+          background: rgba(255, 255, 255, 0.85);
+          border-color: rgba(0, 0, 0, 0.12);
+        }
+        .auth-field__input:focus {
+          outline: none;
+          background: rgba(255, 255, 255, 0.95);
+          border-color: var(--label-primary);
+          box-shadow: 0 0 0 3px rgba(28, 28, 30, 0.08);
+        }
         .auth-form__error {
           font-size: var(--type-caption);
-          color: var(--label-secondary);
+          color: var(--accent);
           margin: 0;
         }
         .auth-form__submit {
-          height: 44px;
+          height: 48px;
           margin-top: var(--space-2);
           font-family: inherit;
           font-size: var(--type-body);
           font-weight: var(--type-body-emphasis-weight);
           color: var(--surface);
-          background: var(--label-primary);
+          background: linear-gradient(180deg, #2C2C2E 0%, #1C1C1E 100%);
           border: 0;
           border-radius: var(--radius-md);
           cursor: pointer;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+          transition: transform var(--duration-fast) var(--ease-standard),
+                      box-shadow var(--duration-fast) var(--ease-standard);
         }
+        .auth-form__submit:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.16);
+        }
+        .auth-form__submit:active:not(:disabled) { transform: translateY(0); }
         .auth-form__submit:disabled { opacity: 0.5; cursor: progress; }
         .auth-form__alt {
           text-align: center;
@@ -141,7 +158,11 @@ export default function SignupPage() {
           color: var(--label-tertiary);
           margin-top: var(--space-3);
         }
-        .auth-form__alt a { color: var(--label-primary); text-decoration: none; }
+        .auth-form__alt a {
+          color: var(--accent);
+          text-decoration: none;
+          font-weight: var(--type-body-emphasis-weight);
+        }
         .auth-form__alt a:hover { text-decoration: underline; }
       `}</style>
     </form>

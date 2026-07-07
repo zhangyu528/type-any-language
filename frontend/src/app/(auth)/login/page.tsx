@@ -3,10 +3,9 @@
 /**
  * /login — email + password sign-in.
  *
- * On success, redirects to /history (the protected page that proves
- * the auth cookie works end-to-end). Errors are surfaced inline as
- * a single line under the form (no banners, no alerts — Apple HIG
- * "quiet" feedback).
+ * On success, refreshes AuthProvider state then redirects to /history.
+ * See KNOWN_ISSUES.md §4.4 for why the explicit `await refresh()` is
+ * necessary (avoid stale-user bounce-back bug).
  */
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
@@ -29,10 +28,6 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await apiLogin({ email: email.trim(), password });
-      // Pull the user object out of the just-set cookie into AuthProvider's
-      // state BEFORE navigating. Without this, /history mounts while
-      // AuthProvider still holds the pre-login `user=null`, the page's
-      // `!user` redirect kicks in, and we bounce back to /login.
       await refresh();
       router.replace('/history');
     } catch (err) {
@@ -44,7 +39,7 @@ export default function LoginPage() {
 
   return (
     <form onSubmit={onSubmit} className="auth-form" noValidate>
-      <h1>登录到 Type Any Language</h1>
+      <h1>欢迎回来</h1>
 
       <label className="auth-field">
         <span className="auth-field__label">邮箱</span>
@@ -89,35 +84,56 @@ export default function LoginPage() {
         .auth-field__label {
           font-size: var(--type-caption);
           color: var(--label-tertiary);
+          letter-spacing: 0.02em;
         }
         .auth-field__input {
-          height: 40px;
-          padding: 0 var(--space-3);
+          height: 44px;
+          padding: 0 var(--space-4);
           font-family: inherit;
           font-size: var(--type-body);
           color: var(--label-primary);
-          background: var(--surface);
-          border: 1px solid var(--separator-opaque);
+          background: rgba(255, 255, 255, 0.7);
+          border: 1px solid rgba(0, 0, 0, 0.08);
           border-radius: var(--radius-sm);
+          transition: background var(--duration-fast) var(--ease-standard),
+                      border-color var(--duration-fast) var(--ease-standard);
         }
-        .auth-field__input:focus { outline: 2px solid var(--label-primary); outline-offset: 2px; }
+        .auth-field__input::placeholder { color: var(--label-quaternary); }
+        .auth-field__input:hover {
+          background: rgba(255, 255, 255, 0.85);
+          border-color: rgba(0, 0, 0, 0.12);
+        }
+        .auth-field__input:focus {
+          outline: none;
+          background: rgba(255, 255, 255, 0.95);
+          border-color: var(--label-primary);
+          box-shadow: 0 0 0 3px rgba(28, 28, 30, 0.08);
+        }
         .auth-form__error {
           font-size: var(--type-caption);
-          color: var(--label-secondary);
+          color: var(--accent);
           margin: 0;
         }
         .auth-form__submit {
-          height: 44px;
+          height: 48px;
           margin-top: var(--space-2);
           font-family: inherit;
           font-size: var(--type-body);
           font-weight: var(--type-body-emphasis-weight);
           color: var(--surface);
-          background: var(--label-primary);
+          background: linear-gradient(180deg, #2C2C2E 0%, #1C1C1E 100%);
           border: 0;
           border-radius: var(--radius-md);
           cursor: pointer;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+          transition: transform var(--duration-fast) var(--ease-standard),
+                      box-shadow var(--duration-fast) var(--ease-standard);
         }
+        .auth-form__submit:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.16);
+        }
+        .auth-form__submit:active:not(:disabled) { transform: translateY(0); }
         .auth-form__submit:disabled { opacity: 0.5; cursor: progress; }
         .auth-form__alt {
           text-align: center;
@@ -125,7 +141,11 @@ export default function LoginPage() {
           color: var(--label-tertiary);
           margin-top: var(--space-3);
         }
-        .auth-form__alt a { color: var(--label-primary); text-decoration: none; }
+        .auth-form__alt a {
+          color: var(--accent);
+          text-decoration: none;
+          font-weight: var(--type-body-emphasis-weight);
+        }
         .auth-form__alt a:hover { text-decoration: underline; }
       `}</style>
     </form>
