@@ -11,9 +11,11 @@ import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import Link from 'next/link';
 import { apiSignup } from '../../api';
+import { useAuth } from '../../lib/auth';
 
 export default function SignupPage() {
   const router = useRouter();
+  const { refresh } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -31,6 +33,9 @@ export default function SignupPage() {
         password,
         display_name: displayName.trim(),
       });
+      // Same as login: refresh AuthProvider state before navigate, otherwise
+      // /history's `!user` guard fires and we bounce right back to /signup.
+      await refresh();
       router.replace('/history');
     } catch (err) {
       setError(err instanceof Error ? err.message : '注册失败');

@@ -12,9 +12,11 @@ import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import Link from 'next/link';
 import { apiLogin } from '../../api';
+import { useAuth } from '../../lib/auth';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { refresh } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +29,11 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await apiLogin({ email: email.trim(), password });
+      // Pull the user object out of the just-set cookie into AuthProvider's
+      // state BEFORE navigating. Without this, /history mounts while
+      // AuthProvider still holds the pre-login `user=null`, the page's
+      // `!user` redirect kicks in, and we bounce back to /login.
+      await refresh();
       router.replace('/history');
     } catch (err) {
       setError(err instanceof Error ? err.message : '登录失败');
