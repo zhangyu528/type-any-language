@@ -3,13 +3,25 @@
 /**
  * /signup — email + password + display_name registration.
  *
- * Same refresh-then-navigate pattern as login. See KNOWN_ISSUES.md §4.4.
+ * Field-level errors: each field can independently show its own
+ * validation/auth error (red border + message below). The ApiError
+ * type carries an optional `fieldErrors` map (e.g. {"email": "邮箱已被注册"})
+ * which the form maps back onto the right input.
+ *
+ * See KNOWN_ISSUES.md §4.4 for why `await refresh()` before navigate.
  */
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import Link from 'next/link';
-import { apiSignup } from '../../api';
+import { apiSignup, ApiError } from '../../api';
 import { useAuth } from '../../lib/auth';
+
+interface FieldErrors {
+  email?: string;
+  password?: string;
+  display_name?: string;
+  _form?: string;
+}
 
 export default function SignupPage() {
   const router = useRouter();
@@ -17,13 +29,13 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (submitting) return;
-    setError(null);
+    setErrors({});
     setSubmitting(true);
     try {
       await apiSignup({
@@ -34,9 +46,25 @@ export default function SignupPage() {
       await refresh();
       router.replace('/history');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '注册失败');
+      const apiErr = err as ApiError;
+      if (apiErr.fieldErrors) {
+        setErrors(apiErr.fieldErrors as FieldErrors);
+      } else {
+        setErrors({ _form: apiErr.message ?? '注册失败' });
+      }
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function clearError(field: keyof FieldErrors) {
+    if (errors[field] || errors._form) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        delete next._form;
+        return next;
+      });
     }
   }
 
@@ -51,10 +79,17 @@ export default function SignupPage() {
           inputMode="email"
           autoComplete="email"
           required
+          aria-invalid={errors.email ? true : undefined}
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="auth-field__input"
+          onChange={(e) => {
+            setEmail(e.target.value);
+            clearError('email');
+          }}
+          className={`auth-field__input${errors.email ? ' auth-field__input--error' : ''}`}
         />
+        {errors.email ? (
+          <span className="auth-field__error" role="alert">{errors.email}</span>
+        ) : null}
       </label>
 
       <label className="auth-field">
@@ -63,12 +98,17 @@ export default function SignupPage() {
           type="text"
           autoComplete="nickname"
           required
-          minLength={1}
-          maxLength={50}
+          aria-invalid={errors.display_name ? true : undefined}
           value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          className="auth-field__input"
+          onChange={(e) => {
+            setDisplayName(e.target.value);
+            clearError('display_name');
+          }}
+          className={`auth-field__input${errors.display_name ? ' auth-field__input--error' : ''}`}
         />
+        {errors.display_name ? (
+          <span className="auth-field__error" role="alert">{errors.display_name}</span>
+        ) : null}
       </label>
 
       <label className="auth-field">
@@ -77,15 +117,22 @@ export default function SignupPage() {
           type="password"
           autoComplete="new-password"
           required
-          minLength={8}
-          maxLength={72}
+          aria-invalid={errors.password ? true : undefined}
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="auth-field__input"
+          onChange={(e) => {
+            setPassword(e.target.value);
+            clearError('password');
+          }}
+          className={`auth-field__input${errors.password ? ' auth-field__input--error' : ''}`}
         />
+        {errors.password ? (
+          <span className="auth-field__error" role="alert">{errors.password}</span>
+        ) : null}
       </label>
 
-      {error ? <p className="auth-form__error">{error}</p> : null}
+      {errors._form ? (
+        <p className="auth-form__form-error" role="alert">{errors._form}</p>
+      ) : null}
 
       <button type="submit" disabled={submitting} className="auth-form__submit">
         {submitting ? '注册中…' : '注册'}
@@ -113,7 +160,8 @@ export default function SignupPage() {
           border: 1px solid rgba(0, 0, 0, 0.08);
           border-radius: var(--radius-sm);
           transition: background var(--duration-fast) var(--ease-standard),
-                      border-color var(--duration-fast) var(--ease-standard);
+                      border-color var(--duration-fast) var(--ease-standard),
+                      box-shadow var(--duration-fast) var(--ease-standard);
         }
         .auth-field__input::placeholder { color: var(--label-quaternary); }
         .auth-field__input:hover {
@@ -126,10 +174,43 @@ export default function SignupPage() {
           border-color: var(--label-primary);
           box-shadow: 0 0 0 3px rgba(28, 28, 30, 0.08);
         }
-        .auth-form__error {
+        .auth-field__input--error {
+          border-color: var(--accent);
+          background: rgba(251, 233, 235, 0.7);
+        }
+        .auth-field__input--error:focus {
+          border-color: var(--accent);
+          box-shadow: 0 0 0 3px rgba(215, 0, 21, 0.12);
+        }
+        .auth-field__error {
+          display: flex;
+          align-items: center;
+          gap: var(--space-2);
           font-size: var(--type-caption);
           color: var(--accent);
+          margin-top: var(--space-1);
+        }
+        .auth-field__error::before {
+          content: "⚠";
+          font-size: 11px;
+          flex-shrink: 0;
+        }
+        .auth-form__form-error {
+          display: flex;
+          align-items: center;
+          gap: var(--space-2);
+          font-size: var(--type-caption);
+          color: var(--accent);
+          background: rgba(251, 233, 235, 0.6);
+          border: 1px solid rgba(215, 0, 21, 0.18);
+          padding: var(--space-2) var(--space-3);
+          border-radius: var(--radius-sm);
           margin: 0;
+        }
+        .auth-form__form-error::before {
+          content: "⚠";
+          font-size: 11px;
+          flex-shrink: 0;
         }
         .auth-form__submit {
           height: 48px;

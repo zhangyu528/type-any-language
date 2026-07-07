@@ -1,39 +1,62 @@
 'use client';
 
 /**
- * /login — email + password sign-in.
+ * /login — email + password sign-in with field-level errors.
  *
- * On success, refreshes AuthProvider state then redirects to /history.
- * See KNOWN_ISSUES.md §4.4 for why the explicit `await refresh()` is
- * necessary (avoid stale-user bounce-back bug).
+ * For login, errors are typically form-wide (wrong password, unknown
+ * email) rather than per-field. We map server-side fieldErrors back
+ * to the right input when present, otherwise show a form-level error
+ * on the email field (since "Invalid email or password" is always
+ * tied to one of the two fields).
+ *
+ * See KNOWN_ISSUES.md §4.4 for why `await refresh()` before navigate.
  */
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import Link from 'next/link';
-import { apiLogin } from '../../api';
+import { apiLogin, ApiError } from '../../api';
 import { useAuth } from '../../lib/auth';
+
+interface FieldErrors {
+  email?: string;
+  password?: string;
+}
 
 export default function LoginPage() {
   const router = useRouter();
   const { refresh } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (submitting) return;
-    setError(null);
+    setErrors({});
     setSubmitting(true);
     try {
       await apiLogin({ email: email.trim(), password });
       await refresh();
       router.replace('/history');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '登录失败');
+      const apiErr = err as ApiError;
+      // Login backend returns one generic "Invalid email or password"
+      // for both wrong-pw and unknown-email (no enumeration). Show it
+      // on the email field so the user sees the error near the input.
+      if (apiErr.fieldErrors) {
+        setErrors(apiErr.fieldErrors as FieldErrors);
+      } else {
+        setErrors({ email: apiErr.message ?? '登录失败' });
+      }
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function clearError(field: keyof FieldErrors) {
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
   }
 
@@ -48,10 +71,17 @@ export default function LoginPage() {
           inputMode="email"
           autoComplete="email"
           required
+          aria-invalid={errors.email ? true : undefined}
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="auth-field__input"
+          onChange={(e) => {
+            setEmail(e.target.value);
+            clearError('email');
+          }}
+          className={`auth-field__input${errors.email ? ' auth-field__input--error' : ''}`}
         />
+        {errors.email ? (
+          <span className="auth-field__error" role="alert">{errors.email}</span>
+        ) : null}
       </label>
 
       <label className="auth-field">
@@ -62,13 +92,18 @@ export default function LoginPage() {
           required
           minLength={8}
           maxLength={72}
+          aria-invalid={errors.password ? true : undefined}
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="auth-field__input"
+          onChange={(e) => {
+            setPassword(e.target.value);
+            clearError('password');
+          }}
+          className={`auth-field__input${errors.password ? ' auth-field__input--error' : ''}`}
         />
+        {errors.password ? (
+          <span className="auth-field__error" role="alert">{errors.password}</span>
+        ) : null}
       </label>
-
-      {error ? <p className="auth-form__error">{error}</p> : null}
 
       <button type="submit" disabled={submitting} className="auth-form__submit">
         {submitting ? '登录中…' : '登录'}
@@ -96,7 +131,8 @@ export default function LoginPage() {
           border: 1px solid rgba(0, 0, 0, 0.08);
           border-radius: var(--radius-sm);
           transition: background var(--duration-fast) var(--ease-standard),
-                      border-color var(--duration-fast) var(--ease-standard);
+                      border-color var(--duration-fast) var(--ease-standard),
+                      box-shadow var(--duration-fast) var(--ease-standard);
         }
         .auth-field__input::placeholder { color: var(--label-quaternary); }
         .auth-field__input:hover {
@@ -109,10 +145,26 @@ export default function LoginPage() {
           border-color: var(--label-primary);
           box-shadow: 0 0 0 3px rgba(28, 28, 30, 0.08);
         }
-        .auth-form__error {
+        .auth-field__input--error {
+          border-color: var(--accent);
+          background: rgba(251, 233, 235, 0.7);
+        }
+        .auth-field__input--error:focus {
+          border-color: var(--accent);
+          box-shadow: 0 0 0 3px rgba(215, 0, 21, 0.12);
+        }
+        .auth-field__error {
+          display: flex;
+          align-items: center;
+          gap: var(--space-2);
           font-size: var(--type-caption);
           color: var(--accent);
-          margin: 0;
+          margin-top: var(--space-1);
+        }
+        .auth-field__error::before {
+          content: "⚠";
+          font-size: 11px;
+          flex-shrink: 0;
         }
         .auth-form__submit {
           height: 48px;

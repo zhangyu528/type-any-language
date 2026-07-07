@@ -1,3 +1,57 @@
+// ---------------------------------------------------------------------------
+// API error normalization
+//
+// Backend error bodies fall into two shapes:
+//   - HTTPException: {"detail": "<string>"}            (4xx most cases)
+//   - Pydantic 422:  {"detail": [{"loc": [...], "msg": "...", ...}]}
+//
+// We want to surface a useful message no matter which shape comes back.
+// Strategy: if detail is an array, take the first msg; if string, use as-is;
+// otherwise fall back to a generic message. Plus we keep the raw status
+// for the caller if it wants to switch on 401/409/etc.
+// ---------------------------------------------------------------------------
+export interface ApiError extends Error {
+  status: number;
+  fieldErrors?: Record<string, string>;
+}
+
+export async function readApiError(r: Response, fallback: string): Promise<ApiError> {
+  let detail: string | undefined;
+  let fieldErrors: Record<string, string> | undefined;
+
+  try {
+    const body = await r.json();
+    if (body) {
+      if (typeof body.detail === 'string') {
+        detail = body.detail;
+      } else if (Array.isArray(body.detail)) {
+        // Pydantic validation error: array of {loc, msg, type}.
+        // Convert to field-keyed map: loc=["body","email"] → "email".
+        const msgs: string[] = [];
+        for (const item of body.detail) {
+          if (item && typeof item.msg === 'string') {
+            const loc = Array.isArray(item.loc) ? item.loc.slice(1) : [];
+            const field = loc[0];
+            if (field && typeof field === 'string') {
+              fieldErrors = fieldErrors ?? {};
+              fieldErrors[field] = item.msg;
+            }
+            msgs.push(item.msg);
+          }
+        }
+        detail = msgs.join('; ') || undefined;
+      }
+    }
+  } catch {
+    /* not JSON */
+  }
+
+  const err = new Error(detail ?? fallback) as ApiError;
+  err.status = r.status;
+  if (fieldErrors) err.fieldErrors = fieldErrors;
+  return err;
+}
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export interface VocabularyLib {
@@ -132,9 +186,7 @@ export async function apiSignup(payload: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!r.ok) {
-    throw new Error(await readDetail(r, '注册失败'));
-  }
+  if (!r.ok) throw await readApiError(r, '注册失败');
   return r.json();
 }
 
@@ -147,9 +199,7 @@ export async function apiLogin(payload: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!r.ok) {
-    throw new Error(await readDetail(r, '登录失败'));
-  }
+  if (!r.ok) throw await readApiError(r, '登录失败');
   return r.json();
 }
 
@@ -161,29 +211,12 @@ export async function apiLogout(): Promise<void> {
 export async function apiMe(): Promise<AuthUser | null> {
   const r = await _fetch(`${API_BASE_URL}/api/auth/me`);
   if (r.status === 401) return null;
-  if (!r.ok) {
-    throw new Error(await readDetail(r, '获取用户信息失败'));
-  }
+  if (!r.ok) throw await readApiError(r, '获取用户信息失败');
   return r.json();
 }
 
 export async function apiHistory(): Promise<HistoryResponse> {
   const r = await _fetch(`${API_BASE_URL}/api/history`);
-  if (!r.ok) {
-    throw new Error(await readDetail(r, '获取历史失败'));
-  }
+  if (!r.ok) throw await readApiError(r, '获取历史失败');
   return r.json();
-}
-
-// readDetail — best-effort extraction of `detail` from a JSON error
-// body, falling back to a generic message. The backend always returns
-// `{"detail": "..."}` on error, but some 4xx responses may be plain text.
-async function readDetail(r: Response, fallback: string): Promise<string> {
-  try {
-    const body = await r.json();
-    if (body && typeof body.detail === 'string') return body.detail;
-  } catch {
-    /* not JSON — fall through */
-  }
-  return fallback;
 }
