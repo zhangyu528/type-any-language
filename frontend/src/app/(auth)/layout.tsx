@@ -37,7 +37,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           aria-label="返回首页"
           title="返回首页"
         >
-          ◯
+          <span className="auth-card__brand-mark">◯</span>
+          <span className="auth-card__brand-name">Type Any Language</span>
         </Link>
         {children}
       </div>
@@ -109,25 +110,42 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             inset 0 1px 0 rgba(255, 255, 255, 0.7);
         }
         .auth-card__brand {
-          display: block;
-          font-size: 38px;
-          color: var(--accent);
-          text-align: center;
-          margin-bottom: var(--space-5);
-          line-height: 1;
-          filter: drop-shadow(0 2px 6px rgba(215, 0, 21, 0.18));
+          display: inline-flex;
+          align-items: center;
+          gap: var(--space-2);
+          margin: 0 auto var(--space-5);
+          padding: var(--space-1) var(--space-2);
+          color: var(--label-primary);
           text-decoration: none;
-          transition: transform var(--duration-fast) var(--ease-standard),
-                      filter var(--duration-fast) var(--ease-standard);
+          font-size: var(--type-body);
+          font-weight: var(--type-title-3-weight);
+          letter-spacing: -0.01em;
+          border-radius: var(--radius-sm);
+          transition: background var(--duration-fast) var(--ease-standard);
         }
         .auth-card__brand:hover {
-          transform: scale(1.08);
-          filter: drop-shadow(0 4px 10px rgba(215, 0, 21, 0.28));
+          background: rgba(255, 255, 255, 0.45);
         }
         .auth-card__brand:focus-visible {
           outline: 2px solid var(--label-primary);
-          outline-offset: 6px;
-          border-radius: 50%;
+          outline-offset: 4px;
+        }
+        .auth-card__brand-mark {
+          font-size: 26px;
+          color: var(--accent);
+          line-height: 1;
+          filter: drop-shadow(0 2px 6px rgba(215, 0, 21, 0.18));
+          transition: transform var(--duration-fast) var(--ease-standard),
+                      filter var(--duration-fast) var(--ease-standard);
+        }
+        .auth-card__brand:hover .auth-card__brand-mark {
+          transform: scale(1.08);
+          filter: drop-shadow(0 4px 10px rgba(215, 0, 21, 0.28));
+        }
+        .auth-card__brand-name {
+          font-size: var(--type-body-emphasis);
+          font-weight: var(--type-title-3-weight);
+          color: var(--label-primary);
         }
         .auth-card h1 {
           font-size: var(--type-title-2);
