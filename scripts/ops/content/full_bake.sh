@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# scripts/ops/db/full_bake.sh — orchestrate the full CMS content-production
+# scripts/ops/content/full_bake.sh — orchestrate the full CMS content-production
 # pipeline end-to-end. Lives here (not in dev-host/run.sh) because every
 # step is a CMS-side concern — vocab CSVs, AI/TTS calls, db image bake.
 #
@@ -14,7 +14,7 @@
 #
 # Used by:
 #   • scripts/ops/dev-host/run.sh::cmd_setup — single-host CMS+dev auto-bake
-#   • CMS host operator — `./scripts/ops/db/full_bake.sh` standalone after
+#   • CMS host operator — `./scripts/ops/content/full_bake.sh` standalone after
 #     editing CSVs / manifest / prompt, to rebuild the db image locally
 #
 # Hard-fail on (a) / (b) / (c) / (f) — those should only fail if the env is
@@ -39,7 +39,7 @@ source "$SCRIPT_DIR/../../lib.sh"
 # .env.db lives at the project root. This script is CMS-only — operators on
 # a target host don't have it and shouldn't be calling this script.
 if [ ! -f "$PROJECT_DIR/.env.db" ]; then
-    err ".env.db 不存在 — 先跑 ./scripts/ops/db/env.sh init 引导"
+    err ".env.db 不存在 — 先跑 ./scripts/ops/content/env.sh init 引导"
     exit 1
 fi
 
@@ -173,7 +173,7 @@ cmd_doctor() {
     if [ -f "$PROJECT_DIR/.env.db" ]; then
         ok ".env.db 存在"
     else
-        err ".env.db 不存在 — 先跑 ./scripts/ops/db/env.sh init"
+        err ".env.db 不存在 — 先跑 ./scripts/ops/content/env.sh init"
         ok=0
     fi
 
@@ -196,7 +196,7 @@ cmd_doctor() {
 
     echo ""
     if [ "$ok" = "1" ]; then
-        ok "所有检查通过 — 可以跑 ./scripts/ops/db/full_bake.sh"
+        ok "所有检查通过 — 可以跑 ./scripts/ops/content/full_bake.sh"
         return 0
     fi
     err "部分检查未通过"
@@ -263,8 +263,8 @@ usage() {
 
 典型工作流:
   # 首次 / 改 CSV 后 / 改 prompt 后:
-  ./scripts/ops/db/full_bake.sh                # 跑完整流程
-  ./scripts/ops/db/full_bake.sh doctor        # 排查前先跑这个
+  ./scripts/ops/content/full_bake.sh                # 跑完整流程
+  ./scripts/ops/content/full_bake.sh doctor        # 排查前先跑这个
 
 调它的脚本:
   scripts/ops/dev-host/run.sh::cmd_setup    # 单机 CMS+dev setup 时自动调用

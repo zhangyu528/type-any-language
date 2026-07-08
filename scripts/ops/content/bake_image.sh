@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# scripts/ops/db/bake_image.sh — bake the content into a portable db image.
+# scripts/ops/content/bake_image.sh — bake the content into a portable db image.
 #
 # The image is a postgres:15-alpine wrapper that pre-loads the
 # `content_items` table and all audio MP3s. Fresh hosts `docker pull`
@@ -20,16 +20,16 @@
 #   Local:  ${DB_IMAGE:-english_db_content}:${DB_IMAGE_TAG:-latest}
 #   DOCKER_REGISTRY is NOT used here — push is a separate concern.
 #   Source the registry from the shell when you're ready to push:
-#     export DOCKER_REGISTRY=... && ./scripts/ops/db/push_image.sh
+#     export DOCKER_REGISTRY=... && ./scripts/ops/content/push_image.sh
 #   All other vars sourced from .env.db (defaults match docker-compose.yml).
 #
 # This script does NOT modify content. It only packages whatever is
 # currently in the DB + ./audio/. To update content, run
-# `scripts/ops/db/content.sh {sync,sentences,audio,publish}` first.
+# `scripts/ops/content/content.sh {sync,sentences,audio,publish}` first.
 #
 # This script does NOT push. Pushing is a separate, intentional step:
 # you might bake many times locally and only push when ready.
-# Use ./scripts/ops/db/push_image.sh for that.
+# Use ./scripts/ops/content/push_image.sh for that.
 
 set -e
 
@@ -40,7 +40,7 @@ source "$SCRIPT_DIR/../../lib.sh"
 
 # Load .env.db so $DB_IMAGE / $DB_IMAGE_TAG / any user-supplied secrets
 # (AI_API_KEY, TENCENT_*, AUDIO_DIR) resolve. Refuses to continue if
-# .env.db is missing — run scripts/ops/db/env.sh first.
+# .env.db is missing — run scripts/ops/content/env.sh first.
 #
 # DATABASE_URL is NOT in .env.db by convention — see CLAUDE.md. We
 # assemble it from POSTGRES_PASSWORD (env var or .secrets/postgres_password)
@@ -48,7 +48,7 @@ source "$SCRIPT_DIR/../../lib.sh"
 if [ -f .env.db ]; then
     set -a; . ./.env.db; set +a
 else
-    echo "[ERR] .env.db 不存在 — 跑 ./scripts/ops/db/env.sh 先引导一份" >&2
+    echo "[ERR] .env.db 不存在 — 跑 ./scripts/ops/content/env.sh 先引导一份" >&2
     exit 1
 fi
 
@@ -65,7 +65,7 @@ FULL_IMAGE="${DB_IMAGE}:${DB_IMAGE_TAG}"
 POSTGRES_USER="${POSTGRES_USER:-english_user}"
 POSTGRES_DB="${POSTGRES_DB:-english_learning}"
 
-# DATABASE_URL assembly — see db/pipeline/env.py for the same logic.
+# DATABASE_URL assembly — see content/tools/cms/env.py for the same logic.
 # Priority: explicit env var > assembled from POSTGRES_PASSWORD + defaults.
 if [ -z "${DATABASE_URL:-}" ]; then
     POSTGRES_HOST="${POSTGRES_HOST:-localhost}"
@@ -89,7 +89,7 @@ if [ -z "${DATABASE_URL:-}" ]; then
 fi
 
 DB_IMAGE_DIR="db"
-DATA_PIPELINE_DIR="db/pipeline"
+DATA_PIPELINE_DIR="content/tools/cms"
 STAGING_DIR=".bake-staging"
 
 # Cross-platform stat for "size in bytes". Linux uses -c%s, macOS uses -f%z.
@@ -120,10 +120,10 @@ cmd_doctor() {
     fi
 
     if [ ! -d "db/content" ]; then
-        err "db/content/ directory missing — run ./scripts/ops/db/env.sh"
+        err "content/source directory missing — run ./scripts/ops/content/env.sh"
         ok=0
     else
-        ok "db/content/ present"
+        ok "content/source present"
     fi
 
     if [ ! -f "$DATA_PIPELINE_DIR/export_bundle.py" ]; then
@@ -163,11 +163,13 @@ cmd_bake() {
     mkdir -p "$STAGING_DIR"
 
     # export_bundle creates a dated subdir; capture its path.
-    # cms/ must be on PYTHONPATH so `from data_pipeline.env import setup` resolves.
+    # cms/ lives at content/tools/cms/. PYTHONPATH must point at its parent
+    # (content/tools/) so `from cms.X import ...` resolves when running the
+    # script directly via file path (rather than `python -m cms.export_bundle`).
     # NOTE: don't pass --content-only here — that flag SKIPS the audio
     # copy (it's the testing-the-SQL-side-alone toggle). The bake needs
     # both SQL + audio, so leave it off.
-    if ! PYTHONPATH="cms${PYTHONPATH:+:$PYTHONPATH}" \
+    if ! PYTHONPATH="${PROJECT_DIR}/content/tools${PYTHONPATH:+:$PYTHONPATH}" \
          "$PY" "$DATA_PIPELINE_DIR/export_bundle.py" \
             --no-tar --keep-staging \
             --output-dir "$STAGING_DIR"; then
@@ -234,7 +236,7 @@ cmd_bake() {
 
     echo
     ok "Built: ${FULL_IMAGE}"
-    info "To push: export DOCKER_REGISTRY=... && ./scripts/ops/db/push_image.sh"
+    info "To push: export DOCKER_REGISTRY=... && ./scripts/ops/content/push_image.sh"
 }
 
 usage() {
@@ -244,7 +246,7 @@ Usage: $0 [doctor]
   (no args)   Bake: export content from DB → stage into db/ → docker build
   doctor      Pre-flight environment check
 
-Push is a separate step: ./scripts/ops/db/push_image.sh
+Push is a separate step: ./scripts/ops/content/push_image.sh
 
 Environment (sourced from .env.db):
   DB_IMAGE        Image name (default: english_db_content)
@@ -256,7 +258,7 @@ Environment (sourced from .env.db):
 
 DOCKER_REGISTRY is NOT used by this script (push is a separate concern).
 Set it in the shell before running push_image.sh:
-  export DOCKER_REGISTRY=... && ./scripts/ops/db/push_image.sh
+  export DOCKER_REGISTRY=... && ./scripts/ops/content/push_image.sh
 
 Versioning:
   DB_IMAGE_TAG       resolves from VERSION.prod (or IMAGE_TAG env override).

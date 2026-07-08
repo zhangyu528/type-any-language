@@ -18,12 +18,12 @@
 #   -h|help    Show usage.
 #
 # Typical workflow (CMS host):
-#   ./scripts/ops/db/content.sh sync        # csv → DB
-#   ./scripts/ops/db/content.sh sentences   # OpenAI fills buckets
-#   ./scripts/ops/db/content.sh audio       # Tencent TTS fills mp3s
-#   ./scripts/ops/db/content.sh export      # (optional) inspect staging bundle
-#   ./scripts/ops/db/bake_image.sh          # build image
-#   ./scripts/ops/db/push_image.sh          # ship to registry
+#   ./scripts/ops/content/content.sh sync        # csv → DB
+#   ./scripts/ops/content/content.sh sentences   # OpenAI fills buckets
+#   ./scripts/ops/content/content.sh audio       # Tencent TTS fills mp3s
+#   ./scripts/ops/content/content.sh export      # (optional) inspect staging bundle
+#   ./scripts/ops/content/bake_image.sh          # build image
+#   ./scripts/ops/content/push_image.sh          # ship to registry
 #
 # Each subcommand just wraps the underlying python module. Pass `--help`
 # to the wrapped CLI for the full flag list.
@@ -35,9 +35,9 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 cd "$PROJECT_DIR"
 source "$SCRIPT_DIR/../../lib.sh"
 
-# pipeline/ lives at db/pipeline/. For `python -m pipeline.X`
-# to work, db/ must be on PYTHONPATH.
-export PYTHONPATH="${PROJECT_DIR}/db${PYTHONPATH:+:$PYTHONPATH}"
+# cms/ lives at content/tools/cms/. For `python -m cms.X` to work,
+# content/tools/ must be on PYTHONPATH.
+export PYTHONPATH="${PROJECT_DIR}/content/tools${PYTHONPATH:+:$PYTHONPATH}"
 
 # Force Python IO to UTF-8 so Unicode glyphs in pipeline output (✓ / ✗
 # / box-drawing in import_vocab / generate_sentences / generate_audio /
@@ -62,7 +62,7 @@ cmd_doctor() {
     echo ""
 
     if [ ! -f .env.db ]; then
-        err ".env.db 不存在 — 跑 ./scripts/ops/db/env.sh 先引导"
+        err ".env.db 不存在 — 跑 ./scripts/ops/content/env.sh 先引导"
         return 1
     fi
     ok ".env.db 存在"
@@ -75,7 +75,7 @@ cmd_doctor() {
     # + code defaults. AUDIO_DIR is also NOT in .env.db (code default
     # /var/lib/type-any-language/audio). AI_BASE_URL / AI_MODEL ARE in
     # .env.db (operator decisions — OpenAI vs Azure vs local, gpt-3.5-turbo
-    # vs gpt-4o). The check below mirrors what db/pipeline/env.py does in
+    # vs gpt-4o). The check below mirrors what content/tools/cms/env.py does in
     # Python; we replicate it here in bash so doctor can run without
     # spinning up Python.
     local missing=()
@@ -187,7 +187,7 @@ cmd_publish() {
     # a friendly error so older docs / muscle memory don't silently do
     # nothing.
     err "publish 子命令已移除 — schema 没有 published 标志"
-    err "  直接跑: ./scripts/ops/db/bake_image.sh"
+    err "  直接跑: ./scripts/ops/content/bake_image.sh"
     exit 1
 }
 
@@ -204,27 +204,27 @@ usage() {
 
 命令:
   init-schema  运行 pending schema migrations + create_all 兜底 (一次性, 幂等)
-  sync         把 db/content/vocabulary/*.csv 灌进 vocabulary_libs / vocabulary_words
+  sync         把 content/source/vocabulary/*.csv 灌进 vocabulary_libs / vocabulary_words
   sentences  调 OpenAI 批量生成 sentences (填到 DEFAULT_BUCKET_TARGET_SIZE)
   audio      调 Tencent TTS 批量烤 MP3 (跳过 audio_url 已设的句子)
   export       把 content + audio 导出成 staging bundle (bake_image 内部用的同一个)
   doctor       前置检查 (.env.db + Python deps + db 可达)
   -h|help      显示本帮助
 
-每个子命令都透传给 db/pipeline/ 下的 Python 模块。子命令自身的
+每个子命令都透传给 content/tools/cms/ 下的 Python 模块。子命令自身的
 参数透传，flags 见各自 --help:
   $0 sync --help
   $0 sentences --help
   $0 audio --help
 
 典型工作流 (CMS 主机,首次):
-  ./scripts/ops/db/env.sh                   # .env.db 引导 (一次性)
+  ./scripts/ops/content/env.sh                   # .env.db 引导 (一次性)
   $0 init-schema                            # migrations + create_all 兜底 (一次性, 幂等)
   $0 sync                                   # csv → DB
   $0 sentences                              # OpenAI 填句子
   $0 audio                                  # TTS 烤 MP3
-  ./scripts/ops/db/bake_image.sh            # 烤 image
-  ./scripts/ops/db/push_image.sh            # 推 registry
+  ./scripts/ops/content/bake_image.sh            # 烤 image
+  ./scripts/ops/content/push_image.sh            # 推 registry
 EOF
 }
 

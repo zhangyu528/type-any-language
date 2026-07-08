@@ -5,7 +5,7 @@
 # This is the unified entry point for .env.db lifecycle: first-time
 # creation, ongoing updates, masked inspection, and config validation.
 # Default behaviour is `init` (backward-compatible — old users who just
-# run `./scripts/ops/db/env.sh` get the bootstrap flow they expect).
+# run `./scripts/ops/content/env.sh` get the bootstrap flow they expect).
 #
 # Subcommands:
 #   (no args)  init      Create .env.db from template + inject smart defaults.
@@ -44,9 +44,9 @@
 # DB_IMAGE, AUDIO_DIR, DEFAULT_BUCKET_TARGET_SIZE) have code-level defaults
 # and are therefore NOT in .env.db. To pin a different value, set it in
 # the shell:
-#   POSTGRES_USER=other ./scripts/ops/db/bake_image.sh
-#   AUDIO_DIR=/my/audio/dir ./scripts/ops/db/content.sh audio
-#   DEFAULT_BUCKET_TARGET_SIZE=500 ./scripts/ops/db/content.sh sentences
+#   POSTGRES_USER=other ./scripts/ops/content/bake_image.sh
+#   AUDIO_DIR=/my/audio/dir ./scripts/ops/content/content.sh audio
+#   DEFAULT_BUCKET_TARGET_SIZE=500 ./scripts/ops/content/content.sh sentences
 # DB_IMAGE_TAG is also not here — its default is the root ./VERSION file
 # (resolved by scripts/lib.sh), with .env.db / shell env able to pin a
 # specific version when needed.
@@ -55,11 +55,11 @@
 # ./REGISTRY file at the repo root (shared project config, not a secret).
 # Override at push time via shell env:
 #   export DOCKER_REGISTRY=docker.io/youruser
-#   ./scripts/ops/db/push_image.sh
+#   ./scripts/ops/content/push_image.sh
 #
 # Where does the db password come from?
-#   DATABASE_URL is assembled at runtime by db/pipeline/env.py +
-#   scripts/ops/db/bake_image.sh from POSTGRES_PASSWORD (which has no code
+#   DATABASE_URL is assembled at runtime by content/tools/cms/env.py +
+#   scripts/ops/content/bake_image.sh from POSTGRES_PASSWORD (which has no code
 #   default) + code defaults for user/host/port/db. POSTGRES_PASSWORD is
 #   resolved in this order:
 #     1. shell env:  export POSTGRES_PASSWORD=...
@@ -144,7 +144,7 @@ cmd_init() {
     if file_exists "$TARGET"; then
         ok "$TARGET 已存在（跳过）"
         info "  → 想重新生成请先 rm $TARGET"
-        info "  → 想改某一项请用: ./scripts/ops/db/env.sh update KEY=VALUE"
+        info "  → 想改某一项请用: ./scripts/ops/content/env.sh update KEY=VALUE"
         return 0
     fi
 
@@ -180,12 +180,12 @@ cmd_init() {
     info "AUDIO_DIR 默认是 /var/lib/type-any-language/audio"
     info "  → Windows / 无 sudo 的系统: export AUDIO_DIR=/your/path"
     echo ""
-    info "填好后跑: ./scripts/ops/db/env.sh doctor 验证"
-    info "或者用: ./scripts/ops/db/env.sh update KEY=VALUE 改某一项"
+    info "填好后跑: ./scripts/ops/content/env.sh doctor 验证"
+    info "或者用: ./scripts/ops/content/env.sh update KEY=VALUE 改某一项"
     echo ""
     echo "下一步:"
     echo -e "  ${_LIB_BLUE}nano $TARGET${_LIB_NC}   # 填上面那几项"
-    echo -e "  ${_LIB_BLUE}./scripts/ops/db/env.sh doctor${_LIB_NC}"
+    echo -e "  ${_LIB_BLUE}./scripts/ops/content/env.sh doctor${_LIB_NC}"
 }
 
 # ---------------------------------------------------------------------------
@@ -193,7 +193,7 @@ cmd_init() {
 # ---------------------------------------------------------------------------
 cmd_update() {
     if ! file_exists "$TARGET"; then
-        err "$TARGET 不存在 — 先跑 ./scripts/ops/db/env.sh 引导"
+        err "$TARGET 不存在 — 先跑 ./scripts/ops/content/env.sh 引导"
         exit 1
     fi
 
@@ -273,7 +273,7 @@ cmd_update() {
     echo ""
     if [ "$changed" -gt 0 ]; then
         ok "已更新 $changed 项"
-        info "  跑 ./scripts/ops/db/env.sh doctor 验证"
+        info "  跑 ./scripts/ops/content/env.sh doctor 验证"
     fi
     if [ "$skipped" -gt 0 ]; then
         warn "跳过 $skipped 项 (key 不存在)"
@@ -285,7 +285,7 @@ cmd_update() {
 # ---------------------------------------------------------------------------
 cmd_show() {
     if ! file_exists "$TARGET"; then
-        err "$TARGET 不存在 — 先跑 ./scripts/ops/db/env.sh 引导"
+        err "$TARGET 不存在 — 先跑 ./scripts/ops/content/env.sh 引导"
         exit 1
     fi
     echo "=== $TARGET ==="
@@ -317,7 +317,7 @@ cmd_show() {
 cmd_doctor() {
     local failed=0
     if ! file_exists "$TARGET"; then
-        err "$TARGET 不存在 — 先跑 ./scripts/ops/db/env.sh 引导"
+        err "$TARGET 不存在 — 先跑 ./scripts/ops/content/env.sh 引导"
         return 1
     fi
 
@@ -340,7 +340,7 @@ cmd_doctor() {
             echo "  - $k"
         done
         echo ""
-        info "  填法: ./scripts/ops/db/env.sh update KEY=VALUE"
+        info "  填法: ./scripts/ops/content/env.sh update KEY=VALUE"
         info "  或:   nano $TARGET"
         failed=1
     else
@@ -426,7 +426,7 @@ cmd_doctor() {
 
 usage() {
     cat <<EOF
-用法: ./scripts/ops/db/env.sh <command> [args]
+用法: ./scripts/ops/content/env.sh <command> [args]
 
 命令:
   (无参数)     init      首次创建 .env.db + 注入 smart defaults (idempotent: 已存在则跳过)
@@ -441,21 +441,21 @@ usage() {
   - show / doctor 纯只读
 
 典型工作流:
-  ./scripts/ops/db/env.sh            # 首次: 引导 + smart defaults
+  ./scripts/ops/content/env.sh            # 首次: 引导 + smart defaults
   nano .env.db                    # 填 secrets + AI 配置 (AI_API_KEY / AI_BASE_URL / AI_MODEL / TENCENT_*)
   # 准备 db password (单选):
   export POSTGRES_PASSWORD=...                   # 临时
   # OR:
   scp user@dev-host:.secrets/postgres_password .secrets/   # 持久
-  ./scripts/ops/db/env.sh doctor     # 验证
-  ./scripts/ops/db/env.sh update AI_API_KEY=...  # 改某一项
-  ./scripts/ops/db/env.sh show       # 看一眼当前配置 (secret 脱敏)
+  ./scripts/ops/content/env.sh doctor     # 验证
+  ./scripts/ops/content/env.sh update AI_API_KEY=...  # 改某一项
+  ./scripts/ops/content/env.sh show       # 看一眼当前配置 (secret 脱敏)
 
 其他配置 (POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, DB_IMAGE,
 AUDIO_DIR, DEFAULT_BUCKET_TARGET_SIZE) 不在 .env.db — 代码里有默认, 需要时 shell 覆盖:
-  POSTGRES_USER=foo ./scripts/ops/db/bake_image.sh
-  AUDIO_DIR=/my/audio/dir ./scripts/ops/db/content.sh audio
-  DEFAULT_BUCKET_TARGET_SIZE=500 ./scripts/ops/db/content.sh sentences
+  POSTGRES_USER=foo ./scripts/ops/content/bake_image.sh
+  AUDIO_DIR=/my/audio/dir ./scripts/ops/content/content.sh audio
+  DEFAULT_BUCKET_TARGET_SIZE=500 ./scripts/ops/content/content.sh sentences
 EOF
 }
 

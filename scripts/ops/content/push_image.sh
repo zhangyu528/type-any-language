@@ -2,7 +2,7 @@
 #
 # cms/push_image.sh — push the baked db image to $DOCKER_REGISTRY.
 #
-# Run this AFTER ./scripts/ops/db/bake_image.sh has produced the image
+# Run this AFTER ./scripts/ops/content/bake_image.sh has produced the image
 # locally. Push is a deliberate, separate step: you might bake many
 # times locally before you're ready to publish.
 #
@@ -39,9 +39,9 @@
 #
 # Examples:
 #   export DOCKER_REGISTRY=docker.io/youruser
-#   ./scripts/ops/db/push_image.sh             # interactive
-#   ./scripts/ops/db/push_image.sh -y          # CI
-#   ./scripts/ops/db/push_image.sh doctor      # check prereqs
+#   ./scripts/ops/content/push_image.sh             # interactive
+#   ./scripts/ops/content/push_image.sh -y          # CI
+#   ./scripts/ops/content/push_image.sh doctor      # check prereqs
 #
 # Requires: shell + docker. NO python.
 
@@ -109,7 +109,7 @@ cmd_doctor() {
 
     if ! image_exists "$LOCAL_IMAGE"; then
         err "本地 image $LOCAL_IMAGE 不存在"
-        info "  → 先跑 ./scripts/ops/db/bake_image.sh"
+        info "  → 先跑 ./scripts/ops/content/bake_image.sh"
         ok=0
     else
         ok "本地 image $LOCAL_IMAGE 存在"
@@ -152,7 +152,7 @@ cmd_push() {
 
     if ! image_exists "$LOCAL_IMAGE"; then
         err "本地 image $LOCAL_IMAGE 不存在"
-        info "  → 先跑 ./scripts/ops/db/bake_image.sh"
+        info "  → 先跑 ./scripts/ops/content/bake_image.sh"
         exit 1
     fi
 
@@ -216,9 +216,9 @@ usage() {
 
 示例:
   export DOCKER_REGISTRY=docker.io/youruser
-  ./scripts/ops/db/push_image.sh            # 交互
-  ./scripts/ops/db/push_image.sh -y         # CI
-  ./scripts/ops/db/push_image.sh doctor     # 前置检查
+  ./scripts/ops/content/push_image.sh            # 交互
+  ./scripts/ops/content/push_image.sh -y         # CI
+  ./scripts/ops/content/push_image.sh doctor     # 前置检查
 
 退出码:
   0  成功 (或用户取消)
