@@ -3,6 +3,7 @@
  *
  * The route group `(auth)` keeps /login and /signup from inheriting
  * Header (we don't want a "登录" button on the login page itself).
+ * Header detects /login|/signup via usePathname and returns null.
  * PracticePage (the `/` route) is NOT inside this group — it remains
  * public and keeps the original Apple-HIG-style layout.
  *
@@ -11,7 +12,13 @@
  * glass card signals "you're entering a private space" without being
  * heavy or corporate. Sits in deliberate contrast to the neutral
  * Apple-HIG rest of the app.
+ *
+ * Back-to-home affordance: the enso brand mark at the top of the
+ * card is a Link to `/`. Replaces Header's "练习" link that would
+ * otherwise sit in the top-left.
  */
+import Link from 'next/link';
+
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <main className="auth-shell">
@@ -24,9 +31,14 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       </div>
 
       <div className="auth-card">
-        <div className="auth-card__brand" aria-hidden="true">
+        <Link
+          href="/"
+          className="auth-card__brand"
+          aria-label="返回首页"
+          title="返回首页"
+        >
           ◯
-        </div>
+        </Link>
         {children}
       </div>
 
@@ -97,12 +109,25 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             inset 0 1px 0 rgba(255, 255, 255, 0.7);
         }
         .auth-card__brand {
+          display: block;
           font-size: 38px;
           color: var(--accent);
           text-align: center;
           margin-bottom: var(--space-5);
           line-height: 1;
           filter: drop-shadow(0 2px 6px rgba(215, 0, 21, 0.18));
+          text-decoration: none;
+          transition: transform var(--duration-fast) var(--ease-standard),
+                      filter var(--duration-fast) var(--ease-standard);
+        }
+        .auth-card__brand:hover {
+          transform: scale(1.08);
+          filter: drop-shadow(0 4px 10px rgba(215, 0, 21, 0.28));
+        }
+        .auth-card__brand:focus-visible {
+          outline: 2px solid var(--label-primary);
+          outline-offset: 6px;
+          border-radius: 50%;
         }
         .auth-card h1 {
           font-size: var(--type-title-2);

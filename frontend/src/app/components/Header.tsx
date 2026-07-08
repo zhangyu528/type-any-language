@@ -9,14 +9,32 @@
  *   - anonymous: brand on the left, 登录 / 注册 on the right
  *   - signed in: brand on the left, display_name + 历史 / 登出 on the right
  *
+ * Hidden on /login and /signup — those pages are immersive auth flows
+ * with their own aurora + glassmorphism aesthetic, and a top nav bar
+ * would clash visually. The (auth) layout's enso brand serves as the
+ * "back to home" affordance instead.
+ *
  * Apple HIG style: neutral surfaces, subtle separators, no shadows.
  * The only brand accent is the enso on the practice page (untouched).
  */
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '../lib/auth';
 
 export function Header() {
   const { user, loading, logout } = useAuth();
+  const pathname = usePathname();
+
+  // Suppress on auth route group — those pages render their own
+  // immersive layout and use the enso brand mark as a "home" affordance.
+  if (
+    pathname === '/login' ||
+    pathname === '/signup' ||
+    pathname?.startsWith('/login') ||
+    pathname?.startsWith('/signup')
+  ) {
+    return null;
+  }
 
   if (loading) return null;
 
