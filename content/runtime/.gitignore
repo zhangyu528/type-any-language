@@ -1,0 +1,6 @@
+# Bake-time outputs land here; should never be committed.
+# `seed/audio/*.mp3` is the result of `bake_image.sh` and gets copied into
+# the db image's `/seed/audio/` at build time. `init/01-content.sql` is the
+# pg_dump snapshot baked into `01-content.sql` for fresh-volume initdb.
+init/01-content.sql
+seed/
