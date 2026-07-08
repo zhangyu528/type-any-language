@@ -43,7 +43,7 @@ from pathlib import Path
 # `python -m cms.init_schema` from the project root. Mirrors the
 # same bootstrap block in import_vocab.py / generate_sentences.py.
 if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
     from cms.env import setup_env, load_config  # noqa: E402
 else:
     from .env import setup_env, load_config  # noqa: E402
@@ -54,7 +54,7 @@ def _ensure_backend_on_path() -> None:
     them importable, but the CMS host's PYTHONPATH is `content/tools/`
     (not `backend/`). Add backend/ once.
     """
-    backend_path = Path(__file__).resolve().parent.parent.parent / "backend"
+    backend_path = Path(__file__).resolve().parent.parent.parent.parent / "backend"
     backend_path_str = str(backend_path)
     if backend_path_str not in sys.path:
         sys.path.insert(0, backend_path_str)

@@ -26,7 +26,7 @@ import time
 from pathlib import Path
 
 if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
     from cms.env import setup_env, load_config
 else:
     from .env import setup_env, load_config

@@ -27,7 +27,7 @@ from pathlib import Path
 import psycopg2
 
 # --- Make cms + backend importable ---
-ROOT = Path(__file__).resolve().parent.parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(ROOT / "backend"))
 sys.path.insert(0, str(ROOT))
 

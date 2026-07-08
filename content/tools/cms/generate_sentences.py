@@ -32,7 +32,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
     from cms.env import setup_env, load_config
     from cms.manifest import load_manifest
 else:
@@ -50,8 +50,8 @@ import yaml
 # without editing Python. Variables are `{{name}}` style; we do a single
 # regex pass, no Jinja, no extra deps.
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-_PROMPT_PATH = _PROJECT_ROOT / "db" / "content" / "prompts" / "sentences.yaml"
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+_PROMPT_PATH = _PROJECT_ROOT / "content" / "source" / "prompts" / "sentences.yaml"
 
 # Pattern matches {{ var_name }} where var_name is [a-zA-Z_][a-zA-Z0-9_]*.
 # Whitespace inside braces is allowed (it's a readability thing).

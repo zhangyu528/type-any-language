@@ -14,7 +14,7 @@ def _ensure_backend_on_path() -> None:
     """backend/app/models/*.py must be importable. The CMS host's
     PYTHONPATH is `content/tools/` (not `backend/`); add backend/ once.
     """
-    backend_path = Path(__file__).resolve().parent.parent.parent.parent.parent / "backend"
+    backend_path = Path(__file__).resolve().parent.parent.parent.parent.parent.parent / "backend"
     backend_path_str = str(backend_path)
     if backend_path_str not in sys.path:
         sys.path.insert(0, backend_path_str)

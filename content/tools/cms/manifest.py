@@ -39,7 +39,7 @@ _SUPPORTED_VERSIONS = (1,)
 # Mirrors the pattern in content/tools/cms/env.py:_project_root(): this file lives
 # at content/tools/cms/manifest.py, so project root is two parents up.
 def _project_root() -> Path:
-    return Path(__file__).resolve().parent.parent.parent
+    return Path(__file__).resolve().parent.parent.parent.parent
 
 
 def _default_manifest_path() -> Path:

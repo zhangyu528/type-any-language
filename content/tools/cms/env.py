@@ -51,7 +51,7 @@ from urllib.parse import quote
 # Project root = parent of content/. Caller passes an absolute path or we
 # fall back to a walk-up from this file (parent of content/tools/cms/).
 def _project_root() -> Path:
-    return Path(__file__).resolve().parent.parent.parent
+    return Path(__file__).resolve().parent.parent.parent.parent
 
 
 # ---------------------------------------------------------------------------

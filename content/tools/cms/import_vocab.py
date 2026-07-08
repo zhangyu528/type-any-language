@@ -46,7 +46,7 @@ from pathlib import Path
 # Allow running this file directly (python import_vocab.py) AND as
 # `python -m cms.import_vocab` from the project root.
 if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
     from cms.env import setup_env, load_config
     from cms.manifest import LibDef, load_manifest
 else:
