@@ -1,10 +1,10 @@
 #!/bin/bash
 #
-# db/content.sh — orchestrate the content production pipeline.
+# scripts/ops/content/content.sh — orchestrate the content production pipeline.
 #
 # Subcommands (all idempotent; safe to re-run):
 #   init-schema Run pending schema migrations + create_all safety net
-#              (pipeline/init_schema.py -> pipeline.migrations.upgrade_head).
+#              (cms/init_schema.py -> cms.migrations.upgrade_head).
 #   sync       Import vocabulary CSVs → vocabulary_libs / vocabulary_words.
 #              (pipeline/import_vocab.py)
 #   sentences  Bulk-generate practice sentences via OpenAI.
@@ -58,7 +58,7 @@ py() { py_cmd; }
 cmd_doctor() {
     local ok=1
 
-    echo "=== db/content.sh pre-flight ==="
+    echo "=== content.sh pre-flight ==="
     echo ""
 
     if [ ! -f .env.db ]; then
@@ -166,19 +166,19 @@ cmd_doctor() {
 }
 
 cmd_sync() {
-    "$(py)" -m pipeline.import_vocab "$@"
+    "$(py)" -m cms.import_vocab "$@"
 }
 
 cmd_init_schema() {
-    "$(py)" -m pipeline.init_schema "$@"
+    "$(py)" -m cms.init_schema "$@"
 }
 
 cmd_sentences() {
-    "$(py)" -m pipeline.generate_sentences "$@"
+    "$(py)" -m cms.generate_sentences "$@"
 }
 
 cmd_audio() {
-    "$(py)" -m pipeline.generate_audio "$@"
+    "$(py)" -m cms.generate_audio "$@"
 }
 
 cmd_publish() {
@@ -195,7 +195,7 @@ cmd_export() {
     # The actual staging-bundle export is done by bake_image.sh. This
     # subcommand just exposes it standalone so you can inspect the bundle
     # without re-baking.
-    "$(py)" -m pipeline.export_bundle "$@"
+    "$(py)" -m cms.export_bundle "$@"
 }
 
 usage() {

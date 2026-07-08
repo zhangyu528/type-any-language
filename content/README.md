@@ -1,39 +1,58 @@
-# db —— 内容烤入的 Postgres image
+# content —— 内容生产 / 内容装入 / 内容分发
 
-这个目录是 **内容烤入的 db image** 的 Docker build 上下文,所有目标主机(prod / dev)都通过 `run.sh` 拉这个 image。
+这个目录是 **内容服务**(content service)的根 —— 唯一产生并装入 `english_db_content` 镜像的位置。目标主机(prod / dev)通过 `run.sh` 拉这个镜像,运行时**不**感知此目录的存在。
 
-## 目录结构
+## 设计
+
+`content/` 下面按"东西是什么 + 谁维护它"分三段:
 
 ```
-db/
-├── Dockerfile                    postgres:15-alpine 包装,带 OCI labels
-├── README.md                     本文件
-├── init/
-│   ├── 01-content.sql            ← 不在仓库里;由 bake_image.sh 填
-│   └── 99-audio.sh               ← 在仓库里;把 /seed/audio 拷到 /audio
-└── seed/
-    └── audio/                    ← 不在仓库里;由 bake_image.sh 填
+content/
+├── source/             # 运维手写源,git 跟踪,人工 review
+│   ├── manifest.yaml   # 内容清单(libs / difficulties / prompt tuning knobs)
+│   ├── vocabulary/     # 每个 lib 的 CSV
+│   └── prompts/        # LLM prompt 模板(sentences.yaml 等)
+│
+├── tools/              # CMS 工具链 — 只活 CMS 主机,从不进 image
+│   ├── Dockerfile      # cms-sidecar(LOCAL-ONLY sidecar,run scripts 在里头跑 python)
+│   └── cms/            # Python 包(env / manifest / import_vocab / generate_* / export_bundle / init_schema / migrations)
+│
+└── runtime/            # 烤进 db image 的构建上下文 + bake 输出物(.gitignore'd)
+    ├── Dockerfile      # postgres:15-alpine 包装,带 OCI labels
+    ├── init/
+    │   ├── 01-content.sql   # ← 不在仓库里;由 bake_image.sh 填
+    │   └── 99-audio.sh      # ← 在仓库里;首启把 /seed/audio 拷到 /audio
+    └── seed/
+        └── audio/           # ← 不在仓库里;由 bake_image.sh 填(MP3s)
 ```
 
-`init/01-content.sql` 和 `seed/audio/` 是 `scripts/ops/db/bake_image.sh` 从在线 CMS 数据库和烤好的 MP3 集合生成的 **build 输入**。这俩 gitignore 了 —— 仓库里只有 `Dockerfile`、`init/99-audio.sh` 和本 `README.md` 是 commit 的。
+三段对照:
+
+| 段 | 装什么 | 谁维护 | git 跟踪 | 进了 image 吗 |
+|---|---|---|---|---|
+| `source/` | 业务内容描述 | 运维(人工) | ✓ | 否(只是输入) |
+| `tools/`  | 烘焙这些内容的 Python/Docker | 开发者 | ✓ | 否(只在 CMS 主机跑) |
+| `runtime/` | **被**烤进 image 的产物 + image 构建上下文 | 半自动(bake 写) | 只 Dockerfile + 99-audio.sh | ✓ / 部分 |
+
+`runtime/init/01-content.sql` 和 `runtime/seed/audio/` 是 `scripts/ops/content/bake_image.sh` 的 **build 输入** — 由它每次从在线 CMS 数据库和烤好的 MP3 集合重新生成。两个都 `.gitignore` 了,仓库里只有 `Dockerfile`、`init/99-audio.sh` 和本 `README.md` 是 commit 的。
 
 ## 烘焙流程
 
 ```
-db/content/vocabulary/*.csv                     (源)
-        ↓  scripts/ops/db/content.sh sync
-        ↓  scripts/ops/db/content.sh sentences       (OpenAI)
-        ↓  scripts/ops/db/content.sh audio           (Tencent TTS)
-PostgreSQL(content_items + audio/*.mp3)
-        ↓  scripts/ops/db/bake_image.sh
+content/source/vocabulary/*.csv                       (源)
+        ↓  scripts/ops/content/content.sh sync
+        ↓  scripts/ops/content/content.sh sentences       (OpenAI)
+        ↓  scripts/ops/content/content.sh audio           (Tencent TTS)
+PostgreSQL(vocabulary_libs + vocabulary_words + sentences)
+        ↓  scripts/ops/content/bake_image.sh
         ↓    export_bundle.py → .bake-staging/data-bundle-v.../
-        ↓    cp dump.sql   → db/init/01-content.sql
-        ↓    cp audio/     → db/seed/audio/
-        ↓  docker build db/
+        ↓    cp dump.sql  → content/runtime/init/01-content.sql
+        ↓    cp audio/    → content/runtime/seed/audio/
+        ↓  docker build content/runtime/
 docker image english_db_content:vX.Y.Z          (带 OCI labels)
-        ↓  scripts/ops/db/push_image.sh
+        ↓  scripts/ops/content/push_image.sh
 registry/english_db_content:vX.Y.Z
-        ↓  目标主机的 scripts/{prod,dev}/run.sh
+        ↓  目标主机的 scripts/{prod,dev}-host/run.sh
 docker compose up -d
 ```
 

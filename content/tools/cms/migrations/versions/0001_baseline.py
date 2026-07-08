@@ -12,7 +12,7 @@ from pathlib import Path
 
 def _ensure_backend_on_path() -> None:
     """backend/app/models/*.py must be importable. The CMS host's
-    PYTHONPATH is `db/` (not `backend/`); add backend/ once.
+    PYTHONPATH is `content/tools/` (not `backend/`); add backend/ once.
     """
     backend_path = Path(__file__).resolve().parent.parent.parent.parent.parent / "backend"
     backend_path_str = str(backend_path)
@@ -51,7 +51,7 @@ def upgrade(conn) -> None:
     # called with a psycopg2 conn (from the runner), but the schema
     # metadata is created via SQLAlchemy's create_all() which needs
     # its own engine. Both end up talking to the same DB.
-    from pipeline.env import load_config  # noqa: E402
+    from cms.env import load_config  # noqa: E402
 
     cfg = load_config()
 

@@ -1,7 +1,7 @@
--- apply_to_runtime.sql — inline application of db/pipeline/migrations/versions/0001-0009
+-- apply_to_runtime.sql — inline application of content/tools/cms/migrations/versions/0001-0009
 -- to the running runtime db (type-any-language-db-1).
 --
--- Equivalent to running `python3 -m pipeline.migrations.runner` against the
+-- Equivalent to running `python3 -m cms.migrations.runner` against the
 -- runtime db, but applied via docker exec + psql (the db image is
 -- postgres:15-alpine — has psql, no python).
 --

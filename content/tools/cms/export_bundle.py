@@ -2,7 +2,7 @@
 """
 export_bundle.py — dump CMS content + audio into a staging bundle.
 
-Used by ./scripts/ops/db/bake_image.sh to stage db-image build inputs.
+Used by ./scripts/ops/content/bake_image.sh to stage db-image build inputs.
 Staging is a plain directory (no tar — keeps `docker build` inputs
 inspectable). Output layout:
 
@@ -42,7 +42,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 # Schema decision: keep the 3 tables (vocabulary_libs / vocabulary_words /
-# sentences). See db/README.md for rationale. The cms host's
+# sentences). See content/README.md for rationale. The cms host's
 # import_vocab.py populates them; export_bundle.py dumps them; the
 # runtime serves them read-only.
 CONTENT_TABLES = ["vocabulary_libs", "vocabulary_words", "sentences"]

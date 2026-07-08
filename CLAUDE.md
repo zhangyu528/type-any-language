@@ -12,7 +12,7 @@ This project intentionally separates **content production** from **content servi
 
 | Host | Role | What lives here | What runs here |
 |---|---|---|---|
-| **CMS host** | Content production + image bake | `.env.db` + `scripts/ops/db/` + `db/pipeline/` | Python + Docker |
+| **CMS host** | Content production + image bake | `.env.db` + `scripts/ops/content/` + `content/tools/cms/` | Python + Docker |
 | **Target host** (dev or prod) | Content serving | `scripts/ops/dev-host/` or `scripts/ops/prod-host/` | Docker only |
 
 The CMS host produces a `db` image with all content pre-loaded and pushes it to a registry. Target hosts `docker pull` the image and serve it — they never need AI keys, TTS keys, or Python. **Target hosts need no .env file at all** — runtime configuration (only `ALLOWED_ORIGINS`) is passed via shell env, and the host-side secret (`POSTGRES_PASSWORD`) is generated on first start by `run.sh`.
@@ -38,27 +38,29 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generat
 ├── frontend/             # Next.js 14 (App Router) + React 18 + TypeScript
 │   └── src/app/         # API client + main page
 │
-├── db/                   # The DB service — image is content-baked
-│   ├── Dockerfile       # postgres:15-alpine wrapper. Bakes init/01-content.sql + audio.
-│   ├── init/
-│   │   ├── 01-content.sql   # schema (committed; populated by bake_image.sh)
-│   │   └── 99-audio.sh      # copies /seed/audio → /audio on first init
-│   ├── content/
-│   │   └── vocabulary/      # operator-maintained CSVs (committed)
-│   └── pipeline/            # Python modules (CMS-only, NOT in the image)
-│       ├── env.py           # .env.db loader + Config dataclass
-│       ├── import_vocab.py
-│       ├── generate_sentences.py
-│       ├── generate_audio.py
-│       ├── export_bundle.py
-│       └── README.md
+├── content/              # The content service — produces + ships the content image
+│   ├── source/           # operator-maintained source (git-tracked, hand-edited)
+│   │   ├── manifest.yaml
+│   │   ├── vocabulary/   # CSVs per lib
+│   │   └── prompts/      # LLM prompts (sentences.yaml)
+│   ├── tools/            # CMS toolchain (lives only on the CMS host)
+│   │   ├── Dockerfile    # cms-sidecar (LOCAL-ONLY image, no registry)
+│   │   └── cms/          # Python package (env / manifest / import_vocab / generate_* / export_bundle / init_schema / migrations)
+│   │       └── README.md
+│   └── runtime/          # Postgres image build context (postgres:15-alpine wrapper)
+│       ├── Dockerfile    # copies init/01-content.sql + seed/audio
+│       ├── entrypoint.sh # /audio permission fix → standard postgres entrypoint
+│       ├── init/
+│       │   ├── 01-content.sql   # pg_dump snapshot (bake-time output; .gitignore'd)
+│       │   └── 99-audio.sh      # copies /seed/audio → /audio on first init
+│       └── seed/audio/          # baked MP3s (bake-time output; .gitignore'd)
 │
 ├── scripts/
 │   ├── README.md            # scripts/ layout, lib.sh helpers, conventions for new scripts
 │   ├── lib.sh               # shared helpers (ok/warn/err, docker detection, gen_secret)
 │   ├── release.sh           # release orchestrator: bump + build + push (dev / prod / show)
 │   ├── ops/                 # host-operations scripts (configure env / build image / run containers)
-│   │   ├── db/              # CMS host — operates on the db service
+│   │   ├── content/         # CMS host — operates on the content service
 │   │   │   ├── env.sh         # .env.db lifecycle (init/update/show/doctor)
 │   │   │   ├── content.sh     # sync / sentences / audio / publish / export / doctor
 │   │   │   ├── bake_image.sh  # DB → staging bundle → docker build
@@ -84,16 +86,16 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 ### CMS host — content production
 
 ```bash
-./scripts/ops/db/env.sh                # First-time .env.db creation (interactive)
-./scripts/ops/db/content.sh doctor     # Pre-flight: .env.db + Python deps + DB reachable
-./scripts/ops/db/content.sh sync       # CSVs → vocabulary_libs + vocabulary_words
-./scripts/ops/db/content.sh sentences  # OpenAI bulk-fills sentences to DEFAULT_BUCKET_TARGET_SIZE
-./scripts/ops/db/content.sh audio      # Tencent TTS bulk-fills audio_url + MP3
-./scripts/ops/db/bake_image.sh         # Dump + audio copy + docker build
-./scripts/ops/db/push_image.sh [-y]    # Push the db image to DOCKER_REGISTRY
+./scripts/ops/content/env.sh                # First-time .env.db creation (interactive)
+./scripts/ops/content/content.sh doctor     # Pre-flight: .env.db + Python deps + DB reachable
+./scripts/ops/content/content.sh sync       # CSVs → vocabulary_libs + vocabulary_words
+./scripts/ops/content/content.sh sentences  # OpenAI bulk-fills sentences to DEFAULT_BUCKET_TARGET_SIZE
+./scripts/ops/content/content.sh audio      # Tencent TTS bulk-fills audio_url + MP3
+./scripts/ops/content/bake_image.sh         # Dump + audio copy + docker build
+./scripts/ops/content/push_image.sh [-y]    # Push the db image to DOCKER_REGISTRY
 ```
 
-`scripts/ops/db/content.sh` is a thin wrapper over the `db/pipeline/*.py` modules (PYTHONPATH=db). Each subcommand has its own `--help`. See `db/pipeline/README.md` for module details.
+`scripts/ops/content/content.sh` is a thin wrapper over the `content/tools/cms/*.py` modules (PYTHONPATH=db). Each subcommand has its own `--help`. See `content/tools/cms/README.md` for module details.
 
 ### Dev target host
 
@@ -184,15 +186,15 @@ Examples:
 # Use whatever the stream's VERSION file says (default):
 ./scripts/ops/dev-host/build_image.sh         # → VERSION.dev
 ./scripts/ops/prod-host/build_image.sh        # → VERSION.prod
-./scripts/ops/db/bake_image.sh                # → VERSION.prod
+./scripts/ops/content/bake_image.sh                # → VERSION.prod
 
 # Bump all images to v1.2.3 for a one-off (CI use):
 IMAGE_TAG=v1.2.3 ./scripts/ops/dev-host/build_image.sh
 IMAGE_TAG=v1.2.3 ./scripts/ops/prod-host/build_image.sh
-IMAGE_TAG=v1.2.3 ./scripts/ops/db/bake_image.sh
+IMAGE_TAG=v1.2.3 ./scripts/ops/content/bake_image.sh
 
 # Pin just the db image, leave dev app at VERSION.dev:
-DB_IMAGE_TAG=v0.5.0 ./scripts/ops/db/bake_image.sh
+DB_IMAGE_TAG=v0.5.0 ./scripts/ops/content/bake_image.sh
 ```
 
 For a full release (bump + build + push), use `scripts/release.sh dev|prod X.Y.Z` instead of running these individually — see "Release flow" below.
@@ -244,7 +246,7 @@ git push
 
 Architecture notes:
 - `release.sh dev` only touches the dev app images. The db image is prod-bound and reads `VERSION.prod`; if you want dev to see new content, run `release.sh prod` first (or just push a new db with `VERSION.prod`).
-- `release.sh prod` includes the db bake. That step needs `.env.db`, so `prod` must run on the CMS host (or a single-machine CMS+prod setup). On a dedicated prod target host without `.env.db`, run `scripts/ops/db/bake_image.sh` on the CMS host first, then run `scripts/ops/prod-host/build_image.sh` + `push_image.sh` on the prod host.
+- `release.sh prod` includes the db bake. That step needs `.env.db`, so `prod` must run on the CMS host (or a single-machine CMS+prod setup). On a dedicated prod target host without `.env.db`, run `scripts/ops/content/bake_image.sh` on the CMS host first, then run `scripts/ops/prod-host/build_image.sh` + `push_image.sh` on the prod host.
 - For multi-machine deployments, run each subcommand on its respective host. The script is self-contained per host.
 
 ## Migration from pre-VERSION release
@@ -300,11 +302,11 @@ Answer validation is **client-side**: the frontend normalizes (lowercase, strip 
 ## Data flow
 
 **Bake time (CMS host):**
-1. Operator commits new CSVs to `db/content/vocabulary/`.
+1. Operator commits new CSVs to `content/source/vocabulary/`.
 2. `content.sh sync` imports them into `vocabulary_libs` / `vocabulary_words`.
 3. `content.sh sentences` calls OpenAI to fill the `sentences` table up to `DEFAULT_BUCKET_TARGET_SIZE` per (lib, difficulty).
 4. `content.sh audio` calls Tencent TTS; MP3s land in `AUDIO_DIR` (sha1[:16] filenames), `sentences.audio_url` is updated.
-5. `bake_image.sh` runs `pg_dump` on the 3 content tables, copies `AUDIO_DIR` into `db/seed/audio/`, builds the db image with those + `db/init/01-content.sql`.
+5. `bake_image.sh` runs `pg_dump` on the 3 content tables, copies `AUDIO_DIR` into `content/runtime/seed/audio/`, builds the db image with those + `content/runtime/init/01-content.sql`.
 6. `push_image.sh` pushes to `DOCKER_REGISTRY`.
 
 **Runtime (target host):**
@@ -317,19 +319,19 @@ Answer validation is **client-side**: the frontend normalizes (lowercase, strip 
 
 Schema lives in two places that must stay in sync:
 - **`backend/app/models/*.py`** — SQLAlchemy declarative schema (the runtime truth)
-- **`db/init/01-content.sql`** — pg_dump snapshot baked into the db image (the *initial* truth for fresh volumes)
-- **`db/pipeline/migrations/versions/*.py`** — ordered DDL applied to existing volumes when schema evolves
+- **`content/runtime/init/01-content.sql`** — pg_dump snapshot baked into the db image (the *initial* truth for fresh volumes)
+- **`content/tools/cms/migrations/versions/*.py`** — ordered DDL applied to existing volumes when schema evolves
 
-Migrations use a tiny hand-written runner (`db/pipeline/migrations/runner.py`, ~60 lines, no Alembic). Each version is a Python module exposing `upgrade(conn)` / `downgrade(conn)`. Idempotent via `ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` etc.
+Migrations use a tiny hand-written runner (`content/tools/cms/migrations/runner.py`, ~60 lines, no Alembic). Each version is a Python module exposing `upgrade(conn)` / `downgrade(conn)`. Idempotent via `ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` etc.
 
 ### Dev iteration (light-touch)
 
-When you add or change a migration in `db/pipeline/migrations/versions/`:
+When you add or change a migration in `content/tools/cms/migrations/versions/`:
 
 ```bash
 # Source db (CMS pipeline, if running): the migrations apply so a future
 # bake has the new schema in 01-content.sql
-./scripts/ops/db/content.sh init-schema
+./scripts/ops/content/content.sh init-schema
 
 # Runtime db (the one your backend is actually querying): in-place upgrade,
 # no image bake, no registry push, no volume drop
@@ -338,7 +340,7 @@ When you add or change a migration in `db/pipeline/migrations/versions/`:
 
 `run.sh migrate` spins up a one-shot `python:3.11-slim` sidecar on the compose network and runs `pipeline.migrations.runner` against `db:5432`. Idempotent — re-runs are no-ops. The backend picks up the new schema on the next request (no restart needed; uvicorn hot-reload handles Python changes).
 
-**Offline fallback** (when `python:3.11-slim` can't be pulled, e.g. broken registry mirrors): `db/pipeline/migrations/apply_to_runtime.sql` is a pre-rolled SQL file that brings a stale runtime db up to the current head in one shot. `run.sh migrate` prints the exact `docker exec ... psql < apply_to_runtime.sql` command on pull failure. This file applies all known migrations and stamps them as done — it only works for upgrading an old db to head, not for dev-iteration of a brand-new migration (which needs the runner).
+**Offline fallback** (when `python:3.11-slim` can't be pulled, e.g. broken registry mirrors): `content/tools/cms/migrations/apply_to_runtime.sql` is a pre-rolled SQL file that brings a stale runtime db up to the current head in one shot. `run.sh migrate` prints the exact `docker exec ... psql < apply_to_runtime.sql` command on pull failure. This file applies all known migrations and stamps them as done — it only works for upgrading an old db to head, not for dev-iteration of a brand-new migration (which needs the runner).
 
 ### Production rollout
 
@@ -347,11 +349,11 @@ When the operator merges new schema changes:
 2. CMS host: `bake_image.sh` + `push_image.sh` — new db image has the latest schema baked into `01-content.sql`
 3. Target hosts: `run.sh restart` (or `setup` on a fresh host) auto-pulls the new image
 4. Fresh-volume target hosts: initdb picks up the new `01-content.sql` automatically
-5. Existing-volume target hosts: postgres skips initdb. Operator must either `docker compose down -v` (data = baked content, drop is safe) OR run `db/pipeline/migrations/apply_to_runtime.sql` first to migrate in place
+5. Existing-volume target hosts: postgres skips initdb. Operator must either `docker compose down -v` (data = baked content, drop is safe) OR run `content/tools/cms/migrations/apply_to_runtime.sql` first to migrate in place
 
 ## Environment variables
 
-### CMS host — `.env.db` (created by `scripts/ops/db/env.sh`)
+### CMS host — `.env.db` (created by `scripts/ops/content/env.sh`)
 
 `.env.db` holds **only provider secrets and operator decisions**. Everything else — the Postgres connection (DATABASE_URL), the db identity (POSTGRES_USER/HOST/PORT/DB), the image name, the audio output directory, and the sentences-bucket size — has code-level defaults and is therefore NOT in the file. See [CMS host config knobs](#cms-host-config-knobs) for the override pattern.
 
@@ -361,13 +363,13 @@ Required (in `.env.db`):
 - `AI_MODEL` — model name (default in template: `gpt-3.5-turbo`; switch to `gpt-4o` / etc. as needed)
 - `TENCENT_SECRET_ID`, `TENCENT_SECRET_KEY`, `TENCENT_APP_ID` — Tencent Cloud TTS; required when running `content.sh audio`, optional otherwise
 
-`DATABASE_URL` is **not** in `.env.db`. It's assembled at runtime by `db/pipeline/env.py` + `scripts/ops/db/bake_image.sh` from:
+`DATABASE_URL` is **not** in `.env.db`. It's assembled at runtime by `content/tools/cms/env.py` + `scripts/ops/content/bake_image.sh` from:
 - `POSTGRES_PASSWORD` (the only piece without a code default — see [Where the db password comes from](#where-the-db-password-comes-from))
 - `POSTGRES_USER` (default `english_user`), `POSTGRES_HOST` (default `localhost`), `POSTGRES_PORT` (default `5432`), `POSTGRES_DB` (default `english_learning`)
 
 `AUDIO_DIR` is also **not** in `.env.db`. Code default is `/var/lib/type-any-language/audio` (XDG-style); `generate_audio.py` and `bake_image.sh` will `mkdir -p` it. Override via shell env on systems where `/var/lib` isn't writable (Windows, no sudo):
 ```bash
-AUDIO_DIR=/your/audio/dir ./scripts/ops/db/content.sh audio
+AUDIO_DIR=/your/audio/dir ./scripts/ops/content/content.sh audio
 ```
 
 `DB_IMAGE_TAG` is not in `.env.db` either — its default is the root `VERSION.prod` file (resolved by `scripts/lib.sh` → `resolve_image_tag`); shell env can override it for one-off builds.
@@ -375,12 +377,12 @@ AUDIO_DIR=/your/audio/dir ./scripts/ops/db/content.sh audio
 `DOCKER_REGISTRY` is not in `.env.db` — it is shared project config that lives in the committed `REGISTRY` file at the repo root (see [Image registry namespace](#image-registry-namespace) above). Override at push time via shell env if you need a one-off namespace:
 ```bash
 export DOCKER_REGISTRY=docker.io/youruser   # overrides REGISTRY file
-./scripts/ops/db/push_image.sh
+./scripts/ops/content/push_image.sh
 ```
 
 #### Where the db password comes from
 
-`POSTGRES_PASSWORD` is resolved by `db/pipeline/env.py` / `scripts/ops/db/bake_image.sh` in this order:
+`POSTGRES_PASSWORD` is resolved by `content/tools/cms/env.py` / `scripts/ops/content/bake_image.sh` in this order:
 1. **Shell env** — `export POSTGRES_PASSWORD=...` (temporary, e.g. CI)
 2. **`.secrets/postgres_password`** (chmod 600) — the same file `scripts/ops/{dev,prod}-host/run.sh` writes on first start. For a **multi-host** setup, the operator copies this file from the dev/prod host to the CMS host:
    ```bash
@@ -393,19 +395,19 @@ export DOCKER_REGISTRY=docker.io/youruser   # overrides REGISTRY file
 
 ### CMS host config knobs (NOT in `.env.db`)
 
-These have code-level defaults in `db/pipeline/env.py` / `scripts/ops/db/bake_image.sh` / `lib.sh`. Override via shell env when you need a different value:
+These have code-level defaults in `content/tools/cms/env.py` / `scripts/ops/content/bake_image.sh` / `lib.sh`. Override via shell env when you need a different value:
 
 | Knob | Code default | Override example |
 |---|---|---|
-| `POSTGRES_USER` | `english_user` | `POSTGRES_USER=foo ./scripts/ops/db/bake_image.sh` |
-| `POSTGRES_HOST` | `localhost` | `POSTGRES_HOST=db.internal ./scripts/ops/db/content.sh sentences` |
+| `POSTGRES_USER` | `english_user` | `POSTGRES_USER=foo ./scripts/ops/content/bake_image.sh` |
+| `POSTGRES_HOST` | `localhost` | `POSTGRES_HOST=db.internal ./scripts/ops/content/content.sh sentences` |
 | `POSTGRES_PORT` | `5432` | (same pattern) |
 | `POSTGRES_DB`   | `english_learning` | (same pattern) |
-| `POSTGRES_PASSWORD` | (none — see above) | `POSTGRES_PASSWORD=... ./scripts/ops/db/bake_image.sh` |
+| `POSTGRES_PASSWORD` | (none — see above) | `POSTGRES_PASSWORD=... ./scripts/ops/content/bake_image.sh` |
 | `DB_IMAGE`      | `english_db_content` | (same pattern) |
-| `AUDIO_DIR`     | `/var/lib/type-any-language/audio` | `AUDIO_DIR=/your/audio/dir ./scripts/ops/db/content.sh audio` |
-| `DEFAULT_BUCKET_TARGET_SIZE` | `200` | `DEFAULT_BUCKET_TARGET_SIZE=500 ./scripts/ops/db/content.sh sentences` |
-| `DB_IMAGE_TAG`  | `VERSION.prod` | `DB_IMAGE_TAG=v0.5.0 ./scripts/ops/db/bake_image.sh` |
+| `AUDIO_DIR`     | `/var/lib/type-any-language/audio` | `AUDIO_DIR=/your/audio/dir ./scripts/ops/content/content.sh audio` |
+| `DEFAULT_BUCKET_TARGET_SIZE` | `200` | `DEFAULT_BUCKET_TARGET_SIZE=500 ./scripts/ops/content/content.sh sentences` |
+| `DB_IMAGE_TAG`  | `VERSION.prod` | `DB_IMAGE_TAG=v0.5.0 ./scripts/ops/content/bake_image.sh` |
 
 ### Target host — no `.env` file required
 

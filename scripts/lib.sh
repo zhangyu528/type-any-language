@@ -466,7 +466,7 @@ resolve_docker_registry() {
 # ---------------------------------------------------------------------------
 # sed_inplace PATTERN FILE — in-place edit, compatible with GNU sed (Linux)
 # and BSD sed (macOS). BSD requires an explicit empty argument after -i.
-# Used by scripts/ops/db/env.sh to inject smart defaults into .env.db.
+# Used by scripts/ops/content/env.sh to inject smart defaults into .env.db.
 sed_inplace() {
     if sed --version >/dev/null 2>&1; then
         sed -i "$1" "$2"

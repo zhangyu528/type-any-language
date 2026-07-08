@@ -1,11 +1,11 @@
 # Content-baked db image for type-any-language.
 #
-# ─── Build pipeline (driven by ./scripts/ops/db/bake_image.sh) ───────────────
-#   1. db/pipeline/export_bundle.py dumps content_items + audio/ into
+# ─── Build pipeline (driven by ./scripts/ops/content/bake_image.sh) ───────────────
+#   1. content/tools/cms/export_bundle.py dumps content_items + audio/ into
 #      .bake-staging/data-bundle-v.../
 #   2. bake_image.sh stages those into this directory:
-#        .bake-staging/.../dump.sql  →  db/init/01-content.sql
-#        .bake-staging/.../audio/    →  db/seed/audio/
+#        .bake-staging/.../dump.sql  →  content/runtime/init/01-content.sql
+#        .bake-staging/.../audio/    →  content/runtime/seed/audio/
 #   3. `docker build` (this file) bakes them in with OCI labels.
 #
 # ─── Runtime behaviour ────────────────────────────────────────────────────

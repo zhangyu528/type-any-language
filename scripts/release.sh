@@ -16,7 +16,7 @@
 #   dev  [X.Y.Z]          Bump VERSION.dev (if X.Y.Z given) + build +
 #                         push the dev app images.
 #   prod [X.Y.Z]          Bump VERSION.prod (if X.Y.Z given) + bake +
-#                         push the db image + build + push the prod
+#                         push the content-baked db image + build + push the prod
 #                         app images.
 #   -h | help             Show usage.
 #
@@ -38,13 +38,13 @@
 #                              shared project config, not a personal secret).
 #
 # Architecture notes:
-#   - `dev` touches ONLY the dev app images. The db image is prod-bound
+#   - `dev` touches ONLY the dev app images. The content-baked db image is prod-bound
 #     and reads VERSION.prod; if you want dev to see new content, bump
 #     prod first (or just push a new db with VERSION.prod).
 #   - `prod` includes the db bake. That step needs .env.db, so `prod`
 #     must run on the CMS host (or a single-machine CMS+prod setup).
 #     On a dedicated prod target host without .env.db, run
-#     scripts/ops/db/bake_image.sh on the CMS host first, then run
+#     scripts/ops/content/bake_image.sh on the CMS host first, then run
 #     scripts/ops/prod-host/build_image.sh + push_image.sh on the prod
 #     host.
 #   - For multi-machine deployments, run each subcommand on its
@@ -111,7 +111,7 @@ Flags:
   $0 dev                            # 不 bump, 只 publish 当前 VERSION.dev
 
 架构前提:
-  - dev  不动 db image (db 用 VERSION.prod)
+  - dev  不动 content-baked db image (db 用 VERSION.prod)
   - prod 含 db bake — 需要 .env.db,必须在 CMS 主机跑(或单机的 CMS+prod)
   - 多机部署: 在各自主机上跑对应的 subcommand
 EOF
@@ -286,9 +286,9 @@ cmd_prod() {
     echo ""
     # db first — content-baked, must go before the app images in the registry
     # so target hosts pulling by tag get a consistent set.
-    publish_one "db image (content-baked)" \
-        "./scripts/ops/db/bake_image.sh" \
-        "./scripts/ops/db/push_image.sh" \
+    publish_one "content-baked db image (content-baked)" \
+        "./scripts/ops/content/bake_image.sh" \
+        "./scripts/ops/content/push_image.sh" \
         "$tag"
 
     echo ""

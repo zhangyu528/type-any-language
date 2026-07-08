@@ -12,10 +12,10 @@ Idempotent on rerun:
   - With --force, regenerates everything regardless.
 
 Usage:
-    python -m pipeline.generate_audio
-    python -m pipeline.generate_audio --lib cet4
-    python -m pipeline.generate_audio --force
-    python -m pipeline.generate_audio --dry-run
+    python -m cms.generate_audio
+    python -m cms.generate_audio --lib cet4
+    python -m cms.generate_audio --force
+    python -m cms.generate_audio --dry-run
 
 TENCENT_* credentials must be all-or-nothing (see env.sh doctor).
 """
@@ -27,7 +27,7 @@ from pathlib import Path
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-    from pipeline.env import setup_env, load_config
+    from cms.env import setup_env, load_config
 else:
     from .env import setup_env, load_config
 

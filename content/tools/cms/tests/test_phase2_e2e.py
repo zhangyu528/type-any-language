@@ -16,7 +16,7 @@ localhost:55432 from this session) and exercises:
 Run with DATABASE_URL set:
 
     DATABASE_URL=postgresql://english_user:testpw@localhost:55432/english_learning \
-        PYTHONPATH=db python db/pipeline/_test_phase2_e2e.py
+        PYTHONPATH=content/tools python content/tools/cms/tests/test_phase2_e2e.py
 """
 import os
 import sys
@@ -26,7 +26,7 @@ from pathlib import Path
 
 import psycopg2
 
-# --- Make pipeline + backend importable ---
+# --- Make cms + backend importable ---
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "backend"))
 sys.path.insert(0, str(ROOT))
@@ -76,7 +76,7 @@ def test_1_fresh_db():
     print("\n=== Test 1: fresh DB, all migrations apply ===")
     conn = fresh_db()
     try:
-        from pipeline.migrations import upgrade_head, get_current_version
+        from cms.migrations import upgrade_head, get_current_version
 
         v0 = get_current_version(conn)
         assert v0 is None, f"expected None, got {v0!r}"
@@ -220,7 +220,7 @@ def test_2_pre_phase2_baseline():
         # Run the migration runner. 0001 uses SQLAlchemy create_all --
         # idempotent against existing 3 tables. 0002-0005 add new columns
         # + sentence_word_links + drop dead columns.
-        from pipeline.migrations import upgrade_head, get_current_version
+        from cms.migrations import upgrade_head, get_current_version
 
         v0 = get_current_version(conn)
         print(f"  pre-migration version: {v0!r}")
@@ -260,7 +260,7 @@ def test_3_import_vocab():
     print("\n=== Test 3: import_vocab handles old 4-col + new 9-col CSV ===")
     conn = fresh_db()
     try:
-        from pipeline.migrations import upgrade_head
+        from cms.migrations import upgrade_head
         upgrade_head(conn)
         conn.commit()
 
@@ -278,7 +278,7 @@ def test_3_import_vocab():
             )
         conn.commit()
 
-        from pipeline.import_vocab import import_words
+        from cms.import_vocab import import_words
 
         # Old 4-col CSV
         old_csv = Path(tempfile.mkdtemp()) / "old.csv"
@@ -346,7 +346,7 @@ def test_4_sentence_word_links():
     print("\n=== Test 4: insert_sentences populates sentence_word_links ===")
     conn = fresh_db()
     try:
-        from pipeline.migrations import upgrade_head
+        from cms.migrations import upgrade_head
         upgrade_head(conn)
         conn.commit()
 
@@ -369,7 +369,7 @@ def test_4_sentence_word_links():
                 )
         conn.commit()
 
-        from pipeline.generate_sentences import insert_sentences
+        from cms.generate_sentences import insert_sentences
 
         items = [
             {
@@ -471,11 +471,11 @@ def test_5_lesson_index():
     print("\n=== Test 5: lesson_index backfill + import_vocab re-bucketing ===")
     conn = fresh_db()
     try:
-        from pipeline.migrations import upgrade_head
+        from cms.migrations import upgrade_head
         upgrade_head(conn)
         conn.commit()
 
-        from pipeline.import_vocab import assign_lesson_indexes
+        from cms.import_vocab import assign_lesson_indexes
 
         # ---- Path 1: pre-populated DB, migration backfills ----
         # Drop+recreate to simulate an existing DB with words already
@@ -483,7 +483,7 @@ def test_5_lesson_index():
         conn.close()
         conn = fresh_db()
         # Only apply baseline (no metadata columns yet). Insert 7 words.
-        from pipeline.migrations.runner import (
+        from cms.migrations.runner import (
             ensure_schema_migrations_table,
             get_current_version,
         )

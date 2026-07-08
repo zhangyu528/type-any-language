@@ -1,5 +1,5 @@
 """
-db/pipeline/manifest.py — load and validate db/content/manifest.yaml.
+content/tools/cms/manifest.py — load and validate content/source/manifest.yaml.
 
 The manifest is the single source of truth for "what content does this app
 ship" — adding a new vocabulary lib, a new difficulty level, or tweaking
@@ -10,9 +10,9 @@ modules (import_vocab, generate_sentences, ...) consume the dataclasses
 returned here; they never parse yaml themselves.
 
 Usage:
-    from pipeline.manifest import load_manifest
+    from cms.manifest import load_manifest
 
-    m = load_manifest()                     # default path (db/content/manifest.yaml)
+    m = load_manifest()                     # default path (content/source/manifest.yaml)
     for lib in m.all_libs():                # iterate libs
         print(lib.id, lib.display)
     m.get_lib("cet4")                       # one lib by id, or None
@@ -36,14 +36,14 @@ _SUPPORTED_VERSIONS = (1,)
 # ---------------------------------------------------------------------------
 # Project root + manifest path resolution
 # ---------------------------------------------------------------------------
-# Mirrors the pattern in db/pipeline/env.py:_project_root(): this file lives
-# at db/pipeline/manifest.py, so project root is two parents up.
+# Mirrors the pattern in content/tools/cms/env.py:_project_root(): this file lives
+# at content/tools/cms/manifest.py, so project root is two parents up.
 def _project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent
 
 
 def _default_manifest_path() -> Path:
-    return _project_root() / "db" / "content" / "manifest.yaml"
+    return _project_root() / "content" / "source" / "manifest.yaml"
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +125,7 @@ def load_manifest(path: Path | None = None) -> Manifest:
     """Parse manifest.yaml and return a validated `Manifest`.
 
     Args:
-        path: optional override; defaults to db/content/manifest.yaml.
+        path: optional override; defaults to content/source/manifest.yaml.
 
     Raises:
         SystemExit on validation error (file not found, missing keys, wrong
@@ -136,7 +136,7 @@ def load_manifest(path: Path | None = None) -> Manifest:
     if not manifest_path.is_file():
         sys.exit(
             f"manifest not found at {manifest_path}\n"
-            f"  Expected: db/content/manifest.yaml at the project root.\n"
+            f"  Expected: content/source/manifest.yaml at the project root.\n"
             f"  Run from the project root, or check that the file is committed."
         )
 
@@ -149,7 +149,7 @@ def load_manifest(path: Path | None = None) -> Manifest:
         sys.exit(
             f"manifest version={version!r} not supported "
             f"(this loader understands versions {_SUPPORTED_VERSIONS}). "
-            f"Bump _SUPPORTED_VERSIONS in db/pipeline/manifest.py."
+            f"Bump _SUPPORTED_VERSIONS in content/tools/cms/manifest.py."
         )
 
     raw_libs = raw.get("libs")
@@ -276,7 +276,7 @@ def load_manifest(path: Path | None = None) -> Manifest:
 
 
 # ---------------------------------------------------------------------------
-# CLI — quick sanity check + dry-run print. Useful for `python -m pipeline.manifest`.
+# CLI — quick sanity check + dry-run print. Useful for `python -m cms.manifest`.
 # ---------------------------------------------------------------------------
 def _print_summary(m: Manifest) -> None:
     print(f"manifest version={m.version}")
@@ -297,7 +297,7 @@ def _print_summary(m: Manifest) -> None:
 
 def main() -> None:
     import argparse
-    parser = argparse.ArgumentParser(description="Validate db/content/manifest.yaml")
+    parser = argparse.ArgumentParser(description="Validate content/source/manifest.yaml")
     parser.add_argument("--path", type=Path, default=None, help="Override manifest path")
     args = parser.parse_args()
 

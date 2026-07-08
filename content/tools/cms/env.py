@@ -1,16 +1,16 @@
 """
-db/pipeline/env.py — shared .env.db loader for the data pipeline.
+content/tools/cms/env.py — shared .env.db loader for the data pipeline.
 
 Reads .env.db from the project root and exposes a typed `Config` object
 to the other pipeline modules. Centralising the env-loading logic here
 means individual scripts (import_vocab, generate_sentences, ...) can just
-do `from pipeline.env import load_config; cfg = load_config()` and
+do `from cms.env import load_config; cfg = load_config()` and
 get validated settings.
 
 Why a dedicated loader (not os.environ directly):
   - Fail loudly if .env.db is missing or required keys are unset.
   - Single place to do type coercion + default handling.
-  - Other scripts can `from pipeline.env import setup_env` to mirror
+  - Other scripts can `from cms.env import setup_env` to mirror
     the .env.db → os.environ copy that bake_image.sh does via `set -a`.
 
 Validation contract:
@@ -32,7 +32,7 @@ Validation contract:
     brings the two sides into agreement.
 
 Usage from a CLI script:
-    from pipeline.env import setup_env, load_config
+    from cms.env import setup_env, load_config
     setup_env()                 # copies .env.db into os.environ (idempotent)
     cfg = load_config()         # typed Config (AI / TENCENT fields may be None)
     cfg.require_ai()            # raise if AI_* unset — call this before OpenAI calls
@@ -48,8 +48,8 @@ from pathlib import Path
 from urllib.parse import quote
 
 
-# Project root = parent of db/. Caller passes an absolute path or we
-# fall back to a walk-up from this file.
+# Project root = parent of content/. Caller passes an absolute path or we
+# fall back to a walk-up from this file (parent of content/tools/cms/).
 def _project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent
 
@@ -133,7 +133,7 @@ def setup_env(env_file: str | os.PathLike | None = None) -> dict[str, str]:
     path = Path(env_file) if env_file else _project_root() / ".env.db"
     if not path.is_file():
         sys.exit(
-            f".env.db 不存在 ({path}) — 跑 ./scripts/ops/db/env.sh 先引导"
+            f".env.db 不存在 ({path}) — 跑 ./scripts/ops/content/env.sh 先引导"
         )
 
     loaded: dict[str, str] = {}

@@ -1,9 +1,9 @@
-# db/content/prompts/sentences.yaml — OpenAI prompt template for sentence generation.
+# content/source/prompts/sentences.yaml — OpenAI prompt template for sentence generation.
 #
-# Extracted from db/pipeline/generate_sentences.py:80-108 so prompt tweaks are
+# Extracted from content/tools/cms/generate_sentences.py:80-108 so prompt tweaks are
 # a yaml edit, not a Python edit.
 #
-# Templating: `{{var}}` is replaced at runtime by db/pipeline/prompt_renderer.py.
+# Templating: `{{var}}` is replaced at runtime by content/tools/cms/prompt_renderer.py.
 # Available variables:
 #   lib_name   - manifest.libs[i].display   (e.g. "CET-4")
 #   lib_id     - manifest.libs[i].id        (e.g. "cet4")

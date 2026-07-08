@@ -8,7 +8,7 @@
 
 | 角色 | 根目录入口 | 详细脚本 | 配置文件 |
 |---|---|---|---|
-| CMS 主机（生产内容） | — | `scripts/ops/db/*.sh` | `.env.db` |
+| CMS 主机（生产内容） | — | `scripts/ops/content/*.sh` | `.env.db` |
 | 开发目标机 | `./dev.sh` | `scripts/ops/dev-host/*.sh` | **不需要** — shell env + `.secrets/` |
 | 生产目标机 | — | `scripts/ops/prod-host/*.sh` | **不需要** — shell env + `.secrets/` |
 
@@ -20,8 +20,8 @@ CMS 主机把内容（词库 + AI 句子 + TTS 音频）烤进 db image，推到
 |---|---|---|
 | `backend/` | FastAPI 纯读层（无 AI / TTS） | [`backend/README.md`](backend/README.md) |
 | `frontend/` | Next.js 14 app（单页练习 UI） | [`frontend/README.md`](frontend/README.md) |
-| `db/` | postgres 镜像 + 内容烤入（CMS-only 工具链） | [`db/README.md`](db/README.md), [`db/pipeline/README.md`](db/pipeline/README.md) |
-| `scripts/ops/{db,dev-host,prod-host}/` | 主机运维脚本 | 各脚本头部注释 |
+| `content/` | 内容服务（源 + CMS 工具链 + Postgres image 构建上下文） | [`content/README.md`](content/README.md), [`content/tools/cms/README.md`](content/tools/cms/README.md) |
+| `scripts/ops/{content,dev-host,prod-host}/` | 主机运维脚本 | 各脚本头部注释 |
 | `nginx/` | nginx 反向代理（prod 入口） | — |
 
 详细架构、数据流、环境变量说明见 [`CLAUDE.md`](CLAUDE.md)。
@@ -38,7 +38,7 @@ CMS 主机把内容（词库 + AI 句子 + TTS 音频）烤进 db image，推到
 ./dev.sh logs       # 看日志
 ./dev.sh stop       # 停
 ./dev.sh restart    # 硬重启(≈5s,重新加载 secrets)
-./dev.sh migrate    # 改了 db/pipeline/migrations/versions/*.py 后:把新 schema 应用到正在跑的 runtime db
+./dev.sh migrate    # 改了 content/tools/cms/migrations/versions/*.py 后:把新 schema 应用到正在跑的 runtime db
 ```
 
 > 没装 docker / daemon 没起,`./dev.sh doctor` 会直接报错,先装 docker。
@@ -65,17 +65,17 @@ CMS 主机把内容（词库 + AI 句子 + TTS 音频）烤进 db image，推到
 如果还没有 baked db image,要么:
 - 让 `./dev.sh setup` 自动烤(本机有 `.env.db` 或能 scaffold 时自动走完整链);要么
 - 等 CMS 主机推一份到 registry(显式设了 `DOCKER_REGISTRY` run.sh 会自动 pull)。
-- 手动(不走 setup):`./scripts/ops/db/env.sh` 引导 `.env.db`,再 `./scripts/ops/db/bake_image.sh`。
+- 手动(不走 setup):`./scripts/ops/content/env.sh` 引导 `.env.db`,再 `./scripts/ops/content/bake_image.sh`。
 
 需要换 CORS 白名单:`ALLOWED_ORIGINS=https://my.domain ./dev.sh start`
 
 ### schema 改了之后
 
-dev 改了 `db/pipeline/migrations/versions/*.py` 的话:
+dev 改了 `content/tools/cms/migrations/versions/*.py` 的话:
 
 ```bash
 # 升 source db(给将来 bake 用):起 english_db 后跑
-./scripts/ops/db/content.sh init-schema
+./scripts/ops/content/content.sh init-schema
 
 # 升正在跑的 runtime db —— 轻量,不动 image、不 push、不 drop volume
 ./dev.sh migrate
@@ -83,7 +83,7 @@ dev 改了 `db/pipeline/migrations/versions/*.py` 的话:
 
 `migrate` 用一次性 `python:3.11-slim` sidecar 跑 `pipeline.migrations.runner`,幂等。backend 下次请求自动捡新 schema(uvicorn hot reload)。
 
-> 网络拉不到 `python:3.11-slim`(典型情况:docker registry mirrors 坏了)时,`migrate` 会失败并打印离线 fallback:用 `db/pipeline/migrations/apply_to_runtime.sql` 走 `docker exec ... psql`。但这个 SQL 只覆盖"老 db 升到当前 head",**不能**处理新加的 migration —— 那种情况得修 docker 网络。
+> 网络拉不到 `python:3.11-slim`(典型情况:docker registry mirrors 坏了)时,`migrate` 会失败并打印离线 fallback:用 `content/tools/cms/migrations/apply_to_runtime.sql` 走 `docker exec ... psql`。但这个 SQL 只覆盖"老 db 升到当前 head",**不能**处理新加的 migration —— 那种情况得修 docker 网络。
 
 ## 镜像发布(可选,无 registry 时跳过)
 
@@ -114,15 +114,15 @@ export DOCKER_REGISTRY=docker.io/youruser
 ## CMS 主机(生产内容)
 
 ```bash
-./scripts/ops/db/env.sh                    # 第一次:引导 .env.db
-./scripts/ops/db/content.sh doctor         # 前置检查
-./scripts/ops/db/content.sh sync           # csv → 词库表
-./scripts/ops/db/content.sh sentences      # OpenAI 批量填句子
-./scripts/ops/db/content.sh audio          # 腾讯云 TTS 批量烤 MP3
-./scripts/ops/db/bake_image.sh             # 烤 db image
+./scripts/ops/content/env.sh                    # 第一次:引导 .env.db
+./scripts/ops/content/content.sh doctor         # 前置检查
+./scripts/ops/content/content.sh sync           # csv → 词库表
+./scripts/ops/content/content.sh sentences      # OpenAI 批量填句子
+./scripts/ops/content/content.sh audio          # 腾讯云 TTS 批量烤 MP3
+./scripts/ops/content/bake_image.sh             # 烤 db image
 export DOCKER_REGISTRY=...                 # 推前设一下
-./scripts/ops/db/push_image.sh [-y]        # 推 registry
+./scripts/ops/content/push_image.sh [-y]        # 推 registry
 ```
 
 CMS 流程的细节(每个 Python 工具的参数、词库 CSV 格式、db image label 含义)
-见 [`db/pipeline/README.md`](db/pipeline/README.md) 和 [`db/README.md`](db/README.md)。
+见 [`content/tools/cms/README.md`](content/tools/cms/README.md) 和 [`content/README.md`](content/README.md)。

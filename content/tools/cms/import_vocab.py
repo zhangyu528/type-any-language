@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-import_vocab.py — read vocabulary CSVs (declared in db/content/manifest.yaml)
+import_vocab.py — read vocabulary CSVs (declared in content/source/manifest.yaml)
 → populate vocabulary_libs + vocabulary_words tables.
 
 The lib list comes from the manifest (single source of truth for content
 catalog), not from a hardcoded dict in this file. To add a new lib:
-  1. add an entry to db/content/manifest.yaml's `libs:`
+  1. add an entry to content/source/manifest.yaml's `libs:`
   2. drop the CSV at the declared path
 
 No Python edit required.
@@ -31,10 +31,10 @@ Old CSVs with only the first 4 columns still work; the new fields land as
 NULL. New CSVs can carry any subset of the optional columns.
 
 Usage:
-    python -m pipeline.import_vocab                # import all libs in manifest
-    python -m pipeline.import_vocab cet4           # one lib only (by manifest id)
-    python -m pipeline.import_vocab --force        # truncate + re-import
-    python -m pipeline.import_vocab --dry-run      # show plan, no writes
+    python -m cms.import_vocab                # import all libs in manifest
+    python -m cms.import_vocab cet4           # one lib only (by manifest id)
+    python -m cms.import_vocab --force        # truncate + re-import
+    python -m cms.import_vocab --dry-run      # show plan, no writes
 """
 import argparse
 import csv
@@ -44,11 +44,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # Allow running this file directly (python import_vocab.py) AND as
-# `python -m pipeline.import_vocab` from the project root.
+# `python -m cms.import_vocab` from the project root.
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-    from pipeline.env import setup_env, load_config
-    from pipeline.manifest import LibDef, load_manifest
+    from cms.env import setup_env, load_config
+    from cms.manifest import LibDef, load_manifest
 else:
     from .env import setup_env, load_config
     from .manifest import LibDef, load_manifest

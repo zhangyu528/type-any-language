@@ -35,7 +35,7 @@ resolve_image_tag FRONTEND_IMAGE_TAG VERSION.dev
 warn_if_version_default "$BACKEND_IMAGE_TAG" VERSION.dev
 # DB_IMAGE_TAG defaults to VERSION.prod (db is "prod-bound" content shared
 # by both targets). Resolved here so the DB_FULL_IMAGE we ask for below
-# matches the tag the db image was actually baked with — otherwise the
+# matches the tag the content-baked db image was actually baked with — otherwise the
 # "image not found" hint would point at `:latest` and mislead.
 resolve_image_tag DB_IMAGE_TAG VERSION.prod
 
@@ -50,20 +50,20 @@ FRONTEND_IMAGE="english_frontend_dev"
 # NO fallback: a silent fallback to "english_user / english_learning"
 # would build a broken image if the operator ever customized
 # POSTGRES_USER / POSTGRES_DB in their bake (build succeeds, runtime
-# fails — worst kind of bug). The contract is therefore: the db image
+# fails — worst kind of bug). The contract is therefore: the content-baked db image
 # must be present locally before `build_image.sh` runs.
-#   - CMS host:     run scripts/ops/db/bake_image.sh first.
+#   - CMS host:     run scripts/ops/content/bake_image.sh first.
 #   - Target host:  `docker pull $DB_FULL_IMAGE` from the registry
 #                   (auto-pulled by `run.sh start` when DOCKER_REGISTRY
 #                   is set, but build runs before start, so do it once
 #                   manually).
 #   - Or:           set DB_IMAGE / DB_IMAGE_TAG in the shell to point
-#                   at a db image you already have.
+#                   at a content-baked db image you already have.
 DB_IMAGE="${DB_IMAGE:-english_db_content}"
 DB_FULL_IMAGE="${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DB_IMAGE}:${DB_IMAGE_TAG:-latest}"
 if ! image_exists "$DB_FULL_IMAGE"; then
-    err "db image $DB_FULL_IMAGE 不在本地 — build 必须知道 DB_USER / DB_NAME"
-    info "  解决: 跑 scripts/ops/db/bake_image.sh 烤一个(本机有 .env.db 的情况下)"
+    err "content-baked db image $DB_FULL_IMAGE 不在本地 — build 必须知道 DB_USER / DB_NAME"
+    info "  解决: 跑 scripts/ops/content/bake_image.sh 烤一个(本机有 .env.db 的情况下)"
     info "  或:   docker pull $DB_FULL_IMAGE  (DOCKER_REGISTRY 配了的话)"
     info "  或:   shell 覆盖 DB_IMAGE / DB_IMAGE_TAG 指向已有的 image"
     exit 1
@@ -71,8 +71,8 @@ fi
 DB_USER="$(image_label "$DB_FULL_IMAGE" "type-any-language.db.user" || echo "")"
 DB_NAME="$(image_label "$DB_FULL_IMAGE" "type-any-language.db.name" || echo "")"
 if [ -z "$DB_USER" ] || [ -z "$DB_NAME" ]; then
-    err "db image $DB_FULL_IMAGE 缺 type-any-language.db.user / .db.name label"
-    info "  → 重新跑 scripts/ops/db/bake_image.sh 烤一个带 label 的"
+    err "content-baked db image $DB_FULL_IMAGE 缺 type-any-language.db.user / .db.name label"
+    info "  → 重新跑 scripts/ops/content/bake_image.sh 烤一个带 label 的"
     exit 1
 fi
 export DB_USER DB_NAME

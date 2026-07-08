@@ -4,8 +4,8 @@ init_schema.py — schema bootstrap for the CMS host's DB.
 
 Two-track bootstrap:
 
-1. Migration runner (PRIMARY) — calls `pipeline.migrations.upgrade_head(conn)`
-   which discovers every module under `pipeline.migrations.versions/` and
+1. Migration runner (PRIMARY) — calls `cms.migrations.upgrade_head(conn)`
+   which discovers every module under `cms.migrations.versions/` and
    applies any whose version is greater than the one recorded in
    `schema_migrations`. This is the supported path for both fresh DBs
    (all migrations apply) and existing DBs (already-applied versions are
@@ -30,9 +30,9 @@ easier to read, audit, and modify than a generated Alembic env.py.
 
 Usage
 -----
-    python -m pipeline.init_schema                # from project root, PYTHONPATH=db
-    PYTHONPATH=db python3 db/pipeline/init_schema.py
-    ./scripts/ops/db/content.sh init-schema      # wrapper
+    python -m cms.init_schema                       # from project root, PYTHONPATH=content
+    PYTHONPATH=content python3 content/tools/cms/init_schema.py
+    ./scripts/ops/content/content.sh init-schema   # wrapper
 """
 from __future__ import annotations
 
@@ -40,19 +40,19 @@ import sys
 from pathlib import Path
 
 # Allow running this file directly (python init_schema.py) AND as
-# `python -m pipeline.init_schema` from the project root. Mirrors the
+# `python -m cms.init_schema` from the project root. Mirrors the
 # same bootstrap block in import_vocab.py / generate_sentences.py.
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-    from pipeline.env import setup_env, load_config  # noqa: E402
+    from cms.env import setup_env, load_config  # noqa: E402
 else:
     from .env import setup_env, load_config  # noqa: E402
 
 
 def _ensure_backend_on_path() -> None:
     """The schema definitions live in backend/app/models/*.py. We need
-    them importable, but the CMS host's PYTHONPATH is `db/` (not
-    `backend/`). Add backend/ once.
+    them importable, but the CMS host's PYTHONPATH is `content/tools/`
+    (not `backend/`). Add backend/ once.
     """
     backend_path = Path(__file__).resolve().parent.parent.parent / "backend"
     backend_path_str = str(backend_path)
@@ -86,7 +86,7 @@ def main() -> int:
     # 4. PRIMARY: run the migration runner. This handles ordering, the
     #    schema_migrations bookkeeping table, and idempotent re-runs.
     import psycopg2  # noqa: E402
-    from pipeline.migrations import upgrade_head, get_current_version  # noqa: E402
+    from cms.migrations import upgrade_head, get_current_version  # noqa: E402
 
     with psycopg2.connect(cfg.database_url) as conn:
         before = get_current_version(conn)

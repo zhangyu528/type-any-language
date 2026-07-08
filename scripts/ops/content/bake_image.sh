@@ -13,7 +13,7 @@
 #   type-any-language.content.baked-at  <UTC timestamp>
 #
 # Subcommands:
-#   (default)  Bake: export content from DB → stage into db/ → docker build
+#   (default)  Bake: export content from DB → stage into content/runtime/ → docker build
 #   doctor     Pre-flight: docker installed? source content present?
 #
 # Image naming:
@@ -119,7 +119,7 @@ cmd_doctor() {
         ok "Docker daemon running"
     fi
 
-    if [ ! -d "db/content" ]; then
+    if [ ! -d "content/source" ]; then
         err "content/source directory missing — run ./scripts/ops/content/env.sh"
         ok=0
     else
@@ -243,7 +243,7 @@ usage() {
     cat <<EOF
 Usage: $0 [doctor]
 
-  (no args)   Bake: export content from DB → stage into db/ → docker build
+  (no args)   Bake: export content from DB → stage into content/runtime/ → docker build
   doctor      Pre-flight environment check
 
 Push is a separate step: ./scripts/ops/content/push_image.sh

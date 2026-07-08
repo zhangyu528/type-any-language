@@ -42,14 +42,15 @@ frontend/.next/
 
 # Audio (generated TTS MP3s — persistent CMS working dir, NOT in the db image's
 # build context. dev/prod both read audio from the `shared_audio` named volume
-# which the content-baked db image seeds on first start. db/.dockerignore
+# which the content-baked db image seeds on first start. content/.dockerignore
 # excludes this from the docker build context so it doesn't bloat the image.)
-db/audio/
+content/audio/
 
-# db-image build inputs — populated by scripts/ops/db/bake_image.sh build.
-# Only the Dockerfile + init/99-audio.sh + README.md are committed.
-db/init/01-content.sql
-db/seed/
+# content-image build inputs — populated by scripts/ops/content/bake_image.sh.
+# Only the Dockerfile + init/99-audio.sh + README.md are committed; the rest
+# is regenerated on every bake and would just bloat the repo.
+content/runtime/init/01-content.sql
+content/runtime/seed/
 
 # Container-runtime stamps — written by frontend/entrypoint.sh so the
 # hash-aware npm install can skip on no-op restarts. backend doesn't

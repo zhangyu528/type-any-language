@@ -54,7 +54,7 @@
 #     or edit the default in docker-compose.dev.yml.
 #
 # ─── Usage ────────────────────────────────────────────────────────────────
-#   ./scripts/ops/dev-host/run.sh setup    # first-time: 拉/检查 db image + build dev apps
+#   ./scripts/ops/dev-host/run.sh setup    # first-time: 拉/检查 content-baked db image + build dev apps
 #   ./scripts/ops/dev-host/run.sh doctor   # run pre-flight environment checks
 #   ./scripts/ops/dev-host/run.sh start    # docker compose up -d + background compose watch
 #   ./scripts/ops/dev-host/run.sh stop     # stop compose watch + docker compose down
@@ -174,7 +174,7 @@ inspect_db_image_labels() {
 # compose's strict interpolation.
 #
 # Falls back to the same defaults bake_image.sh uses (english_user /
-# english_learning) when the db image isn't around locally. Those
+# english_learning) when the content-baked db image isn't around locally. Those
 # defaults are the ones that ship with the project, so compose's
 # evaluated result matches what a fresh bake would produce — `ps` will
 # show the right container names, `down` will target the right project,
@@ -210,7 +210,7 @@ export_db_identity_for_compose() {
 # ---------------------------------------------------------------------------
 write_secrets() {
     if [ -z "${DB_USER:-}" ] || [ -z "${DB_NAME:-}" ]; then
-        err "DB_USER / DB_NAME 未设置 — db image 的 label 缺失或不正确"
+        err "DB_USER / DB_NAME 未设置 — content-baked db image 的 label 缺失或不正确"
         return 1
     fi
 
@@ -326,11 +326,11 @@ gate_preflight() {
         exit 1
     fi
     if ! image_exists "$DB_FULL_IMAGE"; then
-        err "db image $DB_FULL_IMAGE 未构建或未拉取"
+        err "content-baked db image $DB_FULL_IMAGE 未构建或未拉取"
         if [ -n "$DOCKER_REGISTRY" ]; then
             info "  → 设置 DB_IMAGE_TAG 后由 run.sh 拉取，或: docker pull $DB_FULL_IMAGE"
         else
-            info "  → 运行 ./scripts/ops/db/bake_image.sh（可用 --tag dev 标记）"
+            info "  → 运行 ./scripts/ops/content/bake_image.sh（可用 --tag dev 标记）"
             info "  → 之后再次运行 ./scripts/ops/dev-host/run.sh start"
         fi
         exit 1
@@ -384,19 +384,19 @@ cmd_doctor() {
             warn "image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 缺失 → 运行 ./scripts/ops/dev-host/build_image.sh"
         fi
         if image_exists "$DB_FULL_IMAGE"; then
-            ok "db image $DB_FULL_IMAGE 存在"
+            ok "content-baked db image $DB_FULL_IMAGE 存在"
             if inspect_db_image_labels; then
                 ok "  db.user = $DB_USER"
                 ok "  db.name = $DB_NAME"
                 ok "  content.version = $DB_VERSION"
                 ok "  content.baked-at = $DB_BAKED_AT"
             else
-                warn "  db image 缺少 type-any-language.* labels — 重新 bake？"
+                warn "  content-baked db image 缺少 type-any-language.* labels — 重新 bake？"
             fi
         elif [ -n "$DOCKER_REGISTRY" ]; then
-            warn "db image $DB_FULL_IMAGE 缺失 → docker pull $DB_FULL_IMAGE"
+            warn "content-baked db image $DB_FULL_IMAGE 缺失 → docker pull $DB_FULL_IMAGE"
         else
-            warn "db image $DB_FULL_IMAGE 缺失 → ./scripts/ops/db/bake_image.sh"
+            warn "content-baked db image $DB_FULL_IMAGE 缺失 → ./scripts/ops/content/bake_image.sh"
         fi
     fi
 
@@ -427,8 +427,8 @@ cmd_doctor() {
 # explicitly: docker pull <full-image>.)
 # ---------------------------------------------------------------------------
 
-# Auto-bake chain lives in scripts/ops/db/full_bake.sh (single-host CMS+dev
-# fallback when .env.db is present and the registry has no db image to pull).
+# Auto-bake chain lives in scripts/ops/content/full_bake.sh (single-host CMS+dev
+# fallback when .env.db is present and the registry has no content-baked db image to pull).
 # This file just calls it — see cmd_setup below.
 
 # ---------------------------------------------------------------------------
@@ -487,7 +487,7 @@ cmd_setup() {
     fi
     echo ""
 
-    # 2. db image — must be present locally for the dev app build below.
+    # 2. content-baked db image — must be present locally for the dev app build below.
     #    Resolution chain (each step falls through to the next on miss):
     #      a. local image already present
     #      b. DOCKER_REGISTRY set → docker pull (fast path; bypasses local CMS work)
@@ -496,13 +496,13 @@ cmd_setup() {
     #    env.sh init is idempotent — second run skips silently. Doctor runs
     #    unconditionally as a gate so empty templates / partial .env.db
     #    fail-fast before the expensive bake starts.
-    info "Step 1/2: db image ($DB_FULL_IMAGE)"
+    info "Step 1/2: content-baked db image ($DB_FULL_IMAGE)"
     local got_image=0
     if image_exists "$DB_FULL_IMAGE"; then
         ok "  本地已有 $DB_FULL_IMAGE"
         got_image=1
     else
-        warn "db image 不在本地"
+        warn "content-baked db image 不在本地"
         if [ -n "$DOCKER_REGISTRY" ]; then
             info "  DOCKER_REGISTRY=$DOCKER_REGISTRY — 尝试 docker pull..."
             echo ""
@@ -526,7 +526,7 @@ cmd_setup() {
             if [ ! -f "$PROJECT_DIR/.env.db" ]; then
                 info "  本机没有 .env.db — 先 scaffold 一个:"
                 echo ""
-                if ! "$SCRIPT_DIR/../db/env.sh" init; then
+                if ! "$SCRIPT_DIR/../content/env.sh" init; then
                     err "  env.sh init 失败 — 检查 .env.example.db 是否存在"
                     return 1
                 fi
@@ -536,15 +536,15 @@ cmd_setup() {
             fi
             # doctor 当 gate:空模板 / 缺 key 都 fail-fast,避免带着空
             # .env.db 进 auto_bake 浪费一次完整 bake。
-            if ! "$SCRIPT_DIR/../db/env.sh" doctor; then
+            if ! "$SCRIPT_DIR/../content/env.sh" doctor; then
                 err "  .env.db 还差 key — 填好后重跑 setup"
                 return 1
             fi
             # 单机 CMS+dev:auto-bake 跑完整链 (source db + 内容 + 烘焙)。
             # 每步都是幂等的,已部署的 host 重跑也不会浪费 API 调用。
-            info "  调 scripts/ops/db/full_bake.sh (source db + 内容 + 烘焙)..."
+            info "  调 scripts/ops/content/full_bake.sh (source db + 内容 + 烘焙)..."
             echo ""
-            if "$SCRIPT_DIR/../db/full_bake.sh"; then
+            if "$SCRIPT_DIR/../content/full_bake.sh"; then
                 echo ""
                 ok "  自动 bake 完成"
                 got_image=1
@@ -552,7 +552,7 @@ cmd_setup() {
                 err "  自动 bake 失败 — 上面的错误说明哪步挂了"
                 info "  手动排查:"
                 info "    docker logs english_db          # 如果 source db 起不来"
-                info "    ./scripts/ops/db/full_bake.sh doctor   # 内容管线 preflight"
+                info "    ./scripts/ops/content/full_bake.sh doctor   # 内容管线 preflight"
                 return 1
             fi
         fi
@@ -560,7 +560,7 @@ cmd_setup() {
     if inspect_db_image_labels; then
         ok "  db.user=$DB_USER  db.name=$DB_NAME  content.version=$DB_VERSION"
     else
-        warn "  db image 缺 type-any-language.* label — 重新 bake"
+        warn "  content-baked db image 缺 type-any-language.* label — 重新 bake"
         return 1
     fi
     echo ""
@@ -639,11 +639,12 @@ drift_check() {
 # pip-installed (the backend image's Dockerfile builds on them). So no
 # extra `docker pull` is needed and no network mirror is involved.
 #
-# We mount db/ and backend/ read-only into the sidecar and run
-# `pipeline.migrations.runner` against `db:5432` (the compose-network
-# hostname of the runtime db). PYTHONPATH=/db makes `pipeline.env` and
-# `pipeline.migrations.*` importable; runner.py + the migrations
-# auto-add `backend/` for the SQLAlchemy model imports in 0001_baseline.
+# We mount content/ and backend/ read-only into the sidecar and run
+# `cms.migrations.runner` against `db:5432` (the compose-network
+# hostname of the runtime db). PYTHONPATH=/content/tools makes
+# `cms.env` and `cms.migrations.*` importable; runner.py + the
+# migrations auto-add `backend/` for the SQLAlchemy model imports in
+# 0001_baseline.
 #
 # Idempotent: runner.py uses IF NOT EXISTS / IF EXISTS and stamps
 # applied versions in schema_migrations. Re-runs are no-ops.
@@ -652,7 +653,7 @@ drift_check() {
 # — uvicorn hot-reload handles Python changes; SQL schema is read per
 # query). But ./run.sh restart works fine too if you want to be sure.
 #
-# Offline fallback: db/pipeline/migrations/apply_to_runtime.sql is a
+# Offline fallback: content/tools/cms/migrations/apply_to_runtime.sql is a
 # pre-rolled SQL file that brings a stale db up to head in one shot.
 # Use it when no backend image is cached and python:3.11-slim can't be
 # pulled either. Only covers "upgrade old db to head" — does NOT handle
@@ -719,14 +720,14 @@ cmd_migrate() {
             warn "pull python:3.11-slim 失败 (offline?)"
             info "  离线 fallback: docker exec -i -e PGPASSWORD=\$(cat $PG_PASSWORD_FILE) \\"
             info "    $db_cid psql -U $pg_user -d $pg_db \\"
-            info "    < db/pipeline/migrations/apply_to_runtime.sql"
+            info "    < content/tools/cms/migrations/apply_to_runtime.sql"
             return 1
         fi
         sidecar_image="python:3.11-slim"
     fi
 
     echo ""
-    info "在 sidecar 里跑 pipeline.migrations.runner (target=db:5432)..."
+    info "在 sidecar 里跑 cms.migrations.runner (target=db:5432)..."
     # On Windows (Git Bash + Docker Desktop), MSYS path translation turns
     # MSYS-style paths like /d/work/... into Windows paths when bash
     # interpolates them into `docker -v`. That translation is unreliable
@@ -734,31 +735,32 @@ cmd_migrate() {
     # feed a Windows-style absolute path that Docker Desktop accepts
     # verbatim. POSIX hosts leave $PROJECT_DIR unchanged and cygpath
     # errors out — fall through to the original POSIX path in that case.
-    local db_mount backend_mount env_mount secrets_mount
+    local content_mount backend_mount env_mount secrets_mount
     if command -v cygpath >/dev/null 2>&1; then
-        db_mount="$(cygpath -w "$PROJECT_DIR/db")"
+        content_mount="$(cygpath -w "$PROJECT_DIR/content")"
         backend_mount="$(cygpath -w "$PROJECT_DIR/backend")"
         env_mount="$(cygpath -w "$PROJECT_DIR/.env.db")"
         secrets_mount="$(cygpath -w "$PROJECT_DIR/.secrets")"
     else
-        db_mount="$PROJECT_DIR/db"
+        content_mount="$PROJECT_DIR/content"
         backend_mount="$PROJECT_DIR/backend"
         env_mount="$PROJECT_DIR/.env.db"
         secrets_mount="$PROJECT_DIR/.secrets"
     fi
     # PYTHONPATH is set inside the container via the bash -c wrapper
-    # rather than via `docker -e PYTHONPATH=/db`. Docker Desktop on
-    # Windows rewrites single-leading-slash env values (e.g. /db →
-    # C:/Program Files/Git/db), which corrupts Python's sys.path.
-    # Setting it inside the shell sidesteps that rewriting entirely.
-    # We also mount .env.db + .secrets/ at the container's filesystem
-    # root — pipeline.env._project_root() walks up from /db/pipeline to
-    # `/`, and setup_env() expects .env.db + .secrets/postgres_password
-    # there. 0001_baseline imports app.database (backend models), so
-    # /backend goes on PYTHONPATH too.
+    # rather than via `docker -e PYTHONPATH=/content`. Docker Desktop
+    # on Windows rewrites single-leading-slash env values (e.g.
+    # /content → C:/Program Files/Git/content), which corrupts Python's
+    # sys.path. Setting it inside the shell sidesteps that rewriting
+    # entirely.
+    # We mount .env.db + .secrets/ at the container's filesystem
+    # root — cms.env._project_root() walks up from /content/tools/cms to
+    # the project root, and setup_env() expects .env.db +
+    # .secrets/postgres_password there. 0001_baseline imports
+    # app.database (backend models), so /backend goes on PYTHONPATH too.
     if ! MSYS_NO_PATHCONV=1 docker run --rm \
             --network "$network" \
-            -v "$db_mount:/db:ro" \
+            -v "$content_mount:/content:ro" \
             -v "$backend_mount:/backend:ro" \
             -v "$env_mount:/.env.db:ro" \
             -v "$secrets_mount:/.secrets:ro" \
@@ -769,7 +771,7 @@ cmd_migrate() {
             -e POSTGRES_PASSWORD="$pg_pass" \
             --entrypoint bash \
             "$sidecar_image" \
-            -c "PYTHONPATH=/db:/backend exec python -m pipeline.migrations.runner"
+            -c "PYTHONPATH=/content/tools:/backend exec python -m cms.migrations.runner"
     then
         err "migrate 失败 — 见上面错误"
         return 1
@@ -784,7 +786,7 @@ cmd_migrate() {
 cmd_start() {
     gate_preflight
     if ! inspect_db_image_labels; then
-        err "db image 缺少 type-any-language.* labels — 用 ./scripts/ops/db/bake_image.sh 重新烘焙"
+        err "content-baked db image 缺少 type-any-language.* labels — 用 ./scripts/ops/content/bake_image.sh 重新烘焙"
         exit 1
     fi
     write_secrets
@@ -824,7 +826,7 @@ cmd_stop() {
     # `down`), so DB_USER / DB_NAME must be exported first — otherwise
     # the ${DB_USER:?...} interpolation in the db service's environment
     # block fails before docker even looks at running containers.
-    # Fall back to the bake defaults when the db image isn't local —
+    # Fall back to the bake defaults when the content-baked db image isn't local —
     # see export_db_identity_for_compose.
     export_db_identity_for_compose
     info "停止开发容器..."
@@ -852,7 +854,7 @@ cmd_watch() {
 cmd_restart() {
     gate_preflight
     if ! inspect_db_image_labels; then
-        err "db image 缺少 type-any-language.* labels — 用 ./scripts/ops/db/bake_image.sh 重新烘焙"
+        err "content-baked db image 缺少 type-any-language.* labels — 用 ./scripts/ops/content/bake_image.sh 重新烘焙"
         exit 1
     fi
     write_secrets
@@ -917,7 +919,7 @@ usage() {
   ./scripts/ops/dev-host/run.sh doctor        # 跑一遍检查，看环境是否就绪
   ./scripts/ops/dev-host/run.sh start         # 启动 (本地 image,不再 auto-pull,后台 watch 自动跑)
   ./scripts/ops/dev-host/run.sh restart       # 改 docker-compose.dev.yml / .secrets 后用这个
-  ./scripts/ops/dev-host/run.sh migrate       # 改 db/pipeline/migrations/versions/*.py 后
+  ./scripts/ops/dev-host/run.sh migrate       # 改 content/tools/cms/migrations/versions/*.py 后
   ./scripts/ops/dev-host/build_image.sh && \\
     ./scripts/ops/dev-host/run.sh restart     # 改代码 / Dockerfile 后
   ./scripts/ops/dev-host/run.sh logs backend  # 跟踪 backend 日志

@@ -6,14 +6,14 @@
 # Runs **pre-compiled** prod images as-is:
 #   • Images come from either:
 #       - local builds via ./scripts/ops/prod-host/build_image.sh (backend + frontend), or
-#       - the registry (the content-baked db image — start/restart auto-pulls
+#       - the registry (the content-baked content-baked db image — start/restart auto-pulls
 #         it when DOCKER_REGISTRY is set, no separate pull step needed).
 #   • No bind-mounts. No hot-reload. Whatever's in the image at build time
 #     is what runs.
 #   • Frontend requests are routed through nginx on :80.
 #
 # ─── Database identity from image labels ─────────────────────────────────
-# The db image is baked by ./scripts/ops/db/bake_image.sh with these labels:
+# The content-baked db image is baked by ./scripts/ops/content/bake_image.sh with these labels:
 #   type-any-language.db.user       (e.g. english_user)
 #   type-any-language.db.name       (e.g. english_learning)
 #   type-any-language.content.version
@@ -28,13 +28,13 @@
 # ─── What this isn't ──────────────────────────────────────────────────────
 # Does NOT build images, does NOT manage secrets, does NOT bake/push content.
 #   • To build backend + frontend images: ./scripts/ops/prod-host/build_image.sh
-#   • To bake content into db image:     ./scripts/ops/db/bake_image.sh
-#   • To push baked image to registry:   ./scripts/ops/db/push_image.sh
+#   • To bake content into db image:     ./scripts/ops/content/bake_image.sh
+#   • To push baked image to registry:   ./scripts/ops/content/push_image.sh
 #   • To change ALLOWED_ORIGINS:         export ALLOWED_ORIGINS=... before start,
 #                                         or edit the default in docker-compose.yml.
 #
 # ─── Usage ────────────────────────────────────────────────────────────────
-#   ./scripts/ops/prod-host/run.sh setup    # first-time: 拉 db image + build prod apps
+#   ./scripts/ops/prod-host/run.sh setup    # first-time: 拉 content-baked db image + build prod apps
 #   ./scripts/ops/prod-host/run.sh doctor   # run pre-flight environment checks
 #   ./scripts/ops/prod-host/run.sh start    # auto-pull (if DOCKER_REGISTRY) + docker compose up -d
 #   ./scripts/ops/prod-host/run.sh stop     # docker compose down
@@ -46,7 +46,7 @@
 # Quick reference — when to use what:
 #   • Edit code or Dockerfile → ./scripts/ops/prod-host/build_image.sh && restart.
 #   • New content version baked on CMS host → just `restart`. If DOCKER_REGISTRY
-#     is set, run.sh auto-pulls the latest baked db image before recreating.
+#     is set, run.sh auto-pulls the latest baked content-baked db image before recreating.
 #   • Edit nginx/nginx.conf → rebuild frontend image, then restart.
 #   • Edit docker-compose.yml (e.g. ALLOWED_ORIGINS default) → restart.
 #
@@ -61,7 +61,7 @@ source "$SCRIPT_DIR/../../lib.sh"
 # DOCKER_REGISTRY: shell env > ./REGISTRY file > detect_default_registry().
 # Empty (after the chain) means "local-only mode" — auto-pull from registry
 # is disabled, but the prod compose still works (it uses the local image).
-# Note: on prod, auto-pull ONLY pulls the db image (per design — backend
+# Note: on prod, auto-pull ONLY pulls the content-baked db image (per design — backend
 # and frontend are built locally on the prod host, not pulled from registry).
 resolve_docker_registry
 if [ -n "$DOCKER_REGISTRY" ]; then
@@ -144,7 +144,7 @@ inspect_db_image_labels() {
 # ---------------------------------------------------------------------------
 write_secrets() {
     if [ -z "${DB_USER:-}" ] || [ -z "${DB_NAME:-}" ]; then
-        err "DB_USER / DB_NAME 未设置 — db image 的 label 缺失或不正确"
+        err "DB_USER / DB_NAME 未设置 — content-baked db image 的 label 缺失或不正确"
         return 1
     fi
 
@@ -196,11 +196,11 @@ gate_preflight() {
         exit 1
     fi
     if ! image_exists "$DB_FULL_IMAGE"; then
-        err "db image $DB_FULL_IMAGE 未构建或未拉取"
+        err "content-baked db image $DB_FULL_IMAGE 未构建或未拉取"
         if [ -n "$DOCKER_REGISTRY" ]; then
             info "  → 设置 DB_IMAGE_TAG 后由 run.sh 拉取，或: docker pull $DB_FULL_IMAGE"
         else
-            info "  → 运行 ./scripts/ops/db/bake_image.sh（可用 --tag v1.0.0 标记）"
+            info "  → 运行 ./scripts/ops/content/bake_image.sh（可用 --tag v1.0.0 标记）"
         fi
         exit 1
     fi
@@ -253,19 +253,19 @@ cmd_doctor() {
             warn "image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 缺失 → 运行 ./scripts/ops/prod-host/build_image.sh"
         fi
         if image_exists "$DB_FULL_IMAGE"; then
-            ok "db image $DB_FULL_IMAGE 存在"
+            ok "content-baked db image $DB_FULL_IMAGE 存在"
             if inspect_db_image_labels; then
                 ok "  db.user = $DB_USER"
                 ok "  db.name = $DB_NAME"
                 ok "  content.version = $DB_VERSION"
                 ok "  content.baked-at = $DB_BAKED_AT"
             else
-                warn "  db image 缺少 type-any-language.* labels — 重新 bake？"
+                warn "  content-baked db image 缺少 type-any-language.* labels — 重新 bake？"
             fi
         elif [ -n "$DOCKER_REGISTRY" ]; then
-            warn "db image $DB_FULL_IMAGE 缺失 → ./scripts/ops/prod-host/run.sh restart"
+            warn "content-baked db image $DB_FULL_IMAGE 缺失 → ./scripts/ops/prod-host/run.sh restart"
         else
-            warn "db image $DB_FULL_IMAGE 缺失 → ./scripts/ops/db/bake_image.sh"
+            warn "content-baked db image $DB_FULL_IMAGE 缺失 → ./scripts/ops/content/bake_image.sh"
         fi
     fi
 
@@ -292,7 +292,7 @@ cmd_doctor() {
     fi
 }
 
-# Auto-pull the content-baked db image when DOCKER_REGISTRY is set.
+# Auto-pull the content-baked content-baked db image when DOCKER_REGISTRY is set.
 # (Backend/frontend are NOT pulled here: the prod host builds them
 # locally via prod-host/build_image.sh. Only the content-baked db
 # image is registry-distributed.)
@@ -361,10 +361,10 @@ cmd_setup() {
     fi
     echo ""
 
-    # 2. db image — pull-only on prod host.
-    info "Step 1/2: db image ($DB_FULL_IMAGE)"
+    # 2. content-baked db image — pull-only on prod host.
+    info "Step 1/2: content-baked db image ($DB_FULL_IMAGE)"
     if ! image_exists "$DB_FULL_IMAGE"; then
-        warn "db image 不在本地"
+        warn "content-baked db image 不在本地"
         if [ -n "$DOCKER_REGISTRY" ]; then
             info "  DOCKER_REGISTRY 已设,尝试 docker pull..."
             echo ""
@@ -373,23 +373,23 @@ cmd_setup() {
                 ok "  pull 成功"
             else
                 err "  pull 失败 — 检查 registry / 网络 / 凭据"
-                err "  或: 在 CMS 主机上先 push: ./scripts/ops/db/push_image.sh -y"
+                err "  或: 在 CMS 主机上先 push: ./scripts/ops/content/push_image.sh -y"
                 return 1
             fi
         else
-            info "  prod 主机不 bake content,db image 必须从 CMS 主机过来:"
-            info "    1. CMS 主机: ./scripts/ops/db/bake_image.sh"
-            info "    2. CMS 主机: ./scripts/ops/db/push_image.sh -y     # 推 registry"
+            info "  prod 主机不 bake content,content-baked db image 必须从 CMS 主机过来:"
+            info "    1. CMS 主机: ./scripts/ops/content/bake_image.sh"
+            info "    2. CMS 主机: ./scripts/ops/content/push_image.sh -y     # 推 registry"
             info "    3. 本机配置 REGISTRY / DOCKER_REGISTRY,再跑一次 ./scripts/ops/prod-host/run.sh setup"
-            info "  (或: 手动 docker load/tar 把 db image 搬过来)"
-            err "db image 缺失 — 完成上面的步骤后,再跑一次 setup"
+            info "  (或: 手动 docker load/tar 把 content-baked db image 搬过来)"
+            err "content-baked db image 缺失 — 完成上面的步骤后,再跑一次 setup"
             return 1
         fi
     fi
     if inspect_db_image_labels; then
         ok "  db.user=$DB_USER  db.name=$DB_NAME  content.version=$DB_VERSION"
     else
-        warn "  db image 缺 type-any-language.* label — 重新 bake"
+        warn "  content-baked db image 缺 type-any-language.* label — 重新 bake"
         return 1
     fi
     echo ""
@@ -454,7 +454,7 @@ drift_check() {
 cmd_start() {
     gate_preflight
     if ! inspect_db_image_labels; then
-        err "db image 缺少 type-any-language.* labels — 用 ./scripts/ops/db/bake_image.sh 重新烘焙"
+        err "content-baked db image 缺少 type-any-language.* labels — 用 ./scripts/ops/content/bake_image.sh 重新烘焙"
         exit 1
     fi
     write_secrets
@@ -480,7 +480,7 @@ cmd_stop() {
 cmd_restart() {
     gate_preflight
     if ! inspect_db_image_labels; then
-        err "db image 缺少 type-any-language.* labels — 用 ./scripts/ops/db/bake_image.sh 重新烘焙"
+        err "content-baked db image 缺少 type-any-language.* labels — 用 ./scripts/ops/content/bake_image.sh 重新烘焙"
         exit 1
     fi
     write_secrets
@@ -526,7 +526,7 @@ usage() {
 命令:
   setup    首次环境引导: 拉 db image,build 缺失的 prod app images,无 start 副作用
   doctor   跑完整环境检查（不修改任何东西，纯只读）
-  start    启动生产容器 (docker compose up -d). 如果 DOCKER_REGISTRY 配了就先 pull baked db image
+  start    启动生产容器 (docker compose up -d). 如果 DOCKER_REGISTRY 配了就先 pull baked content-baked db image
   stop     停止生产容器 (docker compose down)
   restart  重启容器并重新读取 secrets (≈5s, 不重 build image)
   reload   同 restart —— 别名，语义更清晰

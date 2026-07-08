@@ -7,8 +7,8 @@ target size (from manifest.yaml's `defaults.bucket_target_size`).
 Words are sampled randomly from vocabulary_words. Each sentence targets
 1-3 words from the sample so that audio caching by sentence is meaningful.
 
-Difficulty lists are sourced from db/content/manifest.yaml (per-lib). The
-OpenAI prompt itself is sourced from db/content/prompts/sentences.yaml.
+Difficulty lists are sourced from content/source/manifest.yaml (per-lib). The
+OpenAI prompt itself is sourced from content/source/prompts/sentences.yaml.
 Both are operator-editable — adding a new difficulty or tweaking the
 prompt is a yaml edit, no Python change.
 
@@ -18,10 +18,10 @@ Idempotent on rerun:
     are skipped on the next pass.
 
 Usage:
-    python -m pipeline.generate_sentences
-    python -m pipeline.generate_sentences --lib cet4 --difficulty beginner
-    python -m pipeline.generate_sentences --target-size 50
-    python -m pipeline.generate_sentences --dry-run
+    python -m cms.generate_sentences
+    python -m cms.generate_sentences --lib cet4 --difficulty beginner
+    python -m cms.generate_sentences --target-size 50
+    python -m cms.generate_sentences --dry-run
 """
 import argparse
 import json
@@ -33,8 +33,8 @@ from pathlib import Path
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-    from pipeline.env import setup_env, load_config
-    from pipeline.manifest import load_manifest
+    from cms.env import setup_env, load_config
+    from cms.manifest import load_manifest
 else:
     from .env import setup_env, load_config
     from .manifest import load_manifest
@@ -46,7 +46,7 @@ import yaml
 # ---------------------------------------------------------------------------
 # Prompt template loader + renderer
 # ---------------------------------------------------------------------------
-# The prompt lives at db/content/prompts/sentences.yaml — operators tweak it
+# The prompt lives at content/source/prompts/sentences.yaml — operators tweak it
 # without editing Python. Variables are `{{name}}` style; we do a single
 # regex pass, no Jinja, no extra deps.
 
@@ -64,7 +64,7 @@ def _load_prompt(path: Path | None = None) -> dict:
     if not p.is_file():
         sys.exit(
             f"prompt template not found at {p}\n"
-            f"  Expected: db/content/prompts/sentences.yaml at the project root."
+            f"  Expected: content/source/prompts/sentences.yaml at the project root."
         )
     raw = yaml.safe_load(p.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):

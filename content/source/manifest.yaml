@@ -1,4 +1,4 @@
-# db/content/manifest.yaml — declarative content catalog.
+# content/source/manifest.yaml — declarative content catalog.
 #
 # This is the SINGLE source of truth for "what content does this app ship".
 # Adding a new vocabulary lib, a new difficulty level, or tweaking the LLM
@@ -19,7 +19,7 @@
 #                        (PRD v0.4.0+). Defaults to 5. Per-lib override lives
 #                        on libs[].lesson_size; falls back to defaults.lesson_size.
 #
-# After editing this file, run ./scripts/ops/db/content.sh sync to import.
+# After editing this file, run ./scripts/ops/content/content.sh sync to import.
 # Adding a new lib = add a `libs:` entry + drop a matching CSV. Nothing else.
 
 version: 1
@@ -29,32 +29,32 @@ libs:
     display: Beginner Vocabulary
     level: beginner
     description: 生活中最高频的 3000 词，配 200 句基础听写
-    csv: db/content/vocabulary/beginner.csv
+    csv: content/source/vocabulary/beginner.csv
     difficulties: [beginner, intermediate, advanced]
 
   - id: cet4
     display: CET-4
     level: cet4
     description: 大学英语四级核心词表，覆盖阅读与写作高频词
-    csv: db/content/vocabulary/cet4.csv
+    csv: content/source/vocabulary/cet4.csv
     difficulties: [beginner, intermediate, advanced]
 
   - id: cet6
     display: CET-6
     level: cet6
     description: 大学英语六级词汇，学术与商务场景重点
-    csv: db/content/vocabulary/cet6.csv
+    csv: content/source/vocabulary/cet6.csv
     difficulties: [beginner, intermediate, advanced]
 
   # ielts.csv is referenced here but the file isn't on disk yet -- sync will
   # report `csv not found` and skip it, same behavior as the legacy
-  # hardcoded LIB_DEFS dict. Drop the CSV in db/content/vocabulary/ to
+  # hardcoded LIB_DEFS dict. Drop the CSV in content/source/vocabulary/ to
   # enable this lib without any code change.
   - id: ielts
     display: IELTS
     level: ielts
     description: 雅思核心词表，偏学术与留学场景（暂未启用）
-    csv: db/content/vocabulary/ielts.csv
+    csv: content/source/vocabulary/ielts.csv
     difficulties: [intermediate, advanced]
 
 defaults:

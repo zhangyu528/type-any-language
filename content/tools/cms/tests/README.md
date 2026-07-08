@@ -1,4 +1,4 @@
-# db/pipeline/tests
+# content/tools/cms/tests
 
 Developer-time verification scripts. **Not part of CI** — these need a live
 Postgres to exercise schema migrations against, which is overkill for a
@@ -28,7 +28,7 @@ docker run -d --name tal-test-pg \
 
 # Run the test
 DATABASE_URL=postgresql://english_user:testpw@localhost:55432/english_learning \
-  PYTHONPATH=db python db/pipeline/tests/test_phase2_e2e.py
+  PYTHONPATH=content/tools python content/tools/cms/tests/test_phase2_e2e.py
 ```
 
 Each test drops + recreates `english_learning`, so it's safe to run
