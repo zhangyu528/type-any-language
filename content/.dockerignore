@@ -1,10 +1,19 @@
-# Exclude the persistent CMS working dir from the db image's build context.
-# IMPORTANT: pattern must be `/audio` (root of build context only) — NOT
-# `audio/` (recursive: would also exclude db/seed/audio/ which IS in the image).
-# audio/ is where generate_audio.py writes TTS MP3s (gitignored).
-# bake_image.sh copies the *referenced* subset into db/seed/audio/ before
-# `docker build`, so only seed/audio/ ends up in the image.
+# Exclude the persistent CMS working dir from the content image's build
+# context. IMPORTANT: pattern must be `/audio` (root of build context
+# only) — NOT `audio/` (recursive: would also exclude
+# runtime/seed/audio/ which IS in the image).
+#
+# `audio/` is where generate_audio.py writes TTS MP3s (gitignored).
+# bake_image.sh copies the *referenced* subset into runtime/seed/audio/
+# before `docker build`, so only seed/audio/ ends up in the image.
+#
+# The build context is content/runtime/, so paths below are relative
+# to that — `/audio` is `content/runtime/audio` (which doesn't exist;
+# safe) but our intent is actually to skip content/audio/ which is
+# outside the build context anyway. Keep `/audio` to satisfy the
+# no-recursive-mistake guard rail in case this file gets reused with
+# content/ as context in the future.
 /audio
 
-# Also exclude any other CMS working artifacts that may live here in the future.
-# (bake_image.sh writes nothing else into db/ directly.)
+# Also exclude other CMS working artifacts that may live here in the future.
+# (bake_image.sh writes nothing else directly into runtime/.)
