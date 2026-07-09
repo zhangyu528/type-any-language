@@ -40,15 +40,20 @@ npm-debug.log*
 frontend/build/
 frontend/.next/
 
-# Audio (generated TTS MP3s — persistent CMS working dir, NOT in the db image's
-# build context. dev/prod both read audio from the `shared_audio` named volume
-# which the content-baked db image seeds on first start. content/.dockerignore
-# excludes this from the docker build context so it doesn't bloat the image.)
-content/audio/
+# CMS working dir — generated TTS MP3s and any future per-machine state
+# (logs, caches, ...) that content.sh / generate_audio.py writes. Lives
+# inside the project (content/.local/) so default-path writes work on
+# Windows + sandboxed Linux hosts without extra setup. dev/prod runtime
+# does NOT read this — they read audio from the `shared_audio` named
+# volume, seeded by the content-baked db image on first init.
+content/.local/
 
-# content-image build inputs — populated by scripts/ops/content/bake_image.sh.
-# Only the Dockerfile + init/99-audio.sh + README.md are committed; the rest
-# is regenerated on every bake and would just bloat the repo.
+# content-image build inputs — populated by scripts/ops/content/bake_image.sh
+# (which delegates to content/runtime/builder.py). Only the Dockerfile +
+# entrypoint.sh + init/99-audio.sh are committed; the rest is regenerated
+# on every bake and would just bloat the repo. The runtime seed/audio/ is
+# what gets COPY'd into the postgres image and ends up at /seed/audio/
+# in the running container.
 content/runtime/init/01-content.sql
 content/runtime/seed/
 

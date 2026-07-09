@@ -108,8 +108,10 @@ cmd_doctor() {
     fi
 
     # AUDIO_DIR: code default, just show what's resolved (no fail if missing —
-    # content.sh audio will mkdir -p when it runs).
-    local _audio_dir="${AUDIO_DIR:-/var/lib/type-any-language/audio}"
+    # content.sh audio will mkdir -p when it runs). The default lives inside
+    # the project (content/.local/audio) so Windows / sandboxed Linux hosts
+    # can run audio without setting anything.
+    local _audio_dir="${AUDIO_DIR:-content/.local/audio}"
     if [ -d "$_audio_dir" ]; then
         ok "AUDIO_DIR=$_audio_dir  (目录存在)"
     else

@@ -1,10 +1,22 @@
 #!/bin/bash
 #
-# scripts/ops/content/bake_image.sh — bake the content into a portable db image.
+# scripts/ops/content/bake_image.sh — bake content into a portable db image.
 #
 # The image is a postgres:15-alpine wrapper that pre-loads the
-# `content_items` table and all audio MP3s. Fresh hosts `docker pull`
+# `sentences` table and all audio MP3s. Fresh hosts `docker pull`
 # this image and have immediate content without any AI calls.
+#
+# This script is now a thin wrapper. The two responsibilities that
+# used to live here were:
+#   1. assemble the bundle + audio/ into runtime/init/ + runtime/seed/audio/
+#   2. run `docker build` with the right --build-arg / --label
+# Both have moved to content/runtime/builder.py (sister to the runtime
+# Dockerfile). What stays in shell:
+#   - preflight (docker installed? .env.db present? source dir reachable?)
+#   - host-side env loading (.env.db → POSTGRES_PASSWORD → DATABASE_URL)
+#   - calling cms.export_bundle.py to produce the staging bundle
+#   - timestamp + git SHA capture (host-bound, easier in shell)
+#   - invoking builder.py and printing the resulting "Built: <tag>" line
 #
 # Image labels baked in (read by prod/dev run.sh via `docker inspect`):
 #   type-any-language.db.user           POSTGRES_USER (default: english_user; shell env override)
@@ -13,7 +25,7 @@
 #   type-any-language.content.baked-at  <UTC timestamp>
 #
 # Subcommands:
-#   (default)  Bake: export content from DB → stage into content/runtime/ → docker build
+#   (default)  Bake: export content from DB → assemble into content/runtime/ → docker build
 #   doctor     Pre-flight: docker installed? source content present?
 #
 # Image naming:
@@ -24,7 +36,7 @@
 #   All other vars sourced from .env.db (defaults match docker-compose.yml).
 #
 # This script does NOT modify content. It only packages whatever is
-# currently in the DB + ./audio/. To update content, run
+# currently in the DB + ./AUDIO_DIR. To update content, run
 # `scripts/ops/content/content.sh {sync,sentences,audio,publish}` first.
 #
 # This script does NOT push. Pushing is a separate, intentional step:
@@ -88,14 +100,11 @@ if [ -z "${DATABASE_URL:-}" ]; then
     export DATABASE_URL
 fi
 
-DB_IMAGE_DIR="db"
 DATA_PIPELINE_DIR="content/tools/cms"
 STAGING_DIR=".bake-staging"
+RUNTIME_BUILDER="content/runtime/builder.py"
+RUNTIME_TARGET="content/runtime"
 
-# Cross-platform stat for "size in bytes". Linux uses -c%s, macOS uses -f%z.
-file_size() {
-    stat -c%s "$1" 2>/dev/null || stat -f%z "$1"
-}
 
 # ---------------------------------------------------------------------------
 # doctor
@@ -133,8 +142,15 @@ cmd_doctor() {
         ok "$DATA_PIPELINE_DIR/ present"
     fi
 
+    if [ ! -f "$RUNTIME_BUILDER" ]; then
+        err "$RUNTIME_BUILDER missing — runtime/ lost its builder entry"
+        ok=0
+    else
+        ok "$RUNTIME_BUILDER present"
+    fi
+
     # Are we trying to build from an empty DB? That'll produce an empty
-    # content_items table, which is fine but probably not what the operator
+    # sentences table, which is fine but probably not what the operator
     # wants. Warn loudly.
     if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^english_db$"; then
         ok "DB container english_db is running — export will source from it"
@@ -148,6 +164,7 @@ cmd_doctor() {
     if [ "$ok" = "1" ]; then return 0; else return 1; fi
 }
 
+
 # ---------------------------------------------------------------------------
 # main: the bake (default action — no subcommand needed)
 # ---------------------------------------------------------------------------
@@ -158,7 +175,7 @@ cmd_bake() {
     PY="$(py_cmd)"
 
     echo
-    info "Exporting content from current DB (--content-only --no-tar)..."
+    info "Exporting content from current DB (--no-tar)..."
     rm -rf "$STAGING_DIR"
     mkdir -p "$STAGING_DIR"
 
@@ -181,30 +198,9 @@ cmd_bake() {
     bundle_path="$(ls -td "$STAGING_DIR"/data-bundle-v* 2>/dev/null | head -1)"
     if [ -z "$bundle_path" ] || [ ! -f "$bundle_path/dump.sql" ]; then
         err "Export did not produce dump.sql — see errors above"
+        rm -rf "$STAGING_DIR"
         exit 1
     fi
-
-    echo
-    info "Staging db-image inputs..."
-    mkdir -p "$DB_IMAGE_DIR/init" "$DB_IMAGE_DIR/seed/audio"
-    cp "$bundle_path/dump.sql" "$DB_IMAGE_DIR/init/01-content.sql"
-
-    if [ -d "$bundle_path/audio" ]; then
-        rm -rf "$DB_IMAGE_DIR/seed/audio"
-        mkdir -p "$DB_IMAGE_DIR/seed/audio"
-        # Trailing /. copies contents, not the audio/ dir itself.
-        cp -r "$bundle_path/audio/." "$DB_IMAGE_DIR/seed/audio/"
-        audio_count=$(find "$DB_IMAGE_DIR/seed/audio" -type f 2>/dev/null | wc -l)
-        ok "  → ${audio_count} audio file(s)"
-    else
-        warn "  → no audio dir in bundle (empty vocabulary?)"
-    fi
-
-    content_size=$(file_size "$DB_IMAGE_DIR/init/01-content.sql")
-    ok "  → 01-content.sql (${content_size} bytes)"
-
-    # Clean staging — db-image/ now owns the inputs.
-    rm -rf "$STAGING_DIR"
 
     # UTC timestamp for the image label.
     baked_at="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -215,24 +211,26 @@ cmd_bake() {
     info "Building image: ${FULL_IMAGE}"
     info "  labels: db.user=$POSTGRES_USER  db.name=$POSTGRES_DB  version=$DB_IMAGE_TAG  baked_at=$baked_at"
     info "          app.version=$DB_IMAGE_TAG  app.git-sha=$git_sha"
-    docker build \
-        --tag "${FULL_IMAGE}" \
-        --build-arg "DB_USER=${POSTGRES_USER}" \
-        --build-arg "DB_NAME=${POSTGRES_DB}" \
-        --build-arg "CONTENT_VERSION=${DB_IMAGE_TAG}" \
-        --build-arg "BAKED_AT=${baked_at}" \
-        --build-arg "APP_VERSION=${DB_IMAGE_TAG}" \
-        --build-arg "GIT_SHA=${git_sha}" \
-        --label "org.opencontainers.image.source=https://github.com/zhangyu528/type-any-language" \
-        --label "org.opencontainers.image.created=${baked_at}" \
-        --label "type-any-language.role=content-baked-db" \
-        --label "type-any-language.db.user=${POSTGRES_USER}" \
-        --label "type-any-language.db.name=${POSTGRES_DB}" \
-        --label "type-any-language.content.version=${DB_IMAGE_TAG}" \
-        --label "type-any-language.content.baked-at=${baked_at}" \
-        --label "type-any-language.app.version=${DB_IMAGE_TAG}" \
-        --label "type-any-language.app.git-sha=${git_sha}" \
-        "${DB_IMAGE_DIR}/"
+
+    # Hand off the assembly + build to runtime/builder.py. That module
+    # is the runtime's own description of how it gets built; this shell
+    # is just the host-side coordinator (env, secrets, timestamps).
+    if ! "$PY" "$RUNTIME_BUILDER" \
+            --bundle "$bundle_path" \
+            --target "$RUNTIME_TARGET" \
+            --tag "${FULL_IMAGE}" \
+            --db-user "${POSTGRES_USER}" \
+            --db-name "${POSTGRES_DB}" \
+            --content-version "${DB_IMAGE_TAG}" \
+            --baked-at "${baked_at}" \
+            --git-sha "${git_sha}"; then
+        err "builder.py failed"
+        rm -rf "$STAGING_DIR"
+        exit 1
+    fi
+
+    # Clean staging — runtime/ now owns the staged inputs.
+    rm -rf "$STAGING_DIR"
 
     echo
     ok "Built: ${FULL_IMAGE}"
@@ -243,7 +241,7 @@ usage() {
     cat <<EOF
 Usage: $0 [doctor]
 
-  (no args)   Bake: export content from DB → stage into content/runtime/ → docker build
+  (no args)   Bake: export content from DB → assemble into content/runtime/ → docker build
   doctor      Pre-flight environment check
 
 Push is a separate step: ./scripts/ops/content/push_image.sh
@@ -263,6 +261,10 @@ Set it in the shell before running push_image.sh:
 Versioning:
   DB_IMAGE_TAG       resolves from VERSION.prod (or IMAGE_TAG env override).
   VERSION.dev / VERSION.prod are the two project version files — see scripts/release.sh.
+
+The actual image-build steps (assemble bundle, copy into runtime/, run
+docker build with the right labels) live in content/runtime/builder.py —
+a sibling of the runtime Dockerfile, owned by the runtime/ segment.
 EOF
 }
 

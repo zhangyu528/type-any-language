@@ -244,12 +244,12 @@ class Config:
             )
 
 
-# Where TTS MP3s land before bake. XDG-style: /var/lib/<app>/<resource>.
-# generate_audio.py creates the dir (mkdir -p), so the only thing the
-# operator needs is write access to /var/lib. On systems where that's
-# not practical (Windows, no sudo), set AUDIO_DIR via shell env when
-# running content.sh / bake_image.sh.
-_DEFAULT_AUDIO_DIR = "/var/lib/type-any-language/audio"
+# Where TTS MP3s land before bake. Lives inside the project so Windows
+# users and sandboxed Linux hosts (no sudo, no write access to /var/lib)
+# can run content.sh audio without any extra setup. Operators override
+# by setting AUDIO_DIR in .env.db or the shell — the override wins
+# over this default.
+_DEFAULT_AUDIO_DIR = "content/.local/audio"
 
 
 def load_config() -> Config:
