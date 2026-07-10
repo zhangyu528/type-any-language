@@ -70,9 +70,19 @@ export default function SignupPage() {
 
   return (
     <form onSubmit={onSubmit} className="auth-form" noValidate>
-      <h1>注册</h1>
+      <h1 className="auth-title">
+        {Array.from('注册').map((char, i) => (
+          <span
+            key={i}
+            className="auth-title__char"
+            style={{ animationDelay: `${i * 50}ms` }}
+          >
+            {char}
+          </span>
+        ))}
+      </h1>
 
-      <label className="auth-field">
+      <label className="auth-field auth-field-1">
         <span className="auth-field__label">邮箱</span>
         <input
           type="email"
@@ -92,7 +102,7 @@ export default function SignupPage() {
         ) : null}
       </label>
 
-      <label className="auth-field">
+      <label className="auth-field auth-field-2">
         <span className="auth-field__label">显示名</span>
         <input
           type="text"
@@ -111,7 +121,7 @@ export default function SignupPage() {
         ) : null}
       </label>
 
-      <label className="auth-field">
+      <label className="auth-field auth-field-3">
         <span className="auth-field__label">密码 (8-72 位)</span>
         <input
           type="password"
@@ -144,7 +154,17 @@ export default function SignupPage() {
 
       <style dangerouslySetInnerHTML={{ __html: `
         .auth-form { display: flex; flex-direction: column; gap: var(--space-4); }
-        .auth-field { display: flex; flex-direction: column; gap: var(--space-2); }
+        .auth-field {
+          display: flex;
+          flex-direction: column;
+          gap: var(--space-2);
+          /* Stagger entry — 3 fields, 80ms apart, 400ms duration.
+             Last field in place by ~760ms after card starts. */
+          animation: auth-field-rise 400ms var(--ease-emphasized) both;
+        }
+        .auth-field-1 { animation-delay: 200ms; }
+        .auth-field-2 { animation-delay: 280ms; }
+        .auth-field-3 { animation-delay: 360ms; }
         .auth-field__label {
           font-size: var(--type-caption);
           color: var(--label-tertiary);

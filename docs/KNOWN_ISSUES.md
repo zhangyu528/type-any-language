@@ -238,3 +238,30 @@ router.replace('/history');
 | F.4 | 修复 `run.sh migrate` 让 dev 环境不依赖 `.env.db` | 中（dev 工作流阻碍） |
 | F.5 | 优化 `cache_service.py` 等死代码扫描（grep orphan modules） | 低 |
 | F.6 | 加 pre-commit hook 跑 pytest + tsc | 中（CI 友好） |
+
+---
+
+## 7. Layout migrations
+
+### 📐 7.1 root `<Header />` → 页面内 `<PracticeChrome />`
+
+**变更原因**：root layout 的 `<Header />`（~57px 高）让 PracticePage 必须 min-height: 100vh，叠加内容自然溢出 → iPad / 13" MacBook 视口下页面要滚动。用户体验违反「主要内容一眼看到」原则。
+
+**变更**：
+- 删除 `frontend/src/app/components/Header.tsx`
+- 从 `frontend/src/app/layout.tsx` 移除 `<Header />` mount（保留 `AuthProvider`）
+- 新增 `frontend/src/app/components/PracticeChrome.tsx`（36px 高 frosted-glass 顶栏）— 左侧 brand（enso + Type Any Language），右侧 auth（login pill / 头像 + 登出）+ 3-dot 工具菜单
+- `frontend/src/app/page.tsx` 在 4 个 state 分支（loading / error / score / normal）都渲染 `<PracticeChrome />`，作为 `.practice` 的兄弟节点
+- 清理 `page.tsx` 死代码：删除 `isOptionsOpen` / `isToolsOpen` / `toolbarRef` / `handleSettings` / `handleTheme` / `handleTour` 和它们的 click-outside useEffect
+- 清理 `globals.css` 死样式：删除 `.toolbar` / `.toolbar__group` / `.toolbar__btn` / `.toolbar__menu` / `.toolbar__menu-header` / `.toolbar__menu-item` 及响应式覆盖
+
+**为什么放在页面内而不是 root layout**：
+- 页面可控 — 4 个 state 分支都展示 chrome（含 loading / error / score）
+- 0 padding 浪费 — PracticeChrome `position: fixed` 浮在顶部，不占 practice 自身 `min-height: 100vh` 的空间
+- 未来如果某个新页面不要 chrome，由页面自己决定，不需要改 root layout
+
+**已知限制**：
+- `/history` 仍然无 chrome（之前的 Header 也 return null 在 /history）。如果将来要在 /history 顶部展示 brand + auth，需要单独处理
+- PracticeChrome 的 `useAuth()` 仍然依赖 root `AuthProvider`（layout.tsx 保留）
+
+**关联 commit**：（待 commit）

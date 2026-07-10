@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { generateSentences, getAudioUrl, getPhonetics, Sentence, getContentCatalog } from './api';
 import AudioPlayerBar from './AudioPlayerBar';
 import LibraryPicker from './LibraryPicker';
+import { PracticeChrome } from './components/PracticeChrome';
 
 // 输入模式枚举 + 元数据：未来加模式只改 INPUT_MODES 和 MODE_METADATA 两处
 const INPUT_MODES = ['linear', 'free'] as const;
@@ -50,8 +51,6 @@ export default function PracticePage() {
   const [sentenceStartTime, setSentenceStartTime] = useState<number>(Date.now());
   const [showPhonetics, setShowPhonetics] = useState(false);
   const [showSentence, setShowSentence] = useState(false);
-  const [isOptionsOpen, setIsOptionsOpen] = useState(false);
-  const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [correctSoundEnabled, setCorrectSoundEnabled] = useState(true);
@@ -67,7 +66,6 @@ export default function PracticePage() {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const navTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const toolbarRef = useRef<HTMLDivElement>(null);
   const modeBtnRef = useRef<HTMLButtonElement>(null);
   const modeMenuRef = useRef<HTMLUListElement>(null);
   const sentenceSnapshotRef = useRef<{userInputs: string[]; wordResults: boolean[]} | null>(null);
@@ -674,33 +672,6 @@ export default function PracticePage() {
     inputRefs.current[0]?.focus();
   };
 
-  // Close dropdowns when clicking outside the toolbar
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (toolbarRef.current && !toolbarRef.current.contains(e.target as Node)) {
-        setIsOptionsOpen(false);
-        setIsToolsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleSettings = () => {
-    setIsToolsOpen(false);
-    alert('设置功能待实现');
-  };
-
-  const handleTheme = () => {
-    setIsToolsOpen(false);
-    alert('主题切换待实现');
-  };
-
-  const handleTour = () => {
-    setIsToolsOpen(false);
-    alert('功能引导待实现');
-  };
-
   const handleShowSentenceChange = (checked: boolean) => {
     if (!currentSentence) return;
     if (checked) {
@@ -782,70 +753,81 @@ export default function PracticePage() {
 
   if (loading) {
     return (
-      <div className="practice practice--loading">
-        <div className="practice__loader" aria-hidden>
-          <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+      <>
+        <PracticeChrome />
+        <div className="practice practice--loading">
+          <div className="practice__loader" aria-hidden>
+            <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <p className="practice__loader-text">Loading…</p>
         </div>
-        <p className="practice__loader-text">Loading…</p>
-      </div>
+      </>
     );
   }
 
   if (error && sentences.length === 0) {
     return (
-      <div className="practice practice--error">
-        <p className="practice__error-text">{error}</p>
-      </div>
+      <>
+        <PracticeChrome />
+        <div className="practice practice--error">
+          <p className="practice__error-text">{error}</p>
+        </div>
+      </>
     );
   }
 
   if (showScore) {
     return (
-      <div className="practice">
-        <div className="score">
-          {/* 円相 — the enso brand mark, drawn once on mount. The only place
-              where the reserved --accent color appears. */}
-          <svg className="score__enso" viewBox="0 0 100 100" aria-hidden>
-            <circle
-              cx="50" cy="50" r="42"
-              fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
-              strokeDasharray="240 28"
-              transform="rotate(-30 50 50)"
-            />
-          </svg>
-          <h2 className="score__title">
-            {score.correct} / {score.total}
-          </h2>
-          <p className="score__text">
-            {score.correct === score.total
-              ? 'a complete breath.'
-              : score.correct === 0
-                ? 'the beginning of attention.'
-                : `${score.correct} of ${score.total} — quiet progress.`}
-          </p>
-          <button className="score__again" onClick={() => {
-            setShowScore(false);
-            setCurrentIndex(0);
-            setScore({ correct: 0, total: sentences.length });
-            setSentenceResults([]);
-            initPractice();
-          }}>
-            begin again
-          </button>
+      <>
+        <PracticeChrome />
+        <div className="practice">
+          <div className="score">
+            {/* 円相 — the enso brand mark, drawn once on mount. The only place
+                where the reserved --accent color appears. */}
+            <svg className="score__enso" viewBox="0 0 100 100" aria-hidden>
+              <circle
+                cx="50" cy="50" r="42"
+                fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
+                strokeDasharray="240 28"
+                transform="rotate(-30 50 50)"
+              />
+            </svg>
+            <h2 className="score__title">
+              {score.correct} / {score.total}
+            </h2>
+            <p className="score__text">
+              {score.correct === score.total
+                ? 'a complete breath.'
+                : score.correct === 0
+                  ? 'the beginning of attention.'
+                  : `${score.correct} of ${score.total} — quiet progress.`}
+            </p>
+            <button className="score__again" onClick={() => {
+              setShowScore(false);
+              setCurrentIndex(0);
+              setScore({ correct: 0, total: sentences.length });
+              setSentenceResults([]);
+              initPractice();
+            }}>
+              begin again
+            </button>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <div
-      className={
-        'practice' +
-        (isCorrect === true  ? ' practice--feedback-correct' : '') +
-        (isCorrect === false ? ' practice--feedback-incorrect' : '')
-      }
-      onClick={handleContainerClick}
-    >
+    <>
+      <PracticeChrome />
+      <div
+        className={
+          'practice' +
+          (isCorrect === true  ? ' practice--feedback-correct' : '') +
+          (isCorrect === false ? ' practice--feedback-incorrect' : '')
+        }
+        onClick={handleContainerClick}
+      >
       <audio
         ref={audioRef}
         loop={isLooping}
@@ -865,56 +847,6 @@ export default function PracticePage() {
           />
         </div>
       )}
-
-      {/* Top-right toolbar */}
-      <div
-        className="toolbar"
-        ref={toolbarRef}
-        onKeyDown={(e) => {
-          // 阻止键盘事件冒泡到 window listener（避免字母/空格被菜单 checkbox 误捕获）
-          e.stopPropagation();
-          e.nativeEvent.stopImmediatePropagation();
-        }}
-      >
-        <div className="toolbar__group">
-          <button
-            type="button"
-            className={
-              'toolbar__btn toolbar__btn--icon' +
-              (isToolsOpen ? ' toolbar__btn--active' : '')
-            }
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsToolsOpen(v => !v);
-              setIsOptionsOpen(false);
-            }}
-            aria-haspopup="true"
-            aria-expanded={isToolsOpen}
-            aria-label="页面工具"
-            title="页面工具"
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 18 18"
-              fill="currentColor"
-              aria-hidden
-            >
-              <circle cx="3" cy="9" r="1.6" />
-              <circle cx="9" cy="9" r="1.6" />
-              <circle cx="15" cy="9" r="1.6" />
-            </svg>
-          </button>
-          {isToolsOpen && (
-            <div className="toolbar__menu" role="menu" onClick={(e) => e.stopPropagation()}>
-              <div className="toolbar__menu-header">页面工具</div>
-              <button type="button" className="toolbar__menu-item" onClick={handleSettings} role="menuitem">设置</button>
-              <button type="button" className="toolbar__menu-item" onClick={handleTheme} role="menuitem">主题</button>
-              <button type="button" className="toolbar__menu-item" onClick={handleTour} role="menuitem">功能引导</button>
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* 折叠触发器：右下角浮动按钮 */}
       <button
@@ -1288,6 +1220,7 @@ export default function PracticePage() {
           <button onClick={handleNext}>Next →</button>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

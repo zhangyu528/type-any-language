@@ -150,7 +150,12 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: clamp(40px, 8vh, 96px) clamp(24px, 5vw, 80px);
+  /* Top padding must clear PracticeChrome (36px) + breathing room.
+     The previous clamp(40px, 8vh, 96px) was tuned when no chrome
+     existed; now chrome eats the top 36px, so we reduce top padding
+     to ~20-40px and let the chrome (frosted glass) overlay the
+     whitespace above the content. Bottom keeps ~40-60px for symmetry. */
+  padding: clamp(20px, 5vh, 40px) clamp(24px, 5vw, 80px) clamp(20px, 4vh, 40px);
   position: relative;
   background: var(--surface);
 }
@@ -255,7 +260,11 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: clamp(48px, 10vh, 96px);
+  /* Tighter than before — 48-96px gaps were tuned for "breath", but
+     with PracticeChrome eating 36px + content packing, those gaps
+     pushed the practice area past the viewport. 16-24px keeps the
+     layout readable on iPad (768px tall) and 13" MacBook (800px). */
+  gap: clamp(16px, 2vh, 24px);
   position: relative;
   z-index: 2;
   animation: practice-rise var(--duration-slow) var(--ease-standard);
@@ -266,11 +275,14 @@ select:focus-visible {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Library bar wrapper — small top-of-page container */
+/* Library bar wrapper — small top-of-page container.
+   No negative margin anymore: padding-top is now smaller (20-40px
+   instead of 40-96px), so the negative-margin trick would push the
+   library under the PracticeChrome. */
 .practice__library {
   display: flex;
   justify-content: flex-start;
-  margin-top: calc(-1 * var(--space-4));
+  margin-top: 0;
 }
 
 /* ============================================================
@@ -552,8 +564,11 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-3);            /* 12px between waveform / progress / controls */
-  padding: var(--space-4) var(--space-5);   /* 16px / 20px */
+  /* Tighter than before (was 12px / 16-20px) — see .practice__content
+     comment for the why. The 64×64 play button is unchanged so the
+     action stays the visual focus; surrounding padding/gap shrank. */
+  gap: var(--space-2);            /* 8px between waveform / progress / controls */
+  padding: var(--space-3) var(--space-4);   /* 12px / 16px */
   margin: 0 auto;
   width: 100%;
   max-width: 480px;
@@ -881,10 +896,13 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(40px, 6vh, 64px);
+  /* Tighter padding + gap than before (was clamp(20,4vh,40) / clamp(40,6vh,64))
+     so the sentence area fits in a viewport that already includes
+     PracticeChrome (36px) and the rest of the practice column. */
+  gap: clamp(16px, 2vh, 24px);
   width: 100%;
   position: relative;
-  padding: clamp(20px, 4vh, 40px) 0;
+  padding: clamp(8px, 1.5vh, 16px) 0;
 }
 
 .sentence__hint {
@@ -1074,7 +1092,15 @@ select:focus-visible {
   align-items: flex-start;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 1.4em;
+  /* Split row vs column gap. Previously gap: 1.4em applied to BOTH
+     axes — when the sentence wrapped, the gap between the IPA of
+     one line and the cells of the next was 1.4em (~50px), which
+     felt detached. Keeping the wide column-gap for cell-to-cell
+     breathing room in a row, but tightening the row-gap to ~14px
+     (close to one phonetic line height) so wrapped lines read as
+     continuous prose. */
+  column-gap: 1.4em;
+  row-gap: 0.4em;
   line-height: 2.4;
   padding: 8px 0;
 }
@@ -1097,7 +1123,7 @@ select:focus-visible {
   text-align: center;
   letter-spacing: -0.005em;
   font-family: var(--font-body);
-  font-size: clamp(2rem, 6vw, 2.75rem);
+  font-size: clamp(1.5rem, 4.5vw, 2.5rem);
   line-height: 1;
   font-weight: 500;
   color: var(--label-tertiary);
@@ -1107,7 +1133,7 @@ select:focus-visible {
 .cell__ghost {
   visibility: hidden;
   font-family: var(--font-body);
-  font-size: clamp(2rem, 6vw, 2.75rem);
+  font-size: clamp(1.5rem, 4.5vw, 2.5rem);
   line-height: 1;
   font-weight: 500;
   padding: 0 4px;
@@ -1188,7 +1214,7 @@ select:focus-visible {
   width: 100%;
   padding: 0 4px;
   font-family: var(--font-body);
-  font-size: clamp(2rem, 6vw, 2.75rem);
+  font-size: clamp(1.5rem, 4.5vw, 2.5rem);
   line-height: 1;
   font-weight: 500;
   color: transparent;
@@ -1202,7 +1228,7 @@ select:focus-visible {
 .cell__char {
   display: inline-block;
   font-family: var(--font-body);
-  font-size: clamp(2rem, 6vw, 2.75rem);
+  font-size: clamp(1.5rem, 4.5vw, 2.5rem);
   line-height: 1;
   width: 0.625em;
   text-align: center;
@@ -1283,7 +1309,7 @@ select:focus-visible {
 .phonetic__ghost {
   visibility: hidden;
   font-family: var(--font-body);
-  font-size: clamp(2rem, 6vw, 2.75rem);
+  font-size: clamp(1.5rem, 4.5vw, 2.5rem);
   line-height: 1;
   font-weight: 500;
   padding: 0 4px;
@@ -1416,8 +1442,10 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-5);
-  min-height: 80px;
+  gap: var(--space-4);
+  /* Was 80px — reduced to 64px so the practice column fits in an
+     800px-tall viewport after PracticeChrome (36px) is added. */
+  min-height: 64px;
   justify-content: center;
 }
 
@@ -1604,109 +1632,6 @@ select:focus-visible {
   color: var(--label-tertiary);
   letter-spacing: 0.04em;
   user-select: none;
-}
-
-/* ============================================================
-   Toolbar — top-right menu trigger
-   ============================================================ */
-.toolbar {
-  position: fixed;
-  top: clamp(20px, 4vh, 36px);
-  right: clamp(20px, 4vw, 36px);
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.toolbar__group {
-  position: relative;
-}
-
-.toolbar__btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-md);
-  color: var(--label-tertiary);
-  cursor: pointer;
-  transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    color            var(--duration-fast) var(--ease-standard);
-}
-
-.toolbar__btn:hover {
-  background: var(--surface-secondary);
-  color: var(--label-primary);
-}
-
-.toolbar__btn:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(28, 28, 30, 0.18);
-}
-
-.toolbar__btn--active {
-  background: var(--surface-secondary);
-  color: var(--label-primary);
-}
-
-.toolbar__menu {
-  position: absolute;
-  top: calc(100% + var(--space-2));
-  right: 0;
-  min-width: 180px;
-  padding: var(--space-1);
-  background: var(--surface-elevated);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  animation: practice-fade-in var(--duration-fast) var(--ease-standard);
-}
-
-.toolbar__menu-header {
-  padding: var(--space-2) var(--space-3) var(--space-1);
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  font-weight: 500;
-  color: var(--label-tertiary);
-  letter-spacing: 0.02em;
-}
-
-.toolbar__menu-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  width: 100%;
-  min-height: 32px;
-  padding: 0 var(--space-3);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--label-secondary);
-  font-family: var(--font-body);
-  font-size: var(--type-body);
-  font-weight: var(--type-body-weight);
-  text-align: left;
-  cursor: pointer;
-  transition: background-color var(--duration-fast) var(--ease-standard);
-}
-
-.toolbar__menu-item:hover {
-  background: var(--surface-secondary);
-  color: var(--label-primary);
-}
-
-.toolbar__menu-item:focus-visible {
-  outline: none;
-  background: var(--surface-secondary);
-  box-shadow: 0 0 0 2px rgba(28, 28, 30, 0.18);
 }
 
 /* ============================================================
@@ -2021,11 +1946,6 @@ select:focus-visible {
     gap: var(--space-9);
   }
 
-  .toolbar {
-    top: var(--space-4);
-    right: var(--space-4);
-  }
-
   .shortcuts {
     top: auto;
     bottom: 70px;
@@ -2057,12 +1977,29 @@ select:focus-visible {
     height: 44px;
   }
 
-  .toolbar__btn {
-    min-width: 44px;
-    min-height: 44px;
-  }
-
   .mode-selector__btn {
     min-height: 36px;
+  }
+}
+
+/* ============================================================
+   prefers-reduced-motion — disable all auth animations.
+   Covers the (auth) layout's keyframes (blob drift, card rise)
+   and the page-level ones (char rise, field rise). Defined
+   globally so a single block covers login + signup + future
+   auth pages without per-page duplication.
+
+   !important is intentional — the per-element rules use the
+   animation property directly (not as a class), and we need
+   to override them on every element to fully suppress motion.
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .auth-aurora__blob,
+  .auth-card,
+  .auth-title__char,
+  .auth-field {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
   }
 }

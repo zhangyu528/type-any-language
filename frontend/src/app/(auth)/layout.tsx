@@ -1,11 +1,10 @@
 /**
  * (auth) route group layout — glassmorphism card on aurora gradient.
  *
- * The route group `(auth)` keeps /login and /signup from inheriting
- * Header (we don't want a "登录" button on the login page itself).
- * Header detects /login|/signup via usePathname and returns null.
- * PracticePage (the `/` route) is NOT inside this group — it remains
- * public and keeps the original Apple-HIG-style layout.
+ * PracticePage (the `/` route) is NOT inside this group — it stays
+ * public and renders its own chrome (PracticeChrome). The (auth)
+ * group gives /login and /signup a distinct visual context from the
+ * practice flow.
  *
  * Design intent: auth is a distinct mental state from "casual practice"
  * — it deserves a visual context shift. Aurora gradient + frosted
@@ -14,8 +13,8 @@
  * Apple-HIG rest of the app.
  *
  * Back-to-home affordance: the enso brand mark at the top of the
- * card is a Link to `/`. Replaces Header's "练习" link that would
- * otherwise sit in the top-left.
+ * card is a Link to `/`. Replaces the chrome's "home" link, which
+ * would otherwise sit in the top-left.
  */
 import Link from 'next/link';
 
@@ -68,30 +67,48 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         .auth-aurora__blob {
           position: absolute;
           border-radius: 50%;
-          filter: blur(80px);
-          opacity: 0.55;
+          /* Two problems with the previous setup that made motion
+             invisible:
+             1. 56px blur absorbed the translation — softer edges mean
+                the color gradient is more uniform, so 80px of motion
+                barely shows.
+             2. The pastel colors (#FFB7C5 / #C9B6F2 / #FFD49B) were
+                only marginally more saturated than the background
+                gradient, so even visible motion registered as
+                "color slightly shifted" rather than "blob moved".
+             40px blur + deeper colors fix both. */
+          filter: blur(40px);
+          opacity: 0.75;
           will-change: transform;
         }
         .auth-aurora__blob--a {
-          top: -8%;
-          left: -10%;
-          width: 48vw;
-          height: 48vw;
-          background: #FFB7C5;
+          top: -10%;
+          left: -15%;
+          width: 42vw;
+          height: 42vw;
+          background: #FF6B9D;
+          animation: auth-blob-drift-a 18s ease-in-out infinite;
         }
         .auth-aurora__blob--b {
-          top: 10%;
-          right: -12%;
-          width: 44vw;
-          height: 44vw;
-          background: #C9B6F2;
+          bottom: -10%;
+          right: -15%;
+          width: 40vw;
+          height: 40vw;
+          background: #8B6BF0;
+          animation: auth-blob-drift-b 20s ease-in-out infinite -6s;
         }
         .auth-aurora__blob--c {
-          bottom: -15%;
+          /* Re-centered: this blob now sits behind the auth card
+             itself, so the frosted glass (rgba white 55% + backdrop
+             blur 28px) shows the color shifting underneath as the
+             blob drifts. The motion lands in the user's visual focus
+             area, not in the corners they're not looking at. */
+          top: 25%;
           left: 30%;
-          width: 50vw;
-          height: 50vw;
-          background: #FFD49B;
+          width: 44vw;
+          height: 44vw;
+          background: #FFB347;
+          animation: auth-blob-drift-c 16s ease-in-out infinite -10s;
         }
         .auth-card {
           position: relative;
@@ -108,6 +125,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             0 12px 48px rgba(80, 40, 120, 0.10),
             0 2px 8px rgba(80, 40, 120, 0.05),
             inset 0 1px 0 rgba(255, 255, 255, 0.7);
+          /* One-time entrance: fade + 12px rise. 'both' fill so the
+             initial state (opacity 0) is applied before the animation
+             starts — avoids a flash of fully-rendered card. */
+          animation: auth-card-rise 600ms var(--ease-emphasized) both;
         }
         .auth-card__brand {
           display: inline-flex;
@@ -154,6 +175,54 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           color: var(--label-primary);
           margin-bottom: var(--space-6);
           text-align: center;
+        }
+
+        /* Title char-level fade — each <span class="auth-title__char">
+           inside the h1 gets a 50ms-staggered fade + Y rise via inline
+           style with animationDelay set per character. 700ms after the
+           card starts, all chars are in place. */
+        .auth-title {
+          display: block;
+        }
+        .auth-title__char {
+          display: inline-block;
+          opacity: 0;
+          transform: translateY(6px);
+          animation: auth-char-rise 500ms var(--ease-emphasized) both;
+        }
+        @keyframes auth-char-rise {
+          from { opacity: 0; transform: translateY(6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes auth-card-rise {
+          from { opacity: 0; transform: translateY(12px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes auth-field-rise {
+          from { opacity: 0; transform: translateY(6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes auth-blob-drift-a {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          25%      { transform: translate(12vw, -8vh) scale(1.22); }
+          50%      { transform: translate(6vw, 10vh) scale(0.85); }
+          75%      { transform: translate(-10vw, 6vh) scale(1.12); }
+        }
+        @keyframes auth-blob-drift-b {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          20%      { transform: translate(-10vw, 7vh) scale(1.2); }
+          45%      { transform: translate(12vw, 8vh) scale(0.8); }
+          70%      { transform: translate(5vw, -10vh) scale(1.15); }
+          90%      { transform: translate(-6vw, 4vh) scale(0.92); }
+        }
+        @keyframes auth-blob-drift-c {
+          /* The "center" blob — motion is the focal point. Wider
+             translation range so the color visibly shifts position
+             behind the card glass. */
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          25%      { transform: translate(15vw, -8vh) scale(1.25); }
+          50%      { transform: translate(-10vw, 10vh) scale(0.78); }
+          75%      { transform: translate(8vw, -6vh) scale(1.18); }
         }
       ` }} />
     </main>

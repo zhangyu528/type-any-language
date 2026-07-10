@@ -1,7 +1,6 @@
 import Home from './page';
 import './globals.css';
 import { AuthProvider } from './lib/auth';
-import { Header } from './components/Header';
 
 export default function RootLayout({
   children,
@@ -31,15 +30,13 @@ export default function RootLayout({
       </head>
       <body>
         {/*
-          AuthProvider wraps the whole tree so Header can call useAuth().
-          Header sits above children — practice + auth + history pages
-          all get the same top bar. The (auth) route group's own layout
-          still wins for /login + /signup because nested layouts override.
+          AuthProvider wraps the whole tree so useAuth() works in
+          PracticeChrome (rendered by PracticePage) and /history.
+          Root layout is chrome-free — each page renders its own
+          navigation (PracticeChrome on /, the (auth) layout on
+          /login + /signup, /history uses the user-info header).
         */}
-        <AuthProvider>
-          <Header />
-          {children}
-        </AuthProvider>
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );
