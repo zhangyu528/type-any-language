@@ -1,0 +1,15 @@
+# db/.gitignore — gitignore rules for the db image build context.
+#
+# The db image is built from this directory (Dockerfile + init/01-content.sql).
+# Everything that's bake output (regenerated on every `bake_image.sh` run)
+# lives here; cross-project concerns (Python __pycache__, IDE dirs, OS junk,
+# secrets, ...) stay in the root .gitignore so they apply uniformly.
+
+# Bake output — pg_dump'd SQL, regenerated every time bake_image.sh runs.
+# Keeping it out of the repo (and out of the diff) means we don't bloat git
+# history with multi-MB SQL blobs that change on every content update.
+init/01-content.sql
+
+# No longer used (audio moved to COS in this release). Kept here as a guard
+# rail in case future bake work reintroduces local audio.
+seed/

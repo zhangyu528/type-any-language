@@ -40,15 +40,6 @@ npm-debug.log*
 # bake staging
 .bake-staging/
 
-# db image build inputs — populated by scripts/ops/cms/bake_image.sh
-# (which delegates to db/builder.py). Only the Dockerfile +
-# init/01-content.sql are committed; 01-content.sql is regenerated on
-# every bake from a fresh pg_dump and would just bloat the repo.
-db/init/01-content.sql
-# db/seed/ is no longer used (audio moved to COS in this release). Kept
-# here as a guard rail in case future bake work reintroduces local audio.
-db/seed/
-
 # Test artifacts (used by the test path that exercises the labels-read
 # path in dev/prod build_image.sh — not normally created in real use)
 .db-image-build/
