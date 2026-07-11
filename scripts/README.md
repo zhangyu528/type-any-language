@@ -10,8 +10,8 @@ scripts/
 ├── lib.sh              共享 helper —— 每个脚本都 source 它
 ├── release.sh          release 编排器(bump + build + push)
 ├── ops/
-│   ├── content/         CMS 主机:内容生产 + content image 烘焙
-│   │   ├── env.sh        .env.db 生命周期(init/update/show/doctor)
+│   ├── cms/         CMS 主机:内容生产 + content image 烘焙
+│   │   ├── env.sh        cms/.env 生命周期(init/update/show/doctor)
 │   │   ├── content.sh    sync / sentences / audio / publish / export / doctor
 │   │   ├── bake_image.sh dump + audio 拷贝 + docker build
 │   │   └── push_image.sh 推到 $DOCKER_REGISTRY
@@ -36,11 +36,11 @@ scripts/
 | 查看当前版本 | `./scripts/release.sh show` |
 | 检查主机就绪状态 | `./scripts/ops/<host>/run.sh doctor` |
 | 启动 / 停止 / 重启容器 | `./scripts/ops/<host>/run.sh start\|stop\|restart` |
-| 烘焙 + 推送 db image(CMS) | `./scripts/ops/content/bake_image.sh && ./scripts/ops/content/push_image.sh -y` |
+| 烘焙 + 推送 db image(CMS) | `./scripts/ops/cms/bake_image.sh && ./scripts/ops/cms/push_image.sh -y` |
 | Build + 推送应用镜像(目标机) | `./scripts/ops/<host>/build_image.sh && ./scripts/ops/<host>/push_image.sh -y` |
-| 管理 .env.db(CMS) | `./scripts/ops/content/env.sh [init\|update\|show\|doctor]` |
+| 管理 cms/.env(CMS) | `./scripts/ops/cms/env.sh [init\|update\|show\|doctor]` |
 
-`<host>` 是 `dev-host` 或 `prod-host`。CMS 脚本在 `scripts/ops/content/` 下。
+`<host>` 是 `dev-host` 或 `prod-host`。CMS 脚本在 `scripts/ops/cms/` 下。
 
 ## `lib.sh` —— 共享 helper
 
@@ -109,13 +109,13 @@ require_docker    # 脚本用到 docker 时
 ```
 
 注意:
-- **`PROJECT_DIR` 必须是仓库根。** 所有 compose 文件、VERSION 文件、`.env.db`、`content/` 等都在那里。常见 bug 是少走一层(落在 `scripts/` 而不是仓库根)—— 每个 `scripts/ops/*/` 脚本用 `$SCRIPT_DIR/../../..` 就是为了避开这个坑。
+- **`PROJECT_DIR` 必须是仓库根。** 所有 compose 文件、VERSION 文件、`cms/.env`、`cms/` 等都在那里。常见 bug 是少走一层(落在 `scripts/` 而不是仓库根)—— 每个 `scripts/ops/*/` 脚本用 `$SCRIPT_DIR/../../..` 就是为了避开这个坑。
 - **顶部 `set -e`**。fail fast;让 `lib.sh` 的 `require_*` 处理友好报错。
 - **Subcommand API**: `cmd_<subcommand>` 函数,通过 `case "${1:-}" in` 路由。`usage()` 出 help。退出码:
   - 0 = 成功或用户取消
   - 1 = 前置条件缺失
   - 2 = docker / push 失败
-- **ops 脚本不要用 Python。** CMS 流水线用 Python(`content/tools/cms/*.py`),但 `scripts/ops/` 全 shell。目标机甚至不应该装 Python。
+- **ops 脚本不要用 Python。** CMS 流水线用 Python(`cms/tools/cms/*.py`),但 `scripts/ops/` 全 shell。目标机甚至不应该装 Python。
 - **`source "$SCRIPT_DIR/../../lib.sh"`** 是引入方式。不要 `source ./lib.sh` —— 操作员切了目录就找不到。
 
 ## 版本模型
@@ -135,7 +135,7 @@ dev 目标机的 `run.sh` 也会读 `VERSION.prod` 来取 `DB_IMAGE_TAG`(因为 
 
 1. 选对子目录:
    - 影响某台主机的容器生命周期 → `scripts/ops/<host>/`
-   - 操作 content image / .env.db → `scripts/ops/content/`
+   - 操作 content image / cms/.env → `scripts/ops/cms/`
    - 跨切面编排 → `scripts/`
    - 开发者工具(lint、test、generate)→ `scripts/dev/`
 2. 复制一个相同形状的现有脚本作模板(`run.sh` / `bake_image.sh` 是最规范的例子)。
@@ -147,4 +147,4 @@ dev 目标机的 `run.sh` 也会读 `VERSION.prod` 来取 `DB_IMAGE_TAG`(因为 
 ## 参见
 
 - `../CLAUDE.md` —— 项目总览、双主机架构、完整命令参考
-- `../content/tools/cms/README.md` —— Python 内容生产流水线(仅 CMS)
+- `../cms/tools/cms/README.md` —— Python 内容生产流水线(仅 CMS)

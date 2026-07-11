@@ -23,3 +23,8 @@ npm-debug.log*
 # TypeScript incremental build cache
 tsconfig.tsbuildinfo
 *.tsbuildinfo
+
+# Runtime artifact — written by frontend/entrypoint.sh so the hash-aware
+# npm install can skip on no-op restarts. Always generated next to the
+# frontend's package-lock.json.
+.package-lock.sha256

@@ -5,7 +5,7 @@ Single GET: returns every vocabulary lib, each lib's available difficulty
 buckets, and the UI defaults. Phase 1 sources libs from the DB and
 hardcodes the difficulty list per Phase 1's scope. Phase 2 will source
 per-lib difficulty lists from a DB column populated by import_vocab from
-content/source/manifest.yaml.
+cms/source/manifest.yaml.
 """
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session

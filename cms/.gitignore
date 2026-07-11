@@ -1,0 +1,18 @@
+# cms/.gitignore — gitignore rules for the CMS content-production
+# sub-tree. Anything that's specifically about the content runtime /
+# CMS pipeline state lives here; cross-project concerns (Python
+# __pycache__, IDE dirs, OS junk, secrets, ...) stay in the root
+# .gitignore so they apply uniformly.
+
+# CMS-host secrets — never commit. Created by env.sh init from
+# cms/.env.example.cms. Resolved by lib.sh::resolve_content_env_file.
+.env
+
+# CMS working dir — generated TTS MP3s and any future per-machine
+# state (logs, caches, ...) that content.sh / generate_audio.py writes.
+# Lives inside the project (cms/.local/) so default-path writes
+# work on Windows + sandboxed Linux hosts without extra setup. dev/prod
+# runtime does NOT read this — audio is uploaded to Tencent Cloud COS
+# by generate_audio.py (configured via CLOUD_* env vars). The db image
+# itself no longer carries audio files.
+.local/

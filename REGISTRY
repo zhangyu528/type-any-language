@@ -16,7 +16,7 @@
 #
 # This file is COMMITTED to git. It is shared project config, not a
 # personal secret. Personal secrets (postgres password, AI keys, TTS
-# keys) live in `.env.db` (gitignored) on the CMS host.
+# keys) live in `cms/.env` (gitignored) on the CMS host.
 #
 # Leave this file empty (no uncommented DOCKER_REGISTRY= line) to fall
 # back to detect_default_registry() (docker.io/$USER on most dev hosts).

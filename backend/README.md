@@ -1,13 +1,13 @@
 # backend/
 
-type-any-language 的 FastAPI 读层。运行时有意做得很薄:提供已缓存的词库 + 预烤好的句子 + 静态 MP3。没有 AI、没有 TTS、没有调度器 —— 这些都在 CMS 主机的烘焙阶段跑。
+type-any-language 的 FastAPI 读层。运行时有意做得很薄:提供已缓存的词库 + 预烤好的句子。音频由前端从腾讯云 COS 直接拉(URL 存在 `sentences.audio_url` 字段),后端不持有音频文件。没有 AI、没有 TTS、没有调度器 —— 这些都在 CMS 主机的烘焙阶段跑。
 
 完整的双主机架构(CMS 生产内容、目标机消费)在 [`../CLAUDE.md`](../CLAUDE.md) 里有说明。
 
 ## 技术栈
 
 - Python 3 / FastAPI / SQLAlchemy / pydantic-settings
-- 纯读层 —— 每次查询都落在 CMS 主机 `bake_image.sh` 烤进 db image 的 `content/runtime/init/01-content.sql` 预填的表上。`main.py` 里的 `Base.metadata.create_all()` 只是测试用的兜底,不是事实源。
+- 纯读层 —— 每次查询都落在 CMS 主机 `bake_image.sh` 烤进 db image 的 `db/init/01-content.sql` 预填的表上。`main.py` 里的 `Base.metadata.create_all()` 只是测试用的兜底,不是事实源。
 
 ## 目录结构
 
@@ -17,7 +17,7 @@ backend/
 ├── Dockerfile.dev     # dev image(uvicorn --reload,hash-aware entrypoint)
 ├── requirements.txt
 ├── app/
-│   ├── main.py        # FastAPI 应用,CORS,挂载 /audio StaticFiles
+│   ├── main.py        # FastAPI 应用,CORS
 │   ├── config.py      # pydantic-settings(DATABASE_URL[_FILE], ALLOWED_ORIGINS)
 │   ├── database.py    # SQLAlchemy engine + Base
 │   ├── models/        # SQLAlchemy ORM(vocabulary, sentence)
@@ -36,10 +36,11 @@ backend/
 | `GET` | `/api/sentences` | 预烤好的句子(可筛选) |
 | `GET` | `/api/sentences/random` | 随机一个句子 |
 | `GET` | `/api/sentences/{id}` | 单个句子 |
-| `GET` | `/audio/{filename}` | 静态 MP3(从 `/audio` 卷里取,烤在 db image 里) |
 | `GET` | `/` | 版本 banner |
 | `GET` | `/health` | 存活探针 |
 | `GET` | `/docs` | Swagger UI(FastAPI 自动生成) |
+
+**音频服务**:不在这里。`sentences[i].audio_url` 直接是腾讯云 COS 上的完整 URL,前端读这个字段后让浏览器自己拉。详见 [CLAUDE.md](../CLAUDE.md) 的"音频与 COS"段。
 
 ## 配置
 

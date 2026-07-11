@@ -25,7 +25,7 @@ export interface Catalog {
 }
 
 export async function getContentCatalog(): Promise<Catalog> {
-  const response = await fetch(`${API_BASE_URL}/api/content/catalog`);
+  const response = await fetch(`${API_BASE_URL}/api/cms/catalog`);
   if (!response.ok) {
     throw new Error('获取内容目录失败');
   }

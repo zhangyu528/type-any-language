@@ -13,7 +13,7 @@
 #   • Frontend requests are routed through nginx on :80.
 #
 # ─── Database identity from image labels ─────────────────────────────────
-# The content-baked db image is baked by ./scripts/ops/content/bake_image.sh with these labels:
+# The content-baked db image is baked by ./scripts/ops/cms/bake_image.sh with these labels:
 #   type-any-language.db.user       (e.g. english_user)
 #   type-any-language.db.name       (e.g. english_learning)
 #   type-any-language.content.version
@@ -28,8 +28,8 @@
 # ─── What this isn't ──────────────────────────────────────────────────────
 # Does NOT build images, does NOT manage secrets, does NOT bake/push content.
 #   • To build backend + frontend images: ./scripts/ops/prod-host/build_image.sh
-#   • To bake content into db image:     ./scripts/ops/content/bake_image.sh
-#   • To push baked image to registry:   ./scripts/ops/content/push_image.sh
+#   • To bake content into db image:     ./scripts/ops/cms/bake_image.sh
+#   • To push baked image to registry:   ./scripts/ops/cms/push_image.sh
 #   • To change ALLOWED_ORIGINS:         export ALLOWED_ORIGINS=... before start,
 #                                         or edit the default in docker-compose.yml.
 #
@@ -200,7 +200,7 @@ gate_preflight() {
         if [ -n "$DOCKER_REGISTRY" ]; then
             info "  → 设置 DB_IMAGE_TAG 后由 run.sh 拉取，或: docker pull $DB_FULL_IMAGE"
         else
-            info "  → 运行 ./scripts/ops/content/bake_image.sh（可用 --tag v1.0.0 标记）"
+            info "  → 运行 ./scripts/ops/cms/bake_image.sh（可用 --tag v1.0.0 标记）"
         fi
         exit 1
     fi
@@ -265,7 +265,7 @@ cmd_doctor() {
         elif [ -n "$DOCKER_REGISTRY" ]; then
             warn "content-baked db image $DB_FULL_IMAGE 缺失 → ./scripts/ops/prod-host/run.sh restart"
         else
-            warn "content-baked db image $DB_FULL_IMAGE 缺失 → ./scripts/ops/content/bake_image.sh"
+            warn "content-baked db image $DB_FULL_IMAGE 缺失 → ./scripts/ops/cms/bake_image.sh"
         fi
     fi
 
@@ -373,13 +373,13 @@ cmd_setup() {
                 ok "  pull 成功"
             else
                 err "  pull 失败 — 检查 registry / 网络 / 凭据"
-                err "  或: 在 CMS 主机上先 push: ./scripts/ops/content/push_image.sh -y"
+                err "  或: 在 CMS 主机上先 push: ./scripts/ops/cms/push_image.sh -y"
                 return 1
             fi
         else
             info "  prod 主机不 bake content,content-baked db image 必须从 CMS 主机过来:"
-            info "    1. CMS 主机: ./scripts/ops/content/bake_image.sh"
-            info "    2. CMS 主机: ./scripts/ops/content/push_image.sh -y     # 推 registry"
+            info "    1. CMS 主机: ./scripts/ops/cms/bake_image.sh"
+            info "    2. CMS 主机: ./scripts/ops/cms/push_image.sh -y     # 推 registry"
             info "    3. 本机配置 REGISTRY / DOCKER_REGISTRY,再跑一次 ./scripts/ops/prod-host/run.sh setup"
             info "  (或: 手动 docker load/tar 把 content-baked db image 搬过来)"
             err "content-baked db image 缺失 — 完成上面的步骤后,再跑一次 setup"
@@ -454,7 +454,7 @@ drift_check() {
 cmd_start() {
     gate_preflight
     if ! inspect_db_image_labels; then
-        err "content-baked db image 缺少 type-any-language.* labels — 用 ./scripts/ops/content/bake_image.sh 重新烘焙"
+        err "content-baked db image 缺少 type-any-language.* labels — 用 ./scripts/ops/cms/bake_image.sh 重新烘焙"
         exit 1
     fi
     write_secrets
@@ -480,7 +480,7 @@ cmd_stop() {
 cmd_restart() {
     gate_preflight
     if ! inspect_db_image_labels; then
-        err "content-baked db image 缺少 type-any-language.* labels — 用 ./scripts/ops/content/bake_image.sh 重新烘焙"
+        err "content-baked db image 缺少 type-any-language.* labels — 用 ./scripts/ops/cms/bake_image.sh 重新烘焙"
         exit 1
     fi
     write_secrets

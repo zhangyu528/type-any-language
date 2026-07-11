@@ -20,7 +20,7 @@ class CatalogDefaults(BaseModel):
 
 
 class CatalogResponse(BaseModel):
-    """Returned by GET /api/content/catalog.
+    """Returned by GET /api/cms/catalog.
 
     libs:                  every vocabulary lib the runtime has, in stable order.
     difficulties_by_lib:   the difficulty buckets each lib offers. Keys are lib.level.

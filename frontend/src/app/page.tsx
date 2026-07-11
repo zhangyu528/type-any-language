@@ -163,7 +163,7 @@ export default function PracticePage() {
       <div className="practice practice--empty">
         <p className="practice__empty-text">暂无课程</p>
         <p className="practice__empty-hint">
-          请检查 <code>db/content/manifest.yaml</code> 与对应 CSV 文件
+          请检查 <code>db/cms/manifest.yaml</code> 与对应 CSV 文件
         </p>
       </div>
     );

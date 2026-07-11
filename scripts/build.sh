@@ -6,7 +6,7 @@
 # existing per-stream build scripts so an operator can produce a complete,
 # locally-runnable set of images in one command:
 #
-#   - content-baked db image         (content-baked, via scripts/ops/content/bake_image.sh)
+#   - content-baked db image         (content-baked, via scripts/ops/cms/bake_image.sh)
 #   - dev app images   (english_backend_dev + english_frontend_dev)
 #   - prod app images  (english_backend + english_frontend)
 #
@@ -39,7 +39,7 @@
 #
 #   IMAGE_TAG=v1.2.3 ./scripts/build.sh all
 #
-# Requires: shell + docker (+ python + .env.db for the db bake).
+# Requires: shell + docker (+ python + cms/.env for the db bake).
 
 set -e
 
@@ -89,7 +89,7 @@ Image tag 解析(每个 inner build 自己 resolve, 见 lib.sh → resolve_image
 架构前提:
   - dev / prod 的 build_image.sh 需要 content-baked db image 的 OCI label (DB_USER / DB_NAME),
     所以 all / dev / prod 都假设 content-baked db image 已经在本地(或先跑过 db)。
-  - db bake 需要 .env.db + 跑着 english_db 或 english_db_dev 容器。
+  - db bake 需要 cms/.env + 跑着 english_db 或 english_db_dev 容器。
   - 多机部署: 各自机器跑各自的 inner build 脚本即可,build.sh 主要方便
     单机 CMS+dev+prod 一把梭。
 EOF
@@ -114,7 +114,7 @@ cmd_all() {
     # db first — its OCI labels (DB_USER / DB_NAME) are needed by the
     # dev / prod build scripts' compose interpolation.
     run_step "bake content-baked db image (content-baked)" \
-        ./scripts/ops/content/bake_image.sh
+        ./scripts/ops/cms/bake_image.sh
     echo ""
 
     run_step "build dev backend + frontend" \
@@ -133,7 +133,7 @@ cmd_all() {
 cmd_db() {
     info "=== build db only ==="
     run_step "bake content-baked db image (content-baked)" \
-        ./scripts/ops/content/bake_image.sh
+        ./scripts/ops/cms/bake_image.sh
     echo ""
     ok "build db done."
 }

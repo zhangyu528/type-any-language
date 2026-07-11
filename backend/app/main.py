@@ -7,12 +7,14 @@ no TTS, no scheduler — those run at bake time on the CMS host.
 
 Why this is so thin:
   - Content (vocab_libs, vocab_words, sentences) ships inside the db image.
-  - Schema is created at bake time (content/runtime/init/01-content.sql).
-  - The backend only mounts the static audio dir and exposes GET endpoints.
+  - Schema is created at bake time (db/init/01-content.sql).
+  - Audio is served directly from Tencent Cloud COS via the
+    sentences.audio_url column (full URL stored at bake time). The backend
+    exposes no /audio endpoint — the frontend reads sentence.audio_url
+    and the browser streams from COS.
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.database import engine, Base
@@ -20,7 +22,7 @@ from app.routers import content, lessons, sentences, vocabulary
 
 settings = get_settings()
 
-# Schema is owned by the baked db image (content/runtime/init/01-content.sql).
+# Schema is owned by the baked db image (db/init/01-content.sql).
 # create_all() is a safety net for tests / when running against an empty
 # DB — it never alters an existing table.
 Base.metadata.create_all(bind=engine)
@@ -31,13 +33,12 @@ app = FastAPI(
     version="0.1.0",
     description=(
         "Read-layer API over the content-baked db image. "
-        "No AI/TTS calls happen here — those are baked in at build time."
+        "No AI/TTS calls happen here — those are baked in at build time. "
+        "Audio is served from Tencent Cloud COS via sentences.audio_url."
     ),
 )
 
-# Serve MP3s from the shared-audio volume that the db image seeds.
-app.mount("/audio", StaticFiles(directory="/audio"), name="audio")
-
+# CORS allowlist — comes from app.config (env ALLOWED_ORIGINS).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins_list(),

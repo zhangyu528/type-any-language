@@ -1,0 +1,58 @@
+# backend/.dockerignore — exclude everything that shouldn't be baked
+# into the backend image. Both Dockerfile and Dockerfile.dev do
+# `COPY . .` so this is the only thing standing between the host
+# working tree and the image context.
+
+# ── Build artifacts (regenerated inside the image) ────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+.eggs/
+dist/
+build/
+htmlcov/
+
+# ── Virtualenvs (deps are baked in via `pip install -r requirements.txt`)
+.venv/
+venv/
+ENV/
+
+# ── Test / coverage output ────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+.tox/
+
+# ── Operator scripts — kept in the repo for CMS host convenience, NOT ────
+# for the runtime image. backend/scripts/ is loaded by cms/tools/cms
+# imports on the CMS host; the backend container doesn't need it.
+scripts/
+
+# ── README — useful on the host, noise in the image ───────────────────────
+README.md
+
+# ── VCS metadata ─────────────────────────────────────────────────────────
+.git/
+.gitignore
+.gitattributes
+
+# ── Secrets — never bake into any image ───────────────────────────────────
+.env
+.env.*
+!.env.example*
+
+# ── Editor / IDE / OS junk ───────────────────────────────────────────────
+.vscode/
+.idea/
+.claude/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# ── Logs ──────────────────────────────────────────────────────────────────
+*.log
+
+# ── Local development artifacts (host-only) ───────────────────────────────
+**/.package-lock.sha256
