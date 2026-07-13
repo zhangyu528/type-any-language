@@ -50,7 +50,7 @@ setup_dev_host_env() {
     resolve_docker_registry
     if [ -n "$DOCKER_REGISTRY" ]; then
         if [ "${_DOCKER_REGISTRY_SOURCE:-}" = "detect" ]; then
-            info "DOCKER_REGISTRY=$DOCKER_REGISTRY (auto-detected — 仅 push_image.sh 用,setup 也不会拉)"
+            info "DOCKER_REGISTRY=$DOCKER_REGISTRY (auto-detected — 仅 prod-host + db 用,dev 不 push)"
         else
             info "DOCKER_REGISTRY=$DOCKER_REGISTRY (setup 一次性 bootstrap 拉取用,start 不再 auto-pull)"
         fi

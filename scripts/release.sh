@@ -262,9 +262,9 @@ cmd_dev() {
     [ "${RELEASEd_BUMP:-0}" = "1" ] && touched_dev=1
 
     echo ""
-    publish_one "dev app images (backend + frontend)" \
+    publish_one "dev app images (backend + frontend, local-only — dev never pushes)" \
         "./scripts/dev-host/build_image.sh" \
-        "./scripts/dev-host/push_image.sh" \
+        "" \
         "$tag"
 
     git_commit_touched "$touched_dev" 0 "$tag"

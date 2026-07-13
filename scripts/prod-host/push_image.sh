@@ -2,7 +2,7 @@
 #
 # prod-host/push_image.sh — push PROD backend + frontend images to $DOCKER_REGISTRY.
 #
-# Symmetric with cms/scripts/push_image.sh (CMS host pushes the db image;
+# Symmetric with db/scripts/push.sh (CMS host pushes the db image;
 # target hosts push their own backend/frontend images). Run this AFTER
 # ./scripts/prod-host/build_image.sh has produced the images locally.
 # Push is a deliberate, separate step: you might build many times locally
@@ -33,7 +33,7 @@
 #   english_backend   → ${DOCKER_REGISTRY}/english_backend:vX.Y.Z
 #   english_frontend  → ${DOCKER_REGISTRY}/english_frontend:vX.Y.Z
 #
-# The content-baked db image is NOT pushed here — CMS host's cms/scripts/push_image.sh
+# The content-baked db image is NOT pushed here — CMS host's db/scripts/push.sh
 # is the source of truth for that image (it's content-baked, not built here).
 #
 # Examples:
@@ -52,7 +52,10 @@ cd "$PROJECT_DIR"
 source "$SCRIPT_DIR/../../scripts/lib.sh"
 
 # DOCKER_REGISTRY: shell env > ./REGISTRY file > detect_default_registry().
-# Symmetric with content-host/push_image.sh (lives in cms/scripts/ now) and dev-host/push_image.sh.
+# Pairs with db/scripts/push.sh (CMS host pushes db image); the prod-host
+# pushes its own backend+frontend. dev-host does NOT have a push script —
+# dev is local-only (image lifecycle owned by build + dev-side tagging,
+# never registry-pollutes a shared namespace).
 resolve_docker_registry
 
 COMPOSE_FILE="docker-compose.yml"
@@ -167,7 +170,7 @@ cmd_push() {
     info "  $BACKEND_IMAGE  →  $backend_remote"
     info "  $FRONTEND_IMAGE →  $frontend_remote"
     info ""
-    info "  (content-baked db image 由 CMS 主机 ./cms/scripts/push_image.sh 推)"
+    info "  (content-baked db image 由 CMS 主机 ./db/scripts/push.sh 推)"
 
     # Brief metadata block.
     local backend_id frontend_id

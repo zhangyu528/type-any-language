@@ -87,13 +87,18 @@ dev 改了 `cms/tools/cms/migrations/versions/*.py` 的话:
 
 ## 镜像发布(可选,无 registry 时跳过)
 
-dev / prod 各推自己的 backend+frontend 镜像;db 镜像由 CMS 主机推。
+dev 主机 **不 push**(dev 是开发机,image 留在本地,跑 build 后直接 start)。
+prod 主机推自己的 backend+frontend 镜像;db 镜像由 CMS 主机推。
 
 ```bash
-# dev host: 推 backend_dev + frontend_dev
+# dev host: 只 build,不 push,直接 start
+./scripts/dev-host/build_image.sh
+./scripts/dev-host/lifecycle.sh start
+
+# prod host: build + push
 export DOCKER_REGISTRY=docker.io/youruser
-./scripts/dev-host/build_image.sh   # 本地构建
-./scripts/dev-host/push_image.sh -y # 推到 registry
+./scripts/prod-host/build_image.sh
+./scripts/prod-host/push_image.sh -y
 ```
 
 ## 生产环境

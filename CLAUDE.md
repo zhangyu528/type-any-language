@@ -113,7 +113,11 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 ./scripts/dev-host/lifecycle.sh logs
 # Optional image publishing (offline / first-time local setup → registry):
 ./scripts/dev-host/build_image.sh        # build english_backend_dev + english_frontend_dev
-./scripts/dev-host/db/scripts/push.sh -y      # push them to DOCKER_REGISTRY
+                                          # dev host does NOT push (stay local)
+./scripts/prod-host/build_image.sh       # build english_backend + english_frontend
+./scripts/prod-host/push_image.sh -y     # push prod backend+frontend to DOCKER_REGISTRY
+./db/scripts/build.sh                    # bake content-baked db image (CMS host)
+./db/scripts/push.sh -y                  # push db image to DOCKER_REGISTRY
 ```
 
 No `.env.dev` is needed. The dev compose file defaults `ALLOWED_ORIGINS` to `http://localhost,http://localhost:3000`; override via shell env. `POSTGRES_PASSWORD` is generated on first start.
