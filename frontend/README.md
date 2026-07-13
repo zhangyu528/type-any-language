@@ -76,7 +76,3 @@ docker build \
 ```
 
 standalone server 默认 3000 端口。`docker-compose.yml` 里的 nginx 容器把宿主机 :80 代理到 `frontend:3000`。
-
-## 备注
-
-- `frontend/nginx.conf` 存在但 **没有任何 compose 文件或 Dockerfile 引用它**(跑的是项目级 `scripts/prod-host/nginx.conf`)。是早期脚手架时代的遗留,删了也没事。
