@@ -1,0 +1,44 @@
+# ---------------------------------------------------------------------------
+# Shared compose fragments — included by docker-compose.yml and
+# docker-compose.dev.yml via `include:`.
+#
+# Why a shared file:
+#   - The `db` service definition is byte-for-byte identical between
+#     prod and dev (same image, same env, same secrets mount, same
+#     healthcheck, same volume). Defining it once here removes ~30 lines
+#     of drift risk.
+#   - Both compose files still need to override service-level knobs
+#     (image tag for dev, build dockerfile for dev, etc.) — they do
+#     that themselves via the standard compose merge rules.
+#
+# Compose v2.20+ `include:` is GA. Both docker-compose.yml and
+# docker-compose.dev.yml have `include: ["./compose-shared.yml"]`
+# near the top. Compose merges the included services into the same
+# `services:` map.
+#
+# Editing:
+#   - Changes here affect BOTH prod and dev compose.
+#   - Don't add dev-only or prod-only fields here — that's what the
+#     `override:` blocks at the bottom of each compose file are for.
+# ---------------------------------------------------------------------------
+
+services:
+  db:
+    image: ${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DB_IMAGE:-english_db_content}:${DB_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:?DB_USER not set — run.sh did not export it from image labels}
+      POSTGRES_DB:   ${DB_NAME:?DB_NAME not set — run.sh did not export it from image labels}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  db-data:

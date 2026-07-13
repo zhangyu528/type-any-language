@@ -15,9 +15,9 @@ This project intentionally separates **content production** from **content servi
 | **CMS host** | Content production + image bake | `cms/.env` + `cms/scripts/` + `cms/tools/cms/` | Python + Docker |
 | **Target host** (dev or prod) | Content serving | `scripts/dev-host/` or `scripts/prod-host/` | Docker only |
 
-The CMS host produces a `db` image with all content pre-loaded and pushes it to a registry. Target hosts `docker pull` the image and serve it — they never need AI keys, TTS keys, or Python. **Target hosts need no .env file at all** — runtime configuration (only `ALLOWED_ORIGINS`) is passed via shell env, and the host-side secret (`POSTGRES_PASSWORD`) is generated on first start by `run.sh`.
+The CMS host produces a `db` image with all content pre-loaded and pushes it to a registry. Target hosts `docker pull` the image and serve it — they never need AI keys, TTS keys, or Python. **Target hosts need no .env file at all** — runtime configuration (only `ALLOWED_ORIGINS`) is passed via shell env, and the host-side secret (`POSTGRES_PASSWORD`) is generated on first start by `lifecycle.sh`.
 
-Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generated on first start by `run.sh` (or reused if `.secrets/postgres_password` already exists) and written to `.secrets/postgres_password` (chmod 600). It is injected via compose's `secrets` block + `*_FILE` env indirection.
+Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generated on first start by `lifecycle.sh` (or reused if `.secrets/postgres_password` already exists) and written to `.secrets/postgres_password` (chmod 600). It is injected via compose's `secrets` block + `*_FILE` env indirection.
 
 ## Repository structure
 
@@ -56,25 +56,30 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generat
 ├── scripts/
 │   ├── README.md            # scripts/ layout, lib.sh helpers, conventions for new scripts
 │   ├── lib.sh               # shared helpers (ok/warn/err, docker detection, gen_secret)
+│   ├── build.sh             # local multi-image build (db + dev + prod) — no push
 │   ├── release.sh           # release orchestrator: bump + build + push (dev / prod / show)
-│   ├── ops/                 # host-operations scripts (configure env / build image / run containers)
-│   │   ├── cms/         # CMS host — operates on the content service
-│   │   │   ├── env.sh         # cms/.env lifecycle (init/update/show/doctor)
-│   │   │   ├── content.sh     # sync / sentences / audio / publish / export / doctor
-│   │   │   ├── db/scripts/build.sh  # DB → staging bundle → docker build
-│   │   │   └── db/scripts/push.sh  # registry push
-│   │   ├── dev-host/        # dev target host
-│   │   │   ├── run.sh         # compose lifecycle (start/stop/restart/logs/doctor)
-│   │   │   ├── build_image.sh # local backend+frontend image build
-│   │   │   └── db/scripts/push.sh  # push backend+frontend to DOCKER_REGISTRY
-│   │   └── prod-host/       # prod target host
-│   │       ├── run.sh         # compose lifecycle
-│   │       ├── build_image.sh # local backend+frontend image build
-│   │       └── db/scripts/push.sh  # push backend+frontend to DOCKER_REGISTRY
-│   └── dev/                 # developer tools (lint/test/generate/...) — currently empty
+│   ├── dev-host/            # dev target host — lifecycle + per-subcommand helpers
+│   │   ├── _common.sh       # shared setup (image refs, db labels, secrets, watch)
+│   │   ├── lifecycle.sh     # start / stop / restart | reload
+│   │   ├── doctor.sh
+│   │   ├── setup.sh
+│   │   ├── logs.sh
+│   │   ├── migrate.sh      # schema migration (dev-only)
+│   │   ├── watch.sh        # foreground compose watch (dev-only)
+│   │   └── build_image.sh  # build english_backend_dev + english_frontend_dev
+│   └── prod-host/           # prod target host — same shape, no migrate/watch
+│       ├── _common.sh
+│       ├── lifecycle.sh
+│       ├── doctor.sh
+│       ├── setup.sh
+│       ├── logs.sh
+│       ├── build_image.sh  # build english_backend + english_frontend
+│       ├── push_image.sh   # push prod backend+frontend to DOCKER_REGISTRY
+│       └── nginx.conf      # prod-only reverse proxy config
 │
-├── nginx/               # Nginx reverse proxy config
-└── docker-compose.yml   # Runtime orchestration for target hosts
+├── compose-shared.yml       # shared `db` service block — `include:`d by both compose files
+├── docker-compose.yml        # prod stack orchestration (compose v2.20+ `include:`)
+└── docker-compose.dev.yml    # dev stack orchestration (hot-reload, compose-watch)
 ```
 
 The runtime `docker-compose.yml` references the `db` image as a service — the image's OCI labels (`type-any-language.db.user`, `type-any-language.db.name`, `type-any-language.content.version`, `type-any-language.content.baked-at`) are read at start time by `scripts/dev-host/lifecycle.sh` / `scripts/prod-host/lifecycle.sh` to discover the db identity. `POSTGRES_PASSWORD` is NOT in those labels.
@@ -144,8 +149,8 @@ ALLOWED_ORIGINS=https://my.domain ./scripts/prod-host/lifecycle.sh start
 No `.env` is needed. `ALLOWED_ORIGINS` defaults to `http://localhost` in the prod compose — override via shell env (shown above) or edit the compose file directly. `POSTGRES_PASSWORD` is generated on first start.
 
 **Image registry model**: CMS host pushes the content-baked `db` image; each target host pushes its own `backend + frontend` images.
-- **Prod target host**: `docker pull` all 3 from `$DOCKER_REGISTRY` on every `run.sh start` / `restart` (auto-pulled — registry is the source of truth for prod).
-- **Dev target host**: `run.sh setup` does the **one-time bootstrap pull** from `$DOCKER_REGISTRY` when local images are missing. `start` / `restart` **never auto-pull** — dev iteration is local-first; image lifecycle is owned by `build_image.sh` / `db/scripts/build.sh` on the host. This avoids overwriting fresh local builds with stale registry versions. To pull explicitly: `docker pull <full-image>`.
+- **Prod target host**: `docker pull` all 3 from `$DOCKER_REGISTRY` on every `lifecycle.sh start` / `restart` (auto-pulled — registry is the source of truth for prod).
+- **Dev target host**: `setup.sh` does the **one-time bootstrap pull** from `$DOCKER_REGISTRY` when local images are missing. `start` / `restart` **never auto-pull** — dev iteration is local-first; image lifecycle is owned by `build_image.sh` / `db/scripts/build.sh` on the host. This avoids overwriting fresh local builds with stale registry versions. To pull explicitly: `docker pull <full-image>`.
 
 The registry namespace (e.g. `docker.io/zhangyu528`) is **shared project config** that the whole team uses. It is **not** a personal secret, so it lives in the committed `REGISTRY` file at the repo root (symmetric with `VERSION.dev` / `VERSION.prod`), not in `cms/.env` (gitignored). See [Image registry namespace](#image-registry-namespace) below.
 
@@ -207,11 +212,11 @@ DB_IMAGE_TAG=v0.5.0 ./db/scripts/build.sh
 
 For a full release (bump + build + push), use `scripts/release.sh dev|prod X.Y.Z` instead of running these individually — see "Release flow" below.
 
-The dev/prod `run.sh` reads the same tags at start time, so what gets pulled from the registry matches what was built. `db/scripts/push.sh` uses the same convention.
+The dev/prod `lifecycle.sh` reads the same tags at start time, so what gets pulled from the registry matches what was built. `db/scripts/push.sh` uses the same convention.
 
 ### Drift detection
 
-Every image carries the `type-any-language.app.version` LABEL (sourced from `APP_VERSION` build-arg, which the build scripts set to the resolved `*_IMAGE_TAG`). `run.sh doctor` (both dev and prod) iterates the running containers and compares each LABEL against the locally-resolved expected tag — mismatches print a `drift` warning, suggesting `run.sh restart` to pick up the new image. This catches the case where a VERSION file was bumped on the workstation but the target host hasn't pulled/restarted yet.
+Every image carries the `type-any-language.app.version` LABEL (sourced from `APP_VERSION` build-arg, which the build scripts set to the resolved `*_IMAGE_TAG`). `lifecycle.sh doctor` (both dev and prod) iterates the running containers and compares each LABEL against the locally-resolved expected tag — mismatches print a `drift` warning, suggesting `lifecycle.sh restart` to pick up the new image. This catches the case where a VERSION file was bumped on the workstation but the target host hasn't pulled/restarted yet.
 
 ### Release flow
 
@@ -261,7 +266,7 @@ Architecture notes:
 
 If you upgraded from a release that used `:latest` (or hardcoded) tags, expect two behavior changes on first run:
 
-1. **`run.sh start` may fail with "image 未构建"** — the compose file now references a tagged tag (`:v0.1.0` or whatever the stream's VERSION file says), not `:latest`. Fix once:
+1. **`lifecycle.sh start` may fail with "image 未构建"** — the compose file now references a tagged tag (`:v0.1.0` or whatever the stream's VERSION file says), not `:latest`. Fix once:
    ```bash
    ./scripts/dev-host/build_image.sh    # or prod-host/build_image.sh
    ```
@@ -318,7 +323,7 @@ Answer validation is **client-side**: the frontend normalizes (lowercase, strip 
 6. `db/scripts/push.sh` pushes to `DOCKER_REGISTRY`.
 
 **Runtime (target host):**
-1. `run.sh start` reads the db image's labels, generates (or reuses) `POSTGRES_PASSWORD` and writes both `.secrets/postgres_password` + `.secrets/database_url`, then `compose up`.
+1. `lifecycle.sh start` reads the db image's labels, generates (or reuses) `POSTGRES_PASSWORD` and writes both `.secrets/postgres_password` + `.secrets/database_url`, then `compose up`.
 2. On first start, the db image's `/docker-entrypoint-initdb.d/` runs `01-content.sql` (creates schema, loads content). **No audio init step** — the db image carries no audio.
 3. Frontend fetches a sentence, browser plays its MP3 directly from `sentences.audio_url` (a full Tencent Cloud COS URL). The backend exposes no `/audio` endpoint.
 4. User submits answer → `validate_answer()` normalizes (lowercase, strip punctuation/spaces) and compares.
@@ -353,16 +358,16 @@ When you add or change a migration in `cms/tools/cms/migrations/versions/`:
 ./scripts/dev-host/lifecycle.sh migrate
 ```
 
-`run.sh migrate` spins up a one-shot `python:3.11-slim` sidecar on the compose network and runs `pipeline.migrations.runner` against `db:5432`. Idempotent — re-runs are no-ops. The backend picks up the new schema on the next request (no restart needed; uvicorn hot-reload handles Python changes).
+`migrate.sh` spins up a one-shot `python:3.11-slim` sidecar on the compose network and runs `pipeline.migrations.runner` against `db:5432`. Idempotent — re-runs are no-ops. The backend picks up the new schema on the next request (no restart needed; uvicorn hot-reload handles Python changes).
 
-**Offline fallback** (when `python:3.11-slim` can't be pulled, e.g. broken registry mirrors): `cms/tools/cms/migrations/apply_to_runtime.sql` is a pre-rolled SQL file that brings a stale runtime db up to the current head in one shot. `run.sh migrate` prints the exact `docker exec ... psql < apply_to_runtime.sql` command on pull failure. This file applies all known migrations and stamps them as done — it only works for upgrading an old db to head, not for dev-iteration of a brand-new migration (which needs the runner).
+**Offline fallback** (when `python:3.11-slim` can't be pulled, e.g. broken registry mirrors): `cms/tools/cms/migrations/apply_to_runtime.sql` is a pre-rolled SQL file that brings a stale runtime db up to the current head in one shot. `migrate.sh` prints the exact `docker exec ... psql < apply_to_runtime.sql` command on pull failure. This file applies all known migrations and stamps them as done — it only works for upgrading an old db to head, not for dev-iteration of a brand-new migration (which needs the runner).
 
 ### Production rollout
 
 When the operator merges new schema changes:
 1. CMS host: `content.sh init-schema` (already in `release.sh prod`'s flow once the bake-pipeline gap is closed)
 2. CMS host: `db/scripts/build.sh` + `db/scripts/push.sh` — new db image has the latest schema baked into `01-content.sql`
-3. Target hosts: `run.sh restart` (or `setup` on a fresh host) auto-pulls the new image
+3. Target hosts: `lifecycle.sh restart` (or `setup` on a fresh host) auto-pulls the new image
 4. Fresh-volume target hosts: initdb picks up the new `01-content.sql` automatically
 5. Existing-volume target hosts: postgres skips initdb. Operator must either `docker compose down -v` (data = baked content, drop is safe) OR run `cms/tools/cms/migrations/apply_to_runtime.sql` first to migrate in place
 
@@ -430,15 +435,15 @@ These have code-level defaults in `cms/tools/cms/env.py` / `db/scripts/build.sh`
 
 ### Target host — no `.env` file required
 
-Runtime configuration is via shell env (passed to `run.sh` via `KEY=value run.sh start` or via a systemd unit `Environment=`), with compose-level defaults as a fallback:
+Runtime configuration is via shell env (passed to `lifecycle.sh` via `KEY=value lifecycle.sh start` or via a systemd unit `Environment=`), with compose-level defaults as a fallback:
 
 - `ALLOWED_ORIGINS` — CORS allowlist. Dev defaults to `http://localhost,http://localhost:3000`; prod defaults to `http://localhost`. Override at start time:
   ```bash
   ALLOWED_ORIGINS=https://my.domain ./scripts/prod-host/lifecycle.sh start
   ```
 - `DOCKER_REGISTRY` — registry namespace to push to / pull from. Comes from the committed `REGISTRY` file at the repo root; shell env wins. Pull behavior is **asymmetric**:
-  - **Prod**: `run.sh start` auto-pulls the db + backend + frontend images on every start/restart — registry is the source of truth.
-  - **Dev**: `run.sh setup` does the **one-time bootstrap pull** when local images are missing. `start` / `restart` **never auto-pull** — image lifecycle is local (build_image.sh / db/scripts/build.sh). Pull manually with `docker pull <full-image>` if needed.
+  - **Prod**: `lifecycle.sh start` auto-pulls the db + backend + frontend images on every start/restart — registry is the source of truth.
+  - **Dev**: `setup.sh` does the **one-time bootstrap pull** when local images are missing. `start` / `restart` **never auto-pull** — image lifecycle is local (build_image.sh / db/scripts/build.sh). Pull manually with `docker pull <full-image>` if needed.
 
   Empty = local-only mode (no push to / pull from any registry).
 - `DB_IMAGE_TAG` — which baked db image to pull. Default: `VERSION.prod`.
@@ -446,4 +451,4 @@ Runtime configuration is via shell env (passed to `run.sh` via `KEY=value run.sh
   ```bash
   IMAGE_TAG=v1.2.3 ./scripts/prod-host/lifecycle.sh start
   ```
-- `POSTGRES_PASSWORD` — **never set manually**. `run.sh` generates a fresh 24-char URL-safe value on first start and writes it to `.secrets/postgres_password` (chmod 600). Subsequent restarts reuse the file. Compose mounts it into the db container via `POSTGRES_PASSWORD_FILE` and the assembled `DATABASE_URL_FILE` into the backend container.
+- `POSTGRES_PASSWORD` — **never set manually**. `lifecycle.sh` generates a fresh 24-char URL-safe value on first start and writes it to `.secrets/postgres_password` (chmod 600). Subsequent restarts reuse the file. Compose mounts it into the db container via `POSTGRES_PASSWORD_FILE` and the assembled `DATABASE_URL_FILE` into the backend container.

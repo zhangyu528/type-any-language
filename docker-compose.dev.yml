@@ -16,7 +16,14 @@
 # file (resolved by scripts/lib.sh); the run script exports them before
 # invoking compose. Override at start time:
 #   BACKEND_IMAGE_TAG=v0.2.0 ./scripts/dev-host/lifecycle.sh start
+#
+# The shared `db` service block lives in compose-shared.yml (compose v2.20+
+# `include:`). Both prod and dev compose files include it; this file adds
+# the dev-only services (with hot-reload, dev images, compose-watch) on top.
 # ---------------------------------------------------------------------------
+
+include:
+  - path: ./compose-shared.yml
 
 secrets:
   postgres_password:
@@ -25,27 +32,6 @@ secrets:
     file: ./.secrets/database_url
 
 services:
-  # -------------------------------------------------------------------------
-  # Database — same content-baked image as prod (dev = prod unification
-  # for content; only the runtime wrapper differs)
-  # -------------------------------------------------------------------------
-  db:
-    image: ${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DB_IMAGE:-english_db_content}:${DB_IMAGE_TAG:-latest}
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${DB_USER:?DB_USER not set — run.sh did not export it from image labels}
-      POSTGRES_DB:   ${DB_NAME:?DB_NAME not set — run.sh did not export it from image labels}
-      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
-    secrets:
-      - postgres_password
-    volumes:
-      - db-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # -------------------------------------------------------------------------
   # Backend — hot-reload via ./backend bind-mount + uvicorn --reload
   # -------------------------------------------------------------------------
@@ -172,6 +158,3 @@ services:
     command: ["npm", "run", "dev"]
     depends_on:
       - backend
-
-volumes:
-  db-data:
