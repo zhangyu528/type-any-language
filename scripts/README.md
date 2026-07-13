@@ -134,12 +134,16 @@ dev 目标机的 `run.sh` 也会读 `VERSION.prod` 来取 `DB_IMAGE_TAG`(因为 
 ## 新增脚本流程
 
 1. 选对子目录:
-   - 影响某台主机的容器生命周期 → `scripts/ops/<host>/`
-   - 操作 content image / cms/.env → `cms/scripts/`
-   - 跨切面编排 → `scripts/`
-   - 开发者工具(lint、test、generate)→ `scripts/dev/`
-2. 复制一个相同形状的现有脚本作模板(`run.sh` / `bake_image.sh` 是最规范的例子)。
-3. 用上面那个 `SCRIPT_DIR / PROJECT_DIR` 骨架 —— 确认 `PROJECT_DIR` 落在仓库根。
+   - 影响某台主机的容器生命周期 → `scripts/<host>/lifecycle.sh` + 配套
+     `doctor.sh` / `setup.sh` / `logs.sh` / `migrate.sh`(只 dev)/ `watch.sh`(只 dev)
+   - 操作某 service 的 image / config → 那个 service 自己的 `scripts/`
+     (如 `cms/scripts/env.sh`、`db/scripts/build.sh`)
+   - 跨切面编排 → `scripts/` 根(`build.sh` / `release.sh`)
+2. 复制一个相同形状的现有脚本作模板(`lifecycle.sh` / `build_image.sh`
+   是最规范的例子)。多 subcommand 的脚本共享一个 `_common.sh` 做
+   setup bootstrap。
+3. 用上面那个 `SCRIPT_DIR / PROJECT_DIR` 骨架 —— 确认 `PROJECT_DIR`
+   落在仓库根。
 4. source `lib.sh`,用它提供的打印函数和 helper。
 5. 写 `usage()`,用 `case` 路由 subcommand。
 6. 如果是面向用户的脚本,加到上面的 "常用入口" 表,并补到仓库根 `CLAUDE.md`。
