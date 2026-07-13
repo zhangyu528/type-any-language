@@ -32,7 +32,7 @@ Usage
 -----
     python -m cms.init_schema                       # from project root, PYTHONPATH=content
     PYTHONPATH=content python3 cms/tools/cms/init_schema.py
-    ./scripts/ops/cms/content.sh init-schema   # wrapper
+    ./cms/scripts/content.sh init-schema   # wrapper
 """
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 # cms/tools/cms —— 内容生产的 Python 模块
 
-这些是 CMS 主机跑来生产内容的 **Python 工具**。通过 `scripts/ops/cms/content.sh <subcommand>` 调用(它会配 `PYTHONPATH=cms/tools` 和一个 `python3` 解释器)。
+这些是 CMS 主机跑来生产内容的 **Python 工具**。通过 `cms/scripts/content.sh <subcommand>` 调用(它会配 `PYTHONPATH=cms/tools` 和一个 `python3` 解释器)。
 
 ## 模块
 
@@ -63,5 +63,5 @@ registry
 ## 加一个新流水线模块
 
 1. 在 `cms/tools/cms/<name>.py` 放一个新文件,顶部加一个 `if __package__ in (None, "")` 块(从 `import_vocab.py` 复制)。
-2. 在 `scripts/ops/cms/content.sh` 加一个 `cmd_<name>()` 包装。
+2. 在 `cms/scripts/content.sh` 加一个 `cmd_<name>()` 包装。
 3. 更新 `content.sh` 的 usage 文档和本 README。

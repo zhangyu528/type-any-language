@@ -21,7 +21,7 @@ Two public entry points:
         host already has docker and we don't want to grow the Python
         dependency surface.
 
-The bake_image.sh shell script is now a thin wrapper that calls both
+The db/scripts/build.sh shell script is now a thin wrapper that calls both
 (doctors the env, loads cms/.env, picks a python, invokes this file).
 
 Public API:
@@ -29,14 +29,14 @@ Public API:
     build_image(target, tag, labels, build_args) -> str   # the tag
 
 Usage:
-    # from scripts/ops/cms/bake_image.sh (after export_bundle.py)
+    # from db/scripts/build.sh (after export_bundle.py)
     python db/builder.py \
         --bundle .bake-staging/data-bundle-v20260101-000000 \
         --tag english_db_content:vX.Y.Z \
         --db-user english_user --db-name english_learning \
         --content-version vX.Y.Z --baked-at <utc> --git-sha <sha>
 
-Why a separate builder.py (not bake_image.sh):
+Why a separate builder.py (not db/scripts/build.sh):
 - db/ owns the question "what does it take to be buildable?"
 - shell deals with operator-facing preflight (env, secret loading,
   python discovery); python deals with artifact staging + docker CLI.
@@ -57,7 +57,7 @@ from pathlib import Path
 
 
 # Where the runtime build context lives, project-root relative.
-# Keep this single source of truth here; bake_image.sh reads it via
+# Keep this single source of truth here; db/scripts/build.sh reads it via
 # its CLI flag (--target default), not via duplicating the constant.
 DEFAULT_TARGET = "db"
 
@@ -137,7 +137,7 @@ def build_image(
     Why not docker-py: introduces a new Python dep on the CMS host
     (psycopg2 + openai + tencentcloud already pin). The docker CLI is
     the one tool the CMS host definitely has, and it's already on the
-    path every bake_image.sh invocation uses.
+    path every db/scripts/build.sh invocation uses.
     """
     cmd: list[str] = ["docker", "build", "--tag", tag]
     for k, v in build_args.items():
@@ -209,7 +209,7 @@ def _now_utc() -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Assemble + build the content-baked db image (used by bake_image.sh).",
+        description="Assemble + build the content-baked db image (used by db/scripts/build.sh).",
     )
     parser.add_argument(
         "--bundle", required=True, type=Path,

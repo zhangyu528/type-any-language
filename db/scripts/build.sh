@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# scripts/ops/cms/bake_image.sh — bake content into a portable db image.
+# cms/scripts/db/scripts/build.sh — bake content into a portable db image.
 #
 # The image is a postgres:15-alpine wrapper that pre-loads the schema
 # + content tables (vocabulary_libs / vocabulary_words / sentences).
@@ -32,29 +32,29 @@
 #   Local:  ${DB_IMAGE:-english_db_content}:${DB_IMAGE_TAG:-latest}
 #   DOCKER_REGISTRY is NOT used here — push is a separate concern.
 #   Source the registry from the shell when you're ready to push:
-#     export DOCKER_REGISTRY=... && ./scripts/ops/cms/push_image.sh
+#     export DOCKER_REGISTRY=... && ./cms/scripts/db/scripts/push.sh
 #   All other vars sourced from cms/.env (defaults match docker-compose.yml).
 #
 # This script does NOT modify content. It only packages whatever is
 # currently in the DB. To update content, run
-# `scripts/ops/cms/content.sh {sync,sentences,audio,publish}` first.
+# `cms/scripts/content.sh {sync,sentences,audio,publish}` first.
 # Audio lives in Tencent Cloud COS (uploaded by content.sh audio), not
 # in this image — see CLAUDE.md for the full architecture.
 #
 # This script does NOT push. Pushing is a separate, intentional step:
 # you might bake many times locally and only push when ready.
-# Use ./scripts/ops/cms/push_image.sh for that.
+# Use ./cms/scripts/db/scripts/push.sh for that.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
-source "$SCRIPT_DIR/../../lib.sh"
+source "$SCRIPT_DIR/../../scripts/lib.sh"
 
 # Load cms/.env so $DB_IMAGE / $DB_IMAGE_TAG / any user-supplied secrets
 # (AI_API_KEY, TENCENT_*, AUDIO_DIR) resolve. Refuses to continue if
-# cms/.env is missing — run scripts/ops/cms/env.sh first.
+# cms/.env is missing — run cms/scripts/env.sh first.
 #
 # DATABASE_URL is NOT in cms/.env by convention — see CLAUDE.md. We
 # assemble it from POSTGRES_PASSWORD (env var or .secrets/postgres_password)
@@ -63,7 +63,7 @@ CONTENT_ENV_FILE_PATH="$(resolve_content_env_file)"
 if [ -f "$CONTENT_ENV_FILE_PATH" ]; then
     set -a; . "$CONTENT_ENV_FILE_PATH"; set +a
 else
-    echo "[ERR] $CONTENT_ENV_FILE_PATH 不存在 — 跑 ./scripts/ops/cms/env.sh 先引导一份" >&2
+    echo "[ERR] $CONTENT_ENV_FILE_PATH 不存在 — 跑 ./cms/scripts/env.sh 先引导一份" >&2
     exit 1
 fi
 
@@ -132,7 +132,7 @@ cmd_doctor() {
     fi
 
     if [ ! -d "cms/source" ]; then
-        err "cms/source directory missing — run ./scripts/ops/cms/env.sh"
+        err "cms/source directory missing — run ./cms/scripts/env.sh"
         ok=0
     else
         ok "cms/source present"
@@ -234,7 +234,7 @@ cmd_bake() {
 
     echo
     ok "Built: ${FULL_IMAGE}"
-    info "To push: export DOCKER_REGISTRY=... && ./scripts/ops/cms/push_image.sh"
+    info "To push: export DOCKER_REGISTRY=... && ./cms/scripts/db/scripts/push.sh"
 }
 
 usage() {
@@ -244,7 +244,7 @@ Usage: $0 [doctor]
   (no args)   Bake: export content from DB → assemble into db/ → docker build
   doctor      Pre-flight environment check
 
-Push is a separate step: ./scripts/ops/cms/push_image.sh
+Push is a separate step: ./cms/scripts/db/scripts/push.sh
 
 Environment (sourced from cms/.env):
   DB_IMAGE        Image name (default: english_db_content)
@@ -255,8 +255,8 @@ Environment (sourced from cms/.env):
                   (default: english_learning). The dump.sql's database must match.
 
 DOCKER_REGISTRY is NOT used by this script (push is a separate concern).
-Set it in the shell before running push_image.sh:
-  export DOCKER_REGISTRY=... && ./scripts/ops/cms/push_image.sh
+Set it in the shell before running db/scripts/push.sh:
+  export DOCKER_REGISTRY=... && ./cms/scripts/db/scripts/push.sh
 
 Versioning:
   DB_IMAGE_TAG       resolves from VERSION.prod (or IMAGE_TAG env override).

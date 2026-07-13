@@ -11,7 +11,7 @@ Why a dedicated loader (not os.environ directly):
   - Fail loudly if cms/.env is missing or required keys are unset.
   - Single place to do type coercion + default handling.
   - Other scripts can `from cms.env import setup_env` to mirror
-    the cms/.env → os.environ copy that bake_image.sh does via `set -a`.
+    the cms/.env → os.environ copy that db/scripts/build.sh does via `set -a`.
 
 Validation contract:
   - DATABASE_URL is ALWAYS required (assembled by setup_env from
@@ -135,7 +135,7 @@ def setup_env(env_file: str | os.PathLike | None = None) -> dict[str, str]:
     dev-host migrate sidecar reuse the existing `-v content:/content:ro`
     bind mount (no separate env-file mount needed).
 
-    Mirrors what bake_image.sh does in bash:
+    Mirrors what db/scripts/build.sh does in bash:
         set -a; . ./cms/.env; set +a
 
     After this call:
@@ -158,7 +158,7 @@ def setup_env(env_file: str | os.PathLike | None = None) -> dict[str, str]:
             path = _project_root() / "content" / ".env"
     if not path.is_file():
         sys.exit(
-            f"cms/.env 不存在 ({path}) — 跑 ./scripts/ops/cms/env.sh 先引导"
+            f"cms/.env 不存在 ({path}) — 跑 ./cms/scripts/env.sh 先引导"
         )
 
     loaded: dict[str, str] = {}

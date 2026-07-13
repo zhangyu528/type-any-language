@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# scripts/ops/cms/full_bake.sh — orchestrate the full CMS content-production
+# cms/scripts/full_bake.sh — orchestrate the full CMS content-production
 # pipeline end-to-end. Lives here (not in dev-host/run.sh) because every
 # step is a CMS-side concern — vocab CSVs, AI/TTS calls, db image bake.
 #
@@ -13,8 +13,8 @@
 #   (f) bake the db image (dump.sql + audio/ → docker build)
 #
 # Used by:
-#   • scripts/ops/dev-host/run.sh::cmd_setup — single-host CMS+dev auto-bake
-#   • CMS host operator — `./scripts/ops/cms/full_bake.sh` standalone after
+#   • scripts/dev-host/lifecycle.sh::cmd_setup — single-host CMS+dev auto-bake
+#   • CMS host operator — `./cms/scripts/full_bake.sh` standalone after
 #     editing CSVs / manifest / prompt, to rebuild the db image locally
 #
 # Hard-fail on (a) / (b) / (c) / (f) — those should only fail if the env is
@@ -32,15 +32,15 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
-source "$SCRIPT_DIR/../../lib.sh"
+source "$SCRIPT_DIR/../../scripts/lib.sh"
 
 # cms/.env lives at the project root. This script is CMS-only — operators on
 # a target host don't have it and shouldn't be calling this script.
 CONTENT_ENV_FILE_PATH="$(resolve_content_env_file)"
 if [ ! -f "$CONTENT_ENV_FILE_PATH" ]; then
-    err "$CONTENT_ENV_FILE_PATH 不存在 — 先跑 ./scripts/ops/cms/env.sh init 引导"
+    err "$CONTENT_ENV_FILE_PATH 不存在 — 先跑 ./cms/scripts/env.sh init 引导"
     exit 1
 fi
 
@@ -174,7 +174,7 @@ cmd_doctor() {
     if [ -f "$CONTENT_ENV_FILE_PATH" ]; then
         ok "$CONTENT_ENV_FILE_PATH 存在"
     else
-        err "$CONTENT_ENV_FILE_PATH 不存在 — 先跑 ./scripts/ops/cms/env.sh init"
+        err "$CONTENT_ENV_FILE_PATH 不存在 — 先跑 ./cms/scripts/env.sh init"
         ok=0
     fi
 
@@ -197,7 +197,7 @@ cmd_doctor() {
 
     echo ""
     if [ "$ok" = "1" ]; then
-        ok "所有检查通过 — 可以跑 ./scripts/ops/cms/full_bake.sh"
+        ok "所有检查通过 — 可以跑 ./cms/scripts/full_bake.sh"
         return 0
     fi
     err "部分检查未通过"
@@ -244,12 +244,12 @@ cmd_run() {
     fi
 
     # (f) bake.
-    info "  (f) bake_image.sh"
-    if ! "$SCRIPT_DIR/bake_image.sh"; then
-        err "  bake_image.sh 失败 — 看上面 export_bundle 的错误"
+    info "  (f) db/scripts/build.sh"
+    if ! "$PROJECT_DIR/db/scripts/build.sh"; then
+        err "  db/scripts/build.sh 失败 — 看上面 export_bundle 的错误"
         return 1
     fi
-    ok "  bake_image.sh ok"
+    ok "  db/scripts/build.sh ok"
     return 0
 }
 
@@ -264,11 +264,11 @@ usage() {
 
 典型工作流:
   # 首次 / 改 CSV 后 / 改 prompt 后:
-  ./scripts/ops/cms/full_bake.sh                # 跑完整流程
-  ./scripts/ops/cms/full_bake.sh doctor        # 排查前先跑这个
+  ./cms/scripts/full_bake.sh                # 跑完整流程
+  ./cms/scripts/full_bake.sh doctor        # 排查前先跑这个
 
 调它的脚本:
-  scripts/ops/dev-host/run.sh::cmd_setup    # 单机 CMS+dev setup 时自动调用
+  scripts/dev-host/lifecycle.sh::cmd_setup    # 单机 CMS+dev setup 时自动调用
 
 注意:
   - sentences / audio 是 best-effort:外部 API 失败会 warn 但继续,bake 仍跑

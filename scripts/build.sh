@@ -6,7 +6,7 @@
 # existing per-stream build scripts so an operator can produce a complete,
 # locally-runnable set of images in one command:
 #
-#   - content-baked db image         (content-baked, via scripts/ops/cms/bake_image.sh)
+#   - content-baked db image         (content-baked, via db/scripts/build.sh)
 #   - dev app images   (english_backend_dev + english_frontend_dev)
 #   - prod app images  (english_backend + english_frontend)
 #
@@ -114,26 +114,26 @@ cmd_all() {
     # db first — its OCI labels (DB_USER / DB_NAME) are needed by the
     # dev / prod build scripts' compose interpolation.
     run_step "bake content-baked db image (content-baked)" \
-        ./scripts/ops/cms/bake_image.sh
+        ./db/scripts/build.sh
     echo ""
 
     run_step "build dev backend + frontend" \
-        ./scripts/ops/dev-host/build_image.sh
+        ./scripts/dev-host/build_image.sh
     echo ""
 
     run_step "build prod backend + frontend" \
-        ./scripts/ops/prod-host/build_image.sh
+        ./scripts/prod-host/build_image.sh
     echo ""
 
     ok "build all done."
-    info "  → 启动 dev:  ./scripts/ops/dev-host/run.sh start"
-    info "  → 启动 prod: ./scripts/ops/prod-host/run.sh start"
+    info "  → 启动 dev:  ./scripts/dev-host/lifecycle.sh start"
+    info "  → 启动 prod: ./scripts/prod-host/lifecycle.sh start"
 }
 
 cmd_db() {
     info "=== build db only ==="
     run_step "bake content-baked db image (content-baked)" \
-        ./scripts/ops/cms/bake_image.sh
+        ./db/scripts/build.sh
     echo ""
     ok "build db done."
 }
@@ -141,19 +141,19 @@ cmd_db() {
 cmd_dev() {
     info "=== build dev only ==="
     run_step "build dev backend + frontend" \
-        ./scripts/ops/dev-host/build_image.sh
+        ./scripts/dev-host/build_image.sh
     echo ""
     ok "build dev done."
-    info "  → 启动: ./scripts/ops/dev-host/run.sh start"
+    info "  → 启动: ./scripts/dev-host/lifecycle.sh start"
 }
 
 cmd_prod() {
     info "=== build prod only ==="
     run_step "build prod backend + frontend" \
-        ./scripts/ops/prod-host/build_image.sh
+        ./scripts/prod-host/build_image.sh
     echo ""
     ok "build prod done."
-    info "  → 启动: ./scripts/ops/prod-host/run.sh start"
+    info "  → 启动: ./scripts/prod-host/lifecycle.sh start"
 }
 
 # ---------------------------------------------------------------------------

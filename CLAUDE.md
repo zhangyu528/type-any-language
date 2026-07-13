@@ -12,8 +12,8 @@ This project intentionally separates **content production** from **content servi
 
 | Host | Role | What lives here | What runs here |
 |---|---|---|---|
-| **CMS host** | Content production + image bake | `cms/.env` + `scripts/ops/cms/` + `cms/tools/cms/` | Python + Docker |
-| **Target host** (dev or prod) | Content serving | `scripts/ops/dev-host/` or `scripts/ops/prod-host/` | Docker only |
+| **CMS host** | Content production + image bake | `cms/.env` + `cms/scripts/` + `cms/tools/cms/` | Python + Docker |
+| **Target host** (dev or prod) | Content serving | `scripts/dev-host/` or `scripts/prod-host/` | Docker only |
 
 The CMS host produces a `db` image with all content pre-loaded and pushes it to a registry. Target hosts `docker pull` the image and serve it — they never need AI keys, TTS keys, or Python. **Target hosts need no .env file at all** — runtime configuration (only `ALLOWED_ORIGINS`) is passed via shell env, and the host-side secret (`POSTGRES_PASSWORD`) is generated on first start by `run.sh`.
 
@@ -61,78 +61,78 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generat
 │   │   ├── cms/         # CMS host — operates on the content service
 │   │   │   ├── env.sh         # cms/.env lifecycle (init/update/show/doctor)
 │   │   │   ├── content.sh     # sync / sentences / audio / publish / export / doctor
-│   │   │   ├── bake_image.sh  # DB → staging bundle → docker build
-│   │   │   └── push_image.sh  # registry push
+│   │   │   ├── db/scripts/build.sh  # DB → staging bundle → docker build
+│   │   │   └── db/scripts/push.sh  # registry push
 │   │   ├── dev-host/        # dev target host
 │   │   │   ├── run.sh         # compose lifecycle (start/stop/restart/logs/doctor)
 │   │   │   ├── build_image.sh # local backend+frontend image build
-│   │   │   └── push_image.sh  # push backend+frontend to DOCKER_REGISTRY
+│   │   │   └── db/scripts/push.sh  # push backend+frontend to DOCKER_REGISTRY
 │   │   └── prod-host/       # prod target host
 │   │       ├── run.sh         # compose lifecycle
 │   │       ├── build_image.sh # local backend+frontend image build
-│   │       └── push_image.sh  # push backend+frontend to DOCKER_REGISTRY
+│   │       └── db/scripts/push.sh  # push backend+frontend to DOCKER_REGISTRY
 │   └── dev/                 # developer tools (lint/test/generate/...) — currently empty
 │
 ├── nginx/               # Nginx reverse proxy config
 └── docker-compose.yml   # Runtime orchestration for target hosts
 ```
 
-The runtime `docker-compose.yml` references the `db` image as a service — the image's OCI labels (`type-any-language.db.user`, `type-any-language.db.name`, `type-any-language.content.version`, `type-any-language.content.baked-at`) are read at start time by `scripts/ops/dev-host/run.sh` / `scripts/ops/prod-host/run.sh` to discover the db identity. `POSTGRES_PASSWORD` is NOT in those labels.
+The runtime `docker-compose.yml` references the `db` image as a service — the image's OCI labels (`type-any-language.db.user`, `type-any-language.db.name`, `type-any-language.content.version`, `type-any-language.content.baked-at`) are read at start time by `scripts/dev-host/lifecycle.sh` / `scripts/prod-host/lifecycle.sh` to discover the db identity. `POSTGRES_PASSWORD` is NOT in those labels.
 
 ## Commands
 
 ### CMS host — content production
 
-> **Rename note** (this release): `.env.db` was renamed to `cms/.env`. If you already have a `.env.db` from a prior release, rename it once before running any `content.sh` / `bake_image.sh` command:
+> **Rename note** (this release): `.env.db` was renamed to `cms/.env`. If you already have a `.env.db` from a prior release, rename it once before running any `content.sh` / `db/scripts/build.sh` command:
 > ```bash
 > mv .env.db cms/.env
 > ```
 > No automated migration — the file is gitignored so it's invisible to `git`, and the rename is a one-time local op. To pin a different path, export `CONTENT_ENV_FILE=/some/path/.env.staging` in the shell (same precedence pattern as `POSTGRES_PASSWORD` / `DOCKER_REGISTRY`).
 
 ```bash
-./scripts/ops/cms/env.sh                # First-time cms/.env creation (interactive)
-./scripts/ops/cms/content.sh doctor     # Pre-flight: cms/.env + Python deps + DB reachable
-./scripts/ops/cms/content.sh sync       # CSVs → vocabulary_libs + vocabulary_words
-./scripts/ops/cms/content.sh sentences  # OpenAI bulk-fills sentences to DEFAULT_BUCKET_TARGET_SIZE
-./scripts/ops/cms/content.sh audio      # Tencent TTS → MP3 → Storage (local FS or COS) + audio_url
-./scripts/ops/cms/bake_image.sh         # Dump SQL → db/init/01-content.sql + docker build
-./scripts/ops/cms/push_image.sh [-y]    # Push the db image to DOCKER_REGISTRY
+./cms/scripts/env.sh                # First-time cms/.env creation (interactive)
+./cms/scripts/content.sh doctor     # Pre-flight: cms/.env + Python deps + DB reachable
+./cms/scripts/content.sh sync       # CSVs → vocabulary_libs + vocabulary_words
+./cms/scripts/content.sh sentences  # OpenAI bulk-fills sentences to DEFAULT_BUCKET_TARGET_SIZE
+./cms/scripts/content.sh audio      # Tencent TTS → MP3 → Storage (local FS or COS) + audio_url
+./db/scripts/build.sh         # Dump SQL → db/init/01-content.sql + docker build
+./db/scripts/push.sh [-y]    # Push the db image to DOCKER_REGISTRY
 ```
 
-`scripts/ops/cms/content.sh` is a thin wrapper over the `cms/tools/cms/*.py` modules (PYTHONPATH=db). Each subcommand has its own `--help`. See `cms/tools/cms/README.md` for module details.
+`cms/scripts/content.sh` is a thin wrapper over the `cms/tools/cms/*.py` modules (PYTHONPATH=db). Each subcommand has its own `--help`. See `cms/tools/cms/README.md` for module details.
 
 ### Dev target host
 
 ```bash
-./scripts/ops/dev-host/run.sh setup          # First-time: 拉/检查 db image + build dev apps
-./scripts/ops/dev-host/run.sh doctor         # Pre-flight
-./scripts/ops/dev-host/run.sh start          # compose up + 后台 spawn compose watch(自动 sync src/package.json)
-./scripts/ops/dev-host/run.sh stop
-./scripts/ops/dev-host/run.sh restart        # Hard restart (recreate + re-read secrets)
-./scripts/ops/dev-host/run.sh migrate        # Apply pending schema migrations to runtime db
-./scripts/ops/dev-host/run.sh logs
+./scripts/dev-host/lifecycle.sh setup          # First-time: 拉/检查 db image + build dev apps
+./scripts/dev-host/lifecycle.sh doctor         # Pre-flight
+./scripts/dev-host/lifecycle.sh start          # compose up + 后台 spawn compose watch(自动 sync src/package.json)
+./scripts/dev-host/lifecycle.sh stop
+./scripts/dev-host/lifecycle.sh restart        # Hard restart (recreate + re-read secrets)
+./scripts/dev-host/lifecycle.sh migrate        # Apply pending schema migrations to runtime db
+./scripts/dev-host/lifecycle.sh logs
 # Optional image publishing (offline / first-time local setup → registry):
-./scripts/ops/dev-host/build_image.sh        # build english_backend_dev + english_frontend_dev
-./scripts/ops/dev-host/push_image.sh -y      # push them to DOCKER_REGISTRY
+./scripts/dev-host/build_image.sh        # build english_backend_dev + english_frontend_dev
+./scripts/dev-host/db/scripts/push.sh -y      # push them to DOCKER_REGISTRY
 ```
 
 No `.env.dev` is needed. The dev compose file defaults `ALLOWED_ORIGINS` to `http://localhost,http://localhost:3000`; override via shell env. `POSTGRES_PASSWORD` is generated on first start.
 
-`setup` is the recommended entry point for a fresh checkout. It runs preflight (docker + compose), ensures the `db` image is present locally (auto-pulls from `DOCKER_REGISTRY` if set, otherwise — on a single-host CMS+dev machine — scaffolds `cms/.env` via `env.sh init` + validates with `env.sh doctor`, then runs the full local content pipeline: source db → schema → vocab CSVs → AI sentences → TTS audio → `bake_image.sh`), and builds the dev `backend + frontend` images. It does NOT start containers or create `.secrets/` — that's `start`'s job. Re-running `setup` is safe (idempotent — every step short-circuits on existing state).
+`setup` is the recommended entry point for a fresh checkout. It runs preflight (docker + compose), ensures the `db` image is present locally (auto-pulls from `DOCKER_REGISTRY` if set, otherwise — on a single-host CMS+dev machine — scaffolds `cms/.env` via `env.sh init` + validates with `env.sh doctor`, then runs the full local content pipeline: source db → schema → vocab CSVs → AI sentences → TTS audio → `db/scripts/build.sh`), and builds the dev `backend + frontend` images. It does NOT start containers or create `.secrets/` — that's `start`'s job. Re-running `setup` is safe (idempotent — every step short-circuits on existing state).
 
 ### Prod target host
 
 ```bash
-./scripts/ops/prod-host/run.sh setup         # First-time: 拉 db image + build prod apps
-./scripts/ops/prod-host/run.sh doctor
-ALLOWED_ORIGINS=https://my.domain ./scripts/ops/prod-host/run.sh start
-./scripts/ops/prod-host/run.sh start
-./scripts/ops/prod-host/run.sh stop
-./scripts/ops/prod-host/run.sh restart
-./scripts/ops/prod-host/run.sh logs
+./scripts/prod-host/lifecycle.sh setup         # First-time: 拉 db image + build prod apps
+./scripts/prod-host/lifecycle.sh doctor
+ALLOWED_ORIGINS=https://my.domain ./scripts/prod-host/lifecycle.sh start
+./scripts/prod-host/lifecycle.sh start
+./scripts/prod-host/lifecycle.sh stop
+./scripts/prod-host/lifecycle.sh restart
+./scripts/prod-host/lifecycle.sh logs
 # Optional image publishing:
-./scripts/ops/prod-host/build_image.sh        # build english_backend + english_frontend
-./scripts/ops/prod-host/push_image.sh -y      # push them to DOCKER_REGISTRY
+./scripts/prod-host/build_image.sh        # build english_backend + english_frontend
+./scripts/prod-host/db/scripts/push.sh -y      # push them to DOCKER_REGISTRY
 ```
 
 `setup` is the recommended entry point for a fresh prod host. Same flow as dev: preflight + ensure `db` image present (auto-pull from `DOCKER_REGISTRY`) + build prod `backend + frontend`. The prod host never bakes db content itself — it pulls from a registry. If `DOCKER_REGISTRY` is empty, `setup` exits with the CMS-side steps.
@@ -141,7 +141,7 @@ No `.env` is needed. `ALLOWED_ORIGINS` defaults to `http://localhost` in the pro
 
 **Image registry model**: CMS host pushes the content-baked `db` image; each target host pushes its own `backend + frontend` images.
 - **Prod target host**: `docker pull` all 3 from `$DOCKER_REGISTRY` on every `run.sh start` / `restart` (auto-pulled — registry is the source of truth for prod).
-- **Dev target host**: `run.sh setup` does the **one-time bootstrap pull** from `$DOCKER_REGISTRY` when local images are missing. `start` / `restart` **never auto-pull** — dev iteration is local-first; image lifecycle is owned by `build_image.sh` / `bake_image.sh` on the host. This avoids overwriting fresh local builds with stale registry versions. To pull explicitly: `docker pull <full-image>`.
+- **Dev target host**: `run.sh setup` does the **one-time bootstrap pull** from `$DOCKER_REGISTRY` when local images are missing. `start` / `restart` **never auto-pull** — dev iteration is local-first; image lifecycle is owned by `build_image.sh` / `db/scripts/build.sh` on the host. This avoids overwriting fresh local builds with stale registry versions. To pull explicitly: `docker pull <full-image>`.
 
 The registry namespace (e.g. `docker.io/zhangyu528`) is **shared project config** that the whole team uses. It is **not** a personal secret, so it lives in the committed `REGISTRY` file at the repo root (symmetric with `VERSION.dev` / `VERSION.prod`), not in `cms/.env` (gitignored). See [Image registry namespace](#image-registry-namespace) below.
 
@@ -188,22 +188,22 @@ Resolution chain (`scripts/lib.sh` → `resolve_image_tag`):
 Examples:
 ```bash
 # Use whatever the stream's VERSION file says (default):
-./scripts/ops/dev-host/build_image.sh         # → VERSION.dev
-./scripts/ops/prod-host/build_image.sh        # → VERSION.prod
-./scripts/ops/cms/bake_image.sh                # → VERSION.prod
+./scripts/dev-host/build_image.sh         # → VERSION.dev
+./scripts/prod-host/build_image.sh        # → VERSION.prod
+./db/scripts/build.sh                # → VERSION.prod
 
 # Bump all images to v1.2.3 for a one-off (CI use):
-IMAGE_TAG=v1.2.3 ./scripts/ops/dev-host/build_image.sh
-IMAGE_TAG=v1.2.3 ./scripts/ops/prod-host/build_image.sh
-IMAGE_TAG=v1.2.3 ./scripts/ops/cms/bake_image.sh
+IMAGE_TAG=v1.2.3 ./scripts/dev-host/build_image.sh
+IMAGE_TAG=v1.2.3 ./scripts/prod-host/build_image.sh
+IMAGE_TAG=v1.2.3 ./db/scripts/build.sh
 
 # Pin just the db image, leave dev app at VERSION.dev:
-DB_IMAGE_TAG=v0.5.0 ./scripts/ops/cms/bake_image.sh
+DB_IMAGE_TAG=v0.5.0 ./db/scripts/build.sh
 ```
 
 For a full release (bump + build + push), use `scripts/release.sh dev|prod X.Y.Z` instead of running these individually — see "Release flow" below.
 
-The dev/prod `run.sh` reads the same tags at start time, so what gets pulled from the registry matches what was built. `push_image.sh` uses the same convention.
+The dev/prod `run.sh` reads the same tags at start time, so what gets pulled from the registry matches what was built. `db/scripts/push.sh` uses the same convention.
 
 ### Drift detection
 
@@ -244,13 +244,13 @@ The full release flow with the new `release.sh` (one command per host):
 git push
 
 # On each target host — just verify, the images are already in the registry:
-./scripts/ops/<host>/run.sh doctor    # should show "drift OK (version=v0.3.0)" for all 3 services
-./scripts/ops/<host>/run.sh restart   # pull new image and recreate
+./scripts/<host>/doctor.sh    # should show "drift OK (version=v0.3.0)" for all 3 services
+./scripts/<host>/lifecycle.sh restart   # pull new image and recreate
 ```
 
 Architecture notes:
 - `release.sh dev` only touches the dev app images. The db image is prod-bound and reads `VERSION.prod`; if you want dev to see new content, run `release.sh prod` first (or just push a new db with `VERSION.prod`).
-- `release.sh prod` includes the db bake. That step needs `cms/.env`, so `prod` must run on the CMS host (or a single-machine CMS+prod setup). On a dedicated prod target host without `cms/.env`, run `scripts/ops/cms/bake_image.sh` on the CMS host first, then run `scripts/ops/prod-host/build_image.sh` + `push_image.sh` on the prod host.
+- `release.sh prod` includes the db bake. That step needs `cms/.env`, so `prod` must run on the CMS host (or a single-machine CMS+prod setup). On a dedicated prod target host without `cms/.env`, run `db/scripts/build.sh` on the CMS host first, then run `scripts/prod-host/build_image.sh` + `db/scripts/push.sh` on the prod host.
 - For multi-machine deployments, run each subcommand on its respective host. The script is self-contained per host.
 
 ## Migration from pre-VERSION release
@@ -259,7 +259,7 @@ If you upgraded from a release that used `:latest` (or hardcoded) tags, expect t
 
 1. **`run.sh start` may fail with "image 未构建"** — the compose file now references a tagged tag (`:v0.1.0` or whatever the stream's VERSION file says), not `:latest`. Fix once:
    ```bash
-   ./scripts/ops/dev-host/build_image.sh    # or prod-host/build_image.sh
+   ./scripts/dev-host/build_image.sh    # or prod-host/build_image.sh
    ```
    Old `:latest` images on the host will still exist as stale tags. They're harmless; clean up later with `docker rmi english_backend_dev:latest english_frontend_dev:latest`.
 
@@ -273,7 +273,7 @@ The previous release had a single `VERSION` file. This release splits it into `V
 
 1. Pull this release. The old `VERSION` is removed; you'll have the two new files instead.
 2. `./scripts/release.sh show` should print both files (they start at the same value as the old single VERSION).
-3. Continue as normal — `build_image.sh` / `bake_image.sh` now read from the right stream's file automatically.
+3. Continue as normal — `build_image.sh` / `db/scripts/build.sh` now read from the right stream's file automatically.
 
 ### Testing
 
@@ -310,8 +310,8 @@ Answer validation is **client-side**: the frontend normalizes (lowercase, strip 
 2. `content.sh sync` imports them into `vocabulary_libs` / `vocabulary_words`.
 3. `content.sh sentences` calls OpenAI to fill the `sentences` table up to `DEFAULT_BUCKET_TARGET_SIZE` per (lib, difficulty).
 4. `content.sh audio` calls Tencent TTS; MP3s land in the configured `Storage` (local `cms/.local/audio/` by default, or Tencent Cloud COS when `CLOUD_PROVIDER=tencent_cos`), and `sentences.audio_url` is set to the storage's `public_url(key)`.
-5. `bake_image.sh` runs `pg_dump` on the 3 content tables, stages the SQL into `db/init/01-content.sql`, builds the db image.
-6. `push_image.sh` pushes to `DOCKER_REGISTRY`.
+5. `db/scripts/build.sh` runs `pg_dump` on the 3 content tables, stages the SQL into `db/init/01-content.sql`, builds the db image.
+6. `db/scripts/push.sh` pushes to `DOCKER_REGISTRY`.
 
 **Runtime (target host):**
 1. `run.sh start` reads the db image's labels, generates (or reuses) `POSTGRES_PASSWORD` and writes both `.secrets/postgres_password` + `.secrets/database_url`, then `compose up`.
@@ -321,7 +321,7 @@ Answer validation is **client-side**: the frontend normalizes (lowercase, strip 
 
 **Audio architecture (cloud, not image):**
 - MP3s live in Tencent Cloud COS, not in the db image.
-- `sentences.audio_url` is the full COS URL, baked into the image at `bake_image.sh` time.
+- `sentences.audio_url` is the full COS URL, baked into the image at `db/scripts/build.sh` time.
 - The frontend reads `sentences[i].audio_url` and the browser streams audio from COS directly — no proxy through backend, no nginx `/audio` location, no `shared-audio` docker volume.
 - This keeps the db image small (schema + sentences table only, no binary blobs) and lets audio be updated without re-baking the db image.
 - Provider is selected via `CLOUD_PROVIDER` in `cms/.env`. Default `local_fs` writes to `cms/.local/audio/` (single-host CMS, no cloud account needed). `tencent_cos` uploads to a COS bucket (multi-host CMS or production). See `cms/tools/cms/storage.py` for the abstraction.
@@ -342,11 +342,11 @@ When you add or change a migration in `cms/tools/cms/migrations/versions/`:
 ```bash
 # Source db (CMS pipeline, if running): the migrations apply so a future
 # bake has the new schema in 01-content.sql
-./scripts/ops/cms/content.sh init-schema
+./cms/scripts/content.sh init-schema
 
 # Runtime db (the one your backend is actually querying): in-place upgrade,
 # no image bake, no registry push, no volume drop
-./scripts/ops/dev-host/run.sh migrate
+./scripts/dev-host/lifecycle.sh migrate
 ```
 
 `run.sh migrate` spins up a one-shot `python:3.11-slim` sidecar on the compose network and runs `pipeline.migrations.runner` against `db:5432`. Idempotent — re-runs are no-ops. The backend picks up the new schema on the next request (no restart needed; uvicorn hot-reload handles Python changes).
@@ -357,14 +357,14 @@ When you add or change a migration in `cms/tools/cms/migrations/versions/`:
 
 When the operator merges new schema changes:
 1. CMS host: `content.sh init-schema` (already in `release.sh prod`'s flow once the bake-pipeline gap is closed)
-2. CMS host: `bake_image.sh` + `push_image.sh` — new db image has the latest schema baked into `01-content.sql`
+2. CMS host: `db/scripts/build.sh` + `db/scripts/push.sh` — new db image has the latest schema baked into `01-content.sql`
 3. Target hosts: `run.sh restart` (or `setup` on a fresh host) auto-pulls the new image
 4. Fresh-volume target hosts: initdb picks up the new `01-content.sql` automatically
 5. Existing-volume target hosts: postgres skips initdb. Operator must either `docker compose down -v` (data = baked content, drop is safe) OR run `cms/tools/cms/migrations/apply_to_runtime.sql` first to migrate in place
 
 ## Environment variables
 
-### CMS host — `cms/.env` (created by `scripts/ops/cms/env.sh`)
+### CMS host — `cms/.env` (created by `cms/scripts/env.sh`)
 
 `cms/.env` holds **only provider secrets and operator decisions**. Everything else — the Postgres connection (DATABASE_URL), the db identity (POSTGRES_USER/HOST/PORT/DB), the image name, the audio output directory, and the sentences-bucket size — has code-level defaults and is therefore NOT in the file. See [CMS host config knobs](#cms-host-config-knobs) for the override pattern.
 
@@ -374,13 +374,13 @@ Required (in `cms/.env`):
 - `AI_MODEL` — model name (default in template: `gpt-3.5-turbo`; switch to `gpt-4o` / etc. as needed)
 - `TENCENT_SECRET_ID`, `TENCENT_SECRET_KEY`, `TENCENT_APP_ID` — Tencent Cloud TTS; required when running `content.sh audio`, optional otherwise
 
-`DATABASE_URL` is **not** in `cms/.env`. It's assembled at runtime by `cms/tools/cms/env.py` + `scripts/ops/cms/bake_image.sh` from:
+`DATABASE_URL` is **not** in `cms/.env`. It's assembled at runtime by `cms/tools/cms/env.py` + `db/scripts/build.sh` from:
 - `POSTGRES_PASSWORD` (the only piece without a code default — see [Where the db password comes from](#where-the-db-password-comes-from))
 - `POSTGRES_USER` (default `english_user`), `POSTGRES_HOST` (default `localhost`), `POSTGRES_PORT` (default `5432`), `POSTGRES_DB` (default `english_learning`)
 
 `AUDIO_DIR` is also **not** in `cms/.env` by default. It now means "root of the local Storage" (only used when `CLOUD_PROVIDER=local_fs`); the code default is `cms/.local/audio` (so Windows / sandboxed Linux hosts can run without sudo). Override via shell env if you need a different location:
 ```bash
-AUDIO_DIR=/your/audio/dir ./scripts/ops/cms/content.sh audio
+AUDIO_DIR=/your/audio/dir ./cms/scripts/content.sh audio
 ```
 
 For multi-host CMS or production, set `CLOUD_PROVIDER=tencent_cos` in `cms/.env` (plus `CLOUD_BUCKET` / `CLOUD_REGION` / `CLOUD_ACCESS_KEY` / `CLOUD_SECRET_KEY`). MP3s upload to the COS bucket instead of the local directory; `sentences.audio_url` becomes the full COS URL. See `cms/tools/cms/storage.py` for the abstraction.
@@ -390,14 +390,14 @@ For multi-host CMS or production, set `CLOUD_PROVIDER=tencent_cos` in `cms/.env`
 `DOCKER_REGISTRY` is not in `cms/.env` — it is shared project config that lives in the committed `REGISTRY` file at the repo root (see [Image registry namespace](#image-registry-namespace) above). Override at push time via shell env if you need a one-off namespace:
 ```bash
 export DOCKER_REGISTRY=docker.io/youruser   # overrides REGISTRY file
-./scripts/ops/cms/push_image.sh
+./db/scripts/push.sh
 ```
 
 #### Where the db password comes from
 
-`POSTGRES_PASSWORD` is resolved by `cms/tools/cms/env.py` / `scripts/ops/cms/bake_image.sh` in this order:
+`POSTGRES_PASSWORD` is resolved by `cms/tools/cms/env.py` / `db/scripts/build.sh` in this order:
 1. **Shell env** — `export POSTGRES_PASSWORD=...` (temporary, e.g. CI)
-2. **`.secrets/postgres_password`** (chmod 600) — the same file `scripts/ops/{dev,prod}-host/run.sh` writes on first start. For a **multi-host** setup, the operator copies this file from the dev/prod host to the CMS host:
+2. **`.secrets/postgres_password`** (chmod 600) — the same file `scripts/{dev-host,prod-host}/lifecycle.sh` writes on first start. For a **multi-host** setup, the operator copies this file from the dev/prod host to the CMS host:
    ```bash
    scp user@dev-host:.secrets/postgres_password .secrets/
    ```
@@ -408,21 +408,21 @@ export DOCKER_REGISTRY=docker.io/youruser   # overrides REGISTRY file
 
 ### CMS host config knobs (NOT in `cms/.env`)
 
-These have code-level defaults in `cms/tools/cms/env.py` / `scripts/ops/cms/bake_image.sh` / `lib.sh`. Override via shell env when you need a different value:
+These have code-level defaults in `cms/tools/cms/env.py` / `db/scripts/build.sh` / `lib.sh`. Override via shell env when you need a different value:
 
 | Knob | Code default | Override example |
 |---|---|---|
-| `POSTGRES_USER` | `english_user` | `POSTGRES_USER=foo ./scripts/ops/cms/bake_image.sh` |
-| `POSTGRES_HOST` | `localhost` | `POSTGRES_HOST=db.internal ./scripts/ops/cms/content.sh sentences` |
+| `POSTGRES_USER` | `english_user` | `POSTGRES_USER=foo ./db/scripts/build.sh` |
+| `POSTGRES_HOST` | `localhost` | `POSTGRES_HOST=db.internal ./cms/scripts/content.sh sentences` |
 | `POSTGRES_PORT` | `5432` | (same pattern) |
 | `POSTGRES_DB`   | `english_learning` | (same pattern) |
-| `POSTGRES_PASSWORD` | (none — see above) | `POSTGRES_PASSWORD=... ./scripts/ops/cms/bake_image.sh` |
+| `POSTGRES_PASSWORD` | (none — see above) | `POSTGRES_PASSWORD=... ./db/scripts/build.sh` |
 | `DB_IMAGE`      | `english_db_content` | (same pattern) |
-| `AUDIO_DIR`     | `cms/.local/audio` | `AUDIO_DIR=/your/audio/dir ./scripts/ops/cms/content.sh audio` |
-| `CLOUD_PROVIDER` | `local_fs` | `CLOUD_PROVIDER=tencent_cos ./scripts/ops/cms/content.sh audio` |
+| `AUDIO_DIR`     | `cms/.local/audio` | `AUDIO_DIR=/your/audio/dir ./cms/scripts/content.sh audio` |
+| `CLOUD_PROVIDER` | `local_fs` | `CLOUD_PROVIDER=tencent_cos ./cms/scripts/content.sh audio` |
 | `CLOUD_BUCKET` / `CLOUD_REGION` / `CLOUD_ACCESS_KEY` / `CLOUD_SECRET_KEY` | (none) | Required when `CLOUD_PROVIDER=tencent_cos` |
-| `DEFAULT_BUCKET_TARGET_SIZE` | `200` | `DEFAULT_BUCKET_TARGET_SIZE=500 ./scripts/ops/cms/content.sh sentences` |
-| `DB_IMAGE_TAG`  | `VERSION.prod` | `DB_IMAGE_TAG=v0.5.0 ./scripts/ops/cms/bake_image.sh` |
+| `DEFAULT_BUCKET_TARGET_SIZE` | `200` | `DEFAULT_BUCKET_TARGET_SIZE=500 ./cms/scripts/content.sh sentences` |
+| `DB_IMAGE_TAG`  | `VERSION.prod` | `DB_IMAGE_TAG=v0.5.0 ./db/scripts/build.sh` |
 
 ### Target host — no `.env` file required
 
@@ -430,16 +430,16 @@ Runtime configuration is via shell env (passed to `run.sh` via `KEY=value run.sh
 
 - `ALLOWED_ORIGINS` — CORS allowlist. Dev defaults to `http://localhost,http://localhost:3000`; prod defaults to `http://localhost`. Override at start time:
   ```bash
-  ALLOWED_ORIGINS=https://my.domain ./scripts/ops/prod-host/run.sh start
+  ALLOWED_ORIGINS=https://my.domain ./scripts/prod-host/lifecycle.sh start
   ```
 - `DOCKER_REGISTRY` — registry namespace to push to / pull from. Comes from the committed `REGISTRY` file at the repo root; shell env wins. Pull behavior is **asymmetric**:
   - **Prod**: `run.sh start` auto-pulls the db + backend + frontend images on every start/restart — registry is the source of truth.
-  - **Dev**: `run.sh setup` does the **one-time bootstrap pull** when local images are missing. `start` / `restart` **never auto-pull** — image lifecycle is local (build_image.sh / bake_image.sh). Pull manually with `docker pull <full-image>` if needed.
+  - **Dev**: `run.sh setup` does the **one-time bootstrap pull** when local images are missing. `start` / `restart` **never auto-pull** — image lifecycle is local (build_image.sh / db/scripts/build.sh). Pull manually with `docker pull <full-image>` if needed.
 
   Empty = local-only mode (no push to / pull from any registry).
 - `DB_IMAGE_TAG` — which baked db image to pull. Default: `VERSION.prod`.
 - `BACKEND_IMAGE_TAG`, `FRONTEND_IMAGE_TAG` — image tag for backend/frontend. Default: `VERSION.dev` on dev hosts, `VERSION.prod` on prod hosts (resolved by `scripts/lib.sh`). Override per image, or set `IMAGE_TAG` to bump all images at once (CI use):
   ```bash
-  IMAGE_TAG=v1.2.3 ./scripts/ops/prod-host/run.sh start
+  IMAGE_TAG=v1.2.3 ./scripts/prod-host/lifecycle.sh start
   ```
 - `POSTGRES_PASSWORD` — **never set manually**. `run.sh` generates a fresh 24-char URL-safe value on first start and writes it to `.secrets/postgres_password` (chmod 600). Subsequent restarts reuse the file. Compose mounts it into the db container via `POSTGRES_PASSWORD_FILE` and the assembled `DATABASE_URL_FILE` into the backend container.

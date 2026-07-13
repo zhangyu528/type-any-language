@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# scripts/ops/cms/content.sh — orchestrate the content production pipeline.
+# cms/scripts/content.sh — orchestrate the content production pipeline.
 #
 # Subcommands (all idempotent; safe to re-run):
 #   init-schema Run pending schema migrations + create_all safety net
@@ -12,18 +12,18 @@
 #   audio      Bulk-generate MP3s via Tencent Cloud TTS.
 #              (pipeline/generate_audio.py)
 #   export     Dump content + audio into a staging bundle (same as
-#              what bake_image.sh does internally — exposed here for
+#              what db/scripts/build.sh does internally — exposed here for
 #              inspection).
 #   doctor     Pre-flight: cms/.env ready, py deps present, db reachable.
 #   -h|help    Show usage.
 #
 # Typical workflow (CMS host):
-#   ./scripts/ops/cms/content.sh sync        # csv → DB
-#   ./scripts/ops/cms/content.sh sentences   # OpenAI fills buckets
-#   ./scripts/ops/cms/content.sh audio       # Tencent TTS fills mp3s
-#   ./scripts/ops/cms/content.sh export      # (optional) inspect staging bundle
-#   ./scripts/ops/cms/bake_image.sh          # build image
-#   ./scripts/ops/cms/push_image.sh          # ship to registry
+#   ./cms/scripts/content.sh sync        # csv → DB
+#   ./cms/scripts/content.sh sentences   # OpenAI fills buckets
+#   ./cms/scripts/content.sh audio       # Tencent TTS fills mp3s
+#   ./cms/scripts/content.sh export      # (optional) inspect staging bundle
+#   ./db/scripts/build.sh          # build image
+#   ./db/scripts/push.sh          # ship to registry
 #
 # Each subcommand just wraps the underlying python module. Pass `--help`
 # to the wrapped CLI for the full flag list.
@@ -31,9 +31,9 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
-source "$SCRIPT_DIR/../../lib.sh"
+source "$SCRIPT_DIR/../../scripts/lib.sh"
 
 # cms/ lives at cms/tools/cms/. For `python -m cms.X` to work,
 # cms/tools/ must be on PYTHONPATH.
@@ -64,7 +64,7 @@ cmd_doctor() {
     local env_file
     env_file="$(resolve_content_env_file)"
     if [ ! -f "$env_file" ]; then
-        err "$env_file 不存在 — 跑 ./scripts/ops/cms/env.sh 先引导"
+        err "$env_file 不存在 — 跑 ./cms/scripts/env.sh 先引导"
         return 1
     fi
     ok "$env_file 存在"
@@ -85,7 +85,7 @@ cmd_doctor() {
     [ -z "$AI_BASE_URL" ]    && missing+=("AI_BASE_URL")
     [ -z "$AI_MODEL" ]       && missing+=("AI_MODEL")
     if [ -z "$DATABASE_URL" ]; then
-        # Try to assemble it (same logic as env.py / bake_image.sh).
+        # Try to assemble it (same logic as env.py / db/scripts/build.sh).
         local _pu="${POSTGRES_USER:-english_user}"
         local _pd="${POSTGRES_DB:-english_learning}"
         local _ph="${POSTGRES_HOST:-localhost}"
@@ -191,12 +191,12 @@ cmd_publish() {
     # a friendly error so older docs / muscle memory don't silently do
     # nothing.
     err "publish 子命令已移除 — schema 没有 published 标志"
-    err "  直接跑: ./scripts/ops/cms/bake_image.sh"
+    err "  直接跑: ./db/scripts/build.sh"
     exit 1
 }
 
 cmd_export() {
-    # The actual staging-bundle export is done by bake_image.sh. This
+    # The actual staging-bundle export is done by db/scripts/build.sh. This
     # subcommand just exposes it standalone so you can inspect the bundle
     # without re-baking.
     "$(py)" -m cms.export_bundle "$@"
@@ -222,13 +222,13 @@ usage() {
   $0 audio --help
 
 典型工作流 (CMS 主机,首次):
-  ./scripts/ops/cms/env.sh                   # cms/.env 引导 (一次性)
+  ./cms/scripts/env.sh                   # cms/.env 引导 (一次性)
   $0 init-schema                            # migrations + create_all 兜底 (一次性, 幂等)
   $0 sync                                   # csv → DB
   $0 sentences                              # OpenAI 填句子
   $0 audio                                  # TTS 烤 MP3
-  ./scripts/ops/cms/bake_image.sh            # 烤 image
-  ./scripts/ops/cms/push_image.sh            # 推 registry
+  ./db/scripts/build.sh            # 烤 image
+  ./db/scripts/push.sh            # 推 registry
 EOF
 }
 

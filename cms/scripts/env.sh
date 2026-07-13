@@ -5,7 +5,7 @@
 # This is the unified entry point for cms/.env lifecycle: first-time
 # creation, ongoing updates, masked inspection, and config validation.
 # Default behaviour is `init` (backward-compatible — old users who just
-# run `./scripts/ops/cms/env.sh` get the bootstrap flow they expect).
+# run `./cms/scripts/env.sh` get the bootstrap flow they expect).
 #
 # Subcommands:
 #   (no args)  init      Create cms/.env from template + inject smart defaults.
@@ -44,9 +44,9 @@
 # DB_IMAGE, AUDIO_DIR, DEFAULT_BUCKET_TARGET_SIZE) have code-level defaults
 # and are therefore NOT in cms/.env. To pin a different value, set it in
 # the shell:
-#   POSTGRES_USER=other ./scripts/ops/cms/bake_image.sh
-#   AUDIO_DIR=/my/audio/dir ./scripts/ops/cms/content.sh audio
-#   DEFAULT_BUCKET_TARGET_SIZE=500 ./scripts/ops/cms/content.sh sentences
+#   POSTGRES_USER=other ./db/scripts/build.sh
+#   AUDIO_DIR=/my/audio/dir ./cms/scripts/content.sh audio
+#   DEFAULT_BUCKET_TARGET_SIZE=500 ./cms/scripts/content.sh sentences
 # DB_IMAGE_TAG is also not here — its default is the root ./VERSION file
 # (resolved by scripts/lib.sh), with cms/.env / shell env able to pin a
 # specific version when needed.
@@ -55,11 +55,11 @@
 # ./REGISTRY file at the repo root (shared project config, not a secret).
 # Override at push time via shell env:
 #   export DOCKER_REGISTRY=docker.io/youruser
-#   ./scripts/ops/cms/push_image.sh
+#   ./db/scripts/push.sh
 #
 # Where does the db password come from?
 #   DATABASE_URL is assembled at runtime by cms/tools/cms/env.py +
-#   scripts/ops/cms/bake_image.sh from POSTGRES_PASSWORD (which has no code
+#   db/scripts/build.sh from POSTGRES_PASSWORD (which has no code
 #   default) + code defaults for user/host/port/db. POSTGRES_PASSWORD is
 #   resolved in this order:
 #     1. shell env:  export POSTGRES_PASSWORD=...
@@ -75,10 +75,10 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
 # shellcheck disable=SC1091
-source "$SCRIPT_DIR/../../lib.sh"
+source "$SCRIPT_DIR/../../scripts/lib.sh"
 
 TEMPLATE="cms/.env.example.cms"
 TARGET="${CONTENT_ENV_FILE:-cms/.env}"
@@ -101,7 +101,7 @@ SECRET_KEYS=(
 # defaults, so they go in cms/.env. POSTGRES_USER/POSTGRES_HOST/
 # POSTGRES_PORT/POSTGRES_DB/DB_IMAGE/DEFAULT_BUCKET_TARGET_SIZE are
 # intentionally NOT here — they have code-level defaults (see env.py +
-# bake_image.sh) and can be overridden via shell env when needed.
+# db/scripts/build.sh) and can be overridden via shell env when needed.
 # DB_IMAGE_TAG is also not here — its default is the root ./VERSION file
 # (lib.sh's resolve_image_tag). TENCENT_* is checked separately below
 # (all-or-nothing, but only the audio subcommand actually needs them).
@@ -144,7 +144,7 @@ cmd_init() {
     if file_exists "$TARGET"; then
         ok "$TARGET 已存在（跳过）"
         info "  → 想重新生成请先 rm $TARGET"
-        info "  → 想改某一项请用: ./scripts/ops/cms/env.sh update KEY=VALUE"
+        info "  → 想改某一项请用: ./cms/scripts/env.sh update KEY=VALUE"
         return 0
     fi
 
@@ -181,12 +181,12 @@ cmd_init() {
     info "AUDIO_DIR 默认是 /var/lib/type-any-language/audio"
     info "  → Windows / 无 sudo 的系统: export AUDIO_DIR=/your/path"
     echo ""
-    info "填好后跑: ./scripts/ops/cms/env.sh doctor 验证"
-    info "或者用: ./scripts/ops/cms/env.sh update KEY=VALUE 改某一项"
+    info "填好后跑: ./cms/scripts/env.sh doctor 验证"
+    info "或者用: ./cms/scripts/env.sh update KEY=VALUE 改某一项"
     echo ""
     echo "下一步:"
     echo -e "  ${_LIB_BLUE}nano $TARGET${_LIB_NC}   # 填上面那几项"
-    echo -e "  ${_LIB_BLUE}./scripts/ops/cms/env.sh doctor${_LIB_NC}"
+    echo -e "  ${_LIB_BLUE}./cms/scripts/env.sh doctor${_LIB_NC}"
 }
 
 # ---------------------------------------------------------------------------
@@ -194,7 +194,7 @@ cmd_init() {
 # ---------------------------------------------------------------------------
 cmd_update() {
     if ! file_exists "$TARGET"; then
-        err "$TARGET 不存在 — 先跑 ./scripts/ops/cms/env.sh 引导"
+        err "$TARGET 不存在 — 先跑 ./cms/scripts/env.sh 引导"
         exit 1
     fi
 
@@ -274,7 +274,7 @@ cmd_update() {
     echo ""
     if [ "$changed" -gt 0 ]; then
         ok "已更新 $changed 项"
-        info "  跑 ./scripts/ops/cms/env.sh doctor 验证"
+        info "  跑 ./cms/scripts/env.sh doctor 验证"
     fi
     if [ "$skipped" -gt 0 ]; then
         warn "跳过 $skipped 项 (key 不存在)"
@@ -286,7 +286,7 @@ cmd_update() {
 # ---------------------------------------------------------------------------
 cmd_show() {
     if ! file_exists "$TARGET"; then
-        err "$TARGET 不存在 — 先跑 ./scripts/ops/cms/env.sh 引导"
+        err "$TARGET 不存在 — 先跑 ./cms/scripts/env.sh 引导"
         exit 1
     fi
     echo "=== $TARGET ==="
@@ -318,7 +318,7 @@ cmd_show() {
 cmd_doctor() {
     local failed=0
     if ! file_exists "$TARGET"; then
-        err "$TARGET 不存在 — 先跑 ./scripts/ops/cms/env.sh 引导"
+        err "$TARGET 不存在 — 先跑 ./cms/scripts/env.sh 引导"
         return 1
     fi
 
@@ -341,7 +341,7 @@ cmd_doctor() {
             echo "  - $k"
         done
         echo ""
-        info "  填法: ./scripts/ops/cms/env.sh update KEY=VALUE"
+        info "  填法: ./cms/scripts/env.sh update KEY=VALUE"
         info "  或:   nano $TARGET"
         failed=1
     else
@@ -377,7 +377,7 @@ cmd_doctor() {
 
     # --- Bake-time identity hint ---
     # POSTGRES_USER/POSTGRES_DB are no longer in cms/.env — they have code
-    # defaults (bake_image.sh: ${POSTGRES_USER:-english_user} etc). If the
+    # defaults (db/scripts/build.sh: ${POSTGRES_USER:-english_user} etc). If the
     # operator DID set them in cms/.env for one-off use, surface them so they
     # can sanity-check what's going to be baked into the image label.
     local pu pd
@@ -385,9 +385,9 @@ cmd_doctor() {
     pd="$(grep -E "^POSTGRES_DB=" "$TARGET" | head -1 | cut -d= -f2-)"
     if [ -n "$pu" ] && [ -n "$pd" ]; then
         info "POSTGRES_USER=$pu / POSTGRES_DB=$pd  (来自 cms/.env, 将烤入 image label)"
-        info "  (默认在 bake_image.sh 里: english_user / english_learning — 留空走默认)"
+        info "  (默认在 db/scripts/build.sh 里: english_user / english_learning — 留空走默认)"
     else
-        ok "POSTGRES_USER / POSTGRES_DB 走 bake_image.sh 默认 (english_user / english_learning)"
+        ok "POSTGRES_USER / POSTGRES_DB 走 db/scripts/build.sh 默认 (english_user / english_learning)"
     fi
 
     # --- DB password source ---
@@ -427,7 +427,7 @@ cmd_doctor() {
 
 usage() {
     cat <<EOF
-用法: ./scripts/ops/cms/env.sh <command> [args]
+用法: ./cms/scripts/env.sh <command> [args]
 
 命令:
   (无参数)     init      首次创建 cms/.env + 注入 smart defaults (idempotent: 已存在则跳过)
@@ -442,21 +442,21 @@ usage() {
   - show / doctor 纯只读
 
 典型工作流:
-  ./scripts/ops/cms/env.sh            # 首次: 引导 + smart defaults
+  ./cms/scripts/env.sh            # 首次: 引导 + smart defaults
   nano cms/.env                    # 填 secrets + AI 配置 (AI_API_KEY / AI_BASE_URL / AI_MODEL / TENCENT_*)
   # 准备 db password (单选):
   export POSTGRES_PASSWORD=...                   # 临时
   # OR:
   scp user@dev-host:.secrets/postgres_password .secrets/   # 持久
-  ./scripts/ops/cms/env.sh doctor     # 验证
-  ./scripts/ops/cms/env.sh update AI_API_KEY=...  # 改某一项
-  ./scripts/ops/cms/env.sh show       # 看一眼当前配置 (secret 脱敏)
+  ./cms/scripts/env.sh doctor     # 验证
+  ./cms/scripts/env.sh update AI_API_KEY=...  # 改某一项
+  ./cms/scripts/env.sh show       # 看一眼当前配置 (secret 脱敏)
 
 其他配置 (POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, DB_IMAGE,
 AUDIO_DIR, DEFAULT_BUCKET_TARGET_SIZE) 不在 cms/.env — 代码里有默认, 需要时 shell 覆盖:
-  POSTGRES_USER=foo ./scripts/ops/cms/bake_image.sh
-  AUDIO_DIR=/my/audio/dir ./scripts/ops/cms/content.sh audio
-  DEFAULT_BUCKET_TARGET_SIZE=500 ./scripts/ops/cms/content.sh sentences
+  POSTGRES_USER=foo ./db/scripts/build.sh
+  AUDIO_DIR=/my/audio/dir ./cms/scripts/content.sh audio
+  DEFAULT_BUCKET_TARGET_SIZE=500 ./cms/scripts/content.sh sentences
 EOF
 }
 

@@ -36,11 +36,11 @@ scripts/
 | 查看当前版本 | `./scripts/release.sh show` |
 | 检查主机就绪状态 | `./scripts/ops/<host>/run.sh doctor` |
 | 启动 / 停止 / 重启容器 | `./scripts/ops/<host>/run.sh start\|stop\|restart` |
-| 烘焙 + 推送 db image(CMS) | `./scripts/ops/cms/bake_image.sh && ./scripts/ops/cms/push_image.sh -y` |
+| 烘焙 + 推送 db image(CMS) | `./db/scripts/build.sh && ./db/scripts/push.sh -y` |
 | Build + 推送应用镜像(目标机) | `./scripts/ops/<host>/build_image.sh && ./scripts/ops/<host>/push_image.sh -y` |
-| 管理 cms/.env(CMS) | `./scripts/ops/cms/env.sh [init\|update\|show\|doctor]` |
+| 管理 cms/.env(CMS) | `./cms/scripts/env.sh [init\|update\|show\|doctor]` |
 
-`<host>` 是 `dev-host` 或 `prod-host`。CMS 脚本在 `scripts/ops/cms/` 下。
+`<host>` 是 `dev-host` 或 `prod-host`。CMS 脚本在 `cms/scripts/` 下。
 
 ## `lib.sh` —— 共享 helper
 
@@ -135,7 +135,7 @@ dev 目标机的 `run.sh` 也会读 `VERSION.prod` 来取 `DB_IMAGE_TAG`(因为 
 
 1. 选对子目录:
    - 影响某台主机的容器生命周期 → `scripts/ops/<host>/`
-   - 操作 content image / cms/.env → `scripts/ops/cms/`
+   - 操作 content image / cms/.env → `cms/scripts/`
    - 跨切面编排 → `scripts/`
    - 开发者工具(lint、test、generate)→ `scripts/dev/`
 2. 复制一个相同形状的现有脚本作模板(`run.sh` / `bake_image.sh` 是最规范的例子)。

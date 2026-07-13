@@ -1,12 +1,12 @@
 #!/bin/bash
 #
-# cms/push_image.sh — push the baked db image to $DOCKER_REGISTRY.
+# cms/db/scripts/push.sh — push the baked db image to $DOCKER_REGISTRY.
 #
-# Run this AFTER ./scripts/ops/cms/bake_image.sh has produced the image
+# Run this AFTER ./cms/scripts/db/scripts/build.sh has produced the image
 # locally. Push is a deliberate, separate step: you might bake many
 # times locally before you're ready to publish.
 #
-# Symmetric with scripts/ops/{dev,prod}-host/push_image.sh: all three
+# Symmetric with scripts/ops/{dev,prod}-host/db/scripts/push.sh: all three
 # push scripts read every config value (DOCKER_REGISTRY, DB_IMAGE,
 # DB_IMAGE_TAG) from the shell env, NOT from cms/.env. cms/.env is the
 # bake-time secret store (OpenAI/Tencent keys, postgres connection,
@@ -39,18 +39,18 @@
 #
 # Examples:
 #   export DOCKER_REGISTRY=docker.io/youruser
-#   ./scripts/ops/cms/push_image.sh             # interactive
-#   ./scripts/ops/cms/push_image.sh -y          # CI
-#   ./scripts/ops/cms/push_image.sh doctor      # check prereqs
+#   ./cms/scripts/db/scripts/push.sh             # interactive
+#   ./cms/scripts/db/scripts/push.sh -y          # CI
+#   ./cms/scripts/db/scripts/push.sh doctor      # check prereqs
 #
 # Requires: shell + docker. NO python.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
-source "$SCRIPT_DIR/../../lib.sh"
+source "$SCRIPT_DIR/../../scripts/lib.sh"
 
 # NOTE: we deliberately do NOT load cms/.env here. Push is a separate
 # concern from bake: cms/.env is the bake-time secret/config store
@@ -64,7 +64,7 @@ source "$SCRIPT_DIR/../../lib.sh"
 DB_IMAGE="${DB_IMAGE:-english_db_content}"
 resolve_image_tag DB_IMAGE_TAG VERSION.prod
 warn_if_version_default "$DB_IMAGE_TAG" VERSION.prod
-# DOCKER_REGISTRY is push-only concern. Symmetric with dev/prod push_image.sh.
+# DOCKER_REGISTRY is push-only concern. Symmetric with dev/prod db/scripts/push.sh.
 # Chain: shell env > ./REGISTRY file > detect_default_registry().
 resolve_docker_registry
 
@@ -81,7 +81,7 @@ fi
 cmd_doctor() {
     local ok=1
 
-    echo "=== push_image.sh pre-flight ==="
+    echo "=== db/scripts/push.sh pre-flight ==="
     echo ""
 
     if [ -z "$DOCKER_REGISTRY" ]; then
@@ -109,7 +109,7 @@ cmd_doctor() {
 
     if ! image_exists "$LOCAL_IMAGE"; then
         err "本地 image $LOCAL_IMAGE 不存在"
-        info "  → 先跑 ./scripts/ops/cms/bake_image.sh"
+        info "  → 先跑 ./cms/scripts/db/scripts/build.sh"
         ok=0
     else
         ok "本地 image $LOCAL_IMAGE 存在"
@@ -152,7 +152,7 @@ cmd_push() {
 
     if ! image_exists "$LOCAL_IMAGE"; then
         err "本地 image $LOCAL_IMAGE 不存在"
-        info "  → 先跑 ./scripts/ops/cms/bake_image.sh"
+        info "  → 先跑 ./cms/scripts/db/scripts/build.sh"
         exit 1
     fi
 
@@ -216,9 +216,9 @@ usage() {
 
 示例:
   export DOCKER_REGISTRY=docker.io/youruser
-  ./scripts/ops/cms/push_image.sh            # 交互
-  ./scripts/ops/cms/push_image.sh -y         # CI
-  ./scripts/ops/cms/push_image.sh doctor     # 前置检查
+  ./cms/scripts/db/scripts/push.sh            # 交互
+  ./cms/scripts/db/scripts/push.sh -y         # CI
+  ./cms/scripts/db/scripts/push.sh doctor     # 前置检查
 
 退出码:
   0  成功 (或用户取消)

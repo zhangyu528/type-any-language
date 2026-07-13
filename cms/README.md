@@ -26,7 +26,7 @@ cms/
 db/
 ├── Dockerfile          # postgres:15-alpine 包装,带 OCI labels;COPY init/01-content.sql
 ├── builder.py          # assemble(bundle) + build_image(target, tag, ...)
-└── init/01-content.sql # 由 bake_image.sh 填(`.gitignore`d,运行时由 image 跑)
+└── init/01-content.sql # 由 db/scripts/build.sh 填(`.gitignore`d,运行时由 image 跑)
 ```
 
 ## 段对照
@@ -37,25 +37,25 @@ db/
 | `cms/tools/`  | 烘焙这些内容的 Python/Docker | 开发者 | ✓ | 否(只在 CMS 主机跑) |
 | `db/`       | **被**烤进 db image 的构建上下文 | 半自动(bake 写 `init/01-content.sql`) | ✓ Dockerfile + builder.py | ✓ / 部分 |
 
-`db/init/01-content.sql` 是 `scripts/ops/cms/bake_image.sh` 的 **build 输入** —— 由它每次从在线 CMS 数据库的 pg_dump 重新生成。`.gitignore` 了,仓库里只有 `Dockerfile` 和 `builder.py` 是 commit 的。
+`db/init/01-content.sql` 是 `db/scripts/build.sh` 的 **build 输入** —— 由它每次从在线 CMS 数据库的 pg_dump 重新生成。`.gitignore` 了,仓库里只有 `Dockerfile` 和 `builder.py` 是 commit 的。
 
 ## 烘焙流程
 
 ```
 cms/source/vocabulary/*.csv                       (源)
-        ↓  scripts/ops/cms/content.sh sync
-        ↓  scripts/ops/cms/content.sh sentences       (OpenAI)
-        ↓  scripts/ops/cms/content.sh audio           (Tencent TTS → Storage.put)
+        ↓  cms/scripts/content.sh sync
+        ↓  cms/scripts/content.sh sentences       (OpenAI)
+        ↓  cms/scripts/content.sh audio           (Tencent TTS → Storage.put)
         ↓
 PostgreSQL(vocabulary_libs + vocabulary_words + sentences)
   + Tencent Cloud COS bucket(audio/{hash}.mp3)
   OR  cms/.local/audio/{hash}.mp3                    (CLOUD_PROVIDER=local_fs)
-        ↓  scripts/ops/cms/bake_image.sh
+        ↓  db/scripts/build.sh
         ↓    export_bundle.py → .bake-staging/data-bundle-v.../dump.sql
         ↓    cp dump.sql  → db/init/01-content.sql
         ↓  docker build db/
 docker image english_db_content:vX.Y.Z          (带 OCI labels;只含 schema + sentences,无 audio)
-        ↓  scripts/ops/cms/push_image.sh
+        ↓  db/scripts/push.sh
 registry/english_db_content:vX.Y.Z
         ↓  目标主机的 scripts/{prod,dev}-host/run.sh
 docker compose up -d
@@ -71,14 +71,14 @@ frontend 请求 /api/sentences/random
 
 - **生成**:`content.sh audio` 调 Tencent TTS,MP3 写到 `Storage`(默认 `local_fs` 写到 `cms/.local/audio/`,或 `tencent_cos` 上传到 COS bucket)
 - **持久化**:Storage 持有,`sentence.audio_url` 写为 `storage.public_url(key)`(local 是 `/audio/{hash}.mp3`,COS 是 `https://{bucket}.cos.{region}.myqcloud.com/audio/{hash}.mp3`)
-- **bake**:`bake_image.sh` 不会把 audio 烤进 db image —— db image 只含 `dump.sql`(`vocabulary_*` + `sentences` 表的数据,包括 `audio_url` 字段)
+- **bake**:`db/scripts/build.sh` 不会把 audio 烤进 db image —— db image 只含 `dump.sql`(`vocabulary_*` + `sentences` 表的数据,包括 `audio_url` 字段)
 - **runtime**:target host 启动时 `01-content.sql` 加载,没有 audio init 步骤。前端读 `sentence.audio_url` 让浏览器直接拉
 
 > 这个设计的好处:db image 保持小(schema + sentences,几 MB),改 audio 不用 re-bake db image(只重传 COS / 重跑 `content.sh audio`)。代价:生产环境需要 COS 账号 + 流量费用。
 
 ## OCI labels
 
-`bake_image.sh` 写入下面这些(Dockerfile 里把它们声明成默认值,这样单独跑 `docker build db/` 也能 work):
+`db/scripts/build.sh` 写入下面这些(Dockerfile 里把它们声明成默认值,这样单独跑 `docker build db/` 也能 work):
 
 | Label | 来源 | 消费者 |
 |---|---|---|

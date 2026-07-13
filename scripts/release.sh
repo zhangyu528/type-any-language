@@ -44,8 +44,8 @@
 #   - `prod` includes the db bake. That step needs cms/.env, so `prod`
 #     must run on the CMS host (or a single-machine CMS+prod setup).
 #     On a dedicated prod target host without cms/.env, run
-#     scripts/ops/cms/bake_image.sh on the CMS host first, then run
-#     scripts/ops/prod-host/build_image.sh + push_image.sh on the prod
+#     db/scripts/build.sh on the CMS host first, then run
+#     scripts/prod-host/build_image.sh + push_image.sh on the prod
 #     host.
 #   - For multi-machine deployments, run each subcommand on its
 #     respective host. The script is self-contained per host.
@@ -263,8 +263,8 @@ cmd_dev() {
 
     echo ""
     publish_one "dev app images (backend + frontend)" \
-        "./scripts/ops/dev-host/build_image.sh" \
-        "./scripts/ops/dev-host/push_image.sh" \
+        "./scripts/dev-host/build_image.sh" \
+        "./scripts/dev-host/push_image.sh" \
         "$tag"
 
     git_commit_touched "$touched_dev" 0 "$tag"
@@ -287,14 +287,14 @@ cmd_prod() {
     # db first — content-baked, must go before the app images in the registry
     # so target hosts pulling by tag get a consistent set.
     publish_one "content-baked db image (content-baked)" \
-        "./scripts/ops/cms/bake_image.sh" \
-        "./scripts/ops/cms/push_image.sh" \
+        "./db/scripts/build.sh" \
+        "./db/scripts/push.sh" \
         "$tag"
 
     echo ""
     publish_one "prod app images (backend + frontend)" \
-        "./scripts/ops/prod-host/build_image.sh" \
-        "./scripts/ops/prod-host/push_image.sh" \
+        "./scripts/prod-host/build_image.sh" \
+        "./scripts/prod-host/push_image.sh" \
         "$tag"
 
     git_commit_touched 0 "$touched_prod" "$tag"

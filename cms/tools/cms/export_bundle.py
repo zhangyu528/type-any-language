@@ -2,7 +2,7 @@
 """
 export_bundle.py — dump CMS content into a staging bundle for db image bake.
 
-Used by ./scripts/ops/cms/bake_image.sh to stage db image build inputs.
+Used by ./db/scripts/build.sh to stage db image build inputs.
 Staging is a plain directory (no tar — keeps `docker build` inputs
 inspectable). Output layout:
 
@@ -67,7 +67,7 @@ def _docker_container_for_db() -> str | None:
     Used as an automatic fallback when host-side pg_dump / psql are
     missing (e.g. Windows dev boxes that run postgres in Docker but
     haven't installed postgresql-client on the host). The convention
-    baked into bake_image.sh's doctor is `english_db` (or
+    baked into db/scripts/build.sh's doctor is `english_db` (or
     `english_db_dev` for the dev stream). Both names are tried.
     """
     try:
@@ -224,7 +224,7 @@ def main() -> None:
     parser.add_argument(
         "--no-tar",
         action="store_true",
-        help="Deprecated no-op (kept for compat with bake_image.sh CLI).",
+        help="Deprecated no-op (kept for compat with db/scripts/build.sh CLI).",
     )
     parser.add_argument(
         "--keep-staging",
