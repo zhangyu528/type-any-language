@@ -1985,9 +1985,9 @@ select:focus-visible {
 /* ============================================================
    prefers-reduced-motion — disable all auth animations.
    Covers the (auth) layout's keyframes (blob drift, card rise)
-   and the page-level ones (char rise, field rise). Defined
-   globally so a single block covers login + signup + future
-   auth pages without per-page duplication.
+   and the page-level ones (char rise, field rise, shake, spin,
+   dissolve). Defined globally so a single block covers login +
+   signup + future auth pages without per-page duplication.
 
    !important is intentional — the per-element rules use the
    animation property directly (not as a class), and we need
@@ -2001,5 +2001,14 @@ select:focus-visible {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
+  }
+  .auth-form-shake-wrap {
+    animation: none !important;
+  }
+  .auth-form__spinner {
+    animation: none !important;
+  }
+  .auth-form {
+    transition: none !important;
   }
 }
