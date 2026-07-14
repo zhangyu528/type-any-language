@@ -35,7 +35,10 @@ cms/
 db/
 ├── Dockerfile          # postgres:15-alpine 包装,带 OCI labels;COPY init/01-content.sql
 ├── builder.py          # assemble(bundle) + build_image(target, tag, ...)
-├── scripts/            # db 的 own entry points(独立于 CMS)
+├── scripts/            # db 的 own entry points(独立于 CMS;orchestration 层)
+│   ├── source_db.sh    # cms-source-db 容器 lifecycle(ensure / start / stop / status)
+│   ├── init_schema.sh  # 调 python -m cms.init_schema(借 CMS Python 定义 schema)
+│   ├── migrate.sh      # 调 cms.migrations.runner(借 CMS Python 跑迁移)
 │   ├── build.sh        # export staging db → init/01-content.sql + docker build
 │   ├── push.sh         # push english_db_content 到 DOCKER_REGISTRY
 │   └── export_bundle.py # pg_dump staging db → SQL(不依赖 cms)
@@ -87,8 +90,15 @@ frontend 请求 /api/sentences/random
 |---|---|
 | 编辑了 CSV / 改了 manifest / 改了 prompt | `cms/scripts/pipeline.sh` (or `content.sh` 单个 subcommand) |
 | 编辑了 CSV + 想马上出 image | `cms/scripts/full_bake.sh` (= pipeline + db bake) |
-| 改 db-image 的 Dockerfile / schema 形状 | `db/scripts/build.sh` 单独 |
+| 起 / 停 staging db 容器(无需跑 pipeline) | `db/scripts/source_db.sh` (ensure / start / stop / status) |
+| 在 staging db 上建表 / 跑迁移 | `db/scripts/init_schema.sh` + `db/scripts/migrate.sh` |
+| 改 db-image 的 Dockerfile / schema 形状 | `db/scripts/build.sh` 单独(只读 staging db,不跑 schema) |
 | 发布新 image 到 registry | `db/scripts/push.sh` |
+
+> **CMS 写的 vs db 管的**:
+> - CMS 写 data(import_vocab / generate_sentences / generate_audio)
+> - db 管 schema(init_schema / migrate)、db 容器(source_db)、image bake(build / push)
+> - 这两套互不调用对方代码 —— 唯一的桥是 `init_schema.sh` / `migrate.sh` 借 CMS Python 来定义 schema,因为 schema definition 物理上还在 `cms/tools/cms/`(跟 migration versions 在一起)
 
 ## Audio 流向(注意:db image 不带 audio)
 

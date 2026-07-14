@@ -87,93 +87,10 @@ resolve_pg_password() {
     return 1
 }
 
-# ensure_source_db — make sure a postgres source for the bake is reachable.
-# Tries three strategies, in order:
-#   1. cms-source-db container already running (legacy names: english_db,
-#      english_db_dev still detected as fallback for backwards compat) — use it.
-#   2. local postgres reachable at POSTGRES_HOST:POSTGRES_PORT — use it.
-#   3. spin up a fresh cms-source-db container (postgres:15-alpine) with
-#      the right POSTGRES_USER / POSTGRES_DB / POSTGRES_PASSWORD,
-#      published on $POSTGRES_PORT (default 5432) so content.sh on the
-#      host can reach it.
-# Returns 0 if a source db is reachable after the call; 1 otherwise.
+# ensure_source_db — thin pass-through to db/scripts/source_db.sh
+# (the db owns staging-db container lifecycle; CMS only consumes).
 ensure_source_db() {
-    # 1. named container already running?
-    #    New name: cms-source-db. Legacy names: english_db / english_db_dev
-    #    (kept as fallback so an operator with an existing app db container
-    #    can still source from it).
-    local running
-    running="$(docker ps --format '{{.Names}}' 2>/dev/null | grep -E '^(cms-source-db|english_db|english_db_dev)$' | head -1 || true)"
-    if [ -n "$running" ]; then
-        ok "  source db: container '$running' 已在跑"
-        return 0
-    fi
-
-    local pg_user="${POSTGRES_USER:-english_user}"
-    local pg_db="${POSTGRES_DB:-english_learning}"
-    local pg_host="${POSTGRES_HOST:-localhost}"
-    local pg_port="${POSTGRES_PORT:-5432}"
-
-    # 2. local postgres reachable at POSTGRES_HOST:POSTGRES_PORT?
-    #    Skip silently if host has no psql — fall through to docker run.
-    if command -v psql &>/dev/null && \
-       PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$pg_host" -p "$pg_port" \
-            -U "$pg_user" -d "$pg_db" -tAc "SELECT 1" &>/dev/null; then
-        ok "  source db: 本地 postgres ($pg_host:$pg_port) 可达"
-        return 0
-    fi
-
-    # 3. spin up a fresh cms-source-db container. Re-use a stopped one if present
-    #    (typical after a `docker stop` between sessions — keeps the data vol).
-    #    If a legacy english_db / english_db_dev exists stopped, rename it
-    #    in-place to cms-source-db so subsequent commands stay consistent.
-    info "  source db: 本地无可达 postgres — 自动起 cms-source-db 容器..."
-    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qE '^cms-source-db$'; then
-        info "    cms-source-db 容器存在但未跑 — 启动"
-        if ! docker start cms-source-db >/dev/null; then
-            err "    docker start cms-source-db 失败"
-            return 1
-        fi
-    else
-        # If a legacy container is hanging around stopped, rename it
-        # (preserves the data volume). Operator can `docker rm english_db`
-        # separately to clean up the old name.
-        for legacy in english_db english_db_dev; do
-            if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qE "^${legacy}$"; then
-                warn "    发现 legacy 容器 '$legacy' — 重命名为 cms-source-db (保留数据卷)"
-                if docker rename "$legacy" cms-source-db >/dev/null 2>&1; then
-                    break
-                fi
-            fi
-        done
-        info "    创建 cms-source-db (postgres:15-alpine)..."
-        if ! docker run -d \
-                --name cms-source-db \
-                -e "POSTGRES_USER=$pg_user" \
-                -e "POSTGRES_DB=$pg_db" \
-                -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
-                -p "${pg_port}:5432" \
-                -v cms-source-data:/var/lib/postgresql/data \
-                postgres:15-alpine >/dev/null; then
-            err "    docker run cms-source-db 失败 — 检查 docker / 端口冲突 (${pg_host}:${pg_port})"
-            return 1
-        fi
-    fi
-
-    # Wait up to 30s for the container to accept connections. Use docker exec
-    # so this works even on hosts without psql (Windows / macOS without
-    # postgres-client installed) — pg_isready is bundled inside the image.
-    info "    等 cms-source-db 就绪 (最多 30s)..."
-    local i
-    for i in $(seq 1 30); do
-        if docker exec cms-source-db pg_isready -U "$pg_user" -d "$pg_db" &>/dev/null; then
-            ok "  source db: cms-source-db 就绪"
-            return 0
-        fi
-        sleep 1
-    done
-    err "    cms-source-db 30s 内未就绪 — 看 docker logs cms-source-db 找原因"
-    return 1
+    "$PROJECT_DIR/db/scripts/source_db.sh" ensure
 }
 
 # run_content_step <desc> <subcommand> [args...]

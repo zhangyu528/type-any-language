@@ -14,7 +14,7 @@ This project intentionally separates **content production** from **content servi
 |---|---|---|---|
 | **CMS host** | Content production (writes staging db) | `cms/.env` + `cms/scripts/` + `cms/tools/cms/` | Python + Docker |
 | **Target host** (dev or prod) | Content serving | `scripts/dev-host/` or `scripts/prod-host/` | Docker only |
-| **DB image build** (CMS host or CI) | Bake staging db → `english_db_content` image | `db/` + `db/scripts/{build,push,export_bundle}.py` | Docker only |
+| **DB image build** (CMS host or CI) | Schema + db container + bake | `db/` + `db/scripts/{source_db,init_schema,migrate,build,push,export_bundle}.py` | Docker only |
 
 The CMS host produces a `db` image with all content pre-loaded and pushes it to a registry. Target hosts `docker pull` the image and serve it — they never need AI keys, TTS keys, or Python. **Target hosts need no .env file at all** — runtime configuration (only `ALLOWED_ORIGINS`) is passed via shell env, and the host-side secret (`POSTGRES_PASSWORD`) is generated on first start by `lifecycle.sh`.
 
@@ -52,9 +52,12 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generat
 │   ├── Dockerfile    # copies init/01-content.sql (NO audio — db image has no MP3s)
 │   ├── builder.py    # assemble(bundle) + build_image(target, tag, ...)
 │   ├── scripts/       # db/scripts/ — the db image's own entry points
-│   │   ├── build.sh   # export staging db → assemble → docker build
-│   │   ├── push.sh    # push english_db_content to DOCKER_REGISTRY
-│   │   └── export_bundle.py  # pg_dump the staging db → SQL (independent of CMS)
+│   │   ├── source_db.sh  # cms-source-db container lifecycle (ensure/start/stop/status)
+│   │   ├── init_schema.sh # python -m cms.init_schema (base DDL)
+│   │   ├── migrate.sh   # python -m cms.migrations.runner (apply pending migrations)
+│   │   ├── build.sh     # export staging db → assemble → docker build
+│   │   ├── push.sh      # push english_db_content to DOCKER_REGISTRY
+│   │   └── export_bundle.py # pg_dump the staging db → SQL (independent of CMS)
 │   └── init/
 │       └── 01-content.sql   # pg_dump snapshot (bake-time output; .gitignore'd)
 │
@@ -105,6 +108,9 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 ./cms/scripts/env.sh doctor        # 验证 cms/.env 完整性
 
 # 2. 跑内容管线(writes staging db = cms-source-db 容器或本地 postgres)
+./db/scripts/source_db.sh ensure   # 起 / 复用 staging db(若没跑本地 postgres)
+./db/scripts/init_schema.sh        # (首次)建 vocabulary_* / sentences / schema_migrations
+./db/scripts/migrate.sh            # 跑 pending schema migrations
 ./cms/scripts/content.sh doctor     # Pre-flight: cms/.env + Python deps + DB reachable
 ./cms/scripts/content.sh sync       # CSVs → vocabulary_libs + vocabulary_words
 ./cms/scripts/content.sh sentences  # OpenAI bulk-fills sentences to DEFAULT_BUCKET_TARGET_SIZE
@@ -366,11 +372,12 @@ When you add or change a migration in `cms/tools/cms/migrations/versions/`:
 ```bash
 # Source db (CMS pipeline, if running): the migrations apply so a future
 # bake has the new schema in 01-content.sql
-./cms/scripts/content.sh init-schema
+./db/scripts/init_schema.sh    # base schema (idempotent CREATE TABLE IF NOT EXISTS)
+./db/scripts/migrate.sh        # pending schema migrations (runner.py)
 
 # Runtime db (the one your backend is actually querying): in-place upgrade,
 # no image bake, no registry push, no volume drop
-./scripts/dev-host/lifecycle.sh migrate
+./scripts/dev-host/migrate.sh
 ```
 
 `migrate.sh` spins up a one-shot `python:3.11-slim` sidecar on the compose network and runs `pipeline.migrations.runner` against `db:5432`. Idempotent — re-runs are no-ops. The backend picks up the new schema on the next request (no restart needed; uvicorn hot-reload handles Python changes).

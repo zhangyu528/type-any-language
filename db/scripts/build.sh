@@ -140,10 +140,15 @@ cmd_doctor() {
     fi
 
     if [ ! -d "cms/source" ]; then
-        err "cms/source directory missing — run ./cms/scripts/env.sh"
-        ok=0
-    else
-        ok "cms/source present"
+        # cms/source is the CMS pipeline's input. The db image bake
+        # doesn't read it directly — export_bundle.py reads the
+        # staging db, not the CSVs. But we still warn here because
+        # an empty cms/source often means the operator forgot to
+        # run `cms/scripts/env.sh init` (which scaffolds the
+        # example CSVs into cms/source/).
+        warn "cms/source directory missing — CMS pipeline output (staging db) may be empty"
+        info "  (db bake reads from staging db, not cms/source — but if you're"
+        info "   seeing empty data, run ./cms/scripts/env.sh init to scaffold the example CSVs)"
     fi
 
     if [ ! -f "$EXPORT_BUNDLE" ]; then
@@ -160,20 +165,17 @@ cmd_doctor() {
         ok "$RUNTIME_BUILDER present"
     fi
 
-    # Are we trying to build from an empty DB? That'll produce an empty
-    # sentences table, which is fine but probably not what the operator
-    # wants. Warn loudly. Look for the CMS staging container first
-    # (preferred name after the cms/db split refactor), then the
-    # historical app-db names for backwards compat.
-    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^cms-source-db$"; then
-        ok "DB container cms-source-db is running — export will source from it"
-    elif docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^english_db$"; then
-        ok "DB container english_db is running — export will source from it (legacy name)"
-    elif docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^english_db_dev$"; then
-        ok "DB container english_db_dev is running — export will source from it (legacy name)"
+    # Staging db status — check via db/scripts/source_db.sh status so
+    # the doctor doesn't need to know the container name itself.
+    if "$SCRIPT_DIR/source_db.sh" status 2>/dev/null | grep -q "RUNNING"; then
+        ok "staging db is up — export_bundle will source from it"
+    elif PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" \
+            -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT 1" &>/dev/null 2>&1; then
+        ok "local postgres reachable — export_bundle will source from it"
     else
-        warn "No staging db container running. export_bundle will fail"
-        warn "  unless local pg_dump can reach POSTGRES_HOST/PORT."
+        warn "No staging db container or local postgres reachable. export_bundle will fail"
+        info "  (db/scripts/source_db.sh ensure to start a cms-source-db container, or"
+        info "   set POSTGRES_HOST/PORT to point at an existing postgres)"
     fi
 
     if [ "$ok" = "1" ]; then return 0; else return 1; fi
