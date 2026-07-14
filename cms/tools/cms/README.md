@@ -10,7 +10,7 @@
 | `import_vocab.py` | `python -m cms.import_vocab` | CSV → `vocabulary_libs` + `vocabulary_words`。 |
 | `generate_sentences.py` | `python -m cms.generate_sentences` | OpenAI → `sentences` 表(bucket 填)。 |
 | `generate_audio.py` | `python -m cms.generate_audio` | 腾讯云 TTS → MP3 + `sentences.audio_url`。 |
-| `export_bundle.py` | `python -m cms.export_bundle` | `pg_dump` + 拷音频 → staging 包。`bake_image.sh` 内部调用;也通过 `content.sh export` 暴露出来用于查看。 |
+| `export_bundle.py` lives at `db/scripts/export_bundle.py` now. Called by `db/scripts/build.sh` during bake; also exposed via `content.sh export` (a pass-through to the new location). |
 
 ## 模块运行模式
 
