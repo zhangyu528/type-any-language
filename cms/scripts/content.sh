@@ -4,7 +4,7 @@
 #
 # Subcommands (all idempotent; safe to re-run):
 #   init-schema Run pending schema migrations + create_all safety net
-#              (cms/init_schema.py -> cms.migrations.upgrade_head).
+#              (dbtools/init_schema.py -> dbtools.migrations.upgrade_head).
 #   sync       Import vocabulary CSVs → vocabulary_libs / vocabulary_words.
 #              (pipeline/import_vocab.py)
 #   sentences  Bulk-generate practice sentences via OpenAI.
@@ -35,9 +35,13 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
 source "$SCRIPT_DIR/../../scripts/lib.sh"
 
-# cms/ lives at cms/tools/cms/. For `python -m cms.X` to work,
-# cms/tools/ must be on PYTHONPATH.
-export PYTHONPATH="${PROJECT_DIR}/cms/tools${PYTHONPATH:+:$PYTHONPATH}"
+# cms/data-pipeline modules (import_vocab, generate_sentences,
+# generate_audio) live at cms/tools/cms/. The schema / migrations
+# live at db/tools/dbtools/. Both packages have to coexist on
+# PYTHONPATH (so `python -m cms.X` for data pipeline and
+# `python -m dbtools.init_schema` for schema both work) — the
+# package names are different so they don't shadow each other.
+export PYTHONPATH="${PROJECT_DIR}/cms/tools:${PROJECT_DIR}/db/tools${PYTHONPATH:+:$PYTHONPATH}"
 
 # Force Python IO to UTF-8 so Unicode glyphs in pipeline output (✓ / ✗
 # / box-drawing in import_vocab / generate_sentences / generate_audio /

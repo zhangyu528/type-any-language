@@ -1,7 +1,7 @@
 """cms/tools/cms/migrations — schema migration runner + version files.
 
 Public surface:
-    from cms.migrations import upgrade_head, get_current_version
+    from dbtools.migrations import upgrade_head, get_current_version
 
     with psycopg2.connect(cfg.database_url) as conn:
         upgrade_head(conn)            # apply pending migrations
@@ -16,7 +16,7 @@ Each migration is a Python module in `versions/` exposing:
 See `runner.py` for the loader / applier logic.
 """
 
-from cms.migrations.runner import (
+from dbtools.migrations.runner import (
     upgrade_head,
     downgrade_one,
     get_current_version,

@@ -53,8 +53,8 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generat
 │   ├── builder.py    # assemble(bundle) + build_image(target, tag, ...)
 │   ├── scripts/       # db/scripts/ — the db image's own entry points
 │   │   ├── source_db.sh  # cms-source-db container lifecycle (ensure/start/stop/status)
-│   │   ├── init_schema.sh # python -m cms.init_schema (base DDL)
-│   │   ├── migrate.sh   # python -m cms.migrations.runner (apply pending migrations)
+│   │   ├── init_schema.sh # python -m dbtools.init_schema (base DDL)
+│   │   ├── migrate.sh   # python -m dbtools.migrations.runner (apply pending migrations)
 │   │   ├── build.sh     # export staging db → assemble → docker build
 │   │   ├── push.sh      # push english_db_content to DOCKER_REGISTRY
 │   │   └── export_bundle.py # pg_dump the staging db → SQL (independent of CMS)

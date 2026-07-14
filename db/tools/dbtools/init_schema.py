@@ -28,11 +28,18 @@ list of `upgrade(conn)` calls. This project's migration count is small
 (3-5 versions total over the life of the app) and a 60-line runner is
 easier to read, audit, and modify than a generated Alembic env.py.
 
+Env handling — minimal:
+  This module reads cms/.env via db_url.py (a 90-line helper) which
+  only resolves POSTGRES_* + DATABASE_URL. It does NOT depend on
+  cms/tools/cms/env.py (the data-pipeline's full Config loader that
+  also pulls in TENCENT_*, AI_*, AUDIO_DIR — none of which are db
+  concerns). Keeps the db schema code free of data-pipeline deps.
+
 Usage
 -----
-    python -m cms.init_schema                       # from project root, PYTHONPATH=content
-    PYTHONPATH=content python3 cms/tools/cms/init_schema.py
-    ./cms/scripts/content.sh init-schema   # wrapper
+    python -m cms.init_schema                       # from project root, PYTHONPATH=db/tools
+    PYTHONPATH=db/tools python3 db/tools/cms/init_schema.py
+    ./db/scripts/init_schema.sh              # wrapper
 """
 from __future__ import annotations
 
@@ -40,18 +47,19 @@ import sys
 from pathlib import Path
 
 # Allow running this file directly (python init_schema.py) AND as
-# `python -m cms.init_schema` from the project root. Mirrors the
-# same bootstrap block in import_vocab.py / generate_sentences.py.
+# `python -m cms.init_schema` from the project root. Same pattern as
+# the data-pipeline modules, but the bootstrap here points at db/tools
+# not cms/tools.
 if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
-    from cms.env import setup_env, load_config  # noqa: E402
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+    from db_url import load_cms_env_into_os_environ, resolve_database_url  # noqa: E402
 else:
-    from .env import setup_env, load_config  # noqa: E402
+    from .db_url import load_cms_env_into_os_environ, resolve_database_url  # noqa: E402
 
 
 def _ensure_backend_on_path() -> None:
     """The schema definitions live in backend/app/models/*.py. We need
-    them importable, but the CMS host's PYTHONPATH is `cms/tools/`
+    them importable, but the CMS host's PYTHONPATH is `db/tools/`
     (not `backend/`). Add backend/ once.
     """
     backend_path = Path(__file__).resolve().parent.parent.parent.parent / "backend"
@@ -61,9 +69,10 @@ def _ensure_backend_on_path() -> None:
 
 
 def main() -> int:
-    # 1. Load cms/.env + assemble DATABASE_URL.
-    setup_env()
-    cfg = load_config()
+    # 1. Load cms/.env + assemble DATABASE_URL. (db-only keys; no
+    #    data-pipeline config needed.)
+    load_cms_env_into_os_environ()
+    database_url = resolve_database_url()
 
     # 2. Make backend/app importable so the models + database engine resolve.
     _ensure_backend_on_path()
@@ -86,9 +95,9 @@ def main() -> int:
     # 4. PRIMARY: run the migration runner. This handles ordering, the
     #    schema_migrations bookkeeping table, and idempotent re-runs.
     import psycopg2  # noqa: E402
-    from cms.migrations import upgrade_head, get_current_version  # noqa: E402
+    from dbtools.migrations import upgrade_head, get_current_version  # noqa: E402
 
-    with psycopg2.connect(cfg.database_url) as conn:
+    with psycopg2.connect(database_url) as conn:
         before = get_current_version(conn)
         applied = upgrade_head(conn)
         after = get_current_version(conn)

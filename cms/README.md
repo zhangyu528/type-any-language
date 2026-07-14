@@ -37,8 +37,8 @@ db/
 ├── builder.py          # assemble(bundle) + build_image(target, tag, ...)
 ├── scripts/            # db 的 own entry points(独立于 CMS;orchestration 层)
 │   ├── source_db.sh    # cms-source-db 容器 lifecycle(ensure / start / stop / status)
-│   ├── init_schema.sh  # 调 python -m cms.init_schema(借 CMS Python 定义 schema)
-│   ├── migrate.sh      # 调 cms.migrations.runner(借 CMS Python 跑迁移)
+│   ├── init_schema.sh  # 调 python -m dbtools.init_schema(借 CMS Python 定义 schema)
+│   ├── migrate.sh      # 调 dbtools.migrations.runner(借 CMS Python 跑迁移)
 │   ├── build.sh        # export staging db → init/01-content.sql + docker build
 │   ├── push.sh         # push english_db_content 到 DOCKER_REGISTRY
 │   └── export_bundle.py # pg_dump staging db → SQL(不依赖 cms)
