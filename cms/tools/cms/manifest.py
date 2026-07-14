@@ -43,7 +43,7 @@ def _project_root() -> Path:
 
 
 def _default_manifest_path() -> Path:
-    return _project_root() / "content" / "source" / "manifest.yaml"
+    return _project_root() / "cms" / "source" / "manifest.yaml"
 
 
 # ---------------------------------------------------------------------------

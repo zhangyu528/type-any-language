@@ -35,10 +35,11 @@ _DEFAULT_POSTGRES_PORT = "5432"
 
 def find_project_root() -> Path:
     """Project root = parent of this file's package's parent.
-    This file lives at db/tools/cms/db_url.py → parent.parent.parent is
-    the project root.
+    This file lives at db/tools/dbtools/db_url.py → 4 hops up
+    (dbtools/ → db/tools/ → db/ → project_root) gives the project
+    root.
     """
-    return Path(__file__).resolve().parent.parent.parent
+    return Path(__file__).resolve().parent.parent.parent.parent
 
 
 def _load_cms_env(env_path: Path) -> dict[str, str]:

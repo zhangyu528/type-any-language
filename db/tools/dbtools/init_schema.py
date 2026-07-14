@@ -51,7 +51,7 @@ from pathlib import Path
 # the data-pipeline modules, but the bootstrap here points at db/tools
 # not cms/tools.
 if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
     from db_url import load_cms_env_into_os_environ, resolve_database_url  # noqa: E402
 else:
     from .db_url import load_cms_env_into_os_environ, resolve_database_url  # noqa: E402
