@@ -9,7 +9,7 @@ this one describes *how it gets assembled*.
 Two public entry points:
 
     assemble(bundle_dir, target="db")
-        Copy the staging bundle (output of cms.export_bundle) into the
+        Copy the staging bundle (output of db/scripts/export_bundle.py) into the
         runtime build context:
             {bundle}/dump.sql   -> {target}/init/01-content.sql
         Idempotent. Re-running with the same target + the same bundle
@@ -70,7 +70,7 @@ def assemble(bundle_dir: Path, target: Path | None = None) -> Path:
 
     Args:
         bundle_dir: path to a `data-bundle-vYYYYMMDD-HHMMSS/` produced
-            by cms.export_bundle. Must contain `dump.sql`.
+            by db/scripts/export_bundle.py. Must contain `dump.sql`.
         target: project-root-relative runtime directory. Defaults to
             `db`. Accepts either a relative path (resolved
             against CWD, assumed to be the project root) or an absolute
@@ -213,7 +213,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--bundle", required=True, type=Path,
-        help="Staging bundle dir from cms.export_bundle (data-bundle-v...).",
+        help="Staging bundle dir from db/scripts/export_bundle.py (data-bundle-v...).",
     )
     parser.add_argument(
         "--target", default=DEFAULT_TARGET,

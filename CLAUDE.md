@@ -12,8 +12,9 @@ This project intentionally separates **content production** from **content servi
 
 | Host | Role | What lives here | What runs here |
 |---|---|---|---|
-| **CMS host** | Content production + image bake | `cms/.env` + `cms/scripts/` + `cms/tools/cms/` | Python + Docker |
+| **CMS host** | Content production (writes staging db) | `cms/.env` + `cms/scripts/` + `cms/tools/cms/` | Python + Docker |
 | **Target host** (dev or prod) | Content serving | `scripts/dev-host/` or `scripts/prod-host/` | Docker only |
+| **DB image build** (CMS host or CI) | Bake staging db → `english_db_content` image | `db/` + `db/scripts/{build,push,export_bundle}.py` | Docker only |
 
 The CMS host produces a `db` image with all content pre-loaded and pushes it to a registry. Target hosts `docker pull` the image and serve it — they never need AI keys, TTS keys, or Python. **Target hosts need no .env file at all** — runtime configuration (only `ALLOWED_ORIGINS`) is passed via shell env, and the host-side secret (`POSTGRES_PASSWORD`) is generated on first start by `lifecycle.sh`.
 
@@ -45,11 +46,15 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generat
 │   │   └── prompts/      # LLM prompts (sentences.yaml)
 │   ├── tools/            # CMS toolchain (lives only on the CMS host)
 │   │   ├── Dockerfile    # cms-sidecar (LOCAL-ONLY image, no registry)
-│   │   └── cms/          # Python package (env / manifest / import_vocab / generate_* / export_bundle / init_schema / migrations)
+│   │   └── cms/          # Python package (env / manifest / import_vocab / generate_sentences / generate_audio / init_schema / migrations / storage)
 │   │       └── README.md
 ├── db/                # Postgres image build context (postgres:15-alpine wrapper)
 │   ├── Dockerfile    # copies init/01-content.sql (NO audio — db image has no MP3s)
 │   ├── builder.py    # assemble(bundle) + build_image(target, tag, ...)
+│   ├── scripts/       # db/scripts/ — the db image's own entry points
+│   │   ├── build.sh   # export staging db → assemble → docker build
+│   │   ├── push.sh    # push english_db_content to DOCKER_REGISTRY
+│   │   └── export_bundle.py  # pg_dump the staging db → SQL (independent of CMS)
 │   └── init/
 │       └── 01-content.sql   # pg_dump snapshot (bake-time output; .gitignore'd)
 │
@@ -95,16 +100,26 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 > No automated migration — the file is gitignored so it's invisible to `git`, and the rename is a one-time local op. To pin a different path, export `CONTENT_ENV_FILE=/some/path/.env.staging` in the shell (same precedence pattern as `POSTGRES_PASSWORD` / `DOCKER_REGISTRY`).
 
 ```bash
+# 1. 引导 cms/.env(首次)
 ./cms/scripts/env.sh                # First-time cms/.env creation (interactive)
+./cms/scripts/env.sh doctor        # 验证 cms/.env 完整性
+
+# 2. 跑内容管线(writes staging db = cms-source-db 容器或本地 postgres)
 ./cms/scripts/content.sh doctor     # Pre-flight: cms/.env + Python deps + DB reachable
 ./cms/scripts/content.sh sync       # CSVs → vocabulary_libs + vocabulary_words
 ./cms/scripts/content.sh sentences  # OpenAI bulk-fills sentences to DEFAULT_BUCKET_TARGET_SIZE
 ./cms/scripts/content.sh audio      # Tencent TTS → MP3 → Storage (local FS or COS) + audio_url
-./db/scripts/build.sh         # Dump SQL → db/init/01-content.sql + docker build
+
+# 3. 烤 db image(从 staging db 读,独立步骤,db 的职责)
+./db/scripts/build.sh         # export staging db → db-image/init/01-content.sql + docker build
 ./db/scripts/push.sh [-y]    # Push the db image to DOCKER_REGISTRY
+
+# 4. 一步到位(pipeline + bake,等价 2+3)
+./cms/scripts/pipeline.sh     # = 上面 step 2 的全套
+./cms/scripts/full_bake.sh    # = pipeline.sh + db/scripts/build.sh(wrapper)
 ```
 
-`cms/scripts/content.sh` is a thin wrapper over the `cms/tools/cms/*.py` modules (PYTHONPATH=db). Each subcommand has its own `--help`. See `cms/tools/cms/README.md` for module details.
+`cms/scripts/content.sh` is a thin wrapper over the `cms/tools/cms/*.py` modules. Each subcommand has its own `--help`. See `cms/tools/cms/README.md` for module details.
 
 ### Dev target host
 

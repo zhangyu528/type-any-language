@@ -196,10 +196,13 @@ cmd_publish() {
 }
 
 cmd_export() {
-    # The actual staging-bundle export is done by db/scripts/build.sh. This
-    # subcommand just exposes it standalone so you can inspect the bundle
-    # without re-baking.
-    "$(py)" -m cms.export_bundle "$@"
+    # Delegate to db/scripts/export_bundle.py — the db image's own
+    # SQL-dump entry point. CMS used to host export_bundle.py, but
+    # it's now a db concern (the file lands in db-image/init/, which
+    # is db's build input). This subcommand is a thin pass-through so
+    # operators who learned `content.sh export` still have an entry
+    # point without learning the new db/scripts/ path.
+    "$(py)" "$PROJECT_DIR/db/scripts/export_bundle.py" "$@"
 }
 
 usage() {

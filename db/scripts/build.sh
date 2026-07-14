@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# cms/scripts/db/scripts/build.sh — bake content into a portable db image.
+# db/scripts/build.sh — bake content into a portable db image.
 #
 # The image is a postgres:15-alpine wrapper that pre-loads the schema
 # + content tables (vocabulary_libs / vocabulary_words / sentences).
@@ -12,9 +12,9 @@
 #   1. assemble the bundle into db/init/01-content.sql
 #   2. run `docker build` with the right --build-arg / --label
 # What stays in shell:
-#   - preflight (docker installed? cms/.env present? source dir reachable?)
+#   - preflight (docker installed? source content present?)
 #   - host-side env loading (cms/.env → POSTGRES_PASSWORD → DATABASE_URL)
-#   - calling cms.export_bundle.py to produce the staging bundle
+#   - calling db/scripts/export_bundle.py to produce the staging bundle
 #   - timestamp + git SHA capture (host-bound, easier in shell)
 #   - invoking builder.py and printing the resulting "Built: <tag>" line
 #
@@ -32,7 +32,7 @@
 #   Local:  ${DB_IMAGE:-english_db_content}:${DB_IMAGE_TAG:-latest}
 #   DOCKER_REGISTRY is NOT used here — push is a separate concern.
 #   Source the registry from the shell when you're ready to push:
-#     export DOCKER_REGISTRY=... && ./cms/scripts/db/scripts/push.sh
+#     export DOCKER_REGISTRY=... && ./db/scripts/push.sh
 #   All other vars sourced from cms/.env (defaults match docker-compose.yml).
 #
 # This script does NOT modify content. It only packages whatever is
@@ -43,7 +43,7 @@
 #
 # This script does NOT push. Pushing is a separate, intentional step:
 # you might bake many times locally and only push when ready.
-# Use ./cms/scripts/db/scripts/push.sh for that.
+# Use ./db/scripts/push.sh for that.
 
 set -e
 
@@ -82,6 +82,8 @@ POSTGRES_DB="${POSTGRES_DB:-english_learning}"
 
 # DATABASE_URL assembly — see cms/tools/cms/env.py for the same logic.
 # Priority: explicit env var > assembled from POSTGRES_PASSWORD + defaults.
+# Note: cms/.env is still loaded for POSTGRES_PASSWORD, but
+# db/scripts/export_bundle.py no longer imports any cms Python code.
 if [ -z "${DATABASE_URL:-}" ]; then
     POSTGRES_HOST="${POSTGRES_HOST:-localhost}"
     POSTGRES_PORT="${POSTGRES_PORT:-5432}"
@@ -103,7 +105,13 @@ if [ -z "${DATABASE_URL:-}" ]; then
     export DATABASE_URL
 fi
 
-DATA_PIPELINE_DIR="cms/tools/cms"
+# SOURCE_OF_TRUTH_FOR_SQL_DUMP — db/scripts/export_bundle.py.
+# Lives next to build.sh because it's the db image's *interface* (it
+# produces the SQL file the db image bakes from). It does NOT import
+# any cms Python module — it works against any db with the 3 content
+# tables. The CMS pipeline writes that db (via cms/tools/cms/*.py);
+# export_bundle just reads.
+EXPORT_BUNDLE="db/scripts/export_bundle.py"
 STAGING_DIR=".bake-staging"
 RUNTIME_BUILDER="db/builder.py"
 RUNTIME_TARGET="db"
@@ -138,11 +146,11 @@ cmd_doctor() {
         ok "cms/source present"
     fi
 
-    if [ ! -f "$DATA_PIPELINE_DIR/export_bundle.py" ]; then
-        err "$DATA_PIPELINE_DIR/export_bundle.py missing"
+    if [ ! -f "$EXPORT_BUNDLE" ]; then
+        err "$EXPORT_BUNDLE missing — db/ lost its export entry"
         ok=0
     else
-        ok "$DATA_PIPELINE_DIR/ present"
+        ok "$EXPORT_BUNDLE present"
     fi
 
     if [ ! -f "$RUNTIME_BUILDER" ]; then
@@ -154,13 +162,17 @@ cmd_doctor() {
 
     # Are we trying to build from an empty DB? That'll produce an empty
     # sentences table, which is fine but probably not what the operator
-    # wants. Warn loudly.
-    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^english_db$"; then
-        ok "DB container english_db is running — export will source from it"
+    # wants. Warn loudly. Look for the CMS staging container first
+    # (preferred name after the cms/db split refactor), then the
+    # historical app-db names for backwards compat.
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^cms-source-db$"; then
+        ok "DB container cms-source-db is running — export will source from it"
+    elif docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^english_db$"; then
+        ok "DB container english_db is running — export will source from it (legacy name)"
     elif docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^english_db_dev$"; then
-        ok "DB container english_db_dev is running — export will source from it"
+        ok "DB container english_db_dev is running — export will source from it (legacy name)"
     else
-        warn "No english_db{,_dev} container running. export_bundle will fail"
+        warn "No staging db container running. export_bundle will fail"
         warn "  unless local pg_dump can reach POSTGRES_HOST/PORT."
     fi
 
@@ -183,11 +195,9 @@ cmd_bake() {
     mkdir -p "$STAGING_DIR"
 
     # export_bundle creates a dated subdir; capture its path.
-    # cms/ lives at cms/tools/cms/. PYTHONPATH must point at its parent
-    # (cms/tools/) so `from cms.X import ...` resolves when running the
-    # script directly via file path (rather than `python -m cms.export_bundle`).
-    if ! PYTHONPATH="${PROJECT_DIR}/cms/tools${PYTHONPATH:+:$PYTHONPATH}" \
-         "$PY" "$DATA_PIPELINE_DIR/export_bundle.py" \
+    # export_bundle is now part of db/scripts/ — no PYTHONPATH dance
+    # needed, no cms dependency.
+    if ! "$PY" "$EXPORT_BUNDLE" \
             --keep-staging \
             --output-dir "$STAGING_DIR"; then
         err "export_bundle failed"

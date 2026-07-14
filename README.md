@@ -54,7 +54,7 @@ CMS 主机把内容（词库 + AI 句子 + TTS 音频）烤进 db image，推到
 1. **db image** —— 按以下顺序找一个可用的:
    - 本地已有 → 用本地的
    - `DOCKER_REGISTRY` 显式配置(shell env 或 `REGISTRY` 文件) → `docker pull`
-   - 本机有 `cms/.env`(或没有但 `env.sh init` 能 scaffold) → `env.sh doctor` 当 gate → **自动跑整条内容链**:起 `english_db` 容器 → `init-schema` → `sync` → `sentences`(AI) → `audio`(TTS) → `bake_image.sh`。每步都是 idempotent,重新跑不会重复烧钱
+   - 本机有 `cms/.env`(或没有但 `env.sh init` 能 scaffold) → `env.sh doctor` 当 gate → **自动跑整条内容链**:起 `cms-source-db` 容器 → `init-schema` → `sync` → `sentences`(AI) → `audio`(TTS) → `db/scripts/build.sh`。每步都是 idempotent,重新跑不会重复烧钱
 
 2. **dev app images** (`english_backend_dev` + `english_frontend_dev`) —— 缺失就 build
 
@@ -74,7 +74,7 @@ CMS 主机把内容（词库 + AI 句子 + TTS 音频）烤进 db image，推到
 dev 改了 `cms/tools/cms/migrations/versions/*.py` 的话:
 
 ```bash
-# 升 source db(给将来 bake 用):起 english_db 后跑
+# 升 source db(给将来 bake 用):起 cms-source-db 后跑
 ./cms/scripts/content.sh init-schema
 
 # 升正在跑的 runtime db —— 轻量,不动 image、不 push、不 drop volume

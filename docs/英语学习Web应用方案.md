@@ -526,7 +526,7 @@
 
 
 
-`db/init/01-content.sql` 是 bake 时生成的，由 postgres 镜像的 `/docker-entrypoint-initdb.d/` 在首次启动时执行。schema 内容由 `cms/tools/cms/export_bundle.py` 的 `pg_dump --clean --if-exists` 输出保证幂等。
+`db/init/01-content.sql` 是 bake 时生成的，由 postgres 镜像的 `/docker-entrypoint-initdb.d/` 在首次启动时执行。schema 内容由 `db/scripts/export_bundle.py` 的 `pg_dump --clean --if-exists` 输出保证幂等。
 
 
 

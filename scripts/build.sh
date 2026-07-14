@@ -89,7 +89,7 @@ Image tag 解析(每个 inner build 自己 resolve, 见 lib.sh → resolve_image
 架构前提:
   - dev / prod 的 build_image.sh 需要 content-baked db image 的 OCI label (DB_USER / DB_NAME),
     所以 all / dev / prod 都假设 content-baked db image 已经在本地(或先跑过 db)。
-  - db bake 需要 cms/.env + 跑着 english_db 或 english_db_dev 容器。
+  - db bake 需要 cms/.env + 跑着 cms-source-db 容器(或用本地 postgres / CI db;legacy english_db / english_db_dev 名仍探测到)。
   - 多机部署: 各自机器跑各自的 inner build 脚本即可,build.sh 主要方便
     单机 CMS+dev+prod 一把梭。
 EOF

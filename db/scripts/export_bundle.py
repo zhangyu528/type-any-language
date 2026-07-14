@@ -1,8 +1,21 @@
 #!/usr/bin/env python3
 """
-export_bundle.py — dump CMS content into a staging bundle for db image bake.
+db/scripts/export_bundle.py — dump a populated staging db into a SQL
+bundle for the db image bake.
 
-Used by ./db/scripts/build.sh to stage db image build inputs.
+Lives in db/scripts/ (not cms/tools/cms/) because:
+  - It reads from any db with content tables and writes SQL into the
+    db-image build context (db-image/init/01-content.sql). Its
+    interface is the **db image's** build input, so it belongs to
+    db's package — not to cms (which is the upstream data producer).
+  - It does NOT import cms.env or any cms Python module. It uses
+    psycopg2 directly + reads DATABASE_URL from the environment (or a
+    CLI flag). It can be invoked from anywhere with a populated db:
+      • CMS host's staging db (cms-source-db container)
+      • Dev host's running app db
+      • CI postgres
+      • Any operator-managed postgres
+
 Staging is a plain directory (no tar — keeps `docker build` inputs
 inspectable). Output layout:
 
@@ -31,12 +44,13 @@ Why --clean --if-exists:
 
 Why --no-owner --no-acl:
   - The image sets POSTGRES_USER / POSTGRES_DB via env. We don't want
-    pg_dump emitting OWNER TO / GRANT statements referencing the CMS
-    host's user, which wouldn't exist in the image's runtime user.
+    pg_dump emitting OWNER TO / GRANT statements referencing the source
+    db's user, which wouldn't exist in the image's runtime user.
 """
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -44,10 +58,21 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 # Schema decision: keep the 3 tables (vocabulary_libs / vocabulary_words /
-# sentences). See cms/README.md for rationale. The cms host's
-# import_vocab.py populates them; export_bundle.py dumps them; the
-# runtime serves them read-only.
+# sentences). The CMS pipeline populates them via cms/tools/cms/
+# import_vocab.py / generate_sentences.py / generate_audio.py; this
+# script only reads them.
 CONTENT_TABLES = ["vocabulary_libs", "vocabulary_words", "sentences"]
+
+# Staging db convention. CMS pipeline's wrapper (cms/scripts/pipeline.sh,
+# formerly full_bake.sh) creates a container named `cms-source-db` and
+# runs it on POSTGRES_PORT (default 5432) so this script can docker-exec
+# into it if the host lacks postgresql-client.
+#
+# We also accept the historical `english_db` / `english_db_dev` names as
+# a fallback so an operator pointing this at their already-running dev
+# app db (a perfectly valid workflow — see docs/) doesn't have to rename
+# the container.
+SOURCE_CONTAINER_CANDIDATES = ("cms-source-db", "english_db", "english_db_dev")
 
 
 def run(cmd, **kw):
@@ -61,14 +86,15 @@ def _has_binary(name: str) -> bool:
     return which(name) is not None or which(f"{name}.exe") is not None
 
 
-def _docker_container_for_db() -> str | None:
-    """Return the docker container name that exposes the CMS DB, or None.
+def _source_container() -> str | None:
+    """Return the docker container name that exposes a populated staging
+    db, or None.
 
     Used as an automatic fallback when host-side pg_dump / psql are
     missing (e.g. Windows dev boxes that run postgres in Docker but
     haven't installed postgresql-client on the host). The convention
-    baked into db/scripts/build.sh's doctor is `english_db` (or
-    `english_db_dev` for the dev stream). Both names are tried.
+    produced by cms/scripts/pipeline.sh is `cms-source-db`. We also
+    try the historical names for backwards compat.
     """
     try:
         out = subprocess.run(
@@ -78,7 +104,7 @@ def _docker_container_for_db() -> str | None:
     except (FileNotFoundError, subprocess.CalledProcessError):
         return None
     names = {n.strip() for n in out.stdout.splitlines() if n.strip()}
-    for cand in ("english_db", "english_db_dev"):
+    for cand in SOURCE_CONTAINER_CANDIDATES:
         if cand in names:
             return cand
     return None
@@ -97,11 +123,34 @@ def _run_in_docker(container: str, cmd: list[str]) -> str:
     return result.stdout
 
 
-def get_database_url() -> str:
-    url = os.environ.get("DATABASE_URL")
-    if not url:
-        sys.exit("DATABASE_URL is not set (export it from cms/.env)")
-    return url
+def get_database_url(cli_url: str | None) -> str:
+    """Resolve the source db URL.
+
+    Priority: explicit --database-url CLI flag > $DATABASE_URL env >
+    assembled from POSTGRES_* env vars (host/user/password/db).
+
+    The assembler path keeps the script runnable in the common CMS
+    case where the operator only sets POSTGRES_PASSWORD (cms/.env
+    default — see lib.sh's resolve_content_env_file).
+    """
+    if cli_url:
+        return cli_url
+    explicit = os.environ.get("DATABASE_URL", "").strip()
+    if explicit:
+        return explicit
+    user = os.environ.get("POSTGRES_USER", "english_user")
+    db = os.environ.get("POSTGRES_DB", "english_learning")
+    host = os.environ.get("POSTGRES_HOST", "localhost")
+    port = os.environ.get("POSTGRES_PORT", "5432")
+    pw = os.environ.get("POSTGRES_PASSWORD", "").strip()
+    if not pw:
+        sys.exit(
+            "DATABASE_URL is not set and POSTGRES_PASSWORD is empty.\n"
+            "  export DATABASE_URL=postgresql://user:pw@host:port/db, or\n"
+            "  export POSTGRES_PASSWORD=... (the script assembles the URL)."
+        )
+    from urllib.parse import quote
+    return f"postgresql://{quote(user, safe='')}:{quote(pw, safe='')}@{host}:{port}/{db}"
 
 
 def make_bundle_dir(parent: Path) -> Path:
@@ -113,7 +162,7 @@ def make_bundle_dir(parent: Path) -> Path:
     return bundle
 
 
-def _pg_dump_invocation(db_url: str, out_sql: Path | None) -> tuple[list[str], bool]:
+def _pg_dump_invocation(db_url: str) -> tuple[list[str], bool]:
     """Build the (cmd, in_docker) pair for pg_dump.
 
     `in_docker=True` means cmd starts with `docker exec ...` — used
@@ -132,15 +181,15 @@ def _pg_dump_invocation(db_url: str, out_sql: Path | None) -> tuple[list[str], b
     ]
     if _has_binary("pg_dump"):
         return (["pg_dump", db_url] + pg_args, False)
-    container = _docker_container_for_db()
+    container = _source_container()
     if container is not None:
         return (["docker", "exec", container, "pg_dump", db_url] + pg_args, True)
     sys.exit(
-        "pg_dump not found on host and no english_db / english_db_dev "
-        "container is running.\n"
+        "pg_dump not found on host and no cms-source-db / english_db / "
+        "english_db_dev container is running.\n"
         "  install postgresql-client (scoop install postgresql / "
-        "apt-get install postgresql-client) or start the CMS postgres "
-        "container so this script can docker-exec into it."
+        "apt-get install postgresql-client) or start a postgres container "
+        "so this script can docker-exec into it."
     )
 
 
@@ -148,11 +197,11 @@ def pg_dump_content(db_url: str, out_sql: Path) -> None:
     """pg_dump the 3 content tables (schema + data) into out_sql.
 
     Tries host `pg_dump` first; falls back to `docker exec` into a
-    running english_db{,_dev} container if the host has no postgres
-    client. The fall-back lets a Windows dev box (no postgresql-client
-    on PATH) still bake from a Dockerised CMS DB.
+    running staging container if the host has no postgres client. The
+    fall-back lets a Windows dev box (no postgresql-client on PATH)
+    still bake from a Dockerised source db.
     """
-    cmd, in_docker = _pg_dump_invocation(db_url, out_sql)
+    cmd, in_docker = _pg_dump_invocation(db_url)
     # docker exec writes to its own stdout — we can't redirect a
     # file-handle on the host side. Capture and write ourselves.
     # Force UTF-8 (see _run_in_docker for rationale).
@@ -169,14 +218,14 @@ def pg_dump_content(db_url: str, out_sql: Path) -> None:
 def count_rows(db_url: str) -> dict:
     """Return {table: row_count} via psql -tAc 'SELECT count(*)...'."""
     counts = {}
-    container = None
     use_docker = not _has_binary("psql")
+    container = None
     if use_docker:
-        container = _docker_container_for_db()
+        container = _source_container()
         if container is None:
             sys.exit(
-                "psql not found on host and no english_db / english_db_dev "
-                "container is running."
+                "psql not found on host and no cms-source-db / english_db / "
+                "english_db_dev container is running."
             )
     for table in CONTENT_TABLES:
         if use_docker:
@@ -214,7 +263,12 @@ def write_meta(bundle: Path, db_url: str, counts: dict) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Dump CMS content into a staging bundle.",
+        description="Dump a populated staging db into a SQL bundle for the db image bake.",
+    )
+    parser.add_argument(
+        "--database-url",
+        default=None,
+        help="Source DATABASE_URL. Default: $DATABASE_URL env, else assembled from POSTGRES_*.",
     )
     parser.add_argument(
         "--output-dir",
@@ -237,7 +291,7 @@ def main() -> None:
     bundle = make_bundle_dir(output_parent)
 
     try:
-        db_url = get_database_url()
+        db_url = get_database_url(args.database_url)
         db_host = f"{urlparse(db_url).hostname}:{urlparse(db_url).port or 5432}"
         print(f"[export_bundle] db:   {db_host}")
         print(f"[export_bundle] out:  {bundle}")

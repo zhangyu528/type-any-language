@@ -95,7 +95,7 @@ cmd_setup() {
                 err "  $CONTENT_ENV_FILE_PATH 还差 key — 填好后重跑 setup"
                 return 1
             fi
-            info "  调 cms/scripts/full_bake.sh (source db + 内容 + 烘焙)..."
+            info "  调 cms/scripts/full_bake.sh (pipeline + db image bake)..."
             echo ""
             if "$PROJECT_DIR/cms/scripts/full_bake.sh"; then
                 echo ""
@@ -104,8 +104,8 @@ cmd_setup() {
             else
                 err "  自动 bake 失败 — 上面的错误说明哪步挂了"
                 info "  手动排查:"
-                info "    docker logs english_db          # 如果 source db 起不来"
-                info "    ./cms/scripts/full_bake.sh doctor   # 内容管线 preflight"
+                info "    docker logs cms-source-db        # 如果 source db 起不来"
+                info "    ./cms/scripts/pipeline.sh doctor   # 内容管线 preflight"
                 return 1
             fi
         fi
