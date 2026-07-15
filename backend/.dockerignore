@@ -25,7 +25,7 @@ ENV/
 .tox/
 
 # ── Operator scripts — kept in the repo for CMS host convenience, NOT ────
-# for the runtime image. backend/scripts/ is loaded by cms/tools/cms
+# for the runtime image. backend/scripts/ is loaded by cms/cms_pipeline
 # imports on the CMS host; the backend container doesn't need it.
 scripts/
 

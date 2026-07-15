@@ -18,5 +18,5 @@
 # Today the build context is `db/`, which has no top-level `audio/`,
 # so the rule is a no-op — but it documents intent and prevents future
 # surprise. (Audio itself now lives in Tencent Cloud COS, not in this
-# build context — see cms/tools/cms/storage.py.)
+# build context — see cms/cms_pipeline/storage.py.)
 /audio

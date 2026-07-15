@@ -9,14 +9,14 @@
 #
 # E: Extract
 #   sync       Import vocabulary CSVs → cms/.local/staging/vocabulary/<lib>.json.
-#              (cms/tools/cms/import_vocab.py)
+#              (cms/cms_pipeline/import_vocab.py)
 # T: Transform
 #   sentences  Bulk-generate practice sentences via OpenAI →
 #              cms/.local/staging/sentences/<lib>.jsonl (append).
-#              (cms/tools/cms/generate_sentences.py)
+#              (cms/cms_pipeline/generate_sentences.py)
 #   audio      Bulk-generate MP3s via Tencent Cloud TTS →
 #              updates audio_url in the same sentences JSONL.
-#              (cms/tools/cms/generate_audio.py)
+#              (cms/cms_pipeline/generate_audio.py)
 # L: Load
 #   (NOT here. The Load step is db/scripts/import_staging.sh + dbtools.importer
 #    — a separate db-side operator command. cms/run.sh wraps
@@ -49,12 +49,12 @@ cd "$PROJECT_DIR"
 source "$SCRIPT_DIR/../../scripts/lib.sh"
 
 # cms/data-pipeline modules (import_vocab, generate_sentences,
-# generate_audio) live at cms/tools/cms/. The schema / migrations
+# generate_audio) live at cms/cms_pipeline/. The schema / migrations
 # live at db/tools/dbtools/. Both packages have to coexist on
-# PYTHONPATH (so `python -m cms.X` for data pipeline and
+# PYTHONPATH (so `python -m cms_pipeline.X` for data pipeline and
 # both work) — the
 # package names are different so they don't shadow each other.
-export PYTHONPATH="${PROJECT_DIR}/cms/tools:${PROJECT_DIR}/db/tools${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH="${PROJECT_DIR}/cms:${PROJECT_DIR}/db/tools${PYTHONPATH:+:$PYTHONPATH}"
 
 # Force Python IO to UTF-8 so Unicode glyphs in pipeline output (✓ / ✗
 # / box-drawing in import_vocab / generate_sentences / generate_audio /
@@ -94,7 +94,7 @@ cmd_doctor() {
     # + code defaults. AUDIO_DIR is also NOT in cms/.env (code default
     # /var/lib/type-any-language/audio). AI_BASE_URL / AI_MODEL ARE in
     # cms/.env (operator decisions — OpenAI vs Azure vs local, gpt-3.5-turbo
-    # vs gpt-4o). The check below mirrors what cms/tools/cms/env.py does in
+    # vs gpt-4o). The check below mirrors what cms/cms_pipeline/env.py does in
     # Python; we replicate it here in bash so doctor can run without
     # spinning up Python.
     local missing=()
@@ -187,15 +187,15 @@ cmd_doctor() {
 }
 
 cmd_sync() {
-    "$(py)" -m cms.import_vocab "$@"
+    "$(py)" -m cms_pipeline.import_vocab "$@"
 }
 
 cmd_sentences() {
-    "$(py)" -m cms.generate_sentences "$@"
+    "$(py)" -m cms_pipeline.generate_sentences "$@"
 }
 
 cmd_audio() {
-    "$(py)" -m cms.generate_audio "$@"
+    "$(py)" -m cms_pipeline.generate_audio "$@"
 }
 
 cmd_publish() {
@@ -230,7 +230,7 @@ usage() {
   doctor       前置检查 (cms/.env + Python deps)
   -h|help      显示本帮助
 
-每个子命令都透传给 cms/tools/cms/ 下的 Python 模块。子命令自身的
+每个子命令都透传给 cms/cms_pipeline/ 下的 Python 模块。子命令自身的
 参数透传，flags 见各自 --help:
   $0 sync --help
   $0 sentences --help

@@ -58,7 +58,7 @@
 #   ./db/scripts/push.sh
 #
 # Where does the db password come from?
-#   DATABASE_URL is assembled at runtime by cms/tools/cms/env.py +
+#   DATABASE_URL is assembled at runtime by cms/cms_pipeline/env.py +
 #   db/scripts/build.sh from POSTGRES_PASSWORD (which has no code
 #   default) + code defaults for user/host/port/db. POSTGRES_PASSWORD is
 #   resolved in this order:

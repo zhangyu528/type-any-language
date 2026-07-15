@@ -31,8 +31,8 @@ Provider contract (all methods raise on transport error):
       (https://{bucket}.cos.{region}.myqcloud.com/{key}).
 
 Usage from CMS code:
-    from cms.env import setup_env, load_config
-    from cms.storage import get_storage
+    from cms_pipeline.env import setup_env, load_config
+    from cms_pipeline.storage import get_storage
     setup_env()
     cfg = load_config()
     storage = get_storage(cfg)

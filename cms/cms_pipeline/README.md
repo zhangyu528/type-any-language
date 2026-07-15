@@ -1,4 +1,4 @@
-# cms/tools/cms —— 内容生产的 Python 模块
+# cms/cms_pipeline —— 内容生产的 Python 模块
 
 这些是 CMS 主机跑来生产内容的 **Python 工具**。通过 `cms/scripts/staging.sh <subcommand>` 调用(它会配 `PYTHONPATH=cms/tools` 和一个 `python3` 解释器)。
 
@@ -6,10 +6,10 @@
 
 | 模块 | CLI 调用方式 | 用途 |
 |---|---|---|
-| `manifest.py` | `python -m cms.manifest` | 加载 `cms/source/manifest.yaml`,校验 lib/difficulty/默认值。 |
-| `import_vocab.py` | `python -m cms.import_vocab` | CSV → `cms/.local/staging/vocabulary/<lib>.json`(**纯文件,** 不连 DB)。 |
-| `generate_sentences.py` | `python -m cms.generate_sentences` | OpenAI → 追加到 `cms/.local/staging/sentences/<lib>.jsonl`(**纯文件,** 不连 DB)。 |
-| `generate_audio.py` | `python -m cms.generate_audio` | 腾讯云 TTS → MP3 → Storage(LocalFs / Tencent COS),更新同一份 JSONL 的 `audio_url`(**纯文件,** 不连 DB)。 |
+| `manifest.py` | `python -m cms_pipeline.manifest` | 加载 `cms/source/manifest.yaml`,校验 lib/difficulty/默认值。 |
+| `import_vocab.py` | `python -m cms_pipeline.import_vocab` | CSV → `cms/.local/staging/vocabulary/<lib>.json`(**纯文件,** 不连 DB)。 |
+| `generate_sentences.py` | `python -m cms_pipeline.generate_sentences` | OpenAI → 追加到 `cms/.local/staging/sentences/<lib>.jsonl`(**纯文件,** 不连 DB)。 |
+| `generate_audio.py` | `python -m cms_pipeline.generate_audio` | 腾讯云 TTS → MP3 → Storage(LocalFs / Tencent COS),更新同一份 JSONL 的 `audio_url`(**纯文件,** 不连 DB)。 |
 | `storage.py` | (被 generate_audio import) | Storage 抽象(`LocalFsStorage` / `TencentCosStorage`)。 |
 | `export_bundle.py` | lives at `db/scripts/export_bundle.py` now(db 的职责)。`staging.sh export` 是个透传 wrapper。 |
 
@@ -38,7 +38,7 @@ CMS 这边的三个模块 **全部不连 DB**。schema 在哪里改:
 PYTHONPATH=cms/tools python3 -m cms.import_vocab
 
 # 作为脚本(也可以 —— 每个文件里有 sys.path bootstrap)
-python3 cms/tools/cms/import_vocab.py
+python3 cms/cms_pipeline/import_vocab.py
 ```
 
 ## Python 依赖(CMS 主机)
@@ -82,7 +82,7 @@ bake 也是: `./db/scripts/build.sh`。
 
 ## 加一个新流水线模块
 
-1. 在 `cms/tools/cms/<name>.py` 放一个新文件,顶部加一个 `if __package__ in (None, "")` 块(从 `import_vocab.py` 复制)。**只写文件,不开 db 连接**;db 的事交给 `dbtools.importer`。
+1. 在 `cms/cms_pipeline/<name>.py` 放一个新文件,顶部加一个 `if __package__ in (None, "")` 块(从 `import_vocab.py` 复制)。**只写文件,不开 db 连接**;db 的事交给 `dbtools.importer`。
 2. 在 `cms/scripts/staging.sh` 加一个 `cmd_<name>()` 包装。
 3. 如果你产出的文件类型 importer 不认,同步更新 `db/tools/dbtools/importer.py` 的解析逻辑 + 该模块的 README。
 4. 更新 `staging.sh` 的 usage 文档和本 README。

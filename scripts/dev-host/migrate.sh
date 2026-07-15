@@ -22,7 +22,7 @@
 # Backend picks up the new schema on the next request (no restart needed).
 # But ./scripts/dev-host/lifecycle.sh restart works fine too.
 #
-# Offline fallback: cms/tools/cms/migrations/apply_to_runtime.sql brings
+# Offline fallback: cms/cms_pipeline/migrations/apply_to_runtime.sql brings
 # a stale db up to head. Use when no backend image is cached and
 # python:3.11-slim can't be pulled either.
 
@@ -79,7 +79,7 @@ cmd_migrate() {
             warn "pull python:3.11-slim 失败 (offline?)"
             info "  离线 fallback: docker exec -i -e PGPASSWORD=\$(cat $PG_PASSWORD_FILE) \\"
             info "    $db_cid psql -U $pg_user -d $pg_db \\"
-            info "    < cms/tools/cms/migrations/apply_to_runtime.sql"
+            info "    < cms/cms_pipeline/migrations/apply_to_runtime.sql"
             return 1
         fi
         sidecar_image="python:3.11-slim"

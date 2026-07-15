@@ -20,10 +20,10 @@ cms/
 │   ├── vocabulary/     # 每个 lib 的 CSV
 │   └── prompts/        # LLM prompt 模板(sentences.yaml 等)
 │
-├── tools/              # CMS 工具链 — 只活 CMS 主机,从不进 image
-│   ├── Dockerfile      # cms-sidecar(LOCAL-ONLY sidecar,run scripts 在里头跑 python)
-│   └── cms/            # Python 包(manifest / import_vocab / generate_sentences / generate_audio / storage)
-│       └── README.md   # 模块清单 + ETL 流向
+├── tools/              # orphaned cms-sidecar Dockerfile (历史残留; 下轮清理)
+│   └── Dockerfile      # cms-sidecar (LOCAL-ONLY sidecar,从未真的 build 过)
+├── cms_pipeline/        # Python 包(manifest / import_vocab / generate_sentences / generate_audio / storage / env)
+│   └── README.md       # 模块清单 + ETL 流向
 │
 ├── run.sh                # CMS driver 主入口(operator 第一个敲的; ensure-db + E+T)
 └── scripts/            # CMS 工具(operator 选跑的)

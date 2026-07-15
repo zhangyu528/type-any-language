@@ -16,7 +16,7 @@ localhost:55432 from this session) and exercises:
 Run with DATABASE_URL set:
 
     DATABASE_URL=postgresql://english_user:testpw@localhost:55432/english_learning \
-        PYTHONPATH=cms/tools:db/tools python cms/tools/cms/tests/test_phase2_e2e.py
+        PYTHONPATH=cms/tools:db/tools python cms/cms_pipeline/tests/test_phase2_e2e.py
 """
 import os
 import sys
@@ -279,7 +279,7 @@ def test_3_import_vocab():
             )
         conn.commit()
 
-        from cms.import_vocab import import_words
+        from cms_pipeline.import_vocab import import_words
 
         # Old 4-col CSV
         old_csv = Path(tempfile.mkdtemp()) / "old.csv"
@@ -370,7 +370,7 @@ def test_4_sentence_word_links():
                 )
         conn.commit()
 
-        from cms.generate_sentences import insert_sentences
+        from cms_pipeline.generate_sentences import insert_sentences
 
         items = [
             {
@@ -476,7 +476,7 @@ def test_5_lesson_index():
         upgrade_head(conn)
         conn.commit()
 
-        from cms.import_vocab import assign_lesson_indexes
+        from cms_pipeline.import_vocab import assign_lesson_indexes
 
         # ---- Path 1: pre-populated DB, migration backfills ----
         # Drop+recreate to simulate an existing DB with words already

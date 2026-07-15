@@ -80,7 +80,7 @@ FULL_IMAGE="${DB_IMAGE}:${DB_IMAGE_TAG}"
 POSTGRES_USER="${POSTGRES_USER:-english_user}"
 POSTGRES_DB="${POSTGRES_DB:-english_learning}"
 
-# DATABASE_URL assembly — see cms/tools/cms/env.py for the same logic.
+# DATABASE_URL assembly — see cms/cms_pipeline/env.py for the same logic.
 # Priority: explicit env var > assembled from POSTGRES_PASSWORD + defaults.
 # Note: cms/.env is still loaded for POSTGRES_PASSWORD, but
 # db/scripts/export_bundle.py no longer imports any cms Python code.
@@ -109,7 +109,7 @@ fi
 # Lives next to build.sh because it's the db image's *interface* (it
 # produces the SQL file the db image bakes from). It does NOT import
 # any cms Python module — it works against any db with the 3 content
-# tables. The CMS pipeline writes that db (via cms/tools/cms/*.py);
+# tables. The CMS pipeline writes that db (via cms/cms_pipeline/*.py);
 # export_bundle just reads.
 EXPORT_BUNDLE="db/scripts/export_bundle.py"
 STAGING_DIR=".bake-staging"

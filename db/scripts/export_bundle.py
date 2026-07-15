@@ -3,12 +3,12 @@
 db/scripts/export_bundle.py — dump a populated staging db into a SQL
 bundle for the db image bake.
 
-Lives in db/scripts/ (not cms/tools/cms/) because:
+Lives in db/scripts/ (not cms/cms_pipeline/) because:
   - It reads from any db with content tables and writes SQL into the
     db-image build context (db-image/init/01-content.sql). Its
     interface is the **db image's** build input, so it belongs to
     db's package — not to cms (which is the upstream data producer).
-  - It does NOT import cms.env or any cms Python module. It uses
+  - It does NOT import cms_pipeline.env or any cms Python module. It uses
     psycopg2 directly + reads DATABASE_URL from the environment (or a
     CLI flag). It can be invoked from anywhere with a populated db:
       • CMS host's staging db (cms-source-db container)
@@ -58,7 +58,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 # Schema decision: keep the 3 tables (vocabulary_libs / vocabulary_words /
-# sentences). The CMS pipeline populates them via cms/tools/cms/
+# sentences). The CMS pipeline populates them via cms/cms_pipeline/
 # import_vocab.py / generate_sentences.py / generate_audio.py; this
 # script only reads them.
 CONTENT_TABLES = ["vocabulary_libs", "vocabulary_words", "sentences"]

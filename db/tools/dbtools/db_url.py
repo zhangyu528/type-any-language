@@ -3,7 +3,7 @@ db/tools/cms/db_url.py — minimal env-loader for db-only modules.
 
 Lives next to init_schema.py + migrations/ because the schema code
 needs DATABASE_URL but should NOT depend on the data-pipeline's
-full Config object (cms/tools/cms/env.py loads TENCENT_*, AI_*,
+full Config object (cms/cms_pipeline/env.py loads TENCENT_*, AI_*,
 AUDIO_DIR — none of which are db concerns).
 
 This module reads cms/.env and assembles DATABASE_URL using only

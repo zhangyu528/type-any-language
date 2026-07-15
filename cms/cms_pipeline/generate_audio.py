@@ -41,7 +41,7 @@ from pathlib import Path
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
-    from cms.storage import get_storage, LocalFsStorage
+    from cms_pipeline.storage import get_storage, LocalFsStorage
 else:
     from .storage import get_storage, LocalFsStorage
 
@@ -53,7 +53,7 @@ DEFAULT_SAMPLE_RATE = 16000
 
 
 def find_project_root() -> Path:
-    """Project root = 4 hops up from cms/tools/cms/generate_audio.py."""
+    """Project root = 4 hops up from cms/cms_pipeline/generate_audio.py."""
     return Path(__file__).resolve().parent.parent.parent.parent
 
 
@@ -120,7 +120,7 @@ def write_sentences_jsonl_atomic(path: Path, items: list[dict]) -> None:
 
 
 def read_cms_env() -> dict:
-    """Parse cms/.env directly. No cms.env / Config dependency."""
+    """Parse cms/.env directly. No cms_pipeline.env / Config dependency."""
     env_path = find_project_root() / "cms" / ".env"
     if not env_path.is_file():
         sys.exit(f"cms/.env not found at {env_path} — run ./cms/scripts/env.sh init")
@@ -261,13 +261,13 @@ def main() -> int:
     # without importing the full Config object.
     cloud_provider = env.get("CLOUD_PROVIDER", "local_fs").strip() or "local_fs"
     if cloud_provider == "local_fs":
-        from cms.storage import LocalFsStorage, _LOCAL_DEFAULT_ROOT
+        from cms_pipeline.storage import LocalFsStorage, _LOCAL_DEFAULT_ROOT
         audio_dir = env.get("AUDIO_DIR") or str(
             find_project_root() / _LOCAL_DEFAULT_ROOT
         )
         storage = LocalFsStorage(audio_dir)
     elif cloud_provider == "tencent_cos":
-        from cms.storage import TencentCosStorage
+        from cms_pipeline.storage import TencentCosStorage
         storage = TencentCosStorage(
             bucket=env.get("CLOUD_BUCKET", ""),
             region=env.get("CLOUD_REGION", ""),

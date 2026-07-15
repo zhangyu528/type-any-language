@@ -102,14 +102,18 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generat
 │   └── src/app/         # API client + main page
 │
 ├── cms/              # The content service — produces + ships the content image
+│   ├── run.sh            # CMS driver (entry point; ensure-db + E+T)
 │   ├── source/           # operator-maintained source (git-tracked, hand-edited)
 │   │   ├── manifest.yaml
 │   │   ├── vocabulary/   # CSVs per lib
 │   │   └── prompts/      # LLM prompts (sentences.yaml)
-│   ├── tools/            # CMS toolchain (lives only on the CMS host)
-│   │   ├── Dockerfile    # cms-sidecar (LOCAL-ONLY image, no registry)
-│   │   └── cms/          # Python package (manifest / import_vocab / generate_sentences / generate_audio / storage)
-│   │       └── README.md
+│   ├── scripts/          # CMS shell tools (env.sh + staging.sh; not entry)
+│   │   ├── env.sh        # cms/.env lifecycle
+│   │   └── staging.sh    # E+T file producer wrapper
+│   ├── cms_pipeline/     # Python package (manifest / import_vocab / generate_sentences / generate_audio / storage / env)
+│   │   └── README.md
+│   ├── tools/            # orphaned cms-sidecar Dockerfile (next-pass cleanup)
+│   │   └── Dockerfile
 ├── db/                # Postgres image build context (postgres:15-alpine wrapper)
 │   ├── Dockerfile    # copies init/01-content.sql (NO audio — db image has no MP3s)
 │   ├── builder.py    # assemble(bundle) + build_image(target, tag, ...)
@@ -196,15 +200,15 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 ./db/scripts/build.sh                            # db: bake db image
 ```
 
-`cms/scripts/staging.sh` is a thin wrapper over the `cms/tools/cms/*.py` modules. Each subcommand has its own `--help`. See `cms/tools/cms/README.md` for module details.
+`cms/scripts/staging.sh` is a thin wrapper over the `cms/cms_pipeline/*.py` modules. Each subcommand has its own `--help`. See `cms/cms_pipeline/README.md` for module details.
 
 ### 责任划分 (responsibility split)
 
 | Step | Tool | What it writes |
 |---|---|---|
-| sync (CSV → JSON) | `cms/tools/cms/import_vocab.py` | `cms/.local/staging/vocabulary/<lib>.json` |
-| sentences (AI → JSONL) | `cms/tools/cms/generate_sentences.py` | appends to `cms/.local/staging/sentences/<lib>.jsonl` |
-| audio (TTS → URL) | `cms/tools/cms/generate_audio.py` | updates `audio_url` field in sentences JSONL |
+| sync (CSV → JSON) | `cms/cms_pipeline/import_vocab.py` | `cms/.local/staging/vocabulary/<lib>.json` |
+| sentences (AI → JSONL) | `cms/cms_pipeline/generate_sentences.py` | appends to `cms/.local/staging/sentences/<lib>.jsonl` |
+| audio (TTS → URL) | `cms/cms_pipeline/generate_audio.py` | updates `audio_url` field in sentences JSONL |
 | import (files → db) | **`db/tools/dbtools/importer.py`** | UPSERT into `vocabulary_libs` / `vocabulary_words` / `sentences` |
 | bake (db → image) | `db/scripts/build.sh` | builds the `db` image from `db/init/01-content.sql` |
 
@@ -442,20 +446,20 @@ Answer validation is **client-side**: the frontend normalizes (lowercase, strip 
 - `sentences.audio_url` is the full COS URL, baked into the image at `db/scripts/build.sh` time.
 - The frontend reads `sentences[i].audio_url` and the browser streams audio from COS directly — no proxy through backend, no nginx `/audio` location, no `shared-audio` docker volume.
 - This keeps the db image small (schema + sentences table only, no binary blobs) and lets audio be updated without re-baking the db image.
-- Provider is selected via `CLOUD_PROVIDER` in `cms/.env`. Default `local_fs` writes to `cms/.local/audio/` (single-host CMS, no cloud account needed). `tencent_cos` uploads to a COS bucket (multi-host CMS or production). See `cms/tools/cms/storage.py` for the abstraction.
+- Provider is selected via `CLOUD_PROVIDER` in `cms/.env`. Default `local_fs` writes to `cms/.local/audio/` (single-host CMS, no cloud account needed). `tencent_cos` uploads to a COS bucket (multi-host CMS or production). See `cms/cms_pipeline/storage.py` for the abstraction.
 
 ## Schema migrations
 
 Schema lives in two places that must stay in sync:
 - **`backend/app/models/*.py`** — SQLAlchemy declarative schema (the runtime truth)
 - **`db/init/01-content.sql`** — pg_dump snapshot baked into the db image (the *initial* truth for fresh volumes)
-- **`cms/tools/cms/migrations/versions/*.py`** — ordered DDL applied to existing volumes when schema evolves
+- **`cms/cms_pipeline/migrations/versions/*.py`** — ordered DDL applied to existing volumes when schema evolves
 
-Migrations use a tiny hand-written runner (`cms/tools/cms/migrations/runner.py`, ~60 lines, no Alembic). Each version is a Python module exposing `upgrade(conn)` / `downgrade(conn)`. Idempotent via `ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` etc.
+Migrations use a tiny hand-written runner (`cms/cms_pipeline/migrations/runner.py`, ~60 lines, no Alembic). Each version is a Python module exposing `upgrade(conn)` / `downgrade(conn)`. Idempotent via `ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` etc.
 
 ### Dev iteration (light-touch)
 
-When you add or change a migration in `cms/tools/cms/migrations/versions/`:
+When you add or change a migration in `cms/cms_pipeline/migrations/versions/`:
 
 ```bash
 # Source db (CMS pipeline, if running): the migrations apply so a future
@@ -470,7 +474,7 @@ When you add or change a migration in `cms/tools/cms/migrations/versions/`:
 
 `migrate.sh` spins up a one-shot `python:3.11-slim` sidecar on the compose network and runs `pipeline.migrations.runner` against `db:5432`. Idempotent — re-runs are no-ops. The backend picks up the new schema on the next request (no restart needed; uvicorn hot-reload handles Python changes).
 
-**Offline fallback** (when `python:3.11-slim` can't be pulled, e.g. broken registry mirrors): `cms/tools/cms/migrations/apply_to_runtime.sql` is a pre-rolled SQL file that brings a stale runtime db up to the current head in one shot. `migrate.sh` prints the exact `docker exec ... psql < apply_to_runtime.sql` command on pull failure. This file applies all known migrations and stamps them as done — it only works for upgrading an old db to head, not for dev-iteration of a brand-new migration (which needs the runner).
+**Offline fallback** (when `python:3.11-slim` can't be pulled, e.g. broken registry mirrors): `cms/cms_pipeline/migrations/apply_to_runtime.sql` is a pre-rolled SQL file that brings a stale runtime db up to the current head in one shot. `migrate.sh` prints the exact `docker exec ... psql < apply_to_runtime.sql` command on pull failure. This file applies all known migrations and stamps them as done — it only works for upgrading an old db to head, not for dev-iteration of a brand-new migration (which needs the runner).
 
 ### Production rollout
 
@@ -479,7 +483,7 @@ When the operator merges new schema changes:
 2. CMS host: `db/scripts/build.sh` + `db/scripts/push.sh` — new db image has the latest schema baked into `01-content.sql`
 3. Target hosts: `lifecycle.sh restart` (or `setup` on a fresh host) auto-pulls the new image
 4. Fresh-volume target hosts: initdb picks up the new `01-content.sql` automatically
-5. Existing-volume target hosts: postgres skips initdb. Operator must either `docker compose down -v` (data = baked content, drop is safe) OR run `cms/tools/cms/migrations/apply_to_runtime.sql` first to migrate in place
+5. Existing-volume target hosts: postgres skips initdb. Operator must either `docker compose down -v` (data = baked content, drop is safe) OR run `cms/cms_pipeline/migrations/apply_to_runtime.sql` first to migrate in place
 
 ## Environment variables
 
@@ -493,7 +497,7 @@ Required (in `cms/.env`):
 - `AI_MODEL` — model name (default in template: `gpt-3.5-turbo`; switch to `gpt-4o` / etc. as needed)
 - `TENCENT_SECRET_ID`, `TENCENT_SECRET_KEY`, `TENCENT_APP_ID` — Tencent Cloud TTS; required when running `staging.sh audio`, optional otherwise
 
-`DATABASE_URL` is **not** in `cms/.env`. It's assembled at runtime by `cms/tools/cms/env.py` + `db/scripts/build.sh` from:
+`DATABASE_URL` is **not** in `cms/.env`. It's assembled at runtime by `cms/cms_pipeline/env.py` + `db/scripts/build.sh` from:
 - `POSTGRES_PASSWORD` (the only piece without a code default — see [Where the db password comes from](#where-the-db-password-comes-from))
 - `POSTGRES_USER` (default `english_user`), `POSTGRES_HOST` (default `localhost`), `POSTGRES_PORT` (default `5432`), `POSTGRES_DB` (default `english_learning`)
 
@@ -502,7 +506,7 @@ Required (in `cms/.env`):
 AUDIO_DIR=/your/audio/dir ./cms/scripts/staging.sh audio
 ```
 
-For multi-host CMS or production, set `CLOUD_PROVIDER=tencent_cos` in `cms/.env` (plus `CLOUD_BUCKET` / `CLOUD_REGION` / `CLOUD_ACCESS_KEY` / `CLOUD_SECRET_KEY`). MP3s upload to the COS bucket instead of the local directory; `sentences.audio_url` becomes the full COS URL. See `cms/tools/cms/storage.py` for the abstraction.
+For multi-host CMS or production, set `CLOUD_PROVIDER=tencent_cos` in `cms/.env` (plus `CLOUD_BUCKET` / `CLOUD_REGION` / `CLOUD_ACCESS_KEY` / `CLOUD_SECRET_KEY`). MP3s upload to the COS bucket instead of the local directory; `sentences.audio_url` becomes the full COS URL. See `cms/cms_pipeline/storage.py` for the abstraction.
 
 `DB_IMAGE_TAG` is not in `cms/.env` either — its default is the root `VERSION.prod` file (resolved by `scripts/lib.sh` → `resolve_image_tag`); shell env can override it for one-off builds.
 
@@ -514,7 +518,7 @@ export DOCKER_REGISTRY=docker.io/youruser   # overrides REGISTRY file
 
 #### Where the db password comes from
 
-`POSTGRES_PASSWORD` is resolved by `cms/tools/cms/env.py` / `db/scripts/build.sh` in this order:
+`POSTGRES_PASSWORD` is resolved by `cms/cms_pipeline/env.py` / `db/scripts/build.sh` in this order:
 1. **Shell env** — `export POSTGRES_PASSWORD=...` (temporary, e.g. CI)
 2. **`.secrets/postgres_password`** (chmod 600) — the same file `scripts/{dev-host,prod-host}/lifecycle.sh` writes on first start. For a **multi-host** setup, the operator copies this file from the dev/prod host to the CMS host:
    ```bash
@@ -527,7 +531,7 @@ export DOCKER_REGISTRY=docker.io/youruser   # overrides REGISTRY file
 
 ### CMS host config knobs (NOT in `cms/.env`)
 
-These have code-level defaults in `cms/tools/cms/env.py` / `db/scripts/build.sh` / `lib.sh`. Override via shell env when you need a different value:
+These have code-level defaults in `cms/cms_pipeline/env.py` / `db/scripts/build.sh` / `lib.sh`. Override via shell env when you need a different value:
 
 | Knob | Code default | Override example |
 |---|---|---|

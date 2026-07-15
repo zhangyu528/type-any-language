@@ -31,13 +31,13 @@ easier to read, audit, and modify than a generated Alembic env.py.
 Env handling — minimal:
   This module reads cms/.env via db_url.py (a 90-line helper) which
   only resolves POSTGRES_* + DATABASE_URL. It does NOT depend on
-  cms/tools/cms/env.py (the data-pipeline's full Config loader that
+  cms/cms_pipeline/env.py (the data-pipeline's full Config loader that
   also pulls in TENCENT_*, AI_*, AUDIO_DIR — none of which are db
   concerns). Keeps the db schema code free of data-pipeline deps.
 
 Usage
 -----
-    python -m cms.init_schema                       # from project root, PYTHONPATH=db/tools
+    python -m cms_pipeline.init_schema                       # from project root, PYTHONPATH=db/tools
     PYTHONPATH=db/tools python3 db/tools/cms/init_schema.py
     ./db/scripts/init_schema.sh              # wrapper
 """
@@ -47,7 +47,7 @@ import sys
 from pathlib import Path
 
 # Allow running this file directly (python init_schema.py) AND as
-# `python -m cms.init_schema` from the project root. Same pattern as
+# `python -m cms_pipeline.init_schema` from the project root. Same pattern as
 # the data-pipeline modules, but the bootstrap here points at db/tools
 # not cms/tools.
 if __package__ in (None, ""):

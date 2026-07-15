@@ -1,4 +1,4 @@
-"""cms/tools/cms/migrations — schema migration runner + version files.
+"""cms/cms_pipeline/migrations — schema migration runner + version files.
 
 Public surface:
     from dbtools.migrations import upgrade_head, get_current_version

@@ -1,4 +1,4 @@
--- apply_to_runtime.sql — inline application of cms/tools/cms/migrations/versions/0001-0009
+-- apply_to_runtime.sql — inline application of cms/cms_pipeline/migrations/versions/0001-0009
 -- to the running runtime db (type-any-language-db-1).
 --
 -- Equivalent to running `python3 -m cms.migrations.runner` against the

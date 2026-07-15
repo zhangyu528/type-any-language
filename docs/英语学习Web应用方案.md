@@ -587,7 +587,7 @@
 
 
 
-CSV 文件位于 `cms/source/vocabulary/*.csv`（已提交到仓库，运维同学维护）。通过 `cms/scripts/staging.sh sync`（底层 `cms/tools/cms/import_vocab.py`）写入 `cms/.local/staging/vocabulary/<lib>.json`（**ETL 的 E 步骤，CMS 端只产文件,不连 DB**）。db 端通过 `db/scripts/import_staging.sh`（`dbtools.importer`）把 JSONL 文件 UPSERT 进 staging db。
+CSV 文件位于 `cms/source/vocabulary/*.csv`（已提交到仓库，运维同学维护）。通过 `cms/scripts/staging.sh sync`（底层 `cms/cms_pipeline/import_vocab.py`）写入 `cms/.local/staging/vocabulary/<lib>.json`（**ETL 的 E 步骤，CMS 端只产文件,不连 DB**）。db 端通过 `db/scripts/import_staging.sh`（`dbtools.importer`）把 JSONL 文件 UPSERT 进 staging db。
 
 
 

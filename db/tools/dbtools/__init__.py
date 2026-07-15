@@ -2,7 +2,7 @@
 dbtools — db-side Python package (schema bootstrap + migrations).
 
 Lives at db/tools/dbtools/ (separate from the data-pipeline's
-`cms` package at cms/tools/cms/). The two packages coexist on
+`cms_pipeline` package at cms/cms_pipeline/). The two packages coexist on
 PYTHONPATH because the data-pipeline still needs to invoke
 `dbtools.init_schema` from cms/scripts/staging.sh.
 
@@ -10,7 +10,7 @@ Modules in this package:
     init_schema   — bootstrap base DDL (CREATE TABLE IF NOT EXISTS)
                    + run all pending migrations. Reads cms/.env via
                    db_url.py (the package does NOT import the
-                   data-pipeline's cms.env to keep the db side
+                   data-pipeline's cms_pipeline.env to keep the db side
                    independent of TENCENT_*, AI_*, etc.).
     db_url        — minimal env-loader for db-only modules. Assembles
                    DATABASE_URL from POSTGRES_* (sourced from cms/.env
@@ -20,7 +20,7 @@ Modules in this package:
                    optional downgrade(conn).
 
 Why this package isn't named "cms":
-   The data-pipeline also has a `cms` package at cms/tools/cms/.
+   The data-pipeline also has a `cms` package at cms/cms_pipeline/.
    Keeping the same name in both directories would cause import
    shadowing on the operator's PYTHONPATH — only one of them would
    be importable at a time. Distinct names ("cms" vs "dbtools") make

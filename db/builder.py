@@ -42,7 +42,7 @@ Why a separate builder.py (not db/scripts/build.sh):
   python discovery); python deals with artifact staging + docker CLI.
 
 Audio note: db image carries no audio. MP3s are uploaded to Tencent
-Cloud COS by cms/tools/cms/generate_audio.py at bake time; the
+Cloud COS by cms/cms_pipeline/generate_audio.py at bake time; the
 sentences.audio_url column stores the full COS URL. The frontend
 streams audio from COS directly.
 """

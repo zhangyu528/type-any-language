@@ -51,7 +51,7 @@ def upgrade(conn) -> None:
     # called with a psycopg2 conn (from the runner), but the schema
     # metadata is created via SQLAlchemy's create_all() which needs
     # its own engine. Both end up talking to the same DB.
-    from cms.env import load_config  # noqa: E402
+    from cms_pipeline.env import load_config  # noqa: E402
 
     cfg = load_config()
 

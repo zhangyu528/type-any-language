@@ -7,7 +7,7 @@
 # Why this lives in db/scripts/:
 #   Schema migration is a db concern. The Python implementation
 #   (dbtools.migrations.runner) now lives at db/tools/cms/migrations/
-#   — the migration versions are owned by the db side. cms/tools/cms/
+#   — the migration versions are owned by the db side. cms/cms_pipeline/
 #   remains for the data-pipeline code only.
 #
 #   This shell script is the db-side entry point. It shells out to

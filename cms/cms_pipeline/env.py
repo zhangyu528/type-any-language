@@ -1,16 +1,16 @@
 """
-cms/tools/cms/env.py — shared cms/.env loader for the data pipeline.
+cms/cms_pipeline/env.py — shared cms/.env loader for the data pipeline.
 
 Reads cms/.env from the project root and exposes a typed `Config` object
 to the other pipeline modules. Centralising the env-loading logic here
 means individual scripts (import_vocab, generate_sentences, ...) can just
-do `from cms.env import load_config; cfg = load_config()` and
+do `from cms_pipeline.env import load_config; cfg = load_config()` and
 get validated settings.
 
 Why a dedicated loader (not os.environ directly):
   - Fail loudly if cms/.env is missing or required keys are unset.
   - Single place to do type coercion + default handling.
-  - Other scripts can `from cms.env import setup_env` to mirror
+  - Other scripts can `from cms_pipeline.env import setup_env` to mirror
     the cms/.env → os.environ copy that db/scripts/build.sh does via `set -a`.
 
 Validation contract:
@@ -32,7 +32,7 @@ Validation contract:
     brings the two sides into agreement.
 
 Usage from a CLI script:
-    from cms.env import setup_env, load_config
+    from cms_pipeline.env import setup_env, load_config
     setup_env()                 # copies cms/.env into os.environ (idempotent)
     cfg = load_config()         # typed Config (AI / TENCENT fields may be None)
     cfg.require_ai()            # raise if AI_* unset — call this before OpenAI calls
@@ -49,7 +49,7 @@ from urllib.parse import quote
 
 
 # Project root = parent of cms/. Caller passes an absolute path or we
-# fall back to a walk-up from this file (parent of cms/tools/cms/).
+# fall back to a walk-up from this file (parent of cms/cms_pipeline/).
 def _project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent.parent
 

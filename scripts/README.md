@@ -115,7 +115,7 @@ require_docker    # 脚本用到 docker 时
   - 0 = 成功或用户取消
   - 1 = 前置条件缺失
   - 2 = docker / push 失败
-- **ops 脚本不要用 Python。** CMS 流水线用 Python(`cms/tools/cms/*.py`),但 `scripts/ops/` 全 shell。目标机甚至不应该装 Python。
+- **ops 脚本不要用 Python。** CMS 流水线用 Python(`cms/cms_pipeline/*.py`),但 `scripts/ops/` 全 shell。目标机甚至不应该装 Python。
 - **`source "$SCRIPT_DIR/../../lib.sh"`** 是引入方式。不要 `source ./lib.sh` —— 操作员切了目录就找不到。
 
 ## 版本模型
@@ -151,4 +151,4 @@ dev 目标机的 `run.sh` 也会读 `VERSION.prod` 来取 `DB_IMAGE_TAG`(因为 
 ## 参见
 
 - `../CLAUDE.md` —— 项目总览、双主机架构、完整命令参考
-- `../cms/tools/cms/README.md` —— Python 内容生产流水线(仅 CMS)
+- `../cms/cms_pipeline/README.md` —— Python 内容生产流水线(仅 CMS)

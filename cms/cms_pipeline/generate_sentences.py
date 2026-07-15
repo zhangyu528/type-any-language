@@ -60,7 +60,7 @@ from pathlib import Path
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
-    from cms.manifest import load_manifest
+    from cms_pipeline.manifest import load_manifest
 else:
     from .manifest import load_manifest
 
@@ -71,7 +71,7 @@ STAGING_SENTENCES_DIRNAME = "sentences"
 
 
 def find_project_root() -> Path:
-    """Project root = 4 hops up from cms/tools/cms/generate_sentences.py."""
+    """Project root = 4 hops up from cms/cms_pipeline/generate_sentences.py."""
     return Path(__file__).resolve().parent.parent.parent.parent
 
 
@@ -287,7 +287,7 @@ def fill_one_bucket(staging: Path, lib_id: str, lib_name: str, lib_level: str,
 
 def _read_ai_cfg() -> dict:
     """Read AI_* from cms/.env (no Config object — keep this module
-    free of cms.env / psycopg2 / setup_env)."""
+    free of cms_pipeline.env / psycopg2 / setup_env)."""
     # load_cms_env_into_os_environ would be a dbtools concern; here we
     # do the simple parse inline.
     env_path = find_project_root() / "cms" / ".env"

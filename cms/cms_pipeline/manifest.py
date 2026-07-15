@@ -1,5 +1,5 @@
 """
-cms/tools/cms/manifest.py — load and validate cms/source/manifest.yaml.
+cms/cms_pipeline/manifest.py — load and validate cms/source/manifest.yaml.
 
 The manifest is the single source of truth for "what content does this app
 ship" — adding a new vocabulary lib, a new difficulty level, or tweaking
@@ -10,7 +10,7 @@ modules (import_vocab, generate_sentences, ...) consume the dataclasses
 returned here; they never parse yaml themselves.
 
 Usage:
-    from cms.manifest import load_manifest
+    from cms_pipeline.manifest import load_manifest
 
     m = load_manifest()                     # default path (cms/source/manifest.yaml)
     for lib in m.all_libs():                # iterate libs
@@ -36,8 +36,8 @@ _SUPPORTED_VERSIONS = (1,)
 # ---------------------------------------------------------------------------
 # Project root + manifest path resolution
 # ---------------------------------------------------------------------------
-# Mirrors the pattern in cms/tools/cms/env.py:_project_root(): this file lives
-# at cms/tools/cms/manifest.py, so project root is two parents up.
+# Mirrors the pattern in cms/cms_pipeline/env.py:_project_root(): this file lives
+# at cms/cms_pipeline/manifest.py, so project root is two parents up.
 def _project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent.parent
 
@@ -149,7 +149,7 @@ def load_manifest(path: Path | None = None) -> Manifest:
         sys.exit(
             f"manifest version={version!r} not supported "
             f"(this loader understands versions {_SUPPORTED_VERSIONS}). "
-            f"Bump _SUPPORTED_VERSIONS in cms/tools/cms/manifest.py."
+            f"Bump _SUPPORTED_VERSIONS in cms/cms_pipeline/manifest.py."
         )
 
     raw_libs = raw.get("libs")
@@ -276,7 +276,7 @@ def load_manifest(path: Path | None = None) -> Manifest:
 
 
 # ---------------------------------------------------------------------------
-# CLI — quick sanity check + dry-run print. Useful for `python -m cms.manifest`.
+# CLI — quick sanity check + dry-run print. Useful for `python -m cms_pipeline.manifest`.
 # ---------------------------------------------------------------------------
 def _print_summary(m: Manifest) -> None:
     print(f"manifest version={m.version}")

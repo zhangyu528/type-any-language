@@ -20,7 +20,7 @@ CMS 主机把内容（词库 + AI 句子 + TTS 音频）烤进 db image，推到
 |---|---|---|
 | `backend/` | FastAPI 纯读层（无 AI / TTS） | [`backend/README.md`](backend/README.md) |
 | `frontend/` | Next.js 14 app（单页练习 UI） | [`frontend/README.md`](frontend/README.md) |
-| `cms/` | 内容服务（源 + CMS 工具链 + Postgres image 构建上下文） | [`cms/README.md`](cms/README.md), [`cms/tools/cms/README.md`](cms/tools/cms/README.md) |
+| `cms/` | 内容服务（源 + CMS 工具链 + Postgres image 构建上下文） | [`cms/README.md`](cms/README.md), [`cms/cms_pipeline/README.md`](cms/cms_pipeline/README.md) |
 | `scripts/ops/{content,dev-host,prod-host}/` | 主机运维脚本 | 各脚本头部注释 |
 | `nginx/` | nginx 反向代理（prod 入口） | — |
 
@@ -38,7 +38,7 @@ CMS 主机把内容（词库 + AI 句子 + TTS 音频）烤进 db image，推到
 ./dev.sh logs       # 看日志
 ./dev.sh stop       # 停
 ./dev.sh restart    # 硬重启(≈5s,重新加载 secrets)
-./dev.sh migrate    # 改了 cms/tools/cms/migrations/versions/*.py 后:把新 schema 应用到正在跑的 runtime db
+./dev.sh migrate    # 改了 cms/cms_pipeline/migrations/versions/*.py 后:把新 schema 应用到正在跑的 runtime db
 ```
 
 > 没装 docker / daemon 没起,`./dev.sh doctor` 会直接报错,先装 docker。
@@ -71,7 +71,7 @@ CMS 主机把内容（词库 + AI 句子 + TTS 音频）烤进 db image，推到
 
 ### schema 改了之后
 
-dev 改了 `cms/tools/cms/migrations/versions/*.py` 的话:
+dev 改了 `cms/cms_pipeline/migrations/versions/*.py` 的话:
 
 ```bash
 # 升 source db(给将来 bake 用):起 cms-source-db 后跑
@@ -83,7 +83,7 @@ dev 改了 `cms/tools/cms/migrations/versions/*.py` 的话:
 
 `migrate` 用一次性 `python:3.11-slim` sidecar 跑 `pipeline.migrations.runner`,幂等。backend 下次请求自动捡新 schema(uvicorn hot reload)。
 
-> 网络拉不到 `python:3.11-slim`(典型情况:docker registry mirrors 坏了)时,`migrate` 会失败并打印离线 fallback:用 `cms/tools/cms/migrations/apply_to_runtime.sql` 走 `docker exec ... psql`。但这个 SQL 只覆盖"老 db 升到当前 head",**不能**处理新加的 migration —— 那种情况得修 docker 网络。
+> 网络拉不到 `python:3.11-slim`(典型情况:docker registry mirrors 坏了)时,`migrate` 会失败并打印离线 fallback:用 `cms/cms_pipeline/migrations/apply_to_runtime.sql` 走 `docker exec ... psql`。但这个 SQL 只覆盖"老 db 升到当前 head",**不能**处理新加的 migration —— 那种情况得修 docker 网络。
 
 ## 镜像发布(可选,无 registry 时跳过)
 
@@ -130,4 +130,4 @@ export DOCKER_REGISTRY=...                 # 推前设一下
 ```
 
 CMS 流程的细节(每个 Python 工具的参数、词库 CSV 格式、db image label 含义)
-见 [`cms/tools/cms/README.md`](cms/tools/cms/README.md) 和 [`cms/README.md`](cms/README.md)。
+见 [`cms/cms_pipeline/README.md`](cms/cms_pipeline/README.md) 和 [`cms/README.md`](cms/README.md)。

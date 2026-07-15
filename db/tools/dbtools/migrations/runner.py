@@ -1,5 +1,5 @@
 """
-cms/tools/cms/migrations/runner.py — minimal migration runner.
+cms/cms_pipeline/migrations/runner.py — minimal migration runner.
 
 Why not Alembic: Alembic is a great tool for projects with many migrations
 and large teams. For this project the migration count is small (currently
@@ -232,7 +232,7 @@ def downgrade_one(conn) -> Optional[str]:
 # ---------------------------------------------------------------------------
 def main() -> None:
     import argparse
-    from cms.env import setup_env, load_config
+    from cms_pipeline.env import setup_env, load_config
 
     parser = argparse.ArgumentParser(description="Apply pending schema migrations.")
     parser.add_argument(

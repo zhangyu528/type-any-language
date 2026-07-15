@@ -8,7 +8,7 @@
 #   Schema definition is a db concern. The Python implementation
 #   (init_schema.py + migrations/) now lives at db/tools/cms/ —
 #   the schema and migration versions are owned by the db side.
-#   cms/tools/cms/ remains for the data-pipeline code only
+#   cms/cms_pipeline/ remains for the data-pipeline code only
 #   (import_vocab, generate_sentences, generate_audio, ...).
 #
 #   This shell script is the db-side entry point. It shells out
