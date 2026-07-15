@@ -464,7 +464,7 @@ def test_5_lesson_index():
     The migration's backfill is a one-shot at migration time. Production
     flow is:
       - Fresh DB: migration runs on empty tables (no-op backfill), then
-        `content.sh sync` imports CSVs → import_words → assign_lesson_indexes.
+        `etl.sh sync` imports CSVs → import_words → assign_lesson_indexes.
       - Existing DB: migration adds the column and backfills existing rows;
         subsequent re-syncs re-bucket via assign_lesson_indexes.
 

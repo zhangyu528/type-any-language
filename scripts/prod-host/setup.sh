@@ -65,7 +65,7 @@ cmd_setup() {
             fi
         else
             info "  prod 主机不 bake content,content-baked db image 必须从 CMS 主机过来:"
-            info "    1. CMS 主机: cms/scripts/content.sh   # 数据管线(sync / sentences / audio)"
+            info "    1. CMS 主机: cms/scripts/etl.sh   # 数据管线(sync / sentences / audio)"
             info "    2. CMS 主机: db/scripts/build.sh       # 烤 db image"
             info "    3. CMS 主机: db/scripts/push.sh -y    # 推 registry"
             info "    4. 本机配置 REGISTRY / DOCKER_REGISTRY,再跑一次 ./scripts/prod-host/setup.sh"

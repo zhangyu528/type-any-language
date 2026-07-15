@@ -161,7 +161,7 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 
 ### CMS host — content production
 
-> **Rename note** (this release): `.env.db` was renamed to `cms/.env`. If you already have a `.env.db` from a prior release, rename it once before running any `content.sh` / `db/scripts/build.sh` command:
+> **Rename note** (this release): `.env.db` was renamed to `cms/.env`. If you already have a `.env.db` from a prior release, rename it once before running any `etl.sh` / `db/scripts/build.sh` command:
 > ```bash
 > mv .env.db cms/.env
 > ```
@@ -173,10 +173,10 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 ./cms/scripts/env.sh doctor        # 验证 cms/.env 完整性
 
 # 2. 跑内容管线 (writes staging files; db import is a separate step)
-./cms/scripts/content.sh doctor     # Pre-flight: cms/.env + Python deps
-./cms/scripts/content.sh sync       # CSVs → cms/.local/staging/vocabulary/<lib>.json
-./cms/scripts/content.sh sentences  # OpenAI → cms/.local/staging/sentences/<lib>.jsonl
-./cms/scripts/content.sh audio      # Tencent TTS → updates audio_url in sentences JSONL
+./cms/scripts/etl.sh doctor     # Pre-flight: cms/.env + Python deps
+./cms/scripts/etl.sh sync       # CSVs → cms/.local/staging/vocabulary/<lib>.json
+./cms/scripts/etl.sh sentences  # OpenAI → cms/.local/staging/sentences/<lib>.jsonl
+./cms/scripts/etl.sh audio      # Tencent TTS → updates audio_url in sentences JSONL
 
 # 3. db side: import staging files → Postgres (separate step, db's job)
 ./db/scripts/source_db.sh ensure    # 起 staging db (cms-source-db 容器或本地 postgres)
@@ -189,11 +189,10 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 ./db/scripts/push.sh [-y]    # Push the db image to DOCKER_REGISTRY
 
 # 5. 一步到位(pipeline + bake, 等价 2+3+4)
-./cms/scripts/pipeline.sh     # = 上面 step 2 + step 3.import_staging
-./cms/scripts/full_bake.sh    # = pipeline.sh + db/scripts/build.sh (wrapper)
+./cms/scripts/run.sh     # = 上面 step 2 + step 3.import_staging `cms/scripts/run.sh` (CMS) + `db/scripts/build.sh`    # = run.sh + db/scripts/build.sh (wrapper)
 ```
 
-`cms/scripts/content.sh` is a thin wrapper over the `cms/tools/cms/*.py` modules. Each subcommand has its own `--help`. See `cms/tools/cms/README.md` for module details.
+`cms/scripts/etl.sh` is a thin wrapper over the `cms/tools/cms/*.py` modules. Each subcommand has its own `--help`. See `cms/tools/cms/README.md` for module details.
 
 ### 责任划分 (responsibility split)
 
@@ -421,9 +420,9 @@ Answer validation is **client-side**: the frontend normalizes (lowercase, strip 
 
 **Bake time (CMS host, ETL file-based):**
 1. Operator commits new CSVs to `cms/source/vocabulary/`.
-2. `content.sh sync` writes them to `cms/.local/staging/vocabulary/<lib>.json` (no db write).
-3. `content.sh sentences` calls OpenAI and appends to `cms/.local/staging/sentences/<lib>.jsonl` up to `DEFAULT_BUCKET_TARGET_SIZE` per (lib, difficulty).
-4. `content.sh audio` calls Tencent TTS; MP3s land in the configured `Storage` (local `cms/.local/audio/` by default, or Tencent Cloud COS when `CLOUD_PROVIDER=tencent_cos`), and each sentence's `audio_url` field in the JSONL is set to the storage's `public_url(key)`.
+2. `etl.sh sync` writes them to `cms/.local/staging/vocabulary/<lib>.json` (no db write).
+3. `etl.sh sentences` calls OpenAI and appends to `cms/.local/staging/sentences/<lib>.jsonl` up to `DEFAULT_BUCKET_TARGET_SIZE` per (lib, difficulty).
+4. `etl.sh audio` calls Tencent TTS; MP3s land in the configured `Storage` (local `cms/.local/audio/` by default, or Tencent Cloud COS when `CLOUD_PROVIDER=tencent_cos`), and each sentence's `audio_url` field in the JSONL is set to the storage's `public_url(key)`.
 5. `db/scripts/import_staging.sh` reads the staging files and UPSERTs them into `vocabulary_libs` / `vocabulary_words` / `sentences` on the staging db (`cmstools.importer`).
 6. `db/scripts/build.sh` runs `pg_dump` on the 3 content tables, stages the SQL into `db/init/01-content.sql`, builds the db image.
 7. `db/scripts/push.sh` pushes to `DOCKER_REGISTRY`.
@@ -472,7 +471,7 @@ When you add or change a migration in `cms/tools/cms/migrations/versions/`:
 ### Production rollout
 
 When the operator merges new schema changes:
-1. CMS host: `content.sh init-schema` (already in `release.sh prod`'s flow once the bake-pipeline gap is closed)
+1. CMS host: `etl.sh init-schema` (already in `release.sh prod`'s flow once the bake-pipeline gap is closed)
 2. CMS host: `db/scripts/build.sh` + `db/scripts/push.sh` — new db image has the latest schema baked into `01-content.sql`
 3. Target hosts: `lifecycle.sh restart` (or `setup` on a fresh host) auto-pulls the new image
 4. Fresh-volume target hosts: initdb picks up the new `01-content.sql` automatically
@@ -488,7 +487,7 @@ Required (in `cms/.env`):
 - `AI_API_KEY` — OpenAI-compatible LLM key
 - `AI_BASE_URL` — OpenAI-compatible endpoint (default in template: `https://api.openai.com/v1`; switch to Azure / local / Anthropic-compatible endpoints as needed)
 - `AI_MODEL` — model name (default in template: `gpt-3.5-turbo`; switch to `gpt-4o` / etc. as needed)
-- `TENCENT_SECRET_ID`, `TENCENT_SECRET_KEY`, `TENCENT_APP_ID` — Tencent Cloud TTS; required when running `content.sh audio`, optional otherwise
+- `TENCENT_SECRET_ID`, `TENCENT_SECRET_KEY`, `TENCENT_APP_ID` — Tencent Cloud TTS; required when running `etl.sh audio`, optional otherwise
 
 `DATABASE_URL` is **not** in `cms/.env`. It's assembled at runtime by `cms/tools/cms/env.py` + `db/scripts/build.sh` from:
 - `POSTGRES_PASSWORD` (the only piece without a code default — see [Where the db password comes from](#where-the-db-password-comes-from))
@@ -496,7 +495,7 @@ Required (in `cms/.env`):
 
 `AUDIO_DIR` is also **not** in `cms/.env` by default. It now means "root of the local Storage" (only used when `CLOUD_PROVIDER=local_fs`); the code default is `cms/.local/audio` (so Windows / sandboxed Linux hosts can run without sudo). Override via shell env if you need a different location:
 ```bash
-AUDIO_DIR=/your/audio/dir ./cms/scripts/content.sh audio
+AUDIO_DIR=/your/audio/dir ./cms/scripts/etl.sh audio
 ```
 
 For multi-host CMS or production, set `CLOUD_PROVIDER=tencent_cos` in `cms/.env` (plus `CLOUD_BUCKET` / `CLOUD_REGION` / `CLOUD_ACCESS_KEY` / `CLOUD_SECRET_KEY`). MP3s upload to the COS bucket instead of the local directory; `sentences.audio_url` becomes the full COS URL. See `cms/tools/cms/storage.py` for the abstraction.
@@ -529,15 +528,15 @@ These have code-level defaults in `cms/tools/cms/env.py` / `db/scripts/build.sh`
 | Knob | Code default | Override example |
 |---|---|---|
 | `POSTGRES_USER` | `english_user` | `POSTGRES_USER=foo ./db/scripts/build.sh` |
-| `POSTGRES_HOST` | `localhost` | `POSTGRES_HOST=db.internal ./cms/scripts/content.sh sentences` |
+| `POSTGRES_HOST` | `localhost` | `POSTGRES_HOST=db.internal ./cms/scripts/etl.sh sentences` |
 | `POSTGRES_PORT` | `5432` | (same pattern) |
 | `POSTGRES_DB`   | `english_learning` | (same pattern) |
 | `POSTGRES_PASSWORD` | (none — see above) | `POSTGRES_PASSWORD=... ./db/scripts/build.sh` |
 | `DB_IMAGE`      | `english_db_content` | (same pattern) |
-| `AUDIO_DIR`     | `cms/.local/audio` | `AUDIO_DIR=/your/audio/dir ./cms/scripts/content.sh audio` |
-| `CLOUD_PROVIDER` | `local_fs` | `CLOUD_PROVIDER=tencent_cos ./cms/scripts/content.sh audio` |
+| `AUDIO_DIR`     | `cms/.local/audio` | `AUDIO_DIR=/your/audio/dir ./cms/scripts/etl.sh audio` |
+| `CLOUD_PROVIDER` | `local_fs` | `CLOUD_PROVIDER=tencent_cos ./cms/scripts/etl.sh audio` |
 | `CLOUD_BUCKET` / `CLOUD_REGION` / `CLOUD_ACCESS_KEY` / `CLOUD_SECRET_KEY` | (none) | Required when `CLOUD_PROVIDER=tencent_cos` |
-| `DEFAULT_BUCKET_TARGET_SIZE` | `200` | `DEFAULT_BUCKET_TARGET_SIZE=500 ./cms/scripts/content.sh sentences` |
+| `DEFAULT_BUCKET_TARGET_SIZE` | `200` | `DEFAULT_BUCKET_TARGET_SIZE=500 ./cms/scripts/etl.sh sentences` |
 | `DB_IMAGE_TAG`  | `VERSION.prod` | `DB_IMAGE_TAG=v0.5.0 ./db/scripts/build.sh` |
 
 ### Target host — no `.env` file required

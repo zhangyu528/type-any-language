@@ -75,7 +75,7 @@ dev 改了 `cms/tools/cms/migrations/versions/*.py` 的话:
 
 ```bash
 # 升 source db(给将来 bake 用):起 cms-source-db 后跑
-./cms/scripts/content.sh init-schema
+./cms/scripts/etl.sh init-schema
 
 # 升正在跑的 runtime db —— 轻量,不动 image、不 push、不 drop volume
 ./dev.sh migrate
@@ -120,10 +120,10 @@ export DOCKER_REGISTRY=docker.io/youruser
 
 ```bash
 ./cms/scripts/env.sh                    # 第一次:引导 cms/.env
-./cms/scripts/content.sh doctor         # 前置检查
-./cms/scripts/content.sh sync           # csv → 词库表
-./cms/scripts/content.sh sentences      # OpenAI 批量填句子
-./cms/scripts/content.sh audio          # 腾讯云 TTS 批量烤 MP3
+./cms/scripts/etl.sh doctor         # 前置检查
+./cms/scripts/etl.sh sync           # csv → 词库表
+./cms/scripts/etl.sh sentences      # OpenAI 批量填句子
+./cms/scripts/etl.sh audio          # 腾讯云 TTS 批量烤 MP3
 ./db/scripts/build.sh             # 烤 db image
 export DOCKER_REGISTRY=...                 # 推前设一下
 ./db/scripts/push.sh [-y]        # 推 registry

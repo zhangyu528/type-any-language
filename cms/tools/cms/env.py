@@ -24,10 +24,10 @@ Validation contract:
   - TENCENT_SECRET_ID / TENCENT_SECRET_KEY / TENCENT_APP_ID are also
     OPTIONAL. Consumer modules for Tencent TTS call `cfg.require_tencent()`
     first.
-  - Rationale: a CMS host that only runs `content.sh sync` doesn't need
+  - Rationale: a CMS host that only runs `etl.sh sync` doesn't need
     AI or TENCENT keys at all. Forcing them on every operator is friction;
     forcing them only on the subcommand that needs them is the right
-    shape. The bash-side `env.sh doctor` and `content.sh doctor` already
+    shape. The bash-side `env.sh doctor` and `etl.sh doctor` already
     treat AI as required and TENCENT as optional — this Python change
     brings the two sides into agreement.
 
@@ -208,12 +208,12 @@ class Config:
     # Always required — every subcommand needs the DB.
     database_url: str
 
-    # AI / OpenAI — Optional; required only for `content.sh sentences`.
+    # AI / OpenAI — Optional; required only for `etl.sh sentences`.
     ai_api_key: str | None
     ai_base_url: str | None
     ai_model: str | None
 
-    # Tencent TTS — Optional; required only for `content.sh audio`.
+    # Tencent TTS — Optional; required only for `etl.sh audio`.
     tencent_secret_id: str | None
     tencent_secret_key: str | None
     tencent_app_id: str | None
@@ -255,7 +255,7 @@ class Config:
         if missing:
             sys.exit(
                 f"{', '.join(missing)} missing in cms/.env — "
-                f"required for `content.sh sentences`"
+                f"required for `etl.sh sentences`"
             )
 
     def require_tencent(self) -> None:
@@ -275,7 +275,7 @@ class Config:
         if missing:
             sys.exit(
                 f"{', '.join(missing)} missing in cms/.env — "
-                f"required for `content.sh audio`. "
+                f"required for `etl.sh audio`. "
                 f"Either fill all three TENCENT_* keys, or skip the audio subcommand."
             )
 
@@ -301,7 +301,7 @@ class Config:
 
 # Where TTS MP3s land before bake. Lives inside the project so Windows
 # users and sandboxed Linux hosts (no sudo, no write access to /var/lib)
-# can run content.sh audio without any extra setup. Operators override
+# can run etl.sh audio without any extra setup. Operators override
 # by setting AUDIO_DIR in cms/.env or the shell — the override wins
 # over this default.
 _DEFAULT_AUDIO_DIR = "cms/.local/audio"

@@ -6,14 +6,14 @@
 #
 # Lives in db/scripts/ because container lifecycle is a db concern —
 # db is the consumer of this staging data, and the db's build flow
-# (db/scripts/build.sh) needs a populated db to read. CMS pipeline.sh
+# (db/scripts/build.sh) needs a populated db to read. CMS run.sh
 # also calls this (via `ensure` subcommand) for its own write needs.
 #
 # Subcommands:
 #   ensure   Idempotent. Start a populated cms-source-db if not
 #            already running. Returns 0 if a db is reachable after
 #            the call, 1 otherwise. Used by both db-side build flows
-#            and CMS-side pipeline.sh.
+#            and CMS-side run.sh.
 #   start    Force-start a cms-source-db (creates one if absent).
 #   stop     Stop a running cms-source-db (no-op if not running).
 #   status   Print whether cms-source-db is up + which container
@@ -31,7 +31,7 @@
 #
 # Why this lives in db/scripts/ and not cms/scripts/:
 #   Container lifecycle is a host-provisioning concern that both
-#   db/scripts/build.sh (read side) and cms/scripts/pipeline.sh
+#   db/scripts/build.sh (read side) and cms/scripts/run.sh
 #   (write side) need. Putting it in either would mean the other
 #   side calls across the boundary. db/scripts/source_db.sh is the
 #   neutral host for it.
@@ -231,7 +231,7 @@ usage() {
 命令:
   ensure   Idempotent start. Returns 0 if a source db is reachable
            after the call (running container, local postgres, or fresh
-           docker run). Used by cms/scripts/pipeline.sh and
+           docker run). Used by cms/scripts/run.sh and
            db/scripts/build.sh.
   start    Force-start a cms-source-db container. Creates one if absent.
   stop     Stop a running cms-source-db (no-op if not running).

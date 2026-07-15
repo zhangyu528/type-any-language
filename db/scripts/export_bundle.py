@@ -63,8 +63,8 @@ from urllib.parse import urlparse
 # script only reads them.
 CONTENT_TABLES = ["vocabulary_libs", "vocabulary_words", "sentences"]
 
-# Staging db convention. CMS pipeline's wrapper (cms/scripts/pipeline.sh,
-# formerly full_bake.sh) creates a container named `cms-source-db` and
+# Staging db convention. CMS pipeline's wrapper (cms/scripts/run.sh,
+# formerly `run.sh` + `db/scripts/build.sh`) creates a container named `cms-source-db` and
 # runs it on POSTGRES_PORT (default 5432) so this script can docker-exec
 # into it if the host lacks postgresql-client.
 #
@@ -93,7 +93,7 @@ def _source_container() -> str | None:
     Used as an automatic fallback when host-side pg_dump / psql are
     missing (e.g. Windows dev boxes that run postgres in Docker but
     haven't installed postgresql-client on the host). The convention
-    produced by cms/scripts/pipeline.sh is `cms-source-db`. We also
+    produced by cms/scripts/run.sh is `cms-source-db`. We also
     try the historical names for backwards compat.
     """
     try:

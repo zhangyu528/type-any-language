@@ -45,8 +45,8 @@
 # and are therefore NOT in cms/.env. To pin a different value, set it in
 # the shell:
 #   POSTGRES_USER=other ./db/scripts/build.sh
-#   AUDIO_DIR=/my/audio/dir ./cms/scripts/content.sh audio
-#   DEFAULT_BUCKET_TARGET_SIZE=500 ./cms/scripts/content.sh sentences
+#   AUDIO_DIR=/my/audio/dir ./cms/scripts/etl.sh audio
+#   DEFAULT_BUCKET_TARGET_SIZE=500 ./cms/scripts/etl.sh sentences
 # DB_IMAGE_TAG is also not here — its default is the root ./VERSION file
 # (resolved by scripts/lib.sh), with cms/.env / shell env able to pin a
 # specific version when needed.
@@ -313,7 +313,7 @@ cmd_show() {
 }
 
 # ---------------------------------------------------------------------------
-# cmd_doctor — validate cms/.env is ready for content.sh
+# cmd_doctor — validate cms/.env is ready for etl.sh
 # ---------------------------------------------------------------------------
 cmd_doctor() {
     local failed=0
@@ -412,7 +412,7 @@ cmd_doctor() {
     if [ -d "$_audio_dir" ]; then
         ok "AUDIO_DIR=$_audio_dir  (目录存在)"
     else
-        info "AUDIO_DIR=$_audio_dir  (目录不存在, 但 content.sh audio 会 mkdir -p)"
+        info "AUDIO_DIR=$_audio_dir  (目录不存在, 但 etl.sh audio 会 mkdir -p)"
     fi
 
     echo ""
@@ -455,8 +455,8 @@ usage() {
 其他配置 (POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, DB_IMAGE,
 AUDIO_DIR, DEFAULT_BUCKET_TARGET_SIZE) 不在 cms/.env — 代码里有默认, 需要时 shell 覆盖:
   POSTGRES_USER=foo ./db/scripts/build.sh
-  AUDIO_DIR=/my/audio/dir ./cms/scripts/content.sh audio
-  DEFAULT_BUCKET_TARGET_SIZE=500 ./cms/scripts/content.sh sentences
+  AUDIO_DIR=/my/audio/dir ./cms/scripts/etl.sh audio
+  DEFAULT_BUCKET_TARGET_SIZE=500 ./cms/scripts/etl.sh sentences
 EOF
 }
 

@@ -3,7 +3,7 @@ Sentence response schemas (read-layer).
 
 The runtime only serves pre-baked sentences. Generation/validation
 request schemas are gone — those workflows happen at bake time on the
-CMS host (`cms/scripts/content.sh sentences` / `audio`).
+CMS host (`cms/scripts/etl.sh sentences` / `audio`).
 """
 from typing import List, Optional
 from uuid import UUID

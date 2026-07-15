@@ -9,7 +9,7 @@
 .env
 
 # CMS working dir — generated TTS MP3s and any future per-machine
-# state (logs, caches, ...) that content.sh / generate_audio.py writes.
+# state (logs, caches, ...) that etl.sh / generate_audio.py writes.
 # Lives inside the project (cms/.local/) so default-path writes
 # work on Windows + sandboxed Linux hosts without extra setup. dev/prod
 # runtime does NOT read this — audio is uploaded to Tencent Cloud COS

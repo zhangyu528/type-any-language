@@ -315,7 +315,7 @@ def main() -> int:
     staging = find_staging_dir()
     if not staging.is_dir():
         print(f"[ERR] staging dir not found: {staging}", file=sys.stderr)
-        print(f"      (run the CMS pipeline first: cms/scripts/pipeline.sh)", file=sys.stderr)
+        print(f"      (run the CMS pipeline first: cms/scripts/run.sh)", file=sys.stderr)
         return 1
 
     stages = (["vocab", "sentences", "audio"]
