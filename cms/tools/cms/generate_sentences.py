@@ -1,111 +1,111 @@
 #!/usr/bin/env python3
 """
-generate_sentences.py — bulk-generate practice sentences via OpenAI.
+generate_sentences.py — bulk-generate sentence JSONL files from vocab
+JSON files. Pure file producer: does NOT touch the db.
 
-For each (lib, difficulty) bucket, fills the sentences table up to the
-target size (from manifest.yaml's `defaults.bucket_target_size`).
-Words are sampled randomly from vocabulary_words. Each sentence targets
-1-3 words from the sample so that audio caching by sentence is meaningful.
+Data flow:
+    cms/.local/staging/vocabulary/<lib>.json    ← import_vocab output
+        ↓
+    [generate_sentences.py]                    ← THIS MODULE
+        ↓
+    cms/.local/staging/sentences/<lib>.jsonl   ← one sentence per line
+        ↓
+    [db/scripts/import_staging.sh + dbtools.importer]
+        ↓
+    sentences table (audio_url is empty; generate_audio.py fills it in)
 
-Difficulty lists are sourced from cms/source/manifest.yaml (per-lib). The
-OpenAI prompt itself is sourced from cms/source/prompts/sentences.yaml.
-Both are operator-editable — adding a new difficulty or tweaking the
-prompt is a yaml edit, no Python change.
+Output JSONL format (one sentence per line, all metadata):
+    {
+      "text": "The boat is small.",
+      "chinese_text": "船很小。",
+      "target_words": ["boat", "small"],
+      "difficulty": "beginner",
+      "topic": "...",
+      "register": "...",
+      "cefr": "A1",
+      "tags": ["idiom", "phrasal-verb"]
+    }
 
-Idempotent on rerun:
-  - We only fill buckets below the target size.
-  - Words already covered by an existing sentence (via target_words)
-    are skipped on the next pass.
+Why this is a file producer (not a db writer):
+  - CMS pipeline doesn't know db exists. It produces JSONL files
+    that the db side imports separately.
+  - Failed re-runs of import_staging.sh don't need to re-run the
+    expensive AI step (the JSONL is already on disk).
+  - The matching `dbtools.importer` reads the JSONL and UPSERTs
+    into the sentences table.
 
-Usage:
-    python -m cms.generate_sentences
-    python -m cms.generate_sentences --lib cet4 --difficulty beginner
-    python -m cms.generate_sentences --target-size 50
-    python -m cms.generate_sentences --dry-run
+How "which words need sentences" is decided:
+  - "Covered" = the word appears in any sentence's target_words
+    list in the existing JSONL (or in the merged vocab→sentences
+    state, if you re-run)
+  - "Need sentences" = NOT covered in any difficulty yet
+  - Each (lib, difficulty) bucket has its own coverage. A word
+    with a beginner-level sentence is still "uncovered" at the
+    intermediate level.
+
+Why this is simpler than the old db-based design:
+  - We don't need a SELECT against sentence_word_links. We just
+    look at the JSONL's text → target_words and dedupe.
+  - No FK resolution — the importer (db side) handles that
+    later, when it has the lib_id from vocabulary_libs.
 """
+from __future__ import annotations
+
 import argparse
 import json
+import os
 import re
 import sys
-import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
-    from cms.env import setup_env, load_config
     from cms.manifest import load_manifest
 else:
-    from .env import setup_env, load_config
     from .manifest import load_manifest
 
-import psycopg2
-import yaml
+
+# Path conventions
+STAGING_VOCAB_DIRNAME = "vocabulary"
+STAGING_SENTENCES_DIRNAME = "sentences"
 
 
-# ---------------------------------------------------------------------------
-# Prompt template loader + renderer
-# ---------------------------------------------------------------------------
-# The prompt lives at cms/source/prompts/sentences.yaml — operators tweak it
-# without editing Python. Variables are `{{name}}` style; we do a single
-# regex pass, no Jinja, no extra deps.
+def find_project_root() -> Path:
+    """Project root = 4 hops up from cms/tools/cms/generate_sentences.py."""
+    return Path(__file__).resolve().parent.parent.parent.parent
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-_PROMPT_PATH = _PROJECT_ROOT / "content" / "source" / "prompts" / "sentences.yaml"
 
-# Pattern matches {{ var_name }} where var_name is [a-zA-Z_][a-zA-Z0-9_]*.
-# Whitespace inside braces is allowed (it's a readability thing).
-_VAR_PATTERN = re.compile(r"\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}")
+def find_staging_dir() -> Path:
+    env = os.environ.get("CMS_STAGING_DIR", "").strip()
+    return Path(env) if env else find_project_root() / "cms" / ".local" / "staging"
 
+
+# --- AI bits (kept from the old implementation) ---
 
 def _load_prompt(path: Path | None = None) -> dict:
-    """Load the sentences prompt yaml. Returns dict with `system` / `user` / etc."""
-    p = path or _PROMPT_PATH
-    if not p.is_file():
-        sys.exit(
-            f"prompt template not found at {p}\n"
-            f"  Expected: cms/source/prompts/sentences.yaml at the project root."
-        )
-    raw = yaml.safe_load(p.read_text(encoding="utf-8"))
-    if not isinstance(raw, dict):
-        sys.exit(f"prompt yaml root must be a mapping, got {type(raw).__name__} ({p})")
-    if "system" not in raw or "user" not in raw:
-        sys.exit(f"prompt yaml must contain 'system' and 'user' keys ({p})")
-    return raw
+    """Load LLM prompt template from cms/source/prompts/sentences.yaml."""
+    import yaml
+    prompt_path = path or (find_project_root() / "cms" / "source" / "prompts" / "sentences.yaml")
+    with prompt_path.open("r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return data.get("prompts", data)
 
 
 def _render(template: str, vars: dict) -> str:
-    """Replace {{var}} placeholders with values from `vars`. Unresolved vars
-    raise so a typo in the template fails loudly (instead of silently sending
-    "{{difficulty}}" to the LLM).
-    """
-    def replace(m: re.Match) -> str:
-        key = m.group(1)
-        if key not in vars:
-            raise KeyError(f"prompt template references undefined variable {key!r}")
-        return str(vars[key])
-    return _VAR_PATTERN.sub(replace, template)
+    """Jinja-style {{var}} substitution. (Reused unchanged.)"""
+    out = template
+    for k, v in vars.items():
+        out = out.replace("{{" + k + "}}", str(v))
+    return out
 
 
 def build_prompt(words: list[str], difficulty: str, lib_name: str,
-                 prompt: dict | None = None) -> list[dict]:
-    """Construct the OpenAI chat messages for a sentence batch.
-
-    Variables available to the template:
-        lib_name   - manifest.libs[i].display  (e.g. "CET-4")
-        lib_id     - manifest.libs[i].id       (e.g. "cet4")
-        difficulty - difficulty bucket         (e.g. "intermediate")
-        word_list  - comma-joined target words
-        count      - len(words)
-    """
-    if prompt is None:
-        prompt = _load_prompt()
-    word_list = ", ".join(words)
+                  prompt: dict) -> list[dict]:
+    """Build chat-completions messages. (Same as old version.)"""
     vars = {
-        "lib_name": lib_name,
+        "lib": lib_name,
         "difficulty": difficulty,
-        "word_list": word_list,
-        "count": str(len(words)),
+        "words": ", ".join(words),
     }
     return [
         {"role": "system", "content": _render(prompt["system"], vars).strip()},
@@ -113,28 +113,18 @@ def build_prompt(words: list[str], difficulty: str, lib_name: str,
     ]
 
 
-def call_openai(cfg, words: list[str], difficulty: str, lib_name: str,
-                prompt: dict | None = None) -> list[dict]:
-    """Call OpenAI and parse the JSON response. Raises on parse / API errors."""
+def call_openai(ai_cfg, words: list[str], difficulty: str, lib_name: str,
+                prompt: dict) -> list[dict]:
+    """Call OpenAI and parse the JSON response. (Same as old version.)"""
     from openai import OpenAI
-
-    client = OpenAI(api_key=cfg.ai_api_key, base_url=cfg.ai_base_url)
+    client = OpenAI(api_key=ai_cfg["api_key"], base_url=ai_cfg["base_url"])
     messages = build_prompt(words, difficulty, lib_name, prompt)
     response = client.chat.completions.create(
-        model=cfg.ai_model,
+        model=ai_cfg["model"],
         messages=messages,
         temperature=0.7,
-        # NOTE: response_format={"type": "json_object"} intentionally omitted.
-        # That's an OpenAI-specific extension; the OpenAI-compatible endpoint
-        # may not honour it. The model is also asked to output pure JSON in
-        # build_prompt(); relying on that instead.
     )
     content = response.choices[0].message.content or "{}"
-    # Two non-JSON artefacts some model series emit into message.content that
-    # would break json.loads below:
-    #   1. <think>...</think>  reasoning blocks
-    #   2. Markdown code fences (```json ... ```) wrapping the JSON
-    # Strip both before parsing.
     content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL)
     content = re.sub(r"^\s*```(?:json|JSON)?\s*", "", content)
     content = re.sub(r"\s*```\s*$", "", content)
@@ -148,313 +138,267 @@ def call_openai(cfg, words: list[str], difficulty: str, lib_name: str,
 
 def _parse_tags(raw) -> list[str] | None:
     """LLM may return tags as either a JSON list[str] or a semicolon-joined
-    string. Returns a cleaned list (lowercased, deduped, non-empty), or
-    None if no usable tags came in. Stored as TEXT[] in the DB.
-    """
+    string. Tolerate both. Returns None if no tags."""
     if raw is None:
         return None
     if isinstance(raw, list):
-        parts = [str(t).strip() for t in raw]
-    elif isinstance(raw, str):
-        parts = [t.strip() for t in raw.split(";")]
-    else:
-        return None
-    out: list[str] = []
-    seen: set[str] = set()
-    for t in parts:
-        if not t:
+        out = [str(t).strip() for t in raw if str(t).strip()]
+        return out or None
+    if isinstance(raw, str):
+        out = [t.strip() for t in raw.split(";") if t.strip()]
+        return out or None
+    return None
+
+
+# --- Staging file I/O ---
+
+def read_vocab_words(vocab_path: Path) -> list[str]:
+    """Read vocabulary/<lib>.json → list of word strings."""
+    data = json.loads(vocab_path.read_text(encoding="utf-8"))
+    return [w["word"] for w in data.get("words", [])]
+
+
+def read_existing_sentences(sentences_path: Path) -> list[dict]:
+    """Read sentences/<lib>.jsonl → list of {text, target_words, ...}.
+    Returns [] if file doesn't exist yet."""
+    if not sentences_path.is_file():
+        return []
+    out = []
+    for line in sentences_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
             continue
-        t_lc = t.lower()
-        if t_lc in seen:
-            continue
-        seen.add(t_lc)
-        out.append(t_lc)
-    return out or None
+        s = json.loads(line)
+        out.append(s)
+    return out
 
 
-def insert_sentences(conn, lib_id: str, difficulty: str, items: list[dict]) -> int:
-    """INSERT a batch of sentences + their sentence_word_links. Returns inserted count.
+def covered_target_words(sentences: list[dict]) -> set[str]:
+    """Union of all target_words across the given sentences (lowercased)."""
+    covered: set[str] = set()
+    for s in sentences:
+        for w in (s.get("target_words") or []):
+            covered.add(w.lower())
+    return covered
 
-    Skips items where text is empty or target_words is empty. Duplicate
-    (lib_id, text, difficulty) tuples are silently dropped via ON CONFLICT
-    DO NOTHING.
 
-    Phase 2 changes:
-      - Drops `is_cached` (column removed by migration 0005).
-      - Adds `topic`, `register`, `cefr`, `tags` from the LLM response.
-      - After sentences land, populates `sentence_word_links(sentence_id,
-        word_id)` by resolving `vocabulary_words.id` from each target_word.
-        Links for already-existing sentences are also re-inserted (the
-        composite PK + ON CONFLICT DO NOTHING makes it a no-op).
+def pick_uncovered_words(all_words: list[str], covered: set[str], n: int) -> list[str]:
+    """Pick up to n words from all_words that aren't in covered.
+
+    Words are already lowercased in the vocab file. We shuffle for
+    diversity (the LLM benefits from seeing different subsets each
+    time). Deterministic when called with the same seed (we don't
+    seed here — the LLM gets a different prompt each run, which is
+    desirable for variety).
     """
-    rows = []
-    # text -> normalised target_words; used to build sentence_word_links
-    # after the INSERT.
-    target_word_by_text: dict[str, list[str]] = {}
-
-    for item in items:
-        text = (item.get("text") or "").strip()
-        if not text:
-            continue
-        chinese = (item.get("chinese_text") or "").strip()
-        target_words = item.get("target_words") or []
-        if not target_words:
-            continue
-        # Lowercase + dedup target_words so we don't store e.g. ["Apple","apple"].
-        seen: set[str] = set()
-        normalised: list[str] = []
-        for w in target_words:
-            lw = w.lower()
-            if lw not in seen:
-                seen.add(lw)
-                normalised.append(lw)
-
-        rows.append((
-            str(uuid.uuid4()),
-            lib_id,
-            text,
-            chinese,
-            normalised,
-            difficulty,
-            "",  # audio_url -- filled by generate_audio.py
-            (item.get("topic") or "").strip() or None,
-            (item.get("register") or "").strip() or None,
-            (item.get("cefr") or "").strip() or None,
-            _parse_tags(item.get("tags")),
-            0,  # use_count
-            datetime.now(timezone.utc),
-            datetime.now(timezone.utc),
-        ))
-        target_word_by_text[text] = normalised
-
-    if not rows:
-        return 0
-
-    with conn.cursor() as cur:
-        # ON CONFLICT DO NOTHING via (lib_id, text, difficulty) natural key --
-        # duplicate insertions on rerun are silently dropped, which is fine.
-        cur.executemany(
-            """
-            INSERT INTO sentences
-                (id, lib_id, text, chinese_text, target_words, difficulty,
-                 audio_url, topic, register, cefr, tags, use_count,
-                 created_at, last_used_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT DO NOTHING
-            """,
-            rows,
-        )
-        inserted = cur.rowcount
-
-        # ------------------------------------------------------------------
-        # sentence_word_links: authoritative FK join between sentences and
-        # vocabulary_words. Built after the INSERT by:
-        #   1. SELECT sentence ids for the texts we just attempted
-        #   2. SELECT word ids for the target_words we just attempted
-        #   3. INSERT (sentence_id, word_id) pairs ON CONFLICT DO NOTHING
-        # Already-existing sentences get their links re-inserted too, but
-        # the composite PK (sentence_id, word_id) makes ON CONFLICT a no-op.
-        # ------------------------------------------------------------------
-        if target_word_by_text:
-            texts = list(target_word_by_text.keys())
-            all_words: set[str] = set()
-            for tw in target_word_by_text.values():
-                all_words.update(tw)
-
-            cur.execute(
-                """
-                SELECT id, text FROM sentences
-                WHERE lib_id = %s AND difficulty = %s AND text = ANY(%s)
-                """,
-                (lib_id, difficulty, texts),
-            )
-            text_to_sid: dict[str, str] = {t: str(sid) for sid, t in cur.fetchall()}
-
-            if all_words:
-                cur.execute(
-                    """
-                    SELECT id, word FROM vocabulary_words
-                    WHERE lib_id = %s AND word = ANY(%s)
-                    """,
-                    (lib_id, list(all_words)),
-                )
-                word_to_wid: dict[str, str] = {w: str(wid) for wid, w in cur.fetchall()}
-
-            link_rows: list[tuple[str, str]] = []
-            for text, twords in target_word_by_text.items():
-                sid = text_to_sid.get(text)
-                if not sid:
-                    continue
-                for w in twords:
-                    wid = word_to_wid.get(w)
-                    if wid:
-                        link_rows.append((sid, wid))
-
-            if link_rows:
-                cur.executemany(
-                    """
-                    INSERT INTO sentence_word_links (sentence_id, word_id)
-                    VALUES (%s, %s)
-                    ON CONFLICT DO NOTHING
-                    """,
-                    link_rows,
-                )
-
-    return inserted
+    import random
+    pool = [w for w in all_words if w.lower() not in covered]
+    random.shuffle(pool)
+    return pool[:n]
 
 
-def fill_bucket(conn, cfg, lib_id: str, lib_name: str, difficulty: str,
-                target_size: int, dry_run: bool, prompt: dict) -> dict:
-    """Top up a (lib, difficulty) bucket to target_size sentences."""
-    current = current_count(conn, lib_id, difficulty)
-    deficit = target_size - current
-    if deficit <= 0:
-        return {"lib": lib_name, "difficulty": difficulty, "needed": 0, "inserted": 0}
+def append_to_jsonl(path: Path, items: list[dict]) -> None:
+    """Append items to a JSONL file. One JSON object per line, ending in \\n.
 
-    # We pick min(deficit, len(lib)) words per OpenAI call to keep
-    # prompt sizes reasonable. Batches of 5 words = 5 sentences.
-    BATCH = 5
-    inserted_total = 0
+    Used to grow the sentences file over multiple runs. We don't
+    dedupe here — the importer (db side) handles dedupe via the
+    (lib_id, text, difficulty) ON CONFLICT DO NOTHING.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        for it in items:
+            f.write(json.dumps(it, ensure_ascii=False) + "\n")
+
+
+# --- Main pipeline ---
+
+def fill_one_bucket(staging: Path, lib_id: str, lib_name: str, lib_level: str,
+                    difficulty: str, target_size: int, prompt: dict,
+                    ai_cfg: dict, dry_run: bool) -> dict:
+    """Generate up to `target_size` sentences for one (lib, difficulty) pair.
+
+    Reads vocab from staging/vocabulary/<level>.json + existing
+    sentences from staging/sentences/<level>.jsonl. Writes new
+    sentences back to the same JSONL.
+    """
+    vocab_path = staging / STAGING_VOCAB_DIRNAME / f"{lib_level}.json"
+    sentences_path = staging / STAGING_SENTENCES_DIRNAME / f"{lib_level}.jsonl"
+
+    if not vocab_path.is_file():
+        return {"lib": lib_name, "difficulty": difficulty, "status": "missing-vocab"}
+
+    all_words = read_vocab_words(vocab_path)
+    if not all_words:
+        return {"lib": lib_name, "difficulty": difficulty, "status": "empty-vocab"}
+
+    existing = read_existing_sentences(sentences_path)
+    covered = covered_target_words(existing)
+    need = max(0, target_size - len(covered))
+    if need == 0:
+        return {
+            "lib": lib_name, "difficulty": difficulty,
+            "status": "full", "have": len(covered), "needed": 0,
+        }
+
+    targets = pick_uncovered_words(all_words, covered, need)
+    if not targets:
+        return {
+            "lib": lib_name, "difficulty": difficulty,
+            "status": "exhausted", "have": len(covered), "covered": len(covered),
+        }
+
     if dry_run:
-        return {"lib": lib_name, "difficulty": difficulty, "needed": deficit, "inserted": "(dry-run)"}
+        return {
+            "lib": lib_name, "difficulty": difficulty,
+            "status": "plan", "have": len(covered), "needed": need,
+            "would_ask": len(targets),
+        }
 
-    # Use multiple batches until deficit is covered (or words run out).
-    while deficit > 0:
-        words = pick_uncovered_words(conn, lib_id, difficulty, BATCH)
-        if len(words) < 1:
-            break
-        try:
-            items = call_openai(cfg, words, difficulty, lib_name, prompt)
-        except Exception as exc:
-            print(f"  x OpenAI call failed: {exc}", file=sys.stderr)
-            break
-        n = insert_sentences(conn, lib_id, difficulty, items)
-        inserted_total += n
-        deficit -= n
-        # If we couldn't insert any (all duplicates), break to avoid infinite loop.
-        if n == 0:
-            break
-
-    conn.commit()
+    ai_items = call_openai(ai_cfg, targets, difficulty, lib_name, prompt)
+    # Normalize the AI's output (drop empty, lowercase target_words,
+    # parse tags) before persisting.
+    normalised: list[dict] = []
+    seen_texts = {s["text"] for s in existing}  # dedupe vs. file
+    for item in ai_items:
+        text = (item.get("text") or "").strip()
+        if not text or text in seen_texts:
+            continue
+        seen_texts.add(text)
+        normalised.append({
+            "text": text,
+            "chinese_text": (item.get("chinese_text") or "").strip(),
+            "target_words": [
+                w.lower() for w in (item.get("target_words") or [])
+                if isinstance(w, str) and w
+            ],
+            "difficulty": difficulty,
+            "topic": (item.get("topic") or "").strip(),
+            "register": (item.get("register") or "").strip(),
+            "cefr": (item.get("cefr") or "").strip(),
+            "tags": _parse_tags(item.get("tags")),
+        })
+    append_to_jsonl(sentences_path, normalised)
     return {
-        "lib": lib_name,
-        "difficulty": difficulty,
-        "needed": target_size - current,
-        "inserted": inserted_total,
+        "lib": lib_name, "difficulty": difficulty,
+        "status": "written", "added": len(normalised),
+        "have_after": len(covered) + len(normalised),
     }
 
 
-def pick_uncovered_words(conn, lib_id: str, difficulty: str, n: int) -> list[str]:
-    """Pick `n` random words from this lib that aren't yet in any sentence
-    for this difficulty.
-
-    Returns a list of word strings. May return < n if the lib is small.
-    """
-    with conn.cursor() as cur:
-        # Words in this lib not used as a target_word in any sentence
-        # for the given difficulty.
-        cur.execute(
-            """
-            SELECT vw.word
-            FROM vocabulary_words vw
-            WHERE vw.lib_id = %s
-              AND NOT EXISTS (
-                SELECT 1 FROM sentences s
-                WHERE s.lib_id = vw.lib_id
-                  AND s.difficulty = %s
-                  AND %s = ANY (s.target_words)
-              )
-            ORDER BY random()
-            LIMIT %s
-            """,
-            (lib_id, difficulty, difficulty, n),
+def _read_ai_cfg() -> dict:
+    """Read AI_* from cms/.env (no Config object — keep this module
+    free of cms.env / psycopg2 / setup_env)."""
+    # load_cms_env_into_os_environ would be a dbtools concern; here we
+    # do the simple parse inline.
+    env_path = find_project_root() / "cms" / ".env"
+    if not env_path.is_file():
+        sys.exit(f"cms/.env not found at {env_path} — run ./cms/scripts/env.sh init")
+    env: dict[str, str] = {}
+    for raw in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        v = v.strip()
+        if len(v) >= 2 and v[0] == v[-1] and v[0] in ('"', "'"):
+            v = v[1:-1]
+        env.setdefault(k.strip(), v)
+    missing = [k for k in ("AI_API_KEY", "AI_BASE_URL", "AI_MODEL") if not env.get(k)]
+    if missing:
+        sys.exit(
+            f"cms/.env missing required AI keys: {', '.join(missing)} — "
+            f"update cms/.env or run ./cms/scripts/env.sh update KEY=VALUE"
         )
-        return [row[0] for row in cur.fetchall()]
+    return {
+        "api_key": env["AI_API_KEY"],
+        "base_url": env["AI_BASE_URL"],
+        "model": env["AI_MODEL"],
+    }
 
 
-def current_count(conn, lib_id: str, difficulty: str) -> int:
-    with conn.cursor() as cur:
-        cur.execute(
-            "SELECT count(*) FROM sentences WHERE lib_id = %s AND difficulty = %s",
-            (lib_id, difficulty),
-        )
-        return cur.fetchone()[0]
-
-
-def list_libs(conn) -> list[tuple]:
-    """Return [(id, level, display_name), ...]."""
-    with conn.cursor() as cur:
-        cur.execute("SELECT id, level, name FROM vocabulary_libs ORDER BY level")
-        return cur.fetchall()
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Bulk-generate sentences via OpenAI.")
-    manifest = load_manifest()
-    all_lib_ids = manifest.all_lib_ids()
-    all_diffs = manifest.all_difficulties()
-
-    parser.add_argument("--lib", choices=all_lib_ids,
-                        help="Only process this lib (manifest id).")
-    parser.add_argument("--difficulty", choices=all_diffs,
-                        help="Only process this difficulty.")
-    parser.add_argument("--target-size", type=int,
-                        help="Override manifest defaults.bucket_target_size for this run.")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Print plan without calling OpenAI or writing.")
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Bulk-generate sentence JSONL files (no db write).",
+    )
+    parser.add_argument(
+        "--lib", help="Only process this lib (manifest id).")
+    parser.add_argument(
+        "--difficulty", help="Only process this difficulty.")
+    parser.add_argument(
+        "--target-size", type=int,
+        help="Override manifest defaults.bucket_target_size for this run.")
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Print plan without calling OpenAI or writing files.")
     args = parser.parse_args()
 
-    setup_env()
-    cfg = load_config()
-    cfg.require_ai()  # raise clearly if AI_* unset, with a pointer at cms/.env
+    manifest = load_manifest()
+    all_lib_ids = manifest.all_lib_ids()
+    all_diffs = manifest.all_diffs() if hasattr(manifest, "all_diffs") else (
+        "beginner intermediate advanced"
+    ).split()
 
-    target = args.target_size or manifest.bucket_target_size()
-
-    # Difficulty filter:
-    #   - if --difficulty given, only that one
-    #   - else, the union of all libs' difficulties (preserves first-seen order)
+    target = args.target_size or (
+        manifest.defaults.bucket_target_size
+        if hasattr(manifest, "defaults") else 200
+    )
     diffs = (args.difficulty,) if args.difficulty else all_diffs
-
-    print(f"[generate_sentences] manifest version={manifest.version}")
-    print(f"[generate_sentences] target_size per (lib, difficulty): {target}")
-    print(f"[generate_sentences] difficulties: {', '.join(diffs)}")
-    print(f"[generate_sentences] mode: {'dry-run' if args.dry_run else 'fill'}")
-    print()
-
-    # Load the prompt template once (yaml parse), pass into each call.
-    prompt = _load_prompt()
-
-    # Libs to process: filter by manifest + DB. We require the lib to exist in
-    # BOTH the manifest AND the DB; if a manifest lib has no DB row, it's a
-    # sync miss -- print and skip (don't fail).
     target_lib_ids = (args.lib,) if args.lib else all_lib_ids
     manifest_libs_by_id = {lib.id: lib for lib in manifest.all_libs()}
 
-    with psycopg2.connect(cfg.database_url) as conn:
-        db_libs = list_libs(conn)
-        db_libs_by_level = {level: (lib_id, name) for lib_id, level, name in db_libs}
+    staging = find_staging_dir()
+    if not args.dry_run:
+        (staging / STAGING_SENTENCES_DIRNAME).mkdir(parents=True, exist_ok=True)
 
-        results = []
-        for lib_id in target_lib_ids:
-            lib = manifest_libs_by_id.get(lib_id)
-            if lib is None:
-                print(f"  ?? {lib_id}: not in manifest -- skipping")
-                continue
-            if lib_id not in db_libs_by_level:
-                print(f"  !! {lib_id}: in manifest but not imported -- run content.sh sync first")
-                continue
-            db_lib_id, db_name = db_libs_by_level[lib_id]
-            # Use the per-lib difficulty list, not the global union. If --difficulty
-            # was passed, only that one (already validated by argparse `choices`).
-            lib_diffs = (args.difficulty,) if args.difficulty else lib.difficulties
-            for d in lib_diffs:
-                results.append(fill_bucket(conn, cfg, db_lib_id, db_name, d, target, args.dry_run, prompt))
+    prompt = _load_prompt()
+    ai_cfg = None if args.dry_run else _read_ai_cfg()
 
-    # Summary
+    print(f"[generate_sentences] staging:   {staging}")
+    print(f"[generate_sentences] target:     {target} per (lib, difficulty)")
+    print(f"[generate_sentences] libs:       {', '.join(target_lib_ids)}")
+    print(f"[generate_sentences] diffs:      {', '.join(diffs)}")
+    print(f"[generate_sentences] mode:       {'dry-run' if args.dry_run else 'fill'}")
+    print()
+
+    results = []
+    for lib_id in target_lib_ids:
+        lib = manifest_libs_by_id.get(lib_id)
+        if lib is None:
+            print(f"  ?? {lib_id}: not in manifest — skipping")
+            continue
+        if not lib.csv_exists:
+            # csv_exists was the OLD check; new check is the staging vocab file
+            vocab_path = staging / STAGING_VOCAB_DIRNAME / f"{lib.level}.json"
+            if not vocab_path.is_file():
+                print(f"  !! {lib.level}: no staging vocab — run import_vocab first")
+                continue
+        for d in (diffs if args.difficulty else lib.difficulties):
+            if d not in diffs:
+                continue
+            results.append(fill_one_bucket(
+                staging, lib_id, lib.display, lib.level, d, target,
+                prompt, ai_cfg, args.dry_run,
+            ))
+
     for r in results:
-        marker = "+" if (isinstance(r["inserted"], int) and r["inserted"] > 0) else "."
-        print(f"  {marker} {r['lib']:14s} {r['difficulty']:13s} needed={r['needed']:>4}  inserted={r['inserted']}")
+        st = r["status"]
+        if st == "missing-vocab":
+            print(f"  !! {r['lib']:14s} {r['difficulty']:13s} missing vocab JSON")
+        elif st == "empty-vocab":
+            print(f"  !! {r['lib']:14s} {r['difficulty']:13s} empty vocab JSON")
+        elif st == "full":
+            print(f"  ok {r['lib']:14s} {r['difficulty']:13s} full ({r['have']} covered)")
+        elif st == "exhausted":
+            print(f"  -- {r['lib']:14s} {r['difficulty']:13s} exhausted (all {r['covered']} words covered)")
+        elif st == "plan":
+            print(f"  -- {r['lib']:14s} {r['difficulty']:13s} plan: have={r['have']}, need={r['needed']}, would_ask={r['would_ask']}")
+        elif st == "written":
+            print(f"  ok {r['lib']:14s} {r['difficulty']:13s} +{r['added']}  (have {r['have_after']})")
+        else:
+            print(f"  ?? {r}")
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

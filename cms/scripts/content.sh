@@ -3,8 +3,6 @@
 # cms/scripts/content.sh — orchestrate the content production pipeline.
 #
 # Subcommands (all idempotent; safe to re-run):
-#   init-schema Run pending schema migrations + create_all safety net
-#              (dbtools/init_schema.py -> dbtools.migrations.upgrade_head).
 #   sync       Import vocabulary CSVs → vocabulary_libs / vocabulary_words.
 #              (pipeline/import_vocab.py)
 #   sentences  Bulk-generate practice sentences via OpenAI.
@@ -39,7 +37,7 @@ source "$SCRIPT_DIR/../../scripts/lib.sh"
 # generate_audio) live at cms/tools/cms/. The schema / migrations
 # live at db/tools/dbtools/. Both packages have to coexist on
 # PYTHONPATH (so `python -m cms.X` for data pipeline and
-# `python -m dbtools.init_schema` for schema both work) — the
+# both work) — the
 # package names are different so they don't shadow each other.
 export PYTHONPATH="${PROJECT_DIR}/cms/tools:${PROJECT_DIR}/db/tools${PYTHONPATH:+:$PYTHONPATH}"
 
@@ -177,10 +175,6 @@ cmd_sync() {
     "$(py)" -m cms.import_vocab "$@"
 }
 
-cmd_init_schema() {
-    "$(py)" -m cms.init_schema "$@"
-}
-
 cmd_sentences() {
     "$(py)" -m cms.generate_sentences "$@"
 }
@@ -214,7 +208,6 @@ usage() {
 用法: $0 <command> [args]
 
 命令:
-  init-schema  运行 pending schema migrations + create_all 兜底 (一次性, 幂等)
   sync         把 cms/source/vocabulary/*.csv 灌进 vocabulary_libs / vocabulary_words
   sentences  调 OpenAI 批量生成 sentences (填到 DEFAULT_BUCKET_TARGET_SIZE)
   audio      调 Tencent TTS 批量烤 MP3 (跳过 audio_url 已设的句子)
@@ -230,7 +223,6 @@ usage() {
 
 典型工作流 (CMS 主机,首次):
   ./cms/scripts/env.sh                   # cms/.env 引导 (一次性)
-  $0 init-schema                            # migrations + create_all 兜底 (一次性, 幂等)
   $0 sync                                   # csv → DB
   $0 sentences                              # OpenAI 填句子
   $0 audio                                  # TTS 烤 MP3
@@ -241,7 +233,6 @@ EOF
 
 case "${1:-}" in
     doctor)        cmd_doctor || exit 1 ;;
-    init-schema)   shift; cmd_init_schema "$@" ;;
     sync)          shift; cmd_sync "$@" ;;
     sentences)     shift; cmd_sentences "$@" ;;
     audio)         shift; cmd_audio "$@" ;;

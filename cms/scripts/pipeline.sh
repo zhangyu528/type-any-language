@@ -6,10 +6,16 @@
 #
 # What it does (in order):
 #   (a) ensure a postgres source is reachable (container / local / fresh run)
-#   (b) apply schema migrations + create_all safety net
-#   (c) import vocab CSVs → vocabulary_libs / vocabulary_words
-#   (d) AI-fill sentences (best-effort — skipped if AI_* unset, warn-on-fail)
-#   (e) TTS-fill audio       (best-effort — skipped if TENCENT_* unset, warn-on-fail)
+#   (b) import vocab CSVs → cms/.local/staging/vocabulary/<lib>.json
+#       (no db write — the CMS pipeline produces files only)
+#   (c) AI-fill sentences → cms/.local/staging/sentences/<lib>.jsonl
+#       (best-effort — skipped if AI_* unset, warn-on-fail)
+#   (d) TTS-fill audio → updates audio_url in the same sentences JSONL
+#       (best-effort — skipped if TENCENT_* unset, warn-on-fail)
+#   (e) db/scripts/import_staging.sh — reads the staging files and
+#       UPSERTs into vocabulary_libs / vocabulary_words / sentences.
+#       This step is on db/scripts/ because the db schema is db's
+#       concern; the CMS pipeline only knows about files.
 #
 # Notably absent: db image bake. That's db/scripts/build.sh's job — see
 # the cms/scripts/full_bake.sh one-liner wrapper at the same path if you
@@ -164,28 +170,40 @@ cmd_run() {
     info "  (a) ensure source db"
     ensure_source_db || return 1
 
-    # (b) schema (idempotent — CREATE TABLE IF NOT EXISTS).
-    run_content_step "init-schema" init-schema || return 1
+    # (b) vocab CSVs → staging JSON files (idempotent — skip-existing).
+    #     The CMS pipeline no longer writes db directly. Output files
+    #     land in cms/.local/staging/vocabulary/<lib>.json. The db side
+    #     imports them via db/scripts/import_staging.sh.
+    run_content_step "sync (CSVs → staging)" sync || return 1
 
-    # (c) vocab CSVs → DB (idempotent — skip-existing per commit 0a14705).
-    run_content_step "sync (CSVs → vocab)" sync || return 1
-
-    # (d) AI-fill sentences. Best-effort: AI_* missing → skip; API fails →
-    # warn and continue (runtime still comes up, /api/sentences returns []).
+    # (c) AI-fill sentences. Writes to cms/.local/staging/sentences/<lib>.jsonl.
+    #     Best-effort: AI_* missing → skip; API fails → warn and continue.
     if [ -n "${AI_API_KEY:-}" ] && [ -n "${AI_BASE_URL:-}" ] && [ -n "${AI_MODEL:-}" ]; then
-        run_content_step "sentences (AI-fill)" sentences || \
+        run_content_step "sentences (AI-fill → JSONL)" sentences || \
             warn "  sentences 失败 — 跳过 (runtime 起来后 /api/sentences 会返回空)"
     else
         warn "  跳过 sentences (AI_API_KEY / AI_BASE_URL / AI_MODEL 没设齐)"
     fi
 
-    # (e) TTS audio. All-or-nothing: any TENCENT_* missing → skip.
+    # (d) TTS audio. Reads sentences JSONL, fills audio_url in-place.
+    #     All-or-nothing: any TENCENT_* missing → skip.
     if [ -n "${TENCENT_SECRET_ID:-}" ] && [ -n "${TENCENT_SECRET_KEY:-}" ] && \
        [ -n "${TENCENT_APP_ID:-}" ]; then
-        run_content_step "audio (TTS-fill)" audio || \
+        run_content_step "audio (TTS-fill → JSONL)" audio || \
             warn "  audio 失败 — 跳过 (sentences.audio_url 没填 /audio/<hash>.mp3 会 404)"
     else
         warn "  跳过 audio (TENCENT_* 没填齐)"
+    fi
+
+    # (e) db import. Reads staging files written by (b)/(c)/(d) and
+    #     UPSERTs into vocabulary_libs / vocabulary_words / sentences.
+    #     Idempotent — re-runs skip existing rows.
+    info "  (e) import staging → db"
+    if "$PROJECT_DIR/db/scripts/import_staging.sh" all; then
+        ok "  import_staging ok"
+    else
+        err "  import_staging 失败 — 看上面错误"
+        return 1
     fi
 
     ok "  pipeline 完成 — 内容已写到 staging db"
@@ -199,7 +217,7 @@ usage() {
 用法: $0 <command>
 
 命令:
-  (无参数) | run    跑完整 CMS pipeline (ensure-db → init-schema → sync → sentences → audio)
+  (无参数) | run    跑完整 CMS pipeline (ensure-db → sync → sentences → audio → import_staging)
   doctor            prefight: cms/.env + POSTGRES_PASSWORD + content.sh doctor + docker
   -h|--help|help    显示本帮助
 
