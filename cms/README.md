@@ -20,8 +20,6 @@ cms/
 │   ├── vocabulary/     # 每个 lib 的 CSV
 │   └── prompts/        # LLM prompt 模板(sentences.yaml 等)
 │
-├── tools/              # orphaned cms-sidecar Dockerfile (历史残留; 下轮清理)
-│   └── Dockerfile      # cms-sidecar (LOCAL-ONLY sidecar,从未真的 build 过)
 ├── cms_pipeline/        # Python 包(manifest / import_vocab / generate_sentences / generate_audio / storage / env)
 │   └── README.md       # 模块清单 + ETL 流向
 │

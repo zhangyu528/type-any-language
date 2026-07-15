@@ -112,8 +112,6 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generat
 │   │   └── staging.sh    # E+T file producer wrapper
 │   ├── cms_pipeline/     # Python package (manifest / import_vocab / generate_sentences / generate_audio / storage / env)
 │   │   └── README.md
-│   ├── tools/            # orphaned cms-sidecar Dockerfile (next-pass cleanup)
-│   │   └── Dockerfile
 ├── db/                # Postgres image build context (postgres:15-alpine wrapper)
 │   ├── Dockerfile    # copies init/01-content.sql (NO audio — db image has no MP3s)
 │   ├── builder.py    # assemble(bundle) + build_image(target, tag, ...)

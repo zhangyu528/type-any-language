@@ -950,31 +950,8 @@ project/
 │   │   └── prompts/                  # LLM prompt 模板
 
 
-│   ├── tools/                        # CMS 工具链（不入 image，只活 CMS 主机）
-
-
-│   │   ├── Dockerfile                # cms-sidecar
-
-
-│   │   └── cms/                      # Python 包
-
-
-│   │       ├── env.py
-
-
-│   │       ├── manifest.py
-
-
-│   │       ├── import_vocab.py
-
-
-│   │       ├── generate_sentences.py
-
-
-│   │       ├── generate_audio.py
-
-
-│   │       └── export_bundle.py
+│   │   └── cms_pipeline/             # Python 包
+│       (注: 原 "tools/Dockerfile + cms/" 子树已下线 — 见 CLAUDE.md 当前仓库结构)
 
 
 │   └── runtime/                      # Postgres image 构建上下文 + bake 输出物
