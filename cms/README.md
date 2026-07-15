@@ -52,7 +52,7 @@ db/
 
 | 段 | 装什么 | 谁维护 | git 跟踪 | 进了 image 吗 |
 |---|---|---|---|---|
-| `cms/source/` | 业务内容描述 | 运维(人工) | ✓ | 否(只是输入) |
+| `cms/seed/` | 业务内容描述 | 运维(人工) | ✓ | 否(只是输入) |
 | `cms/tools/`  | 处理这些内容的 Python/Docker | 开发者 | ✓ | 否(只在 CMS 主机跑) |
 | `cms/scripts/` | 操作员对 cms 跑的 shell 工具 | 开发者 | ✓ | 否 |
 | `db/`       | **被**烤进 db image 的构建上下文 | 半自动(bake 写 `init/01-content.sql`) | ✓ Dockerfile + builder.py + scripts/ | ✓ / 部分 |
@@ -63,7 +63,7 @@ db/
 
 ```
                 CMS 主机 (Python, 不连 DB)
-cms/source/vocabulary/*.csv                                                  (源)
+cms/seed/vocabulary/*.csv                                                  (源)
         ↓  cms/scripts/staging.sh sync (import_vocab.py)                     (E: Extract)
 cms/.local/staging/vocabulary/<lib>.json
         ↓  cms/scripts/staging.sh sentences (generate_sentences.py, OpenAI)  (T: Transform)

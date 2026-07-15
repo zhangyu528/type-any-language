@@ -34,9 +34,9 @@ The CMS/db split follows an ETL pattern: **E**xtract (CSVs) and **T**ransform
 ```
         CMS host (Python)                              CMS/db boundary
                                                                        
-   cms/source/vocabulary/*.csv  ─┐                                    
-   cms/source/prompts/*.yaml    │                                    
-   cms/source/manifest.yaml     │   a) import_vocab.py                
+   cms/seed/vocabulary/*.csv  ─┐                                    
+   cms/seed/prompts/*.yaml    │                                    
+   cms/seed/manifest.yaml     │   a) import_vocab.py                
                                 ├──────────────►  cms/.local/staging/ 
    cms/.env (AI_*, TENCENT_*)   │                     vocabulary/    
                                 │                     *.json         
@@ -425,7 +425,7 @@ Answer validation is **client-side**: the frontend normalizes (lowercase, strip 
 ## Data flow
 
 **Bake time (CMS host, ETL file-based):**
-1. Operator commits new CSVs to `cms/source/vocabulary/`.
+1. Operator commits new CSVs to `cms/seed/vocabulary/`.
 2. `staging.sh sync` writes them to `cms/.local/staging/vocabulary/<lib>.json` (no db write).
 3. `staging.sh sentences` calls OpenAI and appends to `cms/.local/staging/sentences/<lib>.jsonl` up to `DEFAULT_BUCKET_TARGET_SIZE` per (lib, difficulty).
 4. `staging.sh audio` calls Tencent TTS; MP3s land in the configured `Storage` (local `cms/.local/audio/` by default, or Tencent Cloud COS when `CLOUD_PROVIDER=tencent_cos`), and each sentence's `audio_url` field in the JSONL is set to the storage's `public_url(key)`.

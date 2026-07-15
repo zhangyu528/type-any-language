@@ -223,7 +223,7 @@ usage() {
 用法: $0 <command> [args]
 
 命令:
-  sync         把 cms/source/vocabulary/*.csv 写到 cms/.local/staging/vocabulary/<lib>.json (E: Extract)
+  sync         把 cms/seed/vocabulary/*.csv 写到 cms/.local/staging/vocabulary/<lib>.json (E: Extract)
   sentences  调 OpenAI 追加句子到 cms/.local/staging/sentences/<lib>.jsonl (T: Transform)
   audio      调 Tencent TTS 烤 MP3,更新 audio_url 字段 (T: Transform; 跳过已设的)
   export       pass-through to db/scripts/export_bundle.py(为 muscle memory 留的)

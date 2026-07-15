@@ -139,15 +139,15 @@ cmd_doctor() {
         ok "Docker daemon running"
     fi
 
-    if [ ! -d "cms/source" ]; then
-        # cms/source is the CMS pipeline's input. The db image bake
+    if [ ! -d "cms/seed" ]; then
+        # cms/seed is the CMS pipeline's input. The db image bake
         # doesn't read it directly — export_bundle.py reads the
         # staging db, not the CSVs. But we still warn here because
-        # an empty cms/source often means the operator forgot to
+        # an empty cms/seed often means the operator forgot to
         # run `cms/scripts/env.sh init` (which scaffolds the
-        # example CSVs into cms/source/).
-        warn "cms/source directory missing — CMS pipeline output (staging db) may be empty"
-        info "  (db bake reads from staging db, not cms/source — but if you're"
+        # example CSVs into cms/seed/).
+        warn "cms/seed directory missing — CMS pipeline output (staging db) may be empty"
+        info "  (db bake reads from staging db, not cms/seed — but if you're"
         info "   seeing empty data, run ./cms/scripts/env.sh init to scaffold the example CSVs)"
     fi
 

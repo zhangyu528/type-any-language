@@ -1,4 +1,4 @@
-# cms/source/prompts/sentences.yaml — OpenAI prompt template for sentence generation.
+# cms/seed/prompts/sentences.yaml — OpenAI prompt template for sentence generation.
 #
 # Extracted from cms/cms_pipeline/generate_sentences.py:80-108 so prompt tweaks are
 # a yaml edit, not a Python edit.

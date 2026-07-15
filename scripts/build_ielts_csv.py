@@ -9,7 +9,7 @@ Source format (one entry per line, word List NN headers skipped):
     pretentious /prɪˈtenʃəs/ a. 自命不凡的，自负的；...
     curbside /ˏkɜːbˈsaɪd/  n. 路边；人行道的边缘
 
-Project format (the rest of cms/source/vocabulary/*.csv):
+Project format (the rest of cms/seed/vocabulary/*.csv):
     word,phonetic,translation,part_of_speech
     boat,,小船；轮船 v. 划船,n
     group,,组；团体 adj. 群的；团体的 v. 聚合,n
@@ -20,7 +20,7 @@ pipeline doesn't use it). part_of_speech is the FIRST POS letter found
 in the translation (n / v / a / ad / vt / vi / prep / conj / num /
 pron / interj / art) — single-letter to match beginner.csv style.
 
-Output: cms/source/vocabulary/ielts.csv (LF line endings, no BOM).
+Output: cms/seed/vocabulary/ielts.csv (LF line endings, no BOM).
 
 Source: https://github.com/fanhongtao/IELTS/blob/master/IELTS%20Word%20List.txt
 Author: 新东方《雅思词汇词根+联想记忆法（乱序便携版）》

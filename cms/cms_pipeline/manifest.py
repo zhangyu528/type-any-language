@@ -1,5 +1,5 @@
 """
-cms/cms_pipeline/manifest.py — load and validate cms/source/manifest.yaml.
+cms/cms_pipeline/manifest.py — load and validate cms/seed/manifest.yaml.
 
 The manifest is the single source of truth for "what content does this app
 ship" — adding a new vocabulary lib, a new difficulty level, or tweaking
@@ -12,7 +12,7 @@ returned here; they never parse yaml themselves.
 Usage:
     from cms_pipeline.manifest import load_manifest
 
-    m = load_manifest()                     # default path (cms/source/manifest.yaml)
+    m = load_manifest()                     # default path (cms/seed/manifest.yaml)
     for lib in m.all_libs():                # iterate libs
         print(lib.id, lib.display)
     m.get_lib("cet4")                       # one lib by id, or None
@@ -39,11 +39,11 @@ _SUPPORTED_VERSIONS = (1,)
 # Mirrors the pattern in cms/cms_pipeline/env.py:_project_root(): this file lives
 # at cms/cms_pipeline/manifest.py, so project root is two parents up.
 def _project_root() -> Path:
-    return Path(__file__).resolve().parent.parent.parent.parent
+    return Path(__file__).resolve().parent.parent.parent
 
 
 def _default_manifest_path() -> Path:
-    return _project_root() / "cms" / "source" / "manifest.yaml"
+    return _project_root() / "cms" / "seed" / "manifest.yaml"
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +125,7 @@ def load_manifest(path: Path | None = None) -> Manifest:
     """Parse manifest.yaml and return a validated `Manifest`.
 
     Args:
-        path: optional override; defaults to cms/source/manifest.yaml.
+        path: optional override; defaults to cms/seed/manifest.yaml.
 
     Raises:
         SystemExit on validation error (file not found, missing keys, wrong
@@ -136,7 +136,7 @@ def load_manifest(path: Path | None = None) -> Manifest:
     if not manifest_path.is_file():
         sys.exit(
             f"manifest not found at {manifest_path}\n"
-            f"  Expected: cms/source/manifest.yaml at the project root.\n"
+            f"  Expected: cms/seed/manifest.yaml at the project root.\n"
             f"  Run from the project root, or check that the file is committed."
         )
 
@@ -297,7 +297,7 @@ def _print_summary(m: Manifest) -> None:
 
 def main() -> None:
     import argparse
-    parser = argparse.ArgumentParser(description="Validate cms/source/manifest.yaml")
+    parser = argparse.ArgumentParser(description="Validate cms/seed/manifest.yaml")
     parser.add_argument("--path", type=Path, default=None, help="Override manifest path")
     args = parser.parse_args()
 

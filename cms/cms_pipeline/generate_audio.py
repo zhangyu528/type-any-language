@@ -40,7 +40,7 @@ import time
 from pathlib import Path
 
 if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
     from cms_pipeline.storage import get_storage, LocalFsStorage
 else:
     from .storage import get_storage, LocalFsStorage
@@ -54,7 +54,7 @@ DEFAULT_SAMPLE_RATE = 16000
 
 def find_project_root() -> Path:
     """Project root = 4 hops up from cms/cms_pipeline/generate_audio.py."""
-    return Path(__file__).resolve().parent.parent.parent.parent
+    return Path(__file__).resolve().parent.parent.parent
 
 
 def find_staging_dir() -> Path:

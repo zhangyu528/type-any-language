@@ -27,7 +27,7 @@ from pathlib import Path
 import psycopg2
 
 # --- Make cms + backend importable ---
-ROOT = Path(__file__).resolve().parent.parent.parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "backend"))
 sys.path.insert(0, str(ROOT))                # cms/tools/ — data pipeline
 sys.path.insert(0, str(ROOT / "db" / "tools"))  # db/tools/ — schema + migrations

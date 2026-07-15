@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-import_vocab.py — read vocabulary CSVs (from cms/source/manifest.yaml)
+import_vocab.py — read vocabulary CSVs (from cms/seed/manifest.yaml)
 → write per-lib JSON files to cms/.local/staging/vocabulary/<lib>.json.
 
 This module is a **pure producer** in the CMS pipeline:
@@ -9,7 +9,7 @@ This module is a **pure producer** in the CMS pipeline:
   - Does NOT touch the db
 
 The data flow now is:
-    cms/source/vocabulary/*.csv   ← operator-maintained
+    cms/seed/vocabulary/*.csv   ← operator-maintained
         ↓
     [import_vocab.py]              ← THIS MODULE
         ↓
@@ -67,7 +67,7 @@ from pathlib import Path
 # Allow running this file directly (python import_vocab.py) AND as
 # `python -m cms_pipeline.import_vocab` from the project root.
 if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
     from cms_pipeline.manifest import LibDef, load_manifest
 else:
     from .manifest import LibDef, load_manifest
@@ -82,7 +82,7 @@ def find_project_root() -> Path:
     walk depth differs from the dbtools modules. Don't relocate this
     file without updating the count.
     """
-    return Path(__file__).resolve().parent.parent.parent.parent
+    return Path(__file__).resolve().parent.parent.parent
 
 
 def find_staging_dir() -> Path:

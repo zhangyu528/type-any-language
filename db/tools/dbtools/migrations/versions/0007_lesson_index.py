@@ -33,7 +33,7 @@ description = "vocabulary_words: +lesson_index (positional, per-lib, size=5)"
 import psycopg2
 
 
-# Default lesson size, mirrored from cms/source/manifest.yaml's
+# Default lesson size, mirrored from cms/seed/manifest.yaml's
 # defaults.lesson_size. Kept as a module constant so the migration is
 # self-contained (doesn't need to read yaml to apply). If the operator
 # changes lesson_size in the manifest and wants to re-bucket, they can

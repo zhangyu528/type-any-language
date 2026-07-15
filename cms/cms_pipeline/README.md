@@ -6,7 +6,7 @@
 
 | 模块 | CLI 调用方式 | 用途 |
 |---|---|---|
-| `manifest.py` | `python -m cms_pipeline.manifest` | 加载 `cms/source/manifest.yaml`,校验 lib/difficulty/默认值。 |
+| `manifest.py` | `python -m cms_pipeline.manifest` | 加载 `cms/seed/manifest.yaml`,校验 lib/difficulty/默认值。 |
 | `import_vocab.py` | `python -m cms_pipeline.import_vocab` | CSV → `cms/.local/staging/vocabulary/<lib>.json`(**纯文件,** 不连 DB)。 |
 | `generate_sentences.py` | `python -m cms_pipeline.generate_sentences` | OpenAI → 追加到 `cms/.local/staging/sentences/<lib>.jsonl`(**纯文件,** 不连 DB)。 |
 | `generate_audio.py` | `python -m cms_pipeline.generate_audio` | 腾讯云 TTS → MP3 → Storage(LocalFs / Tencent COS),更新同一份 JSONL 的 `audio_url`(**纯文件,** 不连 DB)。 |
@@ -56,7 +56,7 @@ pip install openai tencentcloud-sdk-python pyyaml
 ## 流水线 (ETL 文件流)
 
 ```
-cms/source/vocabulary/*.csv                  ← 运维维护的源 (E: Extract)
+cms/seed/vocabulary/*.csv                  ← 运维维护的源 (E: Extract)
         ↓  staging.sh sync (import_vocab.py)
 cms/.local/staging/vocabulary/<lib>.json     ← 中间产物
         ↓  staging.sh sentences (generate_sentences.py, OpenAI)
