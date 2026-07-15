@@ -151,4 +151,3 @@ dev 目标机的 `run.sh` 也会读 `VERSION.prod` 来取 `DB_IMAGE_TAG`(因为 
 ## 参见
 
 - `../CLAUDE.md` —— 项目总览、双主机架构、完整命令参考
-- `../cms/cms_pipeline/README.md` —— Python 内容生产流水线(仅 CMS)

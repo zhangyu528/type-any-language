@@ -21,7 +21,6 @@ cms/
 │   └── prompts/        # LLM prompt 模板(sentences.yaml 等)
 │
 ├── cms_pipeline/        # Python 包(manifest / import_vocab / generate_sentences / generate_audio / storage / env)
-│   └── README.md       # 模块清单 + ETL 流向
 │
 ├── run.sh                # CMS driver 主入口(operator 第一个敲的; ensure-db + E+T)
 └── scripts/            # CMS 工具(operator 选跑的)
@@ -53,7 +52,7 @@ db/
 | 段 | 装什么 | 谁维护 | git 跟踪 | 进了 image 吗 |
 |---|---|---|---|---|
 | `cms/seed/` | 业务内容描述 | 运维(人工) | ✓ | 否(只是输入) |
-| `cms/tools/`  | 处理这些内容的 Python/Docker | 开发者 | ✓ | 否(只在 CMS 主机跑) |
+| `cms/cms_pipeline/` | CMS 端 Python 工具集 | 开发者 | ✓ | 否(只在 CMS 主机跑) |
 | `cms/scripts/` | 操作员对 cms 跑的 shell 工具 | 开发者 | ✓ | 否 |
 | `db/`       | **被**烤进 db image 的构建上下文 | 半自动(bake 写 `init/01-content.sql`) | ✓ Dockerfile + builder.py + scripts/ | ✓ / 部分 |
 

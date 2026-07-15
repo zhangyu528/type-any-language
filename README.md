@@ -20,7 +20,7 @@ CMS 主机把内容（词库 + AI 句子 + TTS 音频）烤进 db image，推到
 |---|---|---|
 | `backend/` | FastAPI 纯读层（无 AI / TTS） | [`backend/README.md`](backend/README.md) |
 | `frontend/` | Next.js 14 app（单页练习 UI） | [`frontend/README.md`](frontend/README.md) |
-| `cms/` | 内容服务（源 + CMS 工具链 + Postgres image 构建上下文） | [`cms/README.md`](cms/README.md), [`cms/cms_pipeline/README.md`](cms/cms_pipeline/README.md) |
+| `cms/` | 内容服务（源 + CMS 工具链 + Postgres image 构建上下文） | [`cms/README.md`](cms/README.md) |
 | `scripts/ops/{content,dev-host,prod-host}/` | 主机运维脚本 | 各脚本头部注释 |
 | `nginx/` | nginx 反向代理（prod 入口） | — |
 
@@ -130,4 +130,4 @@ export DOCKER_REGISTRY=...                 # 推前设一下
 ```
 
 CMS 流程的细节(每个 Python 工具的参数、词库 CSV 格式、db image label 含义)
-见 [`cms/cms_pipeline/README.md`](cms/cms_pipeline/README.md) 和 [`cms/README.md`](cms/README.md)。
+见 [`cms/README.md`](cms/README.md)。

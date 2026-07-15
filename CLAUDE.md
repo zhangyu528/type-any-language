@@ -198,7 +198,7 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 ./db/scripts/build.sh                            # db: bake db image
 ```
 
-`cms/scripts/staging.sh` is a thin wrapper over the `cms/cms_pipeline/*.py` modules. Each subcommand has its own `--help`. See `cms/cms_pipeline/README.md` for module details.
+`cms/scripts/staging.sh` is a thin wrapper over the `cms/cms_pipeline/*.py` modules. Each subcommand has its own `--help`. For module-by-module usage details, run `python -m cms_pipeline.<module> --help` (e.g. `python -m cms_pipeline.import_vocab --help`).
 
 ### 责任划分 (responsibility split)
 
