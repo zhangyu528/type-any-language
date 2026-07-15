@@ -1,7 +1,11 @@
 #!/bin/bash
 #
-# cms/scripts/etl.sh — orchestrate the CMS-side ETL steps (writes
-# staging files only; never opens a db connection).
+# cms/scripts/staging.sh — produce the CMS staging files (E+T only;
+# never opens a db connection).
+#
+# This script is the file-producer half of the CMS pipeline. All outputs
+# land in cms/.local/staging/ — naming matches `db/scripts/import_staging.sh`
+# which reads those files in the Load step.
 #
 # E: Extract
 #   sync       Import vocabulary CSVs → cms/.local/staging/vocabulary/<lib>.json.
@@ -14,26 +18,25 @@
 #              updates audio_url in the same sentences JSONL.
 #              (cms/tools/cms/generate_audio.py)
 # L: Load
-#   (NOT here — handled by db/scripts/import_staging.sh, which
-#    `cms/scripts/run.sh` invokes as the final step of the CMS driver.)
+#   (NOT here. The Load step is db/scripts/import_staging.sh + dbtools.importer
+#    — a separate db-side operator command. cms/scripts/run.sh wraps
+#    (a) ensure-db + (b/c/d) the steps here, but doesn't do L either.)
 #
-# Subcommands still here for parity:
+# Subcommands here for parity:
 #   export     Pass-through to db/scripts/export_bundle.py — the db's
-#              pg_dump entry point. Exposed as `etl.sh export` for
+#              pg_dump entry point. Exposed as `staging.sh export` for
 #              muscle memory; the actual code lives at db/scripts/.
 #   doctor     Pre-flight: cms/.env ready, py deps present.
 #   -h|help    Show usage.
 #
-# Typical workflow (CMS host) — these three commands write staging
-# files only; the db-side Load + bake is `cms/scripts/run.sh` (which
-# also calls db/scripts/import_staging.sh for you), then
-# db/scripts/build.sh:
-#   ./cms/scripts/etl.sh sync        # csv → cms/.local/staging/vocabulary/<lib>.json
-#   ./cms/scripts/etl.sh sentences   # OpenAI → cms/.local/staging/sentences/<lib>.jsonl
-#   ./cms/scripts/etl.sh audio       # TTS → updates audio_url in same JSONL
-#   ./cms/scripts/run.sh             # full driver: the above + import_staging
-#   ./db/scripts/build.sh            # bake the db image from staging db
-#   ./db/scripts/push.sh             # ship to registry
+# Typical workflow (CMS host) — the three operator commands:
+#   ./cms/scripts/staging.sh sync         # csv → cms/.local/staging/vocabulary/<lib>.json
+#   ./cms/scripts/staging.sh sentences    # OpenAI → cms/.local/staging/sentences/<lib>.jsonl
+#   ./cms/scripts/staging.sh audio        # TTS → updates audio_url in same JSONL
+#   ./cms/scripts/run.sh                  # full CMS driver (ensure-db + the 3 above)
+#   ./db/scripts/import_staging.sh all    # db: UPSERT staging 文件 → staging db
+#   ./db/scripts/build.sh                 # db: bake db image from staging db
+#   ./db/scripts/push.sh                  # ship to registry
 #
 # Each subcommand just wraps the underlying python module. Pass `--help`
 # to the wrapped CLI for the full flag list.
@@ -60,7 +63,7 @@ export PYTHONPATH="${PROJECT_DIR}/cms/tools:${PROJECT_DIR}/db/tools${PYTHONPATH:
 export PYTHONIOENCODING="${PYTHONIOENCODING:-utf-8}"
 
 # Pick a python interpreter. Lazy: only resolved when a subcommand actually
-# needs it. This way `etl.sh -h` and `etl.sh` (usage) work even on
+# needs it. This way `staging.sh -h` and `staging.sh` (usage) work even on
 # hosts without python3 (e.g. on a target host that only needs prod/dev
 # scripts, not CMS).
 py() { py_cmd; }
@@ -72,7 +75,7 @@ py() { py_cmd; }
 cmd_doctor() {
     local ok=1
 
-    echo "=== etl.sh pre-flight ==="
+    echo "=== staging.sh pre-flight ==="
     echo ""
 
     local env_file
@@ -124,14 +127,14 @@ cmd_doctor() {
     fi
 
     # AUDIO_DIR: code default, just show what's resolved (no fail if missing —
-    # etl.sh audio will mkdir -p when it runs). The default lives inside
+    # staging.sh audio will mkdir -p when it runs). The default lives inside
     # the project (cms/.local/audio) so Windows / sandboxed Linux hosts
     # can run audio without setting anything.
     local _audio_dir="${AUDIO_DIR:-cms/.local/audio}"
     if [ -d "$_audio_dir" ]; then
         ok "AUDIO_DIR=$_audio_dir  (目录存在)"
     else
-        info "AUDIO_DIR=$_audio_dir  (目录不存在, etl.sh audio 会自动 mkdir)"
+        info "AUDIO_DIR=$_audio_dir  (目录不存在, staging.sh audio 会自动 mkdir)"
     fi
 
     # TENCENT_* — all-or-nothing, but 0 is OK (only audio subcommand needs them).
@@ -210,7 +213,7 @@ cmd_export() {
     # SQL-dump entry point. CMS used to host export_bundle.py, but
     # it's now a db concern (the file lands in db-image/init/, which
     # is db's build input). This subcommand is a thin pass-through so
-    # operators who learned `etl.sh export` still have an entry
+    # operators who learned `staging.sh export` still have an entry
     # point without learning the new db/scripts/ path.
     "$(py)" "$PROJECT_DIR/db/scripts/export_bundle.py" "$@"
 }

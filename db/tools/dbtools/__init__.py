@@ -4,7 +4,7 @@ dbtools — db-side Python package (schema bootstrap + migrations).
 Lives at db/tools/dbtools/ (separate from the data-pipeline's
 `cms` package at cms/tools/cms/). The two packages coexist on
 PYTHONPATH because the data-pipeline still needs to invoke
-`dbtools.init_schema` from cms/scripts/etl.sh.
+`dbtools.init_schema` from cms/scripts/staging.sh.
 
 Modules in this package:
     init_schema   — bootstrap base DDL (CREATE TABLE IF NOT EXISTS)
@@ -29,9 +29,9 @@ Why this package isn't named "cms":
 This package is only loaded by db-side scripts:
    db/scripts/init_schema.sh
    db/scripts/migrate.sh
-   (and by cms/scripts/etl.sh's init-schema subcommand)
+   (and by cms/scripts/staging.sh's init-schema subcommand)
 
-The data-pipeline (cms/scripts/etl.sh sync / sentences / audio)
+The data-pipeline (cms/scripts/staging.sh sync / sentences / audio)
 does NOT import from this package — it only invokes
 dbtools.init_schema as a one-shot pre-flight step before the
 data pipeline starts writing to a freshly-bootstrapped db.

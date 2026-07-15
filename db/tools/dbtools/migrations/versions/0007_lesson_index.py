@@ -5,7 +5,7 @@ The "Target-Word Lesson" feature (PRD v0.4.0+) groups each lib's words
 into fixed-size lessons of N words (lesson_size = 5 by default). The
 grouping is purely positional within a lib: words 1-5 → lesson 1,
 words 6-10 → lesson 2, etc. The ordering source is (created_at, id),
-matching what `etl.sh sync` produces on a fresh import.
+matching what `staging.sh sync` produces on a fresh import.
 
 Why positional rather than explicit grouping:
   - The CSV header has no `lesson` column. Adding one would force every

@@ -37,8 +37,8 @@
 #
 # This script does NOT modify content. It only packages whatever is
 # currently in the DB. To update content, run
-# `cms/scripts/etl.sh {sync,sentences,audio,publish}` first.
-# Audio lives in Tencent Cloud COS (uploaded by etl.sh audio), not
+# `cms/scripts/staging.sh {sync,sentences,audio,publish}` first.
+# Audio lives in Tencent Cloud COS (uploaded by staging.sh audio), not
 # in this image — see CLAUDE.md for the full architecture.
 #
 # This script does NOT push. Pushing is a separate, intentional step:

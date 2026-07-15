@@ -11,7 +11,7 @@
 --
 -- Bookkeeping: pre-mark all 6 versions in schema_migrations so the
 -- migration runner thinks everything is up-to-date and becomes a no-op
--- on future `etl.sh init-schema` calls.
+-- on future `staging.sh init-schema` calls.
 
 \set ON_ERROR_STOP on
 

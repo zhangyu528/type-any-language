@@ -27,9 +27,9 @@ cms/
 │
 └── scripts/            # CMS 主机操作员脚本(直跑,不走 image)
     ├── env.sh          # cms/.env 生命周期
-    ├── etl.sh          # CMS-side ETL steps (sync / sentences / audio — E+T only)
-    ├── run.sh          # full CMS driver (E+T+L: etl.sh + import_staging.sh)
-    └── (no full_bake.sh; run.sh + db/scripts/build.sh 一气呵成)
+    ├── staging.sh          # CMS file producer (E+T: sync / sentences / audio — writes cms/.local/staging/)
+    ├── run.sh              # full CMS driver (ensure-db + staging.sh three E+T steps; does NOT do L)
+    └── (no full_bake.sh; run.sh + db/scripts/import_staging.sh + db/scripts/build.sh 三段独立)
 ```
 
 仓库根的 `db/` 目录是 db image 的构建上下文:
@@ -67,11 +67,11 @@ db/
 ```
                 CMS 主机 (Python, 不连 DB)
 cms/source/vocabulary/*.csv                                                  (源)
-        ↓  cms/scripts/etl.sh sync (import_vocab.py)                     (E: Extract)
+        ↓  cms/scripts/staging.sh sync (import_vocab.py)                     (E: Extract)
 cms/.local/staging/vocabulary/<lib>.json
-        ↓  cms/scripts/etl.sh sentences (generate_sentences.py, OpenAI)  (T: Transform)
+        ↓  cms/scripts/staging.sh sentences (generate_sentences.py, OpenAI)  (T: Transform)
 cms/.local/staging/sentences/<lib>.jsonl
-        ↓  cms/scripts/etl.sh audio     (generate_audio.py, TTS → Storage)
+        ↓  cms/scripts/staging.sh audio     (generate_audio.py, TTS → Storage)
         ↓      (audio_url 字段被填入; mp3 落到 COS 或 cms/.local/audio/)
 cms/.local/staging/sentences/<lib>.jsonl
 
@@ -100,10 +100,10 @@ frontend 请求 /api/sentences/random
 
 | 你想... | 跑 |
 |---|---|
-| 编辑了 CSV / 改了 manifest / 改了 prompt | `cms/scripts/etl.sh sync\|sentences\|audio` (单步;仅写文件) |
+| 编辑了 CSV / 改了 manifest / 改了 prompt | `cms/scripts/staging.sh sync\|sentences\|audio` (单步;仅写文件) |
 | 把所有 staging 文件一次性灌到 staging db | `db/scripts/import_staging.sh` (dbtools.importer;幂等,re-run 无害) |
-| 把整条 ETL + 灌 db 跑完 | `cms/scripts/run.sh` (= etl.sh sync/sentences/audio + import_staging.sh) |
-| 编辑了 CSV + 想马上出 image | `cms/scripts/run.sh` + `db/scripts/build.sh` (两段手动) |
+| 把整条 ETL + 灌 db 跑完 | `cms/scripts/run.sh` (ensure-db + E+T) **→** `db/scripts/import_staging.sh` (L) 两段独立跑 |
+| 编辑了 CSV + 想马上出 image | `cms/scripts/run.sh` (CMS E+T) + `db/scripts/import_staging.sh` (L) + `db/scripts/build.sh` (bake) 三段独立 |
 | 起 / 停 staging db 容器(无需跑 pipeline) | `db/scripts/source_db.sh` (ensure / start / stop / status) |
 | 在 staging db 上建表 / 跑迁移 | `db/scripts/init_schema.sh` + `db/scripts/migrate.sh` |
 | 改 db-image 的 Dockerfile / schema 形状 | `db/scripts/build.sh` 单独(只读 staging db,不跑 schema) |
@@ -117,12 +117,12 @@ frontend 请求 /api/sentences/random
 
 ## Audio 流向(注意:db image 不带 audio)
 
-- **生成**:`etl.sh audio` 调 Tencent TTS,MP3 写到 `Storage`(默认 `local_fs` 写到 `cms/.local/audio/`,或 `tencent_cos` 上传到 COS bucket)
+- **生成**:`staging.sh audio` 调 Tencent TTS,MP3 写到 `Storage`(默认 `local_fs` 写到 `cms/.local/audio/`,或 `tencent_cos` 上传到 COS bucket)
 - **持久化**:Storage 持有,`sentence.audio_url` 写为 `storage.public_url(key)`(local 是 `/audio/{hash}.mp3`,COS 是 `https://{bucket}.cos.{region}.myqcloud.com/audio/{hash}.mp3`)
 - **bake**:`db/scripts/build.sh` 不会把 audio 烤进 db image —— db image 只含 `dump.sql`(`vocabulary_*` + `sentences` 表的数据,包括 `audio_url` 字段)
 - **runtime**:target host 启动时 `01-content.sql` 加载,没有 audio init 步骤。前端读 `sentence.audio_url` 让浏览器直接拉
 
-> 这个设计的好处:db image 保持小(schema + sentences,几 MB),改 audio 不用 re-bake db image(只重传 COS / 重跑 `etl.sh audio`)。代价:生产环境需要 COS 账号 + 流量费用。
+> 这个设计的好处:db image 保持小(schema + sentences,几 MB),改 audio 不用 re-bake db image(只重传 COS / 重跑 `staging.sh audio`)。代价:生产环境需要 COS 账号 + 流量费用。
 
 ## OCI labels
 

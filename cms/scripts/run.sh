@@ -1,47 +1,46 @@
 #!/usr/bin/env bash
 #
-# cms/scripts/run.sh — drive the CMS side of ETL end-to-end. Equivalent
-# to the old "pipeline.sh": every step is a CMS-side concern — vocab
-# CSVs, AI/TTS calls — plus the final Load step (dbtools.importer) that
-# UPSERTs the staging files into the staging db.
+# cms/scripts/run.sh — drive the CMS side of ETL end-to-end (without
+# the Load step). Equivalent to the old "pipeline.sh": runs every
+# CMS-side step — staging-db ensure + E + T — and exits. The Load
+# step (dbtools.importer) is db's job and runs as a separate command:
+#
+#   ./db/scripts/import_staging.sh all    ← this script does NOT call it
 #
 # What it does (in order):
 #   (a) ensure a postgres source is reachable (container / local / fresh run)
-#   (b) etl.sh sync        — vocab CSVs → cms/.local/staging/vocabulary/<lib>.json
-#       (no db write — the CMS pipeline produces files only)
-#   (c) etl.sh sentences   — AI-fill → cms/.local/staging/sentences/<lib>.jsonl
+#   (b) staging.sh sync        — vocab CSVs → cms/.local/staging/vocabulary/<lib>.json
+#       (no db write — pure file producer)
+#   (c) staging.sh sentences   — AI-fill → cms/.local/staging/sentences/<lib>.jsonl
 #       (best-effort — skipped if AI_* unset, warn-on-fail)
-#   (d) etl.sh audio       — TTS-fill → updates audio_url in the same sentences JSONL
+#   (d) staging.sh audio       — TTS-fill → updates audio_url in the same sentences JSONL
 #       (best-effort — skipped if TENCENT_* unset, warn-on-fail)
-#   (e) db/scripts/import_staging.sh — reads the staging files and
-#       UPSERTs into vocabulary_libs / vocabulary_words / sentences.
-#       This step is on db/scripts/ because the db schema is db's
-#       concern; the CMS pipeline only knows about files.
 #
-# Notably absent: db image bake. That's db/scripts/build.sh's job —
-# keep this script free of db-bake concerns so the CMS ↔ db boundary
-# is visible at the script-name level: `run.sh` runs the CMS driver
-# (E + T + L); `db/scripts/build.sh` reads the staging db and bakes it.
-# Run them back-to-back when you want a fresh image.
+# Notably absent BOTH: Load (db/scripts/import_staging.sh) and bake
+# (db/scripts/build.sh). Both are db's responsibility and run as separate
+# operator commands. After run.sh exits:
+#
+#   ./db/scripts/import_staging.sh all   # L: UPSERT staging files → staging db
+#   ./db/scripts/build.sh                # bake: pg_dump → docker build
+#
+# Keep this script free of db-side concerns so the cms ↔ db boundary is
+# visible at the script-name level.
 #
 # Used by:
 #   • scripts/dev-host/setup.sh — single-host CMS+dev auto-bake fallback
 #     (only when the registry has no content-baked db image AND the host
 #     has a cms/.env — see that script for context).
 #   • CMS host operator — `./cms/scripts/run.sh` standalone after
-#     editing CSVs / manifest / prompt, to fill the staging db.
+#     editing CSVs / manifest / prompt, to refresh the staging files.
 #
-# Hard-fail on (a) / (b) / (c) — those should only fail if the env is
-# broken (no docker, no cms/.env, schema migration crash). Best-effort on
-# (d) / (e) — those depend on external services (OpenAI / Tencent TTS) that
-# rate-limit or run out of quota. If they fail, log loud warnings and let
-# the pipeline proceed with whatever content sync produced. The operator
-# can re-run later once the external service is back, and the db image
-# bake (db/scripts/build.sh, a separate script) will pick up the now-populated
-# sentences / audio fields.
+# Hard-fail on (a) / (b) / (c) — those only fail if the env is broken
+# (no docker, no cms/.env, schema migration crash). Best-effort on (d) —
+# depends on OpenAI / Tencent TTS external services that rate-limit or
+# run out of quota. If (d) fails, log a warning and let the run proceed;
+# the operator can re-run later once the external service is back.
 #
 # Exit codes:
-#   0   all steps reached the end (sentences / audio may have warned)
+#   0   all steps reached the end (audio may have warned)
 #   1   hard failure on (a) / (b) / (c), OR cms/.env missing / doctor fail
 
 set -e
@@ -98,21 +97,21 @@ ensure_source_db() {
     "$PROJECT_DIR/db/scripts/source_db.sh" ensure
 }
 
-# run_etl_step <desc> <subcommand> [args...]
-# Run an etl.sh subcommand (sync / sentences / audio) with progress logging. Returns 0/1.
-run_etl_step() {
+# run_staging_step <desc> <subcommand> [args...]
+# Run a staging.sh subcommand (sync / sentences / audio) with progress logging. Returns 0/1.
+run_staging_step() {
     local desc="$1"; shift
-    info "  [etl.sh] $desc..."
-    if ! "$SCRIPT_DIR/etl.sh" "$@"; then
-        err "  [etl.sh] $desc 失败 (退出码 $?)"
+    info "  [staging.sh] $desc..."
+    if ! "$SCRIPT_DIR/staging.sh" "$@"; then
+        err "  [staging.sh] $desc 失败 (退出码 $?)"
         return 1
     fi
-    ok "  [etl.sh] $desc ok"
+    ok "  [staging.sh] $desc ok"
     return 0
 }
 
 # ---------------------------------------------------------------------------
-# doctor — cheap preflight, runs etl.sh doctor + checks POSTGRES_PASSWORD
+# doctor — cheap preflight, runs staging.sh doctor + checks POSTGRES_PASSWORD
 # resolvable. Doesn't touch docker / network.
 # ---------------------------------------------------------------------------
 cmd_doctor() {
@@ -135,8 +134,8 @@ cmd_doctor() {
         ok=0
     fi
 
-    if ! "$SCRIPT_DIR/etl.sh" doctor; then
-        err "etl.sh doctor 失败"
+    if ! "$SCRIPT_DIR/staging.sh" doctor; then
+        err "staging.sh doctor 失败"
         ok=0
     fi
 
@@ -158,7 +157,7 @@ cmd_doctor() {
 # run — the 5-step driver.
 # ---------------------------------------------------------------------------
 cmd_run() {
-    # Resolve POSTGRES_PASSWORD (also exports it so etl.sh + import_staging.sh can read).
+    # Resolve POSTGRES_PASSWORD (also exports it so staging.sh can read POSTGRES_*).
     POSTGRES_PASSWORD="$(resolve_pg_password)" || return 1
     export POSTGRES_PASSWORD
 
@@ -171,14 +170,13 @@ cmd_run() {
 
     # (b) vocab CSVs → staging JSON files (idempotent — skip-existing).
     #     The CMS pipeline no longer writes db directly. Output files
-    #     land in cms/.local/staging/vocabulary/<lib>.json. The db side
-    #     imports them via db/scripts/import_staging.sh.
-    run_etl_step "sync (CSVs → staging)" sync || return 1
+    #     land in cms/.local/staging/vocabulary/<lib>.json.
+    run_staging_step "sync (CSVs → staging)" sync || return 1
 
     # (c) AI-fill sentences. Writes to cms/.local/staging/sentences/<lib>.jsonl.
     #     Best-effort: AI_* missing → skip; API fails → warn and continue.
     if [ -n "${AI_API_KEY:-}" ] && [ -n "${AI_BASE_URL:-}" ] && [ -n "${AI_MODEL:-}" ]; then
-        run_etl_step "sentences (AI-fill → JSONL)" sentences || \
+        run_staging_step "sentences (AI-fill → JSONL)" sentences || \
             warn "  sentences 失败 — 跳过 (runtime 起来后 /api/sentences 会返回空)"
     else
         warn "  跳过 sentences (AI_API_KEY / AI_BASE_URL / AI_MODEL 没设齐)"
@@ -188,26 +186,18 @@ cmd_run() {
     #     All-or-nothing: any TENCENT_* missing → skip.
     if [ -n "${TENCENT_SECRET_ID:-}" ] && [ -n "${TENCENT_SECRET_KEY:-}" ] && \
        [ -n "${TENCENT_APP_ID:-}" ]; then
-        run_etl_step "audio (TTS-fill → JSONL)" audio || \
+        run_staging_step "audio (TTS-fill → JSONL)" audio || \
             warn "  audio 失败 — 跳过 (sentences.audio_url 没填 /audio/<hash>.mp3 会 404)"
     else
         warn "  跳过 audio (TENCENT_* 没填齐)"
     fi
 
-    # (e) db import. Reads staging files written by (b)/(c)/(d) and
-    #     UPSERTs into vocabulary_libs / vocabulary_words / sentences.
-    #     Idempotent — re-runs skip existing rows.
-    info "  (e) import staging → db"
-    if "$PROJECT_DIR/db/scripts/import_staging.sh" all; then
-        ok "  import_staging ok"
-    else
-        err "  import_staging 失败 — 看上面错误"
-        return 1
-    fi
-
-    ok "  CMS driver 完成 — 内容已写到 staging db"
-    info "  下一步 (separate step, db 的职责):"
-    info "    ./db/scripts/build.sh         # 烤 db image"
+    # NOTE: Load (db/scripts/import_staging.sh) is NOT here on purpose —
+    # it's db's responsibility and runs separately. See header doc.
+    ok "  CMS driver 完成 — staging 文件已写到 cms/.local/staging/"
+    info "  下一步 (db 端两个独立步骤):"
+    info "    ./db/scripts/import_staging.sh all    # UPSERT staging 文件 → staging db"
+    info "    ./db/scripts/build.sh                 # 烤 db image"
     return 0
 }
 
@@ -216,14 +206,14 @@ usage() {
 用法: $0 <command>
 
 命令:
-  (无参数) | run    跑完整 CMS driver (ensure-db → sync → sentences → audio → import_staging)
-  doctor            prefight: cms/.env + POSTGRES_PASSWORD + etl.sh doctor + docker
+  (无参数) | run    跑 CMS driver (ensure-db → sync → sentences → audio; 不含 L)
+  doctor            prefight: cms/.env + POSTGRES_PASSWORD + staging.sh doctor + docker
   -h|--help|help    显示本帮助
 
-典型工作流:
-  # 首次 / 改 CSV 后 / 改 prompt 后:
-  ./cms/scripts/run.sh                     # 跑完整 CMS driver (E+T+L)
-  ./db/scripts/build.sh                    # 单独跑 db image bake(独立步骤)
+典型工作流 (CMS 主机,三段独立步骤):
+  ./cms/scripts/run.sh                     # (a) ensure-db + (b/c/d) E+T → cms/.local/staging/
+  ./db/scripts/import_staging.sh all      # db: UPSERT staging 文件 → staging db (L)
+  ./db/scripts/build.sh                    # db: pg_dump + docker build (bake)
 
 调它的脚本:
   scripts/dev-host/setup.sh    # 单机 CMS+dev setup 时自动调用 (only when fallback)
@@ -232,7 +222,7 @@ usage() {
   - sentences / audio 是 best-effort:外部 API 失败会 warn 但继续
   - ensure-db / sync 任何一步失败 → 整个脚本 fail (硬错)
   - 此脚本只在 CMS host 跑 (需要 cms/.env + POSTGRES_PASSWORD)
-  - 此脚本不 bake db image — 那是 db/scripts/build.sh 的事
+  - 此脚本不做 L 也不 bake — import_staging + build 各自独立跑
 EOF
 }
 

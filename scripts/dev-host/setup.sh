@@ -95,22 +95,32 @@ cmd_setup() {
                 err "  $CONTENT_ENV_FILE_PATH 还差 key — 填好后重跑 setup"
                 return 1
             fi
-            info "  跑 cms/scripts/run.sh (CMS ETL + import_staging)..."
+            info "  跑 cms/scripts/run.sh (CMS driver: ensure-db + sync/sentences/audio)..."
             echo ""
             if "$PROJECT_DIR/cms/scripts/run.sh"; then
                 echo ""
-                info "  跑 db/scripts/build.sh (烤 db image)..."
+                info "  跑 db/scripts/import_staging.sh all (Load: UPSERT staging 文件 → staging db)..."
                 echo ""
-                if "$PROJECT_DIR/db/scripts/build.sh"; then
-                    ok "  自动 bake 完成"
-                    got_image=1
+                if "$PROJECT_DIR/db/scripts/import_staging.sh" all; then
+                    echo ""
+                    info "  跑 db/scripts/build.sh (烤 db image)..."
+                    echo ""
+                    if "$PROJECT_DIR/db/scripts/build.sh"; then
+                        ok "  自动 bake 完成"
+                        got_image=1
+                    else
+                        err "  db bake 失败 — 看上面错误"
+                        info "    cms/.local/staging/ 里是 staging 文件,stage db + import 都已 ok"
+                        return 1
+                    fi
                 else
-                    err "  db bake 失败 — 看上面错误"
-                    info "    cms/.local/staging/ 里是 staging 文件,stage db + import 都已 ok"
+                    err "  db import 失败 — 看上面错误"
+                    info "    ./cms/scripts/run.sh doctor                # 内容管线 preflight"
+                    info "    ./db/scripts/import_staging.sh doctor      # importer preflight"
                     return 1
                 fi
             else
-                err "  CMS ETL 失败 — 看上面错误"
+                err "  CMS driver 失败 — 看上面错误"
                 info "  手动排查:"
                 info "    docker logs cms-source-db        # 如果 source db 起不来"
                 info "    ./cms/scripts/run.sh doctor     # 内容管线 preflight"

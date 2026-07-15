@@ -12,7 +12,7 @@ scripts/
 ├── ops/
 │   ├── cms/         CMS 主机:内容生产 + content image 烘焙
 │   │   ├── env.sh        cms/.env 生命周期(init/update/show/doctor)
-│   │   ├── etl.sh    sync / sentences / audio / publish / export / doctor
+│   │   ├── staging.sh    sync / sentences / audio / publish / export / doctor
 │   │   ├── bake_image.sh dump + audio 拷贝 + docker build
 │   │   └── push_image.sh 推到 $DOCKER_REGISTRY
 │   ├── dev-host/       dev 目标主机(热重载)
