@@ -31,7 +31,7 @@
 #
 # Why this lives in db/scripts/ and not cms/scripts/:
 #   Container lifecycle is a host-provisioning concern that both
-#   db/scripts/build.sh (read side) and cms/scripts/run.sh
+#   db/scripts/build.sh (read side) and cms/run.sh
 #   (write side) need. Putting it in either would mean the other
 #   side calls across the boundary. db/scripts/source_db.sh is the
 #   neutral host for it.
@@ -231,7 +231,7 @@ usage() {
 命令:
   ensure   Idempotent start. Returns 0 if a source db is reachable
            after the call (running container, local postgres, or fresh
-           docker run). Used by cms/scripts/run.sh and
+           docker run). Used by cms/run.sh and
            db/scripts/build.sh.
   start    Force-start a cms-source-db container. Creates one if absent.
   stop     Stop a running cms-source-db (no-op if not running).

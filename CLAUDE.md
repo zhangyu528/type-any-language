@@ -163,8 +163,9 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 
 > **Rename notes** (recent releases):
 >
-> - `.env.db` → `cms/.env` (one-time `mv`, then `etl.sh` / `db/scripts/build.sh` keeps working; the file is gitignored).
-> - `cms/scripts/etl.sh` → `cms/scripts/staging.sh`. The script no longer does L (Load is now exclusively the db-side `./db/scripts/import_staging.sh all`); the LMS ETL split is now visible at the script-name level: `staging.sh` produces files in `cms/.local/staging/`, `run.sh` orchestrates the CMS driver through E+T, `db/scripts/import_staging.sh` is the separate Load step.
+> - `.env.db` → `cms/.env` (one-time `mv`, then `staging.sh` / `db/scripts/build.sh` keeps working; the file is gitignored).
+> - `cms/scripts/etl.sh` → `cms/scripts/staging.sh`. The script no longer does L (Load is now exclusively the db-side `./db/scripts/import_staging.sh all`); the CMS ETL split is now visible at the script-name level: `staging.sh` produces files in `cms/.local/staging/`, `cms/run.sh` orchestrates the CMS driver through E+T, `db/scripts/import_staging.sh` is the separate Load step.
+> - `run.sh` moved up one level: was inside `cms/scripts/`, now at `cms/run.sh` (entry point vs tools split is visible at the dir level — tools stay under `cms/scripts/`, the main driver is the bare `cms/run.sh` you type first).
 >
 > To pin a different env path, export `CONTENT_ENV_FILE=/some/path/.env.staging` in the shell (same precedence pattern as `POSTGRES_PASSWORD` / `DOCKER_REGISTRY`).
 
@@ -189,8 +190,10 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 ./db/scripts/build.sh         # export staging db → db/init/01-content.sql + docker build
 ./db/scripts/push.sh [-y]    # Push the db image to DOCKER_REGISTRY
 
-# 5. 一步到位(pipeline + bake, 等价 2+3+4)
-./cms/scripts/run.sh     # = 上面 step 2 + step 3.import_staging `cms/scripts/run.sh` (CMS) + `db/scripts/build.sh`    # = run.sh + db/scripts/build.sh (wrapper)
+# 5. 一步到位 (CMS driver + 3 个独立 db 步)
+./cms/run.sh                                       # CMS driver (E+T)
+./db/scripts/import_staging.sh all              # db: L (UPSERT staging 文件 → db)
+./db/scripts/build.sh                            # db: bake db image
 ```
 
 `cms/scripts/staging.sh` is a thin wrapper over the `cms/tools/cms/*.py` modules. Each subcommand has its own `--help`. See `cms/tools/cms/README.md` for module details.

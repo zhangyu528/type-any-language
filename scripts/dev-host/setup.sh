@@ -95,9 +95,9 @@ cmd_setup() {
                 err "  $CONTENT_ENV_FILE_PATH 还差 key — 填好后重跑 setup"
                 return 1
             fi
-            info "  跑 cms/scripts/run.sh (CMS driver: ensure-db + sync/sentences/audio)..."
+            info "  跑 cms/run.sh (CMS driver: ensure-db + sync/sentences/audio)..."
             echo ""
-            if "$PROJECT_DIR/cms/scripts/run.sh"; then
+            if "$PROJECT_DIR/cms/run.sh"; then
                 echo ""
                 info "  跑 db/scripts/import_staging.sh all (Load: UPSERT staging 文件 → staging db)..."
                 echo ""
@@ -115,7 +115,7 @@ cmd_setup() {
                     fi
                 else
                     err "  db import 失败 — 看上面错误"
-                    info "    ./cms/scripts/run.sh doctor                # 内容管线 preflight"
+                    info "    ./cms/run.sh doctor                # 内容管线 preflight"
                     info "    ./db/scripts/import_staging.sh doctor      # importer preflight"
                     return 1
                 fi
@@ -123,7 +123,7 @@ cmd_setup() {
                 err "  CMS driver 失败 — 看上面错误"
                 info "  手动排查:"
                 info "    docker logs cms-source-db        # 如果 source db 起不来"
-                info "    ./cms/scripts/run.sh doctor     # 内容管线 preflight"
+                info "    ./cms/run.sh doctor     # 内容管线 preflight"
                 return 1
             fi
         fi

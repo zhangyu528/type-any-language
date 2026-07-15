@@ -25,11 +25,10 @@ cms/
 │   └── cms/            # Python 包(manifest / import_vocab / generate_sentences / generate_audio / storage)
 │       └── README.md   # 模块清单 + ETL 流向
 │
-└── scripts/            # CMS 主机操作员脚本(直跑,不走 image)
+├── run.sh                # CMS driver 主入口(operator 第一个敲的; ensure-db + E+T)
+└── scripts/            # CMS 工具(operator 选跑的)
     ├── env.sh          # cms/.env 生命周期
-    ├── staging.sh          # CMS file producer (E+T: sync / sentences / audio — writes cms/.local/staging/)
-    ├── run.sh              # full CMS driver (ensure-db + staging.sh three E+T steps; does NOT do L)
-    └── (no full_bake.sh; run.sh + db/scripts/import_staging.sh + db/scripts/build.sh 三段独立)
+    └── staging.sh      # file producer wrapper (sync / sentences / audio / export / doctor)
 ```
 
 仓库根的 `db/` 目录是 db image 的构建上下文:
@@ -102,8 +101,8 @@ frontend 请求 /api/sentences/random
 |---|---|
 | 编辑了 CSV / 改了 manifest / 改了 prompt | `cms/scripts/staging.sh sync\|sentences\|audio` (单步;仅写文件) |
 | 把所有 staging 文件一次性灌到 staging db | `db/scripts/import_staging.sh` (dbtools.importer;幂等,re-run 无害) |
-| 把整条 ETL + 灌 db 跑完 | `cms/scripts/run.sh` (ensure-db + E+T) **→** `db/scripts/import_staging.sh` (L) 两段独立跑 |
-| 编辑了 CSV + 想马上出 image | `cms/scripts/run.sh` (CMS E+T) + `db/scripts/import_staging.sh` (L) + `db/scripts/build.sh` (bake) 三段独立 |
+| 把整条 ETL + 灌 db 跑完 | `cms/run.sh` (ensure-db + E+T) **→** `db/scripts/import_staging.sh` (L) 两段独立跑 |
+| 编辑了 CSV + 想马上出 image | `cms/run.sh` (CMS E+T) + `db/scripts/import_staging.sh` (L) + `db/scripts/build.sh` (bake) 三段独立 |
 | 起 / 停 staging db 容器(无需跑 pipeline) | `db/scripts/source_db.sh` (ensure / start / stop / status) |
 | 在 staging db 上建表 / 跑迁移 | `db/scripts/init_schema.sh` + `db/scripts/migrate.sh` |
 | 改 db-image 的 Dockerfile / schema 形状 | `db/scripts/build.sh` 单独(只读 staging db,不跑 schema) |

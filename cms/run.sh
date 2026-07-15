@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# cms/scripts/run.sh — drive the CMS side of ETL end-to-end (without
+# cms/run.sh — drive the CMS side of ETL end-to-end (without
 # the Load step). Equivalent to the old "pipeline.sh": runs every
 # CMS-side step — staging-db ensure + E + T — and exits. The Load
 # step (dbtools.importer) is db's job and runs as a separate command:
@@ -30,7 +30,7 @@
 #   • scripts/dev-host/setup.sh — single-host CMS+dev auto-bake fallback
 #     (only when the registry has no content-baked db image AND the host
 #     has a cms/.env — see that script for context).
-#   • CMS host operator — `./cms/scripts/run.sh` standalone after
+#   • CMS host operator — `./cms/run.sh` standalone after
 #     editing CSVs / manifest / prompt, to refresh the staging files.
 #
 # Hard-fail on (a) / (b) / (c) — those only fail if the env is broken
@@ -48,7 +48,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
-source "$SCRIPT_DIR/../../scripts/lib.sh"
+source "$SCRIPT_DIR/../scripts/lib.sh"
 
 # cms/.env lives at the project root. This script is CMS-only — operators on
 # a target host don't have it and shouldn't be calling this script.
@@ -102,7 +102,7 @@ ensure_source_db() {
 run_staging_step() {
     local desc="$1"; shift
     info "  [staging.sh] $desc..."
-    if ! "$SCRIPT_DIR/staging.sh" "$@"; then
+    if ! "$SCRIPT_DIR/scripts/staging.sh" "$@"; then
         err "  [staging.sh] $desc 失败 (退出码 $?)"
         return 1
     fi
@@ -134,7 +134,7 @@ cmd_doctor() {
         ok=0
     fi
 
-    if ! "$SCRIPT_DIR/staging.sh" doctor; then
+    if ! "$SCRIPT_DIR/scripts/staging.sh" doctor; then
         err "staging.sh doctor 失败"
         ok=0
     fi
@@ -146,7 +146,7 @@ cmd_doctor() {
 
     echo ""
     if [ "$ok" = "1" ]; then
-        ok "所有检查通过 — 可以跑 ./cms/scripts/run.sh"
+        ok "所有检查通过 — 可以跑 ./cms/run.sh"
         return 0
     fi
     err "部分检查未通过"
@@ -211,7 +211,7 @@ usage() {
   -h|--help|help    显示本帮助
 
 典型工作流 (CMS 主机,三段独立步骤):
-  ./cms/scripts/run.sh                     # (a) ensure-db + (b/c/d) E+T → cms/.local/staging/
+  ./cms/run.sh                     # (a) ensure-db + (b/c/d) E+T → cms/.local/staging/
   ./db/scripts/import_staging.sh all      # db: UPSERT staging 文件 → staging db (L)
   ./db/scripts/build.sh                    # db: pg_dump + docker build (bake)
 

@@ -19,7 +19,7 @@
 #              (cms/tools/cms/generate_audio.py)
 # L: Load
 #   (NOT here. The Load step is db/scripts/import_staging.sh + dbtools.importer
-#    — a separate db-side operator command. cms/scripts/run.sh wraps
+#    — a separate db-side operator command. cms/run.sh wraps
 #    (a) ensure-db + (b/c/d) the steps here, but doesn't do L either.)
 #
 # Subcommands here for parity:
@@ -33,7 +33,7 @@
 #   ./cms/scripts/staging.sh sync         # csv → cms/.local/staging/vocabulary/<lib>.json
 #   ./cms/scripts/staging.sh sentences    # OpenAI → cms/.local/staging/sentences/<lib>.jsonl
 #   ./cms/scripts/staging.sh audio        # TTS → updates audio_url in same JSONL
-#   ./cms/scripts/run.sh                  # full CMS driver (ensure-db + the 3 above)
+#   ./cms/run.sh                  # full CMS driver (ensure-db + the 3 above)
 #   ./db/scripts/import_staging.sh all    # db: UPSERT staging 文件 → staging db
 #   ./db/scripts/build.sh                 # db: bake db image from staging db
 #   ./db/scripts/push.sh                  # ship to registry
@@ -244,7 +244,7 @@ usage() {
   ./db/scripts/import_staging.sh all       # db: 灌 staging 文件
   ./db/scripts/build.sh            # db: 烤 image
   ./db/scripts/push.sh            # db: 推 registry
-  # 或者上面 3 步一次性: ./cms/scripts/run.sh + ./db/scripts/build.sh
+  # 或者上面 3 步一次性: ./cms/run.sh + ./db/scripts/build.sh
 EOF
 }
 

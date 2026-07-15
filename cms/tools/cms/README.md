@@ -23,7 +23,7 @@ CMS 这边的三个模块 **全部不连 DB**。schema 在哪里改:
 | migrations | `db/tools/dbtools/migrations/versions/*.py` |
 | 把 staging 文件灌进 db | `db/tools/dbtools/importer.py` |
 | 灌进 db 的 shell wrapper | `db/scripts/import_staging.sh` |
-| 完整 CMS driver (E+T; 不含 L) | `./cms/scripts/run.sh` |
+| 完整 CMS driver (E+T; 不含 L) | `./cms/run.sh` |
 
 历史上 `import_vocab` / `generate_sentences` / `generate_audio` 都曾经直接写 DB。
 现在它们只产文件,db 通过 importer 接。这是 ETL 模式(E=CSV, T=AI/TTS, L=importer),
@@ -71,7 +71,7 @@ PostgreSQL(vocabulary_libs + vocabulary_words + sentences)
 DOCKER_REGISTRY
 ```
 
-`cms/scripts/run.sh` 把 ensure-db 加上 sync/sentences/audio 这三个 E+T 步串起来。
+`cms/run.sh` 把 ensure-db 加上 sync/sentences/audio 这三个 E+T 步串起来。
 
 Load 是独立的 db 端步骤: `./db/scripts/import_staging.sh all`。
 bake 也是: `./db/scripts/build.sh`。
