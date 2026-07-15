@@ -1,9 +1,11 @@
 # cms —— 内容生产
 
-这个目录是 **CMS 内容生产** 的根 —— CMS 主机上跑 Python 工具链、调用 OpenAI / 腾讯 TTS、把内容写到 **staging db**。**db image 本身** 在仓库根的 [`../db/`](../db/) —— 拆分后,这是两个并列的子项目,各自有 Dockerfile,职责清楚分开:
+这个目录是 **CMS 内容生产** 的根 —— CMS 主机上跑 Python 工具链、调用 OpenAI / 腾讯 TTS、把内容写到 **staging 文件** (`cms/.local/staging/`)。**db image 本身** 在仓库根的 [`../db/`](../db/) —— 拆分后,这是两个并列的子项目,各自有 Dockerfile,职责清楚分开:
 
-- `cms/` 写数据(write)
-- `db/` 烤 image(read + bake)
+- `cms/` 写文件(E + T,只产出 staging 文件)
+- `db/` 把 staging 文件灌进 db、烤 image(L + bake)
+
+db 这边通过 `dbtools.importer` 把 staging 文件 UPSERT 进 Postgres,然后再 pg_dump 出 db image。CMS 这边的 Python 模块不再直接连 db。
 
 目标主机(prod / dev)通过 `run.sh` 拉 db image,运行时**不**感知 `cms/` 目录,也不感知 `db/` 目录。
 
@@ -20,13 +22,14 @@ cms/
 │
 ├── tools/              # CMS 工具链 — 只活 CMS 主机,从不进 image
 │   ├── Dockerfile      # cms-sidecar(LOCAL-ONLY sidecar,run scripts 在里头跑 python)
-│   └── cms/            # Python 包(env / manifest / import_vocab / generate_sentences / generate_audio / init_schema / migrations / storage)
+│   └── cms/            # Python 包(manifest / import_vocab / generate_sentences / generate_audio / storage)
+│       └── README.md   # 模块清单 + ETL 流向
 │
 └── scripts/            # CMS 主机操作员脚本(直跑,不走 image)
     ├── env.sh          # cms/.env 生命周期
-    ├── content.sh      # content pipeline(sync / sentences / audio / export)
-    ├── pipeline.sh     # 单机 CMS+dev 自动跑整条内容管线(5 步)
-    └── full_bake.sh    # wrapper:pipeline.sh + db/scripts/build.sh
+    ├── content.sh      # content pipeline (sync / sentences / audio / export)
+    ├── pipeline.sh     # sync + sentences + audio + import_staging (调 db/scripts/import_staging.sh)
+    └── full_bake.sh    # wrapper: pipeline.sh + db/scripts/build.sh
 ```
 
 仓库根的 `db/` 目录是 db image 的构建上下文:
@@ -37,11 +40,14 @@ db/
 ├── builder.py          # assemble(bundle) + build_image(target, tag, ...)
 ├── scripts/            # db 的 own entry points(独立于 CMS;orchestration 层)
 │   ├── source_db.sh    # cms-source-db 容器 lifecycle(ensure / start / stop / status)
-│   ├── init_schema.sh  # 调 python -m dbtools.init_schema(借 CMS Python 定义 schema)
-│   ├── migrate.sh      # 调 dbtools.migrations.runner(借 CMS Python 跑迁移)
+│   ├── init_schema.sh  # 调 python -m dbtools.init_schema(基础 DDL,幂等)
+│   ├── migrate.sh      # 调 dbtools.migrations.runner(apply pending migrations)
+│   ├── import_staging.sh  # 调 dbtools.importer —— 把 staging 文件 UPSERT 进 db
 │   ├── build.sh        # export staging db → init/01-content.sql + docker build
 │   ├── push.sh         # push english_db_content 到 DOCKER_REGISTRY
 │   └── export_bundle.py # pg_dump staging db → SQL(不依赖 cms)
+├── tools/              # Python 包 dbtools/
+│   └── dbtools/        # init_schema / migrations / importer / db_url
 └── init/01-content.sql # 由 db/scripts/build.sh 填(`.gitignore`d,运行时由 image 跑)
 ```
 
@@ -56,21 +62,27 @@ db/
 
 `db/init/01-content.sql` 是 `db/scripts/build.sh` 的 **build 输入** —— 由它每次从在线 staging db 的 pg_dump 重新生成。`.gitignore` 了,仓库里只有 `Dockerfile`、`builder.py` 和 `db/scripts/` 是 commit 的。
 
-## 烘焙流程
+## ETL 烘焙流程
 
 ```
-cms/source/vocabulary/*.csv                       (源)
-        ↓  cms/scripts/content.sh sync
-        ↓  cms/scripts/content.sh sentences       (OpenAI)
-        ↓  cms/scripts/content.sh audio           (Tencent TTS → Storage.put)
-        ↓
-staging db = cms-source-db(vocabulary_libs + vocabulary_words + sentences)
-  + Tencent Cloud COS bucket(audio/{hash}.mp3)
-  OR  cms/.local/audio/{hash}.mp3                    (CLOUD_PROVIDER=local_fs)
-        ↓  db/scripts/export_bundle.py  (psql -tAc ... + pg_dump)
-        ↓    → .bake-staging/data-bundle-v.../dump.sql
+                CMS 主机 (Python, 不连 DB)
+cms/source/vocabulary/*.csv                                                  (源)
+        ↓  cms/scripts/content.sh sync (import_vocab.py)                     (E: Extract)
+cms/.local/staging/vocabulary/<lib>.json
+        ↓  cms/scripts/content.sh sentences (generate_sentences.py, OpenAI)  (T: Transform)
+cms/.local/staging/sentences/<lib>.jsonl
+        ↓  cms/scripts/content.sh audio     (generate_audio.py, TTS → Storage)
+        ↓      (audio_url 字段被填入; mp3 落到 COS 或 cms/.local/audio/)
+cms/.local/staging/sentences/<lib>.jsonl
+
+                db 主机 (dbtools.importer, 连 staging db)
+======================================================================  边界  ==
+        ↓  db/scripts/import_staging.sh (dbtools.importer all)              (L: Load)
+PostgreSQL staging db(vocabulary_libs + vocabulary_words + sentences)
+        ↓  db/scripts/build.sh
+        ↓    export_bundle.py → pg_dump → .bake-staging/data-bundle-v.../dump.sql
         ↓    cp dump.sql  → db/init/01-content.sql
-        ↓  db/scripts/build.sh  +  docker build db/
+        ↓    docker build db/
 docker image english_db_content:vX.Y.Z          (带 OCI labels;只含 schema + sentences,无 audio)
         ↓  db/scripts/push.sh
 registry/english_db_content:vX.Y.Z
@@ -88,17 +100,20 @@ frontend 请求 /api/sentences/random
 
 | 你想... | 跑 |
 |---|---|
-| 编辑了 CSV / 改了 manifest / 改了 prompt | `cms/scripts/pipeline.sh` (or `content.sh` 单个 subcommand) |
-| 编辑了 CSV + 想马上出 image | `cms/scripts/full_bake.sh` (= pipeline + db bake) |
+| 编辑了 CSV / 改了 manifest / 改了 prompt | `cms/scripts/content.sh sync\|sentences\|audio` (单步;仅写文件) |
+| 把所有 staging 文件一次性灌到 staging db | `db/scripts/import_staging.sh` (dbtools.importer;幂等,re-run 无害) |
+| 把整条 ETL + 灌 db 跑完 | `cms/scripts/pipeline.sh` (= content.sh sync/sentences/audio + import_staging.sh) |
+| 编辑了 CSV + 想马上出 image | `cms/scripts/full_bake.sh` (= pipeline + db/scripts/build.sh) |
 | 起 / 停 staging db 容器(无需跑 pipeline) | `db/scripts/source_db.sh` (ensure / start / stop / status) |
 | 在 staging db 上建表 / 跑迁移 | `db/scripts/init_schema.sh` + `db/scripts/migrate.sh` |
 | 改 db-image 的 Dockerfile / schema 形状 | `db/scripts/build.sh` 单独(只读 staging db,不跑 schema) |
 | 发布新 image 到 registry | `db/scripts/push.sh` |
 
-> **CMS 写的 vs db 管的**:
-> - CMS 写 data(import_vocab / generate_sentences / generate_audio)
-> - db 管 schema(init_schema / migrate)、db 容器(source_db)、image bake(build / push)
-> - 这两套互不调用对方代码 —— 唯一的桥是 `init_schema.sh` / `migrate.sh` 借 CMS Python 来定义 schema,因为 schema definition 物理上还在 `cms/tools/cms/`(跟 migration versions 在一起)
+> **CMS 写的 vs db 管的 (ETL 拆分版)**:
+> - CMS **E + T**:import_vocab / generate_sentences / generate_audio,只产文件
+> - db **L**:dbtools.importer 把 staging 文件 UPSERT 进 staging db
+> - db **bake**:source_db 容器、init_schema / migrate / build / push
+> - **唯一的桥** 是 `cms/.local/staging/` 这个目录。CMS 完全不知道 schema 长啥样;db 完全不知道 TTS / OpenAI 是啥
 
 ## Audio 流向(注意:db image 不带 audio)
 

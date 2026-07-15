@@ -12,11 +12,73 @@ This project intentionally separates **content production** from **content servi
 
 | Host | Role | What lives here | What runs here |
 |---|---|---|---|
-| **CMS host** | Content production (writes staging db) | `cms/.env` + `cms/scripts/` + `cms/tools/cms/` | Python + Docker |
+| **CMS host** | Content production (writes staging files) | `cms/` (env, scripts, source, tools) | Python + Docker |
 | **Target host** (dev or prod) | Content serving | `scripts/dev-host/` or `scripts/prod-host/` | Docker only |
-| **DB image build** (CMS host or CI) | Schema + db container + bake | `db/` + `db/scripts/{source_db,init_schema,migrate,build,push,export_bundle}.py` | Docker only |
+| **DB image build** (CMS host or CI) | Schema + db container + bake + importer | `db/` (Dockerfile, builder, scripts, tools/dbtools/) | Docker only |
 
-The CMS host produces a `db` image with all content pre-loaded and pushes it to a registry. Target hosts `docker pull` the image and serve it — they never need AI keys, TTS keys, or Python. **Target hosts need no .env file at all** — runtime configuration (only `ALLOWED_ORIGINS`) is passed via shell env, and the host-side secret (`POSTGRES_PASSWORD`) is generated on first start by `lifecycle.sh`.
+The CMS host produces **staging files** (vocabulary JSON + sentences JSONL) via the
+CMS pipeline. The CMS pipeline does **not** touch the database — the db side has its
+own importer (`db/tools/dbtools/importer.py`) that reads the staging files and
+UPSERTs them into the database. Then the db image is baked from that database and
+pushed to a registry. Target hosts `docker pull` the image and serve it — they
+never need AI keys, TTS keys, or Python. **Target hosts need no .env file at all**
+— runtime configuration (only `ALLOWED_ORIGINS`) is passed via shell env, and the
+host-side secret (`POSTGRES_PASSWORD`) is generated on first start by `lifecycle.sh`.
+
+### ETL architecture (CMS produces files, db imports them)
+
+The CMS/db split follows an ETL pattern: **E**xtract (CSVs) and **T**ransform
+(AI / TTS) live entirely on the CMS side as files in `cms/.local/staging/`; the
+**L**oad (UPSERT into Postgres) is the db side's job, via `dbtools.importer`.
+
+```
+        CMS host (Python)                              CMS/db boundary
+                                                                       
+   cms/source/vocabulary/*.csv  ─┐                                    
+   cms/source/prompts/*.yaml    │                                    
+   cms/source/manifest.yaml     │   a) import_vocab.py                
+                                ├──────────────►  cms/.local/staging/ 
+   cms/.env (AI_*, TENCENT_*)   │                     vocabulary/    
+                                │                     *.json         
+                                │                                       
+                                │   b) generate_sentences.py           
+                                │     reads vocab JSON, calls          
+                                │     OpenAI, appends to               
+                                ▼                                       
+                          cms/.local/staging/                           
+                              sentences/*.jsonl                          
+                                │                                        
+                                │   c) generate_audio.py               
+                                │     reads sentences JSONL,           
+                                │     calls TTS, uploads to            
+                                │     Storage (LocalFs / Tencent COS), 
+                                │     updates audio_url in JSONL       
+                                ▼                                        
+                          cms/.local/staging/                           
+                              sentences/*.jsonl   ──►   FILES (公共区)  
+                                                                       
+        db side (Python + Postgres)                                     
+                          ┌──────────────────────────────────┐            
+                          │ d) dbtools.importer (all)         │            
+                          │    reads staging files            │            
+                          │    UPSERTs into:                  │            
+                          │      vocabulary_libs              │            
+                          │      vocabulary_words             │            
+                          │      sentences (+ audio_url)      │            
+                          └──────────────────────────────────┘            
+                                                                           
+                          e) db/scripts/build.sh                            
+                             pg_dump → 01-content.sql → docker build       
+                                                                           
+                          f) db/scripts/push.sh                             
+                             → DOCKER_REGISTRY                               
+```
+
+**Why ETL, not direct db writes?** The CMS side stays ignorant of the schema —
+only the importer knows about `vocabulary_libs` / `vocabulary_words` / `sentences`.
+Operators can re-run any single CMS step (CSVs → JSON, AI → JSONL, TTS → audio)
+without touching the database, and a failed `import_staging.sh` doesn't cost an
+extra OpenAI call (the JSONL is already on disk).
 
 Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generated on first start by `lifecycle.sh` (or reused if `.secrets/postgres_password` already exists) and written to `.secrets/postgres_password` (chmod 600). It is injected via compose's `secrets` block + `*_FILE` env indirection.
 
@@ -46,18 +108,21 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generat
 │   │   └── prompts/      # LLM prompts (sentences.yaml)
 │   ├── tools/            # CMS toolchain (lives only on the CMS host)
 │   │   ├── Dockerfile    # cms-sidecar (LOCAL-ONLY image, no registry)
-│   │   └── cms/          # Python package (env / manifest / import_vocab / generate_sentences / generate_audio / init_schema / migrations / storage)
+│   │   └── cms/          # Python package (manifest / import_vocab / generate_sentences / generate_audio / storage)
 │   │       └── README.md
 ├── db/                # Postgres image build context (postgres:15-alpine wrapper)
 │   ├── Dockerfile    # copies init/01-content.sql (NO audio — db image has no MP3s)
 │   ├── builder.py    # assemble(bundle) + build_image(target, tag, ...)
 │   ├── scripts/       # db/scripts/ — the db image's own entry points
-│   │   ├── source_db.sh  # cms-source-db container lifecycle (ensure/start/stop/status)
-│   │   ├── init_schema.sh # python -m dbtools.init_schema (base DDL)
-│   │   ├── migrate.sh   # python -m dbtools.migrations.runner (apply pending migrations)
-│   │   ├── build.sh     # export staging db → assemble → docker build
-│   │   ├── push.sh      # push english_db_content to DOCKER_REGISTRY
-│   │   └── export_bundle.py # pg_dump the staging db → SQL (independent of CMS)
+│   │   ├── source_db.sh    # cms-source-db container lifecycle (ensure/start/stop/status)
+│   │   ├── init_schema.sh  # python -m dbtools.init_schema (base DDL)
+│   │   ├── migrate.sh      # python -m dbtools.migrations.runner (apply pending migrations)
+│   │   ├── import_staging.sh  # python -m dbtools.importer (staging files → db UPSERT)
+│   │   ├── build.sh        # export staging db → assemble → docker build
+│   │   ├── push.sh         # push english_db_content to DOCKER_REGISTRY
+│   │   └── export_bundle.py   # pg_dump the staging db → SQL (independent of CMS)
+│   ├── tools/                # Python package dbtools/ — schema + importer
+│   │   └── dbtools/          # init_schema / migrations / importer / db_url
 │   └── init/
 │       └── 01-content.sql   # pg_dump snapshot (bake-time output; .gitignore'd)
 │
@@ -107,25 +172,44 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 ./cms/scripts/env.sh                # First-time cms/.env creation (interactive)
 ./cms/scripts/env.sh doctor        # 验证 cms/.env 完整性
 
-# 2. 跑内容管线(writes staging db = cms-source-db 容器或本地 postgres)
-./db/scripts/source_db.sh ensure   # 起 / 复用 staging db(若没跑本地 postgres)
-./db/scripts/init_schema.sh        # (首次)建 vocabulary_* / sentences / schema_migrations
-./db/scripts/migrate.sh            # 跑 pending schema migrations
-./cms/scripts/content.sh doctor     # Pre-flight: cms/.env + Python deps + DB reachable
-./cms/scripts/content.sh sync       # CSVs → vocabulary_libs + vocabulary_words
-./cms/scripts/content.sh sentences  # OpenAI bulk-fills sentences to DEFAULT_BUCKET_TARGET_SIZE
-./cms/scripts/content.sh audio      # Tencent TTS → MP3 → Storage (local FS or COS) + audio_url
+# 2. 跑内容管线 (writes staging files; db import is a separate step)
+./cms/scripts/content.sh doctor     # Pre-flight: cms/.env + Python deps
+./cms/scripts/content.sh sync       # CSVs → cms/.local/staging/vocabulary/<lib>.json
+./cms/scripts/content.sh sentences  # OpenAI → cms/.local/staging/sentences/<lib>.jsonl
+./cms/scripts/content.sh audio      # Tencent TTS → updates audio_url in sentences JSONL
 
-# 3. 烤 db image(从 staging db 读,独立步骤,db 的职责)
-./db/scripts/build.sh         # export staging db → db-image/init/01-content.sql + docker build
+# 3. db side: import staging files → Postgres (separate step, db's job)
+./db/scripts/source_db.sh ensure    # 起 staging db (cms-source-db 容器或本地 postgres)
+./db/scripts/init_schema.sh         # (首次) 建 vocabulary_* / sentences / schema_migrations
+./db/scripts/migrate.sh             # 跑 pending schema migrations
+./db/scripts/import_staging.sh      # reads staging files, UPSERTs to db (独立步骤)
+
+# 4. 烤 db image (从 staging db 读, 独立步骤, db 的职责)
+./db/scripts/build.sh         # export staging db → db/init/01-content.sql + docker build
 ./db/scripts/push.sh [-y]    # Push the db image to DOCKER_REGISTRY
 
-# 4. 一步到位(pipeline + bake,等价 2+3)
-./cms/scripts/pipeline.sh     # = 上面 step 2 的全套
-./cms/scripts/full_bake.sh    # = pipeline.sh + db/scripts/build.sh(wrapper)
+# 5. 一步到位(pipeline + bake, 等价 2+3+4)
+./cms/scripts/pipeline.sh     # = 上面 step 2 + step 3.import_staging
+./cms/scripts/full_bake.sh    # = pipeline.sh + db/scripts/build.sh (wrapper)
 ```
 
 `cms/scripts/content.sh` is a thin wrapper over the `cms/tools/cms/*.py` modules. Each subcommand has its own `--help`. See `cms/tools/cms/README.md` for module details.
+
+### 责任划分 (responsibility split)
+
+| Step | Tool | What it writes |
+|---|---|---|
+| sync (CSV → JSON) | `cms/tools/cms/import_vocab.py` | `cms/.local/staging/vocabulary/<lib>.json` |
+| sentences (AI → JSONL) | `cms/tools/cms/generate_sentences.py` | appends to `cms/.local/staging/sentences/<lib>.jsonl` |
+| audio (TTS → URL) | `cms/tools/cms/generate_audio.py` | updates `audio_url` field in sentences JSONL |
+| import (files → db) | **`db/tools/dbtools/importer.py`** | UPSERT into `vocabulary_libs` / `vocabulary_words` / `sentences` |
+| bake (db → image) | `db/scripts/build.sh` | builds the `db` image from `db/init/01-content.sql` |
+
+The CMS pipeline (steps sync/sentences/audio) **never** opens a db connection.
+Only `dbtools.importer` and `db/scripts/build.sh` touch Postgres. To re-run a single
+CMS step (e.g. you edited a CSV and only need to re-sync the vocab JSON), there's no
+need to spin up Postgres; the files in `cms/.local/staging/` are the stable
+artifact until you decide to import.
 
 ### Dev target host
 
@@ -148,7 +232,7 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 
 No `.env.dev` is needed. The dev compose file defaults `ALLOWED_ORIGINS` to `http://localhost,http://localhost:3000`; override via shell env. `POSTGRES_PASSWORD` is generated on first start.
 
-`setup` is the recommended entry point for a fresh checkout. It runs preflight (docker + compose), ensures the `db` image is present locally (auto-pulls from `DOCKER_REGISTRY` if set, otherwise — on a single-host CMS+dev machine — scaffolds `cms/.env` via `env.sh init` + validates with `env.sh doctor`, then runs the full local content pipeline: source db → schema → vocab CSVs → AI sentences → TTS audio → `db/scripts/build.sh`), and builds the dev `backend + frontend` images. It does NOT start containers or create `.secrets/` — that's `start`'s job. Re-running `setup` is safe (idempotent — every step short-circuits on existing state).
+`setup` is the recommended entry point for a fresh checkout. It runs preflight (docker + compose), ensures the `db` image is present locally (auto-pulls from `DOCKER_REGISTRY` if set, otherwise — on a single-host CMS+dev machine — scaffolds `cms/.env` via `env.sh init` + validates with `env.sh doctor`, then runs the full local content pipeline: CSVs → staging JSON → AI sentences JSONL → TTS audio URLs → `import_staging.sh` UPSERTs to db → `db/scripts/build.sh` bakes the db image), and builds the dev `backend + frontend` images. It does NOT start containers or create `.secrets/` — that's `start`'s job. Re-running `setup` is safe (idempotent — every step short-circuits on existing state).
 
 ### Prod target host
 
@@ -335,13 +419,14 @@ Answer validation is **client-side**: the frontend normalizes (lowercase, strip 
 
 ## Data flow
 
-**Bake time (CMS host):**
+**Bake time (CMS host, ETL file-based):**
 1. Operator commits new CSVs to `cms/source/vocabulary/`.
-2. `content.sh sync` imports them into `vocabulary_libs` / `vocabulary_words`.
-3. `content.sh sentences` calls OpenAI to fill the `sentences` table up to `DEFAULT_BUCKET_TARGET_SIZE` per (lib, difficulty).
-4. `content.sh audio` calls Tencent TTS; MP3s land in the configured `Storage` (local `cms/.local/audio/` by default, or Tencent Cloud COS when `CLOUD_PROVIDER=tencent_cos`), and `sentences.audio_url` is set to the storage's `public_url(key)`.
-5. `db/scripts/build.sh` runs `pg_dump` on the 3 content tables, stages the SQL into `db/init/01-content.sql`, builds the db image.
-6. `db/scripts/push.sh` pushes to `DOCKER_REGISTRY`.
+2. `content.sh sync` writes them to `cms/.local/staging/vocabulary/<lib>.json` (no db write).
+3. `content.sh sentences` calls OpenAI and appends to `cms/.local/staging/sentences/<lib>.jsonl` up to `DEFAULT_BUCKET_TARGET_SIZE` per (lib, difficulty).
+4. `content.sh audio` calls Tencent TTS; MP3s land in the configured `Storage` (local `cms/.local/audio/` by default, or Tencent Cloud COS when `CLOUD_PROVIDER=tencent_cos`), and each sentence's `audio_url` field in the JSONL is set to the storage's `public_url(key)`.
+5. `db/scripts/import_staging.sh` reads the staging files and UPSERTs them into `vocabulary_libs` / `vocabulary_words` / `sentences` on the staging db (`cmstools.importer`).
+6. `db/scripts/build.sh` runs `pg_dump` on the 3 content tables, stages the SQL into `db/init/01-content.sql`, builds the db image.
+7. `db/scripts/push.sh` pushes to `DOCKER_REGISTRY`.
 
 **Runtime (target host):**
 1. `lifecycle.sh start` reads the db image's labels, generates (or reuses) `POSTGRES_PASSWORD` and writes both `.secrets/postgres_password` + `.secrets/database_url`, then `compose up`.

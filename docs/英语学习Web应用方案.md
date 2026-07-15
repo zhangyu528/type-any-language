@@ -283,7 +283,7 @@
        ▼
 
 
-2. content.sh sync → vocabulary_libs / vocabulary_words
+2. content.sh sync → cms/.local/staging/vocabulary/<lib>.json（不连 DB）
 
 
        │
@@ -293,6 +293,7 @@
 
 
 3. content.sh sentences → OpenAI 批量生成句子
+       → 追加到 cms/.local/staging/sentences/<lib>.jsonl
 
 
        │  （按 (词库, 难度) 桶填到 DEFAULT_BUCKET_TARGET_SIZE）
@@ -304,13 +305,13 @@
 4. content.sh audio → 腾讯云 TTS 烤 MP3
 
 
-       │  （sha1[:16] 文件名，跳过 audio_url 已设的句子）
+       │  （更新同 JSONL 的 audio_url；sha1[:16] 文件名，跳过已设的句子）
 
 
        ▼
 
 
-5. bake_image.sh → pg_dump + audio 拷贝 → docker build
+5. db/scripts/import_staging.sh (dbtools.importer) → UPSERT staging 文件 → staging db
 
 
        │
@@ -319,7 +320,16 @@
        ▼
 
 
-6. push_image.sh → DOCKER_REGISTRY
+6. bake_image.sh → pg_dump → docker build
+
+
+       │
+
+
+       ▼
+
+
+7. push_image.sh → DOCKER_REGISTRY
 
 
 ```
@@ -577,7 +587,7 @@
 
 
 
-CSV 文件位于 `cms/source/vocabulary/*.csv`（已提交到仓库，运维同学维护）。通过 `cms/scripts/content.sh sync`（底层 `cms/tools/cms/import_vocab.py`）导入数据库。
+CSV 文件位于 `cms/source/vocabulary/*.csv`（已提交到仓库，运维同学维护）。通过 `cms/scripts/content.sh sync`（底层 `cms/tools/cms/import_vocab.py`）写入 `cms/.local/staging/vocabulary/<lib>.json`（**ETL 的 E 步骤，CMS 端只产文件,不连 DB**）。db 端通过 `db/scripts/import_staging.sh`（`dbtools.importer`）把 JSONL 文件 UPSERT 进 staging db。
 
 
 

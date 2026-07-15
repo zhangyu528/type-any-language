@@ -2,26 +2,38 @@
 #
 # cms/scripts/content.sh — orchestrate the content production pipeline.
 #
-# Subcommands (all idempotent; safe to re-run):
-#   sync       Import vocabulary CSVs → vocabulary_libs / vocabulary_words.
-#              (pipeline/import_vocab.py)
-#   sentences  Bulk-generate practice sentences via OpenAI.
-#              (pipeline/generate_sentences.py)
-#   audio      Bulk-generate MP3s via Tencent Cloud TTS.
-#              (pipeline/generate_audio.py)
-#   export     Dump content + audio into a staging bundle (same as
-#              what db/scripts/build.sh does internally — exposed here for
-#              inspection).
-#   doctor     Pre-flight: cms/.env ready, py deps present, db reachable.
+# ETL pipeline (CMS side, writes staging files only):
+#   sync       Import vocabulary CSVs → cms/.local/staging/vocabulary/<lib>.json.
+#              (cms/tools/cms/import_vocab.py)  — E: Extract
+#   sentences  Bulk-generate practice sentences via OpenAI →
+#              cms/.local/staging/sentences/<lib>.jsonl (append).
+#              (cms/tools/cms/generate_sentences.py)  — T: Transform
+#   audio      Bulk-generate MP3s via Tencent Cloud TTS →
+#              updates audio_url in the same sentences JSONL.
+#              (cms/tools/cms/generate_audio.py)  — T: Transform
+#
+# This script never opens a db connection. After sync/sentences/audio
+# produce their staging files, the db side runs:
+#   db/scripts/import_staging.sh      ← L: Load (UPSERT files → db)
+#   db/scripts/build.sh               ← bake the db image
+# which together `cms/scripts/pipeline.sh` runs as one command.
+#
+# Subcommands still here for parity:
+#   export     Pass-through to db/scripts/export_bundle.py — the db's
+#              pg_dump entry point. Exposed as `content.sh export` for
+#              muscle memory; the actual code lives at db/scripts/.
+#   doctor     Pre-flight: cms/.env ready, py deps present.
 #   -h|help    Show usage.
 #
-# Typical workflow (CMS host):
-#   ./cms/scripts/content.sh sync        # csv → DB
-#   ./cms/scripts/content.sh sentences   # OpenAI fills buckets
-#   ./cms/scripts/content.sh audio       # Tencent TTS fills mp3s
-#   ./cms/scripts/content.sh export      # (optional) inspect staging bundle
-#   ./db/scripts/build.sh          # build image
-#   ./db/scripts/push.sh          # ship to registry
+# Typical workflow (CMS host) — these three commands write staging
+# files only; the db-side import + bake is `cms/scripts/pipeline.sh`
+# (which also calls db/scripts/import_staging.sh for you):
+#   ./cms/scripts/content.sh sync        # csv → cms/.local/staging/vocabulary/<lib>.json
+#   ./cms/scripts/content.sh sentences   # OpenAI → cms/.local/staging/sentences/<lib>.jsonl
+#   ./cms/scripts/content.sh audio       # TTS → updates audio_url in same JSONL
+#   ./cms/scripts/pipeline.sh            # full ETL: the above + import_staging
+#   ./db/scripts/build.sh                # bake the db image from staging db
+#   ./db/scripts/push.sh                 # ship to registry
 #
 # Each subcommand just wraps the underlying python module. Pass `--help`
 # to the wrapped CLI for the full flag list.
@@ -208,11 +220,11 @@ usage() {
 用法: $0 <command> [args]
 
 命令:
-  sync         把 cms/source/vocabulary/*.csv 灌进 vocabulary_libs / vocabulary_words
-  sentences  调 OpenAI 批量生成 sentences (填到 DEFAULT_BUCKET_TARGET_SIZE)
-  audio      调 Tencent TTS 批量烤 MP3 (跳过 audio_url 已设的句子)
-  export       把 content + audio 导出成 staging bundle (bake_image 内部用的同一个)
-  doctor       前置检查 (cms/.env + Python deps + db 可达)
+  sync         把 cms/source/vocabulary/*.csv 写到 cms/.local/staging/vocabulary/<lib>.json (E: Extract)
+  sentences  调 OpenAI 追加句子到 cms/.local/staging/sentences/<lib>.jsonl (T: Transform)
+  audio      调 Tencent TTS 烤 MP3,更新 audio_url 字段 (T: Transform; 跳过已设的)
+  export       pass-through to db/scripts/export_bundle.py(为 muscle memory 留的)
+  doctor       前置检查 (cms/.env + Python deps)
   -h|help      显示本帮助
 
 每个子命令都透传给 cms/tools/cms/ 下的 Python 模块。子命令自身的
@@ -221,13 +233,15 @@ usage() {
   $0 sentences --help
   $0 audio --help
 
-典型工作流 (CMS 主机,首次):
-  ./cms/scripts/env.sh                   # cms/.env 引导 (一次性)
-  $0 sync                                   # csv → DB
-  $0 sentences                              # OpenAI 填句子
-  $0 audio                                  # TTS 烤 MP3
-  ./db/scripts/build.sh            # 烤 image
-  ./db/scripts/push.sh            # 推 registry
+注意:本脚本从**不**连 DB。DB 端通过 db/scripts/import_staging.sh
+(dbtools.importer) 把 staging 文件 UPSERT 进 staging db。典型工作流:
+  $0 sync                                   # CMS: csv → JSON
+  $0 sentences                              # CMS: OpenAI → JSONL
+  $0 audio                                  # CMS: TTS → 填 audio_url
+  ./db/scripts/import_staging.sh all       # db: 灌 staging 文件
+  ./db/scripts/build.sh            # db: 烤 image
+  ./db/scripts/push.sh            # db: 推 registry
+  # 或者上面 3 步一次性: ./cms/scripts/pipeline.sh + ./db/scripts/build.sh
 EOF
 }
 
