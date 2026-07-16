@@ -4,23 +4,23 @@
 # never opens a db connection).
 #
 # This script is the file-producer half of the CMS pipeline. All outputs
-# land in cms/.local/staging/ — naming matches `db/scripts/import_staging.sh`
+# land in cms/staging/ — naming matches `db/scripts/import_staging.sh`
 # which reads those files in the Load step.
 #
 # E: Extract
-#   sync       Import vocabulary CSVs → cms/.local/staging/vocabulary/<lib>.json.
+#   sync       Import vocabulary CSVs → cms/staging/vocabulary/<lib>.json.
 #              (cms/cms_pipeline/import_vocab.py)
 # T: Transform
 #   sentences  Bulk-generate practice sentences via OpenAI →
-#              cms/.local/staging/sentences/<lib>.jsonl (append).
+#              cms/staging/sentences/<lib>.jsonl (append).
 #              (cms/cms_pipeline/generate_sentences.py)
 #   audio      Bulk-generate MP3s via Tencent Cloud TTS →
 #              updates audio_url in the same sentences JSONL.
 #              (cms/cms_pipeline/generate_audio.py)
 # L: Load
 #   (NOT here. The Load step is db/scripts/import_staging.sh + dbtools.importer
-#    — a separate db-side operator command. cms/run.sh wraps
-#    (a) ensure-db + (b/c/d) the steps here, but doesn't do L either.)
+#    — a separate db-side operator command. cms/run.sh wraps the 3
+#    steps here, but doesn't do L either.)
 #
 # Subcommands here for parity:
 #   export     Pass-through to db/scripts/export_bundle.py — the db's
@@ -30,10 +30,10 @@
 #   -h|help    Show usage.
 #
 # Typical workflow (CMS host) — the three operator commands:
-#   ./cms/scripts/staging.sh sync         # csv → cms/.local/staging/vocabulary/<lib>.json
-#   ./cms/scripts/staging.sh sentences    # OpenAI → cms/.local/staging/sentences/<lib>.jsonl
+#   ./cms/scripts/staging.sh sync         # csv → cms/staging/vocabulary/<lib>.json
+#   ./cms/scripts/staging.sh sentences    # OpenAI → cms/staging/sentences/<lib>.jsonl
 #   ./cms/scripts/staging.sh audio        # TTS → updates audio_url in same JSONL
-#   ./cms/run.sh                  # full CMS driver (ensure-db + the 3 above)
+#   ./cms/run.sh                  # full CMS driver (sync + sentences + audio)
 #   ./db/scripts/import_staging.sh all    # db: UPSERT staging 文件 → staging db
 #   ./db/scripts/build.sh                 # db: bake db image from staging db
 #   ./db/scripts/push.sh                  # ship to registry
@@ -90,40 +90,28 @@ cmd_doctor() {
     set -a; . "$env_file"; set +a
 
     # Hard requirements (every subcommand needs these).
-    # DATABASE_URL is NOT in cms/.env — it's assembled from POSTGRES_PASSWORD
-    # + code defaults. AUDIO_DIR is also NOT in cms/.env (code default
+    # AUDIO_DIR is NOT in cms/.env (code default
     # /var/lib/type-any-language/audio). AI_BASE_URL / AI_MODEL ARE in
     # cms/.env (operator decisions — OpenAI vs Azure vs local, gpt-3.5-turbo
     # vs gpt-4o). The check below mirrors what cms/cms_pipeline/env.py does in
     # Python; we replicate it here in bash so doctor can run without
     # spinning up Python.
+    #
+    # DB connectivity is NOT checked here — cms-side modules don't connect
+    # to the db (they only write files). db-side scripts (import_staging.sh /
+    # build.sh / migrate.sh) check connectivity separately via
+    # dbtools.db_url.
     local missing=()
     [ -z "$AI_API_KEY" ]     && missing+=("AI_API_KEY")
     [ -z "$AI_BASE_URL" ]    && missing+=("AI_BASE_URL")
     [ -z "$AI_MODEL" ]       && missing+=("AI_MODEL")
-    if [ -z "$DATABASE_URL" ]; then
-        # Try to assemble it (same logic as env.py / db/scripts/build.sh).
-        local _pu="${POSTGRES_USER:-english_user}"
-        local _pd="${POSTGRES_DB:-english_learning}"
-        local _ph="${POSTGRES_HOST:-localhost}"
-        local _pp="${POSTGRES_PORT:-5432}"
-        local _pp_pw="${POSTGRES_PASSWORD:-}"
-        if [ -z "$_pp_pw" ] && [ -f .secrets/postgres_password ]; then
-            _pp_pw="$(cat .secrets/postgres_password)"
-        fi
-        if [ -n "$_pp_pw" ]; then
-            DATABASE_URL="postgresql://${_pu}:${_pp_pw}@${_ph}:${_pp}/${_pd}"
-        else
-            missing+=("POSTGRES_PASSWORD (or .secrets/postgres_password)")
-        fi
-    fi
 
     if [ ${#missing[@]} -gt 0 ]; then
         err "以下 cms/.env / 必要项缺失:"
         for k in "${missing[@]}"; do echo "  - $k"; done
         ok=0
     else
-        ok "核心 key 都有值 (AI_API_KEY / AI_BASE_URL / AI_MODEL / POSTGRES_PASSWORD)"
+        ok "核心 key 都有值 (AI_API_KEY / AI_BASE_URL / AI_MODEL)"
     fi
 
     # AUDIO_DIR: code default, just show what's resolved (no fail if missing —
@@ -166,15 +154,9 @@ cmd_doctor() {
         ok=0
     fi
 
-    # DB reachability.
-    if command -v psql &>/dev/null && [ -n "$DATABASE_URL" ]; then
-        if psql "$DATABASE_URL" -tAc "SELECT 1" &>/dev/null; then
-            ok "DATABASE_URL 可连接"
-        else
-            err "DATABASE_URL 不可连接"
-            ok=0
-        fi
-    fi
+    # DB reachability is NOT checked here — cms-side modules don't connect
+    # to the db (they only write files). db-side scripts (import_staging.sh /
+    # build.sh / migrate.sh) handle db connectivity separately.
 
     echo ""
     if [ "$ok" = "1" ]; then
@@ -223,8 +205,8 @@ usage() {
 用法: $0 <command> [args]
 
 命令:
-  sync         把 cms/seed/vocabulary/*.csv 写到 cms/.local/staging/vocabulary/<lib>.json (E: Extract)
-  sentences  调 OpenAI 追加句子到 cms/.local/staging/sentences/<lib>.jsonl (T: Transform)
+  sync         把 cms/seed/vocabulary/*.csv 写到 cms/staging/vocabulary/<lib>.json (E: Extract)
+  sentences  调 OpenAI 追加句子到 cms/staging/sentences/<lib>.jsonl (T: Transform)
   audio      调 Tencent TTS 烤 MP3,更新 audio_url 字段 (T: Transform; 跳过已设的)
   export       pass-through to db/scripts/export_bundle.py(为 muscle memory 留的)
   doctor       前置检查 (cms/.env + Python deps)

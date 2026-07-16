@@ -33,12 +33,11 @@
 #   has a built-in default). So this is the only env.sh in the project.
 #
 # Smart defaults NOT injected (require user-supplied secrets + operator decisions):
-#   - POSTGRES_PASSWORD              (host-side db password; see "Where does
-#                                     the db password come from" below)
 #   - AI_API_KEY                     (provider-issued)
 #   - AI_BASE_URL                    (operator decision: OpenAI / Azure / local)
 #   - AI_MODEL                       (operator decision: gpt-3.5-turbo / gpt-4o / ...)
 #   - TENCENT_SECRET_ID/KEY/APP_ID   (provider-issued)
+#   - CLOUD_ACCESS_KEY/SECRET_KEY    (provider-issued, only needed when CLOUD_PROVIDER=tencent_cos)
 #
 # All other knobs (POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB,
 # DB_IMAGE, AUDIO_DIR, DEFAULT_BUCKET_TARGET_SIZE) have code-level defaults
@@ -57,18 +56,11 @@
 #   export DOCKER_REGISTRY=docker.io/youruser
 #   ./db/scripts/push.sh
 #
-# Where does the db password come from?
-#   DATABASE_URL is assembled at runtime by cms/cms_pipeline/env.py +
-#   db/scripts/build.sh from POSTGRES_PASSWORD (which has no code
-#   default) + code defaults for user/host/port/db. POSTGRES_PASSWORD is
-#   resolved in this order:
-#     1. shell env:  export POSTGRES_PASSWORD=...
-#     2. .secrets/postgres_password (chmod 600) — same file the dev/prod
-#        run.sh writes; operator copies it from the dev/prod host to the
-#        CMS host for content production
-#     3. error with hint
-#   For a single-host setup (CMS + dev on the same machine), .secrets/
-#   postgres_password already exists, so no extra setup is needed.
+# DB password (POSTGRES_PASSWORD) is NOT here either. CMS-side modules do
+# not connect to the database — they only write files to cms/staging/.
+# The db side (db/scripts/{build,import_staging,migrate}.sh) resolves the
+# password itself from shell env or .secrets/postgres_password. For a
+# single-host setup that file already exists after lifecycle.sh first start.
 #
 # Requires: shell + filesystem. NO python, NO docker.
 
@@ -93,9 +85,8 @@ SECRET_KEYS=(
 )
 
 # Required keys for a "ready" CMS host. Used by cmd_doctor.
-# DATABASE_URL is NOT here — it's assembled at runtime from POSTGRES_PASSWORD
-# + code defaults (see header comment). AUDIO_DIR is NOT here — it has a code
-# default (/var/lib/type-any-language/audio) and can be overridden via shell
+# AUDIO_DIR is NOT here — it has a code default
+# (/var/lib/type-any-language/audio) and can be overridden via shell
 # env. AI_BASE_URL and AI_MODEL ARE here — they're operator decisions
 # (OpenAI vs Azure vs local; gpt-3.5-turbo vs gpt-4o), not infrastructure
 # defaults, so they go in cms/.env. POSTGRES_USER/POSTGRES_HOST/
@@ -105,6 +96,8 @@ SECRET_KEYS=(
 # DB_IMAGE_TAG is also not here — its default is the root ./VERSION file
 # (lib.sh's resolve_image_tag). TENCENT_* is checked separately below
 # (all-or-nothing, but only the audio subcommand actually needs them).
+# POSTGRES_PASSWORD is NOT here — CMS modules don't connect to the db,
+# the db side resolves it itself (shell env or .secrets/postgres_password).
 REQUIRED_KEYS=(
     AI_API_KEY
     AI_BASE_URL
@@ -154,11 +147,11 @@ cmd_init() {
     fi
 
     # Copy template — secrets + AI provider/model need to be filled.
-    # DATABASE_URL is NOT in cms/.env (assembled at runtime from POSTGRES_PASSWORD
-    # + code defaults). AUDIO_DIR is also NOT in cms/.env (code default
+    # AUDIO_DIR is NOT in cms/.env (code default
     # /var/lib/type-any-language/audio). All other knobs (POSTGRES_USER,
     # POSTGRES_DB, DB_IMAGE, DEFAULT_BUCKET_TARGET_SIZE) also have code-level
-    # defaults.
+    # defaults. POSTGRES_PASSWORD is NOT here — CMS modules don't connect
+    # to the db, the db side resolves it itself from .secrets/postgres_password.
     mkdir -p "$(dirname "$TARGET")"
     cp "$TEMPLATE" "$TARGET"
     ok "已从 $TEMPLATE 复制为 $TARGET"
@@ -171,12 +164,6 @@ cmd_init() {
     echo "  - TENCENT_SECRET_ID  (腾讯云 TTS — 三件套 all-or-nothing, 不跑 audio 可不填)"
     echo "  - TENCENT_SECRET_KEY"
     echo "  - TENCENT_APP_ID"
-    echo ""
-    info "DB password 来源 (DATABASE_URL 是运行时拼出来的):"
-    echo "  1. export POSTGRES_PASSWORD=...               # 临时"
-    echo "  2. cp dev-host:.secrets/postgres_password \\"
-    echo "       .secrets/postgres_password              # 多机部署"
-    echo "  3. 单机部署: .secrets/postgres_password 已经在 dev host 存在"
     echo ""
     info "AUDIO_DIR 默认是 /var/lib/type-any-language/audio"
     info "  → Windows / 无 sudo 的系统: export AUDIO_DIR=/your/path"
@@ -390,21 +377,6 @@ cmd_doctor() {
         ok "POSTGRES_USER / POSTGRES_DB 走 db/scripts/build.sh 默认 (english_user / english_learning)"
     fi
 
-    # --- DB password source ---
-    # DATABASE_URL is assembled at runtime; the only thing the operator
-    # needs to provide is POSTGRES_PASSWORD. Check that at least one of
-    # the supported sources will work.
-    if [ -n "${POSTGRES_PASSWORD:-}" ]; then
-        ok "POSTGRES_PASSWORD 来自 shell env"
-    elif [ -f .secrets/postgres_password ]; then
-        ok "POSTGRES_PASSWORD 来自 .secrets/postgres_password"
-    else
-        err "POSTGRES_PASSWORD 找不到 — 设一下:"
-        info "  export POSTGRES_PASSWORD=...                       # 临时"
-        info "  mkdir -p .secrets && cp <dev-host>:.secrets/postgres_password .secrets/"
-        failed=1
-    fi
-
     # --- AUDIO_DIR ---
     # Not in cms/.env anymore — code default is /var/lib/type-any-language/audio.
     # Show the resolved value so the operator can sanity-check.
@@ -444,10 +416,6 @@ usage() {
 典型工作流:
   ./cms/scripts/env.sh            # 首次: 引导 + smart defaults
   nano cms/.env                    # 填 secrets + AI 配置 (AI_API_KEY / AI_BASE_URL / AI_MODEL / TENCENT_*)
-  # 准备 db password (单选):
-  export POSTGRES_PASSWORD=...                   # 临时
-  # OR:
-  scp user@dev-host:.secrets/postgres_password .secrets/   # 持久
   ./cms/scripts/env.sh doctor     # 验证
   ./cms/scripts/env.sh update AI_API_KEY=...  # 改某一项
   ./cms/scripts/env.sh show       # 看一眼当前配置 (secret 脱敏)
