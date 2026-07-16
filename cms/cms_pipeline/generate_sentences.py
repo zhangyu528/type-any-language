@@ -4,11 +4,11 @@ generate_sentences.py — bulk-generate sentence JSONL files from vocab
 JSON files. Pure file producer: does NOT touch the db.
 
 Data flow:
-    cms/.local/staging/vocabulary/<lib>.json    ← import_vocab output
+    cms/staging/vocabulary/<lib>.json    ← import_vocab output
         ↓
     [generate_sentences.py]                    ← THIS MODULE
         ↓
-    cms/.local/staging/sentences/<lib>.jsonl   ← one sentence per line
+    cms/staging/sentences/<lib>.jsonl   ← one sentence per line
         ↓
     [db/scripts/import_staging.sh + dbtools.importer]
         ↓
@@ -76,8 +76,14 @@ def find_project_root() -> Path:
 
 
 def find_staging_dir() -> Path:
+    """Where vocab/sentences files go. Default: cms/staging/.
+
+    Override via CMS_STAGING_DIR (rare; for tests).
+    """
     env = os.environ.get("CMS_STAGING_DIR", "").strip()
-    return Path(env) if env else find_project_root() / "cms" / ".local" / "staging"
+    if env:
+        return Path(env)
+    return find_project_root() / "cms" / "staging"
 
 
 # --- AI bits (kept from the old implementation) ---
@@ -103,9 +109,9 @@ def build_prompt(words: list[str], difficulty: str, lib_name: str,
                   prompt: dict) -> list[dict]:
     """Build chat-completions messages. (Same as old version.)"""
     vars = {
-        "lib": lib_name,
+        "count": len(words),
+        "word_list": ", ".join(words),
         "difficulty": difficulty,
-        "words": ", ".join(words),
     }
     return [
         {"role": "system", "content": _render(prompt["system"], vars).strip()},
@@ -123,13 +129,26 @@ def call_openai(ai_cfg, words: list[str], difficulty: str, lib_name: str,
         model=ai_cfg["model"],
         messages=messages,
         temperature=0.7,
+        # MiniMax-M3 (and other reasoning-enabled models) emit a  block
+        # before the JSON, which can eat a big chunk of the token budget.
+        # Asking for 200 sentences × ~25 tokens/sentence + a multi-paragraph
+        # think block already exceeds 8k. Bump to 16k so the JSON survives
+        # even for a maxed-out (lib, difficulty) bucket.
+        max_tokens=16000,
     )
-    content = response.choices[0].message.content or "{}"
-    content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL)
-    content = re.sub(r"^\s*```(?:json|JSON)?\s*", "", content)
-    content = re.sub(r"\s*```\s*$", "", content)
-    content = content.strip()
-    parsed = json.loads(content)
+    content = response.choices[0].message.content or ""
+    # MiniMax-M3 emits a "thinking" block before the JSON. Scan
+    # forward to the first "{" then json.JSONDecoder.raw_decode from
+    # there — handles nesting correctly (unlike first-/last-brace
+    # slice) and ignores prose / think blocks / stray angle brackets.
+    decoder = json.JSONDecoder()
+    start = content.find("{")
+    if start < 0:
+        return []
+    try:
+        parsed, _ = decoder.raw_decode(content, start)
+    except json.JSONDecodeError:
+        return []
     sentences = parsed.get("sentences", [])
     if not isinstance(sentences, list):
         raise ValueError("OpenAI response missing 'sentences' list")
@@ -254,7 +273,18 @@ def fill_one_bucket(staging: Path, lib_id: str, lib_name: str, lib_level: str,
             "would_ask": len(targets),
         }
 
-    ai_items = call_openai(ai_cfg, targets, difficulty, lib_name, prompt)
+    # Ask the model in chunks of ~50 words at a time. MiniMax-M3 emits
+    # a multi-paragraph "thinking" block before the JSON that can
+    # eat 8k+ tokens; ask 200 in one shot and the whole 16k token
+    # cap is consumed before any sentences appear. Multiple smaller
+    # calls each get a fresh think allocation and survive.
+    CHUNK = 50
+    ai_items: list[dict] = []
+    for chunk_start in range(0, len(targets), CHUNK):
+        chunk = targets[chunk_start:chunk_start + CHUNK]
+        chunk_items = call_openai(ai_cfg, chunk, difficulty, lib_name, prompt)
+        if chunk_items:
+            ai_items.extend(chunk_items)
     # Normalize the AI's output (drop empty, lowercase target_words,
     # parse tags) before persisting.
     normalised: list[dict] = []

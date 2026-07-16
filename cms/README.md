@@ -1,6 +1,6 @@
 # cms —— 内容生产
 
-这个目录是 **CMS 内容生产** 的根 —— CMS 主机上跑 Python 工具链、调用 OpenAI / 腾讯 TTS、把内容写到 **staging 文件** (`cms/.local/staging/`)。**db image 本身** 在仓库根的 [`../db/`](../db/) —— 拆分后,这是两个并列的子项目,各自有 Dockerfile,职责清楚分开:
+这个目录是 **CMS 内容生产** 的根 —— CMS 主机上跑 Python 工具链、调用 OpenAI / 腾讯 TTS、把内容写到 **staging 文件** (`cms/staging/`)。**db image 本身** 在仓库根的 [`../db/`](../db/) —— 拆分后,这是两个并列的子项目,各自有 Dockerfile,职责清楚分开:
 
 - `cms/` 写文件(E + T,只产出 staging 文件)
 - `db/` 把 staging 文件灌进 db、烤 image(L + bake)
@@ -22,7 +22,7 @@ cms/
 │
 ├── cms_pipeline/        # Python 包(manifest / import_vocab / generate_sentences / generate_audio / storage / env)
 │
-├── run.sh                # CMS driver 主入口(operator 第一个敲的; ensure-db + E+T)
+├── run.sh                # CMS driver 主入口(operator 第一个敲的; E+T 不含 L)
 └── scripts/            # CMS 工具(operator 选跑的)
     ├── env.sh          # cms/.env 生命周期
     └── staging.sh      # file producer wrapper (sync / sentences / audio / export / doctor)
@@ -64,12 +64,12 @@ db/
                 CMS 主机 (Python, 不连 DB)
 cms/seed/vocabulary/*.csv                                                  (源)
         ↓  cms/scripts/staging.sh sync (import_vocab.py)                     (E: Extract)
-cms/.local/staging/vocabulary/<lib>.json
+cms/staging/vocabulary/<lib>.json
         ↓  cms/scripts/staging.sh sentences (generate_sentences.py, OpenAI)  (T: Transform)
-cms/.local/staging/sentences/<lib>.jsonl
+cms/staging/sentences/<lib>.jsonl
         ↓  cms/scripts/staging.sh audio     (generate_audio.py, TTS → Storage)
         ↓      (audio_url 字段被填入; mp3 落到 COS 或 cms/.local/audio/)
-cms/.local/staging/sentences/<lib>.jsonl
+cms/staging/sentences/<lib>.jsonl
 
                 db 主机 (dbtools.importer, 连 staging db)
 ======================================================================  边界  ==
@@ -98,7 +98,7 @@ frontend 请求 /api/sentences/random
 |---|---|
 | 编辑了 CSV / 改了 manifest / 改了 prompt | `cms/scripts/staging.sh sync\|sentences\|audio` (单步;仅写文件) |
 | 把所有 staging 文件一次性灌到 staging db | `db/scripts/import_staging.sh` (dbtools.importer;幂等,re-run 无害) |
-| 把整条 ETL + 灌 db 跑完 | `cms/run.sh` (ensure-db + E+T) **→** `db/scripts/import_staging.sh` (L) 两段独立跑 |
+| 把整条 ETL + 灌 db 跑完 | `cms/run.sh` (E+T) **→** `db/scripts/import_staging.sh` (L) 两段独立跑 |
 | 编辑了 CSV + 想马上出 image | `cms/run.sh` (CMS E+T) + `db/scripts/import_staging.sh` (L) + `db/scripts/build.sh` (bake) 三段独立 |
 | 起 / 停 staging db 容器(无需跑 pipeline) | `db/scripts/source_db.sh` (ensure / start / stop / status) |
 | 在 staging db 上建表 / 跑迁移 | `db/scripts/init_schema.sh` + `db/scripts/migrate.sh` |
@@ -109,7 +109,7 @@ frontend 请求 /api/sentences/random
 > - CMS **E + T**:import_vocab / generate_sentences / generate_audio,只产文件
 > - db **L**:dbtools.importer 把 staging 文件 UPSERT 进 staging db
 > - db **bake**:source_db 容器、init_schema / migrate / build / push
-> - **唯一的桥** 是 `cms/.local/staging/` 这个目录。CMS 完全不知道 schema 长啥样;db 完全不知道 TTS / OpenAI 是啥
+> - **唯一的桥** 是 `cms/staging/` 这个目录。CMS 完全不知道 schema 长啥样;db 完全不知道 TTS / OpenAI 是啥
 
 ## Audio 流向(注意:db image 不带 audio)
 

@@ -283,7 +283,7 @@
        ▼
 
 
-2. staging.sh sync → cms/.local/staging/vocabulary/<lib>.json（不连 DB）
+2. staging.sh sync → cms/staging/vocabulary/<lib>.json（不连 DB）
 
 
        │
@@ -293,7 +293,7 @@
 
 
 3. staging.sh sentences → OpenAI 批量生成句子
-       → 追加到 cms/.local/staging/sentences/<lib>.jsonl
+       → 追加到 cms/staging/sentences/<lib>.jsonl
 
 
        │  （按 (词库, 难度) 桶填到 DEFAULT_BUCKET_TARGET_SIZE）
@@ -587,7 +587,7 @@
 
 
 
-CSV 文件位于 `cms/seed/vocabulary/*.csv`（已提交到仓库，运维同学维护）。通过 `cms/scripts/staging.sh sync`（底层 `cms/cms_pipeline/import_vocab.py`）写入 `cms/.local/staging/vocabulary/<lib>.json`（**ETL 的 E 步骤，CMS 端只产文件,不连 DB**）。db 端通过 `db/scripts/import_staging.sh`（`dbtools.importer`）把 JSONL 文件 UPSERT 进 staging db。
+CSV 文件位于 `cms/seed/vocabulary/*.csv`（已提交到仓库，运维同学维护）。通过 `cms/scripts/staging.sh sync`（底层 `cms/cms_pipeline/import_vocab.py`）写入 `cms/staging/vocabulary/<lib>.json`（**ETL 的 E 步骤，CMS 端只产文件,不连 DB**）。db 端通过 `db/scripts/import_staging.sh`（`dbtools.importer`）把 JSONL 文件 UPSERT 进 staging db。
 
 
 

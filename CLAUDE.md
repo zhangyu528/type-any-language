@@ -28,7 +28,7 @@ host-side secret (`POSTGRES_PASSWORD`) is generated on first start by `lifecycle
 ### ETL architecture (CMS produces files, db imports them)
 
 The CMS/db split follows an ETL pattern: **E**xtract (CSVs) and **T**ransform
-(AI / TTS) live entirely on the CMS side as files in `cms/.local/staging/`; the
+(AI / TTS) live entirely on the CMS side as files in `cms/staging/`; the
 **L**oad (UPSERT into Postgres) is the db side's job, via `dbtools.importer`.
 
 ```
@@ -37,7 +37,7 @@ The CMS/db split follows an ETL pattern: **E**xtract (CSVs) and **T**ransform
    cms/seed/vocabulary/*.csv  ─┐                                    
    cms/seed/prompts/*.yaml    │                                    
    cms/seed/manifest.yaml     │   a) import_vocab.py                
-                                ├──────────────►  cms/.local/staging/ 
+                                ├──────────────►  cms/staging/ 
    cms/.env (AI_*, TENCENT_*)   │                     vocabulary/    
                                 │                     *.json         
                                 │                                       
@@ -45,7 +45,7 @@ The CMS/db split follows an ETL pattern: **E**xtract (CSVs) and **T**ransform
                                 │     reads vocab JSON, calls          
                                 │     OpenAI, appends to               
                                 ▼                                       
-                          cms/.local/staging/                           
+                          cms/staging/                           
                               sentences/*.jsonl                          
                                 │                                        
                                 │   c) generate_audio.py               
@@ -54,7 +54,7 @@ The CMS/db split follows an ETL pattern: **E**xtract (CSVs) and **T**ransform
                                 │     Storage (LocalFs / Tencent COS), 
                                 │     updates audio_url in JSONL       
                                 ▼                                        
-                          cms/.local/staging/                           
+                          cms/staging/                           
                               sentences/*.jsonl   ──►   FILES (公共区)  
                                                                        
         db side (Python + Postgres)                                     
@@ -102,7 +102,7 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generat
 │   └── src/app/         # API client + main page
 │
 ├── cms/              # The content service — produces + ships the content image
-│   ├── run.sh            # CMS driver (entry point; ensure-db + E+T)
+│   ├── run.sh            # CMS driver (entry point; E+T)
 │   ├── source/           # operator-maintained source (git-tracked, hand-edited)
 │   │   ├── manifest.yaml
 │   │   ├── vocabulary/   # CSVs per lib
@@ -166,10 +166,10 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 > **Rename notes** (recent releases):
 >
 > - `.env.db` → `cms/.env` (one-time `mv`, then `staging.sh` / `db/scripts/build.sh` keeps working; the file is gitignored).
-> - `cms/scripts/etl.sh` → `cms/scripts/staging.sh`. The script no longer does L (Load is now exclusively the db-side `./db/scripts/import_staging.sh all`); the CMS ETL split is now visible at the script-name level: `staging.sh` produces files in `cms/.local/staging/`, `cms/run.sh` orchestrates the CMS driver through E+T, `db/scripts/import_staging.sh` is the separate Load step.
+> - `cms/scripts/etl.sh` → `cms/scripts/staging.sh`. The script no longer does L (Load is now exclusively the db-side `./db/scripts/import_staging.sh all`); the CMS ETL split is now visible at the script-name level: `staging.sh` produces files in `cms/staging/`, `cms/run.sh` orchestrates the CMS driver through E+T, `db/scripts/import_staging.sh` is the separate Load step.
 > - `run.sh` moved up one level: was inside `cms/scripts/`, now at `cms/run.sh` (entry point vs tools split is visible at the dir level — tools stay under `cms/scripts/`, the main driver is the bare `cms/run.sh` you type first).
 >
-> To pin a different env path, export `CONTENT_ENV_FILE=/some/path/.env.staging` in the shell (same precedence pattern as `POSTGRES_PASSWORD` / `DOCKER_REGISTRY`).
+> To pin a different env path, export `CONTENT_ENV_FILE=/some/path/.env.staging` in the shell (same precedence pattern as `DOCKER_REGISTRY`).
 
 ```bash
 # 1. 引导 cms/.env(首次)
@@ -178,8 +178,8 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 
 # 2. 跑内容管线 (writes staging files; db import is a separate step)
 ./cms/scripts/staging.sh doctor     # Pre-flight: cms/.env + Python deps
-./cms/scripts/staging.sh sync       # CSVs → cms/.local/staging/vocabulary/<lib>.json
-./cms/scripts/staging.sh sentences  # OpenAI → cms/.local/staging/sentences/<lib>.jsonl
+./cms/scripts/staging.sh sync       # CSVs → cms/staging/vocabulary/<lib>.json
+./cms/scripts/staging.sh sentences  # OpenAI → cms/staging/sentences/<lib>.jsonl
 ./cms/scripts/staging.sh audio      # Tencent TTS → updates audio_url in sentences JSONL
 
 # 3. db side: import staging files → Postgres (separate step, db's job)
@@ -204,8 +204,8 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 
 | Step | Tool | What it writes |
 |---|---|---|
-| sync (CSV → JSON) | `cms/cms_pipeline/import_vocab.py` | `cms/.local/staging/vocabulary/<lib>.json` |
-| sentences (AI → JSONL) | `cms/cms_pipeline/generate_sentences.py` | appends to `cms/.local/staging/sentences/<lib>.jsonl` |
+| sync (CSV → JSON) | `cms/cms_pipeline/import_vocab.py` | `cms/staging/vocabulary/<lib>.json` |
+| sentences (AI → JSONL) | `cms/cms_pipeline/generate_sentences.py` | appends to `cms/staging/sentences/<lib>.jsonl` |
 | audio (TTS → URL) | `cms/cms_pipeline/generate_audio.py` | updates `audio_url` field in sentences JSONL |
 | import (files → db) | **`db/tools/dbtools/importer.py`** | UPSERT into `vocabulary_libs` / `vocabulary_words` / `sentences` |
 | bake (db → image) | `db/scripts/build.sh` | builds the `db` image from `db/init/01-content.sql` |
@@ -213,7 +213,7 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 The CMS pipeline (steps sync/sentences/audio) **never** opens a db connection.
 Only `dbtools.importer` and `db/scripts/build.sh` touch Postgres. To re-run a single
 CMS step (e.g. you edited a CSV and only need to re-sync the vocab JSON), there's no
-need to spin up Postgres; the files in `cms/.local/staging/` are the stable
+need to spin up Postgres; the files in `cms/staging/` are the stable
 artifact until you decide to import.
 
 ### Dev target host
@@ -426,8 +426,8 @@ Answer validation is **client-side**: the frontend normalizes (lowercase, strip 
 
 **Bake time (CMS host, ETL file-based):**
 1. Operator commits new CSVs to `cms/seed/vocabulary/`.
-2. `staging.sh sync` writes them to `cms/.local/staging/vocabulary/<lib>.json` (no db write).
-3. `staging.sh sentences` calls OpenAI and appends to `cms/.local/staging/sentences/<lib>.jsonl` up to `DEFAULT_BUCKET_TARGET_SIZE` per (lib, difficulty).
+2. `staging.sh sync` writes them to `cms/staging/vocabulary/<lib>.json` (no db write).
+3. `staging.sh sentences` calls OpenAI and appends to `cms/staging/sentences/<lib>.jsonl` up to `DEFAULT_BUCKET_TARGET_SIZE` per (lib, difficulty).
 4. `staging.sh audio` calls Tencent TTS; MP3s land in the configured `Storage` (local `cms/.local/audio/` by default, or Tencent Cloud COS when `CLOUD_PROVIDER=tencent_cos`), and each sentence's `audio_url` field in the JSONL is set to the storage's `public_url(key)`.
 5. `db/scripts/import_staging.sh` reads the staging files and UPSERTs them into `vocabulary_libs` / `vocabulary_words` / `sentences` on the staging db (`cmstools.importer`).
 6. `db/scripts/build.sh` runs `pg_dump` on the 3 content tables, stages the SQL into `db/init/01-content.sql`, builds the db image.
@@ -487,7 +487,7 @@ When the operator merges new schema changes:
 
 ### CMS host — `cms/.env` (created by `cms/scripts/env.sh`)
 
-`cms/.env` holds **only provider secrets and operator decisions**. Everything else — the Postgres connection (DATABASE_URL), the db identity (POSTGRES_USER/HOST/PORT/DB), the image name, the audio output directory, and the sentences-bucket size — has code-level defaults and is therefore NOT in the file. See [CMS host config knobs](#cms-host-config-knobs) for the override pattern.
+`cms/.env` holds **only provider secrets and operator decisions**. Everything else — the db image name, the audio output directory, and the sentences-bucket size — has code-level defaults and is therefore NOT in the file. See [CMS host config knobs](#cms-host-config-knobs) for the override pattern.
 
 Required (in `cms/.env`):
 - `AI_API_KEY` — OpenAI-compatible LLM key
@@ -495,9 +495,7 @@ Required (in `cms/.env`):
 - `AI_MODEL` — model name (default in template: `gpt-3.5-turbo`; switch to `gpt-4o` / etc. as needed)
 - `TENCENT_SECRET_ID`, `TENCENT_SECRET_KEY`, `TENCENT_APP_ID` — Tencent Cloud TTS; required when running `staging.sh audio`, optional otherwise
 
-`DATABASE_URL` is **not** in `cms/.env`. It's assembled at runtime by `cms/cms_pipeline/env.py` + `db/scripts/build.sh` from:
-- `POSTGRES_PASSWORD` (the only piece without a code default — see [Where the db password comes from](#where-the-db-password-comes-from))
-- `POSTGRES_USER` (default `english_user`), `POSTGRES_HOST` (default `localhost`), `POSTGRES_PORT` (default `5432`), `POSTGRES_DB` (default `english_learning`)
+**`POSTGRES_PASSWORD` / `DATABASE_URL` are NOT in `cms/.env` and not read by CMS code.** CMS modules (sync / sentences / audio) do not connect to the database — they only write files to `cms/staging/`. The db side (`db/scripts/source_db.sh` / `build.sh` / `migrate.sh`) resolves `POSTGRES_PASSWORD` itself from shell env or `.secrets/postgres_password` and assembles `DATABASE_URL` before invoking db-side Python. See [Where the db password comes from](#where-the-db-password-comes-from) below.
 
 `AUDIO_DIR` is also **not** in `cms/.env` by default. It now means "root of the local Storage" (only used when `CLOUD_PROVIDER=local_fs`); the code default is `cms/.local/audio` (so Windows / sandboxed Linux hosts can run without sudo). Override via shell env if you need a different location:
 ```bash
@@ -516,7 +514,7 @@ export DOCKER_REGISTRY=docker.io/youruser   # overrides REGISTRY file
 
 #### Where the db password comes from
 
-`POSTGRES_PASSWORD` is resolved by `cms/cms_pipeline/env.py` / `db/scripts/build.sh` in this order:
+`POSTGRES_PASSWORD` is resolved **exclusively on the db side** (`db/scripts/source_db.sh` / `build.sh` / `migrate.sh`) in this order:
 1. **Shell env** — `export POSTGRES_PASSWORD=...` (temporary, e.g. CI)
 2. **`.secrets/postgres_password`** (chmod 600) — the same file `scripts/{dev-host,prod-host}/lifecycle.sh` writes on first start. For a **multi-host** setup, the operator copies this file from the dev/prod host to the CMS host:
    ```bash
@@ -525,21 +523,21 @@ export DOCKER_REGISTRY=docker.io/youruser   # overrides REGISTRY file
    For a **single-host** setup (CMS + dev on the same machine), the file already exists locally — no extra setup.
 3. **Error** — fails loudly with a hint pointing at both options above.
 
-`env.sh doctor` checks both options and fails if neither is available.
+The CMS side (`cms/.env`, `cms_pipeline/env.py`, `cms/scripts/*.sh`) **does not need or read this password** — it has no db connection to make.
 
 ### CMS host config knobs (NOT in `cms/.env`)
 
-These have code-level defaults in `cms/cms_pipeline/env.py` / `db/scripts/build.sh` / `lib.sh`. Override via shell env when you need a different value:
+These have code-level defaults in `db/scripts/build.sh` (db-side knobs: `POSTGRES_*` / `DB_IMAGE_*`) and `cms/cms_pipeline/env.py` (CMS-side knobs: `AUDIO_DIR` / `CLOUD_*` / `DEFAULT_BUCKET_TARGET_SIZE`). Override via shell env when you need a different value:
 
 | Knob | Code default | Override example |
 |---|---|---|
 | `POSTGRES_USER` | `english_user` | `POSTGRES_USER=foo ./db/scripts/build.sh` |
-| `POSTGRES_HOST` | `localhost` | `POSTGRES_HOST=db.internal ./cms/scripts/staging.sh sentences` |
+| `POSTGRES_HOST` | `localhost` | `POSTGRES_HOST=db.internal ./db/scripts/build.sh` |
 | `POSTGRES_PORT` | `5432` | (same pattern) |
 | `POSTGRES_DB`   | `english_learning` | (same pattern) |
-| `POSTGRES_PASSWORD` | (none — see above) | `POSTGRES_PASSWORD=... ./db/scripts/build.sh` |
+| `POSTGRES_PASSWORD` | (none — db side resolves via shell env or `.secrets/postgres_password`) | `POSTGRES_PASSWORD=... ./db/scripts/build.sh` |
 | `DB_IMAGE`      | `english_db_content` | (same pattern) |
-| `AUDIO_DIR`     | `cms/.local/audio` | `AUDIO_DIR=/your/audio/dir ./cms/scripts/staging.sh audio` |
+| `AUDIO_DIR`     | `cms/.local/audio` | `AUDIO_DIR=/my/audio/dir ./cms/scripts/staging.sh audio` |
 | `CLOUD_PROVIDER` | `local_fs` | `CLOUD_PROVIDER=tencent_cos ./cms/scripts/staging.sh audio` |
 | `CLOUD_BUCKET` / `CLOUD_REGION` / `CLOUD_ACCESS_KEY` / `CLOUD_SECRET_KEY` | (none) | Required when `CLOUD_PROVIDER=tencent_cos` |
 | `DEFAULT_BUCKET_TARGET_SIZE` | `200` | `DEFAULT_BUCKET_TARGET_SIZE=500 ./cms/scripts/staging.sh sentences` |

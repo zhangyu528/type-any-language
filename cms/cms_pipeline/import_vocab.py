@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 import_vocab.py — read vocabulary CSVs (from cms/seed/manifest.yaml)
-→ write per-lib JSON files to cms/.local/staging/vocabulary/<lib>.json.
+→ write per-lib JSON files to cms/staging/vocabulary/<lib>.json.
 
 This module is a **pure producer** in the CMS pipeline:
   - Reads CSVs (declarative, manifest-driven)
@@ -13,7 +13,7 @@ The data flow now is:
         ↓
     [import_vocab.py]              ← THIS MODULE
         ↓
-    cms/.local/staging/vocabulary/<lib>.json
+    cms/staging/vocabulary/<lib>.json
         ↓
     [db/scripts/import_staging.sh + dbtools.importer]
         ↓
@@ -86,14 +86,14 @@ def find_project_root() -> Path:
 
 
 def find_staging_dir() -> Path:
-    """Where vocab/sentences files go. Default: cms/.local/staging/.
+    """Where vocab/sentences files go. Default: cms/staging/.
 
     Override via CMS_STAGING_DIR (rare; for tests).
     """
     env = os.environ.get("CMS_STAGING_DIR", "").strip()
     if env:
         return Path(env)
-    return find_project_root() / "cms" / ".local" / "staging"
+    return find_project_root() / "cms" / "staging"
 
 
 def parse_row(row: dict) -> dict | None:

@@ -19,6 +19,9 @@ system: |
   for English learners. Each sentence MUST use at least one of the
   target words. Match the requested difficulty level. Output JSON only.
 
+  Do NOT include any reasoning, chain-of-thought, or "thinking" blocks
+  in your response. Skip all preamble. Return only the JSON object.
+
 # User prompt — concrete ask for THIS batch. Templated.
 user: |
   Target words ({{count}}): {{word_list}}

@@ -2,7 +2,7 @@
 """
 generate_audio.py — bulk-fill audio_url in the sentences JSONL files.
 
-For each sentence in cms/.local/staging/sentences/<lib>.jsonl where
+For each sentence in cms/staging/sentences/<lib>.jsonl where
 audio_url is empty, call Tencent Cloud TTS, upload the MP3 to
 storage (LocalFsStorage or TencentCosStorage — see cms.storage),
 and update the sentence in the JSONL with the public URL.
@@ -59,7 +59,7 @@ def find_project_root() -> Path:
 
 def find_staging_dir() -> Path:
     env = os.environ.get("CMS_STAGING_DIR", "").strip()
-    return Path(env) if env else find_project_root() / "cms" / ".local" / "staging"
+    return Path(env) if env else find_project_root() / "cms" / "staging"
 
 
 # --- TTS bits ---
