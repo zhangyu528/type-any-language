@@ -232,7 +232,8 @@ def downgrade_one(conn) -> Optional[str]:
 # ---------------------------------------------------------------------------
 def main() -> None:
     import argparse
-    from cms_pipeline.env import setup_env, load_config
+    import os
+    import sys
 
     parser = argparse.ArgumentParser(description="Apply pending schema migrations.")
     parser.add_argument(
@@ -249,10 +250,19 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    setup_env()
-    cfg = load_config()
+    # DATABASE_URL is assembled by the calling db-side script
+    # (db/scripts/migrate.sh / build.sh) from POSTGRES_PASSWORD + code
+    # defaults. cms_pipeline.env no longer touches it.
+    database_url = os.environ.get("DATABASE_URL", "").strip()
+    if not database_url:
+        sys.exit(
+            "DATABASE_URL is not set. db/scripts/migrate.sh (or build.sh) "
+            "should have assembled it from POSTGRES_PASSWORD + code defaults "
+            "before invoking this runner. Either run via migrate.sh, or "
+            "export DATABASE_URL=postgresql://user:pwd@host:port/db."
+        )
 
-    with psycopg2.connect(cfg.database_url) as conn:
+    with psycopg2.connect(database_url) as conn:
         ensure_schema_migrations_table(conn)
         current = get_current_version(conn)
         pending = _discover_versions()

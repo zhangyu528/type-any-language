@@ -6,6 +6,7 @@ from __future__ import annotations
 version = "0001_baseline"
 description = "Baseline: capture the 3 content tables as declared by SQLAlchemy models"
 
+import os
 import sys
 from pathlib import Path
 
@@ -47,15 +48,20 @@ def upgrade(conn) -> None:
     # Importing the model modules registers them on Base.metadata.
     from app.models import vocabulary, sentence  # noqa: E402,F401
 
-    # Read DATABASE_URL the same way env.py does — this migration is
-    # called with a psycopg2 conn (from the runner), but the schema
-    # metadata is created via SQLAlchemy's create_all() which needs
-    # its own engine. Both end up talking to the same DB.
-    from cms_pipeline.env import load_config  # noqa: E402
+    # Read DATABASE_URL directly — db/scripts/migrate.sh assembles it
+    # before invoking the runner (no longer via cms_pipeline.env).
+    # This migration is called with a psycopg2 conn (from the runner),
+    # but the schema metadata is created via SQLAlchemy's create_all()
+    # which needs its own engine. Both end up talking to the same DB.
+    database_url = os.environ.get("DATABASE_URL", "").strip()
+    if not database_url:
+        sys.exit(
+            "DATABASE_URL is not set. db/scripts/migrate.sh should have "
+            "assembled it from POSTGRES_PASSWORD + code defaults before "
+            "invoking this migration."
+        )
 
-    cfg = load_config()
-
-    engine = create_engine(cfg.database_url)
+    engine = create_engine(database_url)
     try:
         # create_all() is idempotent: it emits `CREATE TABLE IF NOT EXISTS`
         # (via SQLAlchemy's checkfirst=True default). Existing DBs no-op,

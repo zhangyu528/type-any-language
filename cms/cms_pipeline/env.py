@@ -11,12 +11,15 @@ Why a dedicated loader (not os.environ directly):
   - Fail loudly if cms/.env is missing or required keys are unset.
   - Single place to do type coercion + default handling.
   - Other scripts can `from cms_pipeline.env import setup_env` to mirror
-    the cms/.env → os.environ copy that db/scripts/build.sh does via `set -a`.
+    the cms/.env → os.environ copy that db scripts do via `set -a`.
 
 Validation contract:
-  - DATABASE_URL is ALWAYS required (assembled by setup_env from
-    POSTGRES_PASSWORD + code defaults). load_config() raises if it's
-    missing — every subcommand needs the DB.
+  - DATABASE_URL / POSTGRES_PASSWORD are NOT touched here. CMS modules
+    do not connect to the database — they only write files to
+    cms/staging/. The db side (db/scripts/source_db.sh / build.sh /
+    migrate.sh) resolves the password itself from shell env or
+    .secrets/postgres_password, and assembles DATABASE_URL before
+    invoking db-side Python.
   - AI_API_KEY / AI_BASE_URL / AI_MODEL are OPTIONAL at load time.
     Each is `str | None`. Consumer modules that talk to OpenAI should
     call `cfg.require_ai()` first, which raises with a clear pointer
@@ -24,6 +27,8 @@ Validation contract:
   - TENCENT_SECRET_ID / TENCENT_SECRET_KEY / TENCENT_APP_ID are also
     OPTIONAL. Consumer modules for Tencent TTS call `cfg.require_tencent()`
     first.
+  - CLOUD_* are OPTIONAL. Required only when CLOUD_PROVIDER is non-default.
+    Consumer modules (cms.storage) call `cfg.require_cloud()` first.
   - Rationale: a CMS host that only runs `staging.sh sync` doesn't need
     AI or TENCENT keys at all. Forcing them on every operator is friction;
     forcing them only on the subcommand that needs them is the right
@@ -45,77 +50,12 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import quote
 
 
 # Project root = parent of cms/. Caller passes an absolute path or we
 # fall back to a walk-up from this file (parent of cms/cms_pipeline/).
 def _project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent
-
-
-# ---------------------------------------------------------------------------
-# Postgres connection assembly
-# ---------------------------------------------------------------------------
-# Code defaults for the Postgres connection. Each can be overridden by an
-# env var (set in the shell, or by cms/.env via setup_env):
-#   POSTGRES_USER   -> english_user       (matches POSTGRES_USER in the baked image label)
-#   POSTGRES_DB     -> english_learning   (matches POSTGRES_DB   in the baked image label)
-#   POSTGRES_HOST   -> localhost          (CMS host talking to its own / dev / prod db)
-#   POSTGRES_PORT   -> 5432
-# POSTGRES_PASSWORD has no default — it must be supplied. Sources (in order):
-#   1. POSTGRES_PASSWORD env var
-#   2. .secrets/postgres_password file (chmod 600, the same file the dev/prod
-#      run.sh writes; operator copies it to the CMS host for content production)
-#   3. error
-# If DATABASE_URL is already set in the environment (legacy or override),
-# it's respected as-is — the assembly step is a no-op.
-# cms/.env can override any of POSTGRES_USER/HOST/PORT/DB or set
-# DATABASE_URL directly; the env file is sourced before this resolution runs.
-
-_DEFAULT_POSTGRES_USER = "english_user"
-_DEFAULT_POSTGRES_DB = "english_learning"
-_DEFAULT_POSTGRES_HOST = "localhost"
-_DEFAULT_POSTGRES_PORT = "5432"
-
-
-def _resolve_postgres_password() -> str:
-    """Find the per-host postgres password. Order:
-        1. POSTGRES_PASSWORD env var
-        2. .secrets/postgres_password file (relative to project root)
-        3. error
-    """
-    pwd = os.environ.get("POSTGRES_PASSWORD", "").strip()
-    if pwd:
-        return pwd
-    secret_file = _project_root() / ".secrets" / "postgres_password"
-    if secret_file.is_file():
-        pwd = secret_file.read_text(encoding="utf-8").strip()
-        if pwd:
-            return pwd
-    sys.exit(
-        "POSTGRES_PASSWORD missing — set it via:\n"
-        "  export POSTGRES_PASSWORD=...\n"
-        "  # OR copy the per-host password file from the dev/prod host:\n"
-        "  mkdir -p .secrets && scp user@dev-host:.secrets/postgres_password .secrets/"
-    )
-
-
-def _resolve_database_url() -> str:
-    """Return the full DATABASE_URL, either from env or assembled from parts.
-
-    Priority: explicit DATABASE_URL env var > assembled from code defaults
-    + POSTGRES_PASSWORD.
-    """
-    explicit = os.environ.get("DATABASE_URL", "").strip()
-    if explicit:
-        return explicit
-    user = os.environ.get("POSTGRES_USER", _DEFAULT_POSTGRES_USER)
-    db = os.environ.get("POSTGRES_DB", _DEFAULT_POSTGRES_DB)
-    host = os.environ.get("POSTGRES_HOST", _DEFAULT_POSTGRES_HOST)
-    port = os.environ.get("POSTGRES_PORT", _DEFAULT_POSTGRES_PORT)
-    pwd = _resolve_postgres_password()
-    return f"postgresql://{quote(user, safe='')}:{quote(pwd, safe='')}@{host}:{port}/{db}"
 
 
 def setup_env(env_file: str | os.PathLike | None = None) -> dict[str, str]:
@@ -135,16 +75,14 @@ def setup_env(env_file: str | os.PathLike | None = None) -> dict[str, str]:
     dev-host migrate sidecar reuse the existing `-v content:/content:ro`
     bind mount (no separate env-file mount needed).
 
-    Mirrors what db/scripts/build.sh does in bash:
+    Mirrors what db scripts do in bash:
         set -a; . ./cms/.env; set +a
 
     After this call:
-      - os.environ["DATABASE_URL"] is populated (either from cms/.env or
-        assembled from POSTGRES_PASSWORD + code defaults) so downstream
-        libraries (psycopg2, openai, tencentcloud-sdk-python) can pick
-        them up via their standard env-var discovery.
-      - os.environ["AI_API_KEY"] and "TENCENT_*" are populated if they're
-        in cms/.env (those are the only required secrets now).
+      - os.environ["AI_*"] / "TENCENT_*" / "CLOUD_*" / "AUDIO_DIR" /
+        "CMS_STAGING_DIR" are populated from cms/.env if present.
+      - POSTGRES_PASSWORD / DATABASE_URL are NOT touched here — CMS
+        modules don't connect to the db.
     """
     if env_file is not None:
         path = Path(env_file)
@@ -155,7 +93,7 @@ def setup_env(env_file: str | os.PathLike | None = None) -> dict[str, str]:
             if not path.is_absolute():
                 path = _project_root() / path
         else:
-            path = _project_root() / "content" / ".env"
+            path = _project_root() / "cms" / ".env"
     if not path.is_file():
         sys.exit(
             f"cms/.env 不存在 ({path}) — 跑 ./cms/scripts/env.sh 先引导"
@@ -178,35 +116,22 @@ def setup_env(env_file: str | os.PathLike | None = None) -> dict[str, str]:
             loaded[key] = value
             os.environ.setdefault(key, value)  # don't clobber pre-set env
 
-    # Assemble DATABASE_URL last so it picks up POSTGRES_PASSWORD / .secrets
-    # / explicit override correctly. If cms/.env already set it, that's used.
-    assembled = _resolve_database_url()
-    os.environ["DATABASE_URL"] = assembled
-    loaded["DATABASE_URL"] = assembled
     return loaded
-
-
-def _required(name: str) -> str:
-    value = os.environ.get(name, "").strip()
-    if not value:
-        sys.exit(f"required env var {name} is missing — check cms/.env")
-    return value
 
 
 @dataclass(frozen=True)
 class Config:
     """Validated cms/.env settings used by the data pipeline.
 
-    AI_* and TENCENT_* fields are Optional — each is None if the
+    AI_* / TENCENT_* / CLOUD_* fields are Optional — each is None if the
     corresponding cms/.env key was missing or empty. Consumer modules
-    that actually need them should call `cfg.require_ai()` or
-    `cfg.require_tencent()` first, which raises with a clear pointer
-    to which subcommand needs which keys.
-    """
+    that actually need them should call `cfg.require_ai()` /
+    `cfg.require_tencent()` / `cfg.require_cloud()` first, which raises
+    with a clear pointer to which subcommand needs which keys.
 
-    # Database (assembled from POSTGRES_PASSWORD + code defaults by setup_env).
-    # Always required — every subcommand needs the DB.
-    database_url: str
+    No db fields (DATABASE_URL / POSTGRES_*) — CMS modules don't
+    connect to the db.
+    """
 
     # AI / OpenAI — Optional; required only for `staging.sh sentences`.
     ai_api_key: str | None
@@ -221,6 +146,10 @@ class Config:
     # Audio
     audio_dir: str
 
+    # Staging output dir — where CMS writes vocabulary/sentences JSON+JSONL
+    # files. git-tracked; consumed by db/scripts/import_staging.sh at bake time.
+    staging_dir: str
+
     # Cloud storage — Optional. Required only when CLOUD_PROVIDER is
     # anything other than "local_fs" (the default). Consumer modules
     # (cms.storage) should call cfg.require_cloud() before instantiating
@@ -234,10 +163,6 @@ class Config:
 
     # Tuning
     default_bucket_target_size: int
-
-    # Bake identity (consumed by export_bundle.py via env, not here)
-    postgres_user: str
-    postgres_db: str
 
     def require_ai(self) -> None:
         """Raise if any AI_* field is unset. Call before OpenAI requests.
@@ -306,27 +231,35 @@ class Config:
 # over this default.
 _DEFAULT_AUDIO_DIR = "cms/.local/audio"
 
+# Where the CMS pipeline writes its output JSON/JSONL (vocabulary/*.json,
+# sentences/*.jsonl, manifest.json). This directory IS git-tracked (see
+# cms/.gitignore) — it's the "transmission layer" between CMS host and
+# dev hosts. CMS writes here, dev pulls via git, dev runs
+# db/scripts/import_staging.sh to UPSERT into the local staging db.
+#
+# Override via CMS_STAGING_DIR in the shell (rare; mostly for tests).
+_DEFAULT_STAGING_DIR = "cms/staging"
+
 
 def load_config() -> Config:
     """Build a Config from os.environ.
 
-    Required keys (no defaults — fail if missing):
-      DATABASE_URL (assembled by setup_env from POSTGRES_PASSWORD + code defaults).
-
     Optional keys (None if missing/empty): AI_API_KEY, AI_BASE_URL, AI_MODEL,
-    TENCENT_SECRET_ID, TENCENT_SECRET_KEY, TENCENT_APP_ID. Consumer modules
-    that need them call cfg.require_ai() / cfg.require_tencent() at point
-    of use, with a clear error pointing at the specific subcommand that
-    needs the missing keys.
+    TENCENT_SECRET_ID, TENCENT_SECRET_KEY, TENCENT_APP_ID, CLOUD_*.
+    Consumer modules that need them call cfg.require_ai() /
+    cfg.require_tencent() / cfg.require_cloud() at point of use, with a
+    clear error pointing at the specific subcommand that needs the
+    missing keys.
 
-    Defaults provided for AUDIO_DIR, DEFAULT_BUCKET_TARGET_SIZE,
-    POSTGRES_USER, POSTGRES_DB.
+    Defaults provided for AUDIO_DIR, CMS_STAGING_DIR,
+    DEFAULT_BUCKET_TARGET_SIZE.
+
+    No DATABASE_URL / POSTGRES_* — CMS modules don't connect to the db.
     """
     return Config(
-        database_url=_required("DATABASE_URL"),
         # AI / Tencent are read raw — None means "operator hasn't set
         # them in cms/.env". load_config must NOT fail on these, because
-        # sync / export don't need them. require_ai() / require_tencent()
+        # sync doesn't need them. require_ai() / require_tencent()
         # enforce at point of use.
         ai_api_key=os.environ.get("AI_API_KEY") or None,
         ai_base_url=os.environ.get("AI_BASE_URL") or None,
@@ -335,6 +268,7 @@ def load_config() -> Config:
         tencent_secret_key=os.environ.get("TENCENT_SECRET_KEY") or None,
         tencent_app_id=os.environ.get("TENCENT_APP_ID") or None,
         audio_dir=os.environ.get("AUDIO_DIR", _DEFAULT_AUDIO_DIR),
+        staging_dir=os.environ.get("CMS_STAGING_DIR", _DEFAULT_STAGING_DIR),
         # Cloud storage — default "local_fs" preserves the previous
         # "write to AUDIO_DIR" behavior. Other providers (tencent_cos)
         # require the operator to fill CLOUD_BUCKET / CLOUD_REGION /
@@ -348,6 +282,4 @@ def load_config() -> Config:
         default_bucket_target_size=int(
             os.environ.get("DEFAULT_BUCKET_TARGET_SIZE", "200")
         ),
-        postgres_user=os.environ.get("POSTGRES_USER", _DEFAULT_POSTGRES_USER),
-        postgres_db=os.environ.get("POSTGRES_DB", _DEFAULT_POSTGRES_DB),
     )
