@@ -1,6 +1,6 @@
 # Content-baked db image for type-any-language.
 #
-# ─── Build pipeline (driven by ./scripts/ops/cms/bake_image.sh) ───────────────
+# ─── Build pipeline (driven by ./ops/cms/bake_image.sh) ───────────────
 #   1. cms/tools/cms/export_bundle.py dumps content tables into
 #      .bake-staging/data-bundle-v.../dump.sql
 #   2. bake_image.sh stages that into this directory:
@@ -41,7 +41,7 @@ ARG DB_USER=english_user
 ARG DB_NAME=english_learning
 ARG CONTENT_VERSION=latest
 ARG BAKED_AT=unknown
-# Project code version (root ./VERSION, resolved by scripts/lib.sh).
+# Project code version (root ./VERSION, resolved by ops/lib.sh).
 # Same value as CONTENT_VERSION today, but conceptually distinct:
 # APP_VERSION is the project semver, CONTENT_VERSION is the content
 # snapshot identifier (currently derived from the same VERSION file).

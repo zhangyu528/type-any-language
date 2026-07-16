@@ -38,7 +38,7 @@ import tempfile
 from pathlib import Path
 
 # Resolve from `os.getcwd()` instead of `Path(__file__).parent...` because
-# the script lives at scripts/build_ielts_csv.py — a fixed anchor that's
+# the script lives at ops/build_ielts_csv.py — a fixed anchor that's
 # wrong when this file is symlinked or vendored. `os.getcwd()` matches
 # the project root that the operator `cd`-ed into before running the
 # converter, which is what they actually want.

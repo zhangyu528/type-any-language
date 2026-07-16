@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# scripts/dev-host/watch.sh — foreground `docker compose watch`.
+# ops/dev/watch.sh — foreground `docker compose watch`.
 #
 # For users who want to SEE the sync events in their terminal (Ctrl+C to
 # stop). `lifecycle.sh start` already auto-spawns a background watch —

@@ -1,27 +1,22 @@
 #!/usr/bin/env bash
 #
-# scripts/dev-host/doctor.sh — pre-flight env check (read-only).
+# ops/prod/doctor.sh — pre-flight env check (read-only).
 #
-# Validates that everything scripts/dev-host/{start,setup} need is in
-# place — docker, compose, the right images, db image labels, ports not
-# in use. Does NOT modify anything on disk or call docker compose.
+# Validates that everything ops/prod/{start,setup} need is in
+# place. Does NOT modify anything on disk or call docker compose.
 #
-# Drift check (running containers vs local VERSION) is appended.
-#
-# Exit: 0 if all required checks pass; 1 if any required check fails.
-#
-# Counterpart to scripts/dev-host/{lifecycle,setup,logs,migrate,watch}.sh.
+# Exit: 0 if all required checks pass; 1 otherwise.
 
 set -e
 
 COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_common.sh
 source "$COMMON_DIR/_common.sh"
-setup_dev_host_env
+setup_prod_host_env
 
 cmd_doctor() {
     local failed=0
-    echo "=== Development environment check ==="
+    echo "=== Production environment check ==="
     echo ""
 
     if check_docker_installed; then
@@ -52,12 +47,12 @@ cmd_doctor() {
         if image_exists "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"; then
             ok "image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 存在"
         else
-            warn "image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 缺失 → 运行 scripts/dev-host/build_image.sh"
+            warn "image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 缺失 → 运行 ops/prod/build_image.sh"
         fi
         if image_exists "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"; then
             ok "image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 存在"
         else
-            warn "image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 缺失 → 运行 scripts/dev-host/build_image.sh"
+            warn "image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 缺失 → 运行 ops/prod/build_image.sh"
         fi
         if image_exists "$DB_FULL_IMAGE"; then
             ok "content-baked db image $DB_FULL_IMAGE 存在"
@@ -70,16 +65,22 @@ cmd_doctor() {
                 warn "  content-baked db image 缺少 type-any-language.* labels — 重新 bake?"
             fi
         elif [ -n "$DOCKER_REGISTRY" ]; then
-            warn "content-baked db image $DB_FULL_IMAGE 缺失 → docker pull $DB_FULL_IMAGE"
+            warn "content-baked db image $DB_FULL_IMAGE 缺失 → ./ops/prod/lifecycle.sh restart"
         else
             warn "content-baked db image $DB_FULL_IMAGE 缺失 → db/scripts/build.sh"
         fi
     fi
 
-    warn_port_in_use 3000 "前端开发端口 (宿主机 3000)"
-    warn_port_in_use 8000 "后端开发端口 (宿主机 8000)"
+    warn_port_in_use 80  "nginx 端口 (宿主机 80)"
     warn_port_in_use 5432 "postgres 端口 (宿主机 5432)"
 
+    if [ -z "$DOCKER_REGISTRY" ]; then
+        warn "DOCKER_REGISTRY 未设置(auto-pull 会跳过;本地镜像必须已经构建)"
+    else
+        ok "DOCKER_REGISTRY=$DOCKER_REGISTRY"
+    fi
+
+    echo ""
     echo "--- drift check (running containers vs local VERSION) ---"
     drift_check
 

@@ -72,7 +72,7 @@ def setup_env(env_file: str | os.PathLike | None = None) -> dict[str, str]:
     Why `cms/.env` (not project root): the only consumer of this file
     is the CMS content-production runtime. Co-locating it with `cms/`
     pairs with `cms/.local/audio` (audio staging dir) and lets the
-    dev-host migrate sidecar reuse the existing `-v content:/content:ro`
+    dev migrate sidecar reuse the existing `-v content:/content:ro`
     bind mount (no separate env-file mount needed).
 
     Mirrors what db scripts do in bash:

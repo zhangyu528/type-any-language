@@ -6,7 +6,7 @@
 # locally. Push is a deliberate, separate step: you might bake many
 # times locally before you're ready to publish.
 #
-# Symmetric with scripts/ops/{dev,prod}-host/db/scripts/push.sh: all three
+# Symmetric with ops/{dev,prod}-host/db/scripts/push.sh: all three
 # push scripts read every config value (DOCKER_REGISTRY, DB_IMAGE,
 # DB_IMAGE_TAG) from the shell env, NOT from cms/.env. cms/.env is the
 # bake-time secret store (OpenAI/Tencent keys, postgres connection,
@@ -50,7 +50,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
-source "$SCRIPT_DIR/../../scripts/lib.sh"
+source "$SCRIPT_DIR/../../ops/lib.sh"
 
 # NOTE: we deliberately do NOT load cms/.env here. Push is a separate
 # concern from bake: cms/.env is the bake-time secret/config store
@@ -193,8 +193,8 @@ cmd_push() {
 
     echo ""
     info "下一步:"
-    info "  target 主机 ./scripts/{prod,dev}/run.sh restart"
-    info "  (run.sh 会自动 docker pull 新 image 然后 force-recreate)"
+    info "  target 主机 ./ops/{prod,dev}/lifecycle.sh restart"
+    info "  (lifecycle.sh 会自动 docker pull 新 image 然后 force-recreate)"
 }
 
 usage() {

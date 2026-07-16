@@ -50,7 +50,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
-source "$SCRIPT_DIR/../../scripts/lib.sh"
+source "$SCRIPT_DIR/../../ops/lib.sh"
 
 # Load cms/.env so $DB_IMAGE / $DB_IMAGE_TAG / any user-supplied secrets
 # (AI_API_KEY, TENCENT_*, AUDIO_DIR) resolve. Refuses to continue if
@@ -272,7 +272,7 @@ Set it in the shell before running db/scripts/push.sh:
 
 Versioning:
   DB_IMAGE_TAG       resolves from VERSION.prod (or IMAGE_TAG env override).
-  VERSION.dev / VERSION.prod are the two project version files — see scripts/release.sh.
+  VERSION.dev / VERSION.prod are the two project version files — see ops/release.sh.
 
 The actual image-build steps (assemble bundle, copy into db/init/,
 run docker build with the right labels) live in db/builder.py —

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# scripts/prod-host/logs.sh — docker compose logs -f for prod.
+# ops/prod/logs.sh — docker compose logs -f for prod.
 #
 # Read-only wrapper. Usage:
-#   ./scripts/prod-host/logs.sh                  # all services
-#   ./scripts/prod-host/logs.sh backend          # one service
-#   ./scripts/prod-host/logs.sh --tail 100 backend
+#   ./ops/prod/logs.sh                  # all services
+#   ./ops/prod/logs.sh backend          # one service
+#   ./ops/prod/logs.sh --tail 100 backend
 
 set -e
 

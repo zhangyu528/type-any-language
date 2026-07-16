@@ -13,7 +13,7 @@ This project intentionally separates **content production** from **content servi
 | Host | Role | What lives here | What runs here |
 |---|---|---|---|
 | **CMS host** | Content production (writes staging files) | `cms/` (env, scripts, source, tools) | Python + Docker |
-| **Target host** (dev or prod) | Content serving | `scripts/dev-host/` or `scripts/prod-host/` | Docker only |
+| **Target host** (dev or prod) | Content serving | `ops/dev/` or `ops/prod/` | Docker only |
 | **DB image build** (CMS host or CI) | Schema + db container + bake + importer | `db/` (Dockerfile, builder, scripts, tools/dbtools/) | Docker only |
 
 The CMS host produces **staging files** (vocabulary JSON + sentences JSONL) via the
@@ -128,36 +128,37 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generat
 │   └── init/
 │       └── 01-content.sql   # pg_dump snapshot (bake-time output; .gitignore'd)
 │
-├── scripts/
-│   ├── README.md            # scripts/ layout, lib.sh helpers, conventions for new scripts
+├── ops/                    # target-host operations + image build/release orchestrator
+│   ├── README.md            # ops/ layout, lib.sh helpers, conventions for new scripts
 │   ├── lib.sh               # shared helpers (ok/warn/err, docker detection, gen_secret)
 │   ├── build.sh             # local multi-image build (db + dev + prod) — no push
 │   ├── release.sh           # release orchestrator: bump + build + push (dev / prod / show)
-│   ├── dev-host/            # dev target host — lifecycle + per-subcommand helpers
+│   ├── build_ielts_csv.py   # one-off data-prep tool (IELTS word list → cms CSV format)
+│   ├── dev/                 # dev target host — lifecycle + per-subcommand helpers
 │   │   ├── _common.sh       # shared setup (image refs, db labels, secrets, watch)
 │   │   ├── lifecycle.sh     # start / stop / restart | reload
 │   │   ├── doctor.sh
 │   │   ├── setup.sh
 │   │   ├── logs.sh
-│   │   ├── migrate.sh      # schema migration (dev-only)
-│   │   ├── watch.sh        # foreground compose watch (dev-only)
-│   │   └── build_image.sh  # build english_backend_dev + english_frontend_dev
-│   └── prod-host/           # prod target host — same shape, no migrate/watch
+│   │   ├── migrate.sh       # schema migration (dev-only)
+│   │   ├── watch.sh         # foreground compose watch (dev-only)
+│   │   └── build_image.sh   # build english_backend_dev + english_frontend_dev
+│   └── prod/                # prod target host — same shape, no migrate/watch
 │       ├── _common.sh
 │       ├── lifecycle.sh
 │       ├── doctor.sh
 │       ├── setup.sh
 │       ├── logs.sh
-│       ├── build_image.sh  # build english_backend + english_frontend
-│       ├── push_image.sh   # push prod backend+frontend to DOCKER_REGISTRY
-│       └── nginx.conf      # prod-only reverse proxy config
+│       ├── build_image.sh   # build english_backend + english_frontend
+│       ├── push_image.sh    # push prod backend+frontend to DOCKER_REGISTRY
+│       └── nginx.conf       # prod-only reverse proxy config
 │
 ├── compose-shared.yml       # shared `db` service block — `include:`d by both compose files
 ├── docker-compose.yml        # prod stack orchestration (compose v2.20+ `include:`)
 └── docker-compose.dev.yml    # dev stack orchestration (hot-reload, compose-watch)
 ```
 
-The runtime `docker-compose.yml` references the `db` image as a service — the image's OCI labels (`type-any-language.db.user`, `type-any-language.db.name`, `type-any-language.content.version`, `type-any-language.content.baked-at`) are read at start time by `scripts/dev-host/lifecycle.sh` / `scripts/prod-host/lifecycle.sh` to discover the db identity. `POSTGRES_PASSWORD` is NOT in those labels.
+The runtime `docker-compose.yml` references the `db` image as a service — the image's OCI labels (`type-any-language.db.user`, `type-any-language.db.name`, `type-any-language.content.version`, `type-any-language.content.baked-at`) are read at start time by `ops/dev/lifecycle.sh` / `ops/prod/lifecycle.sh` to discover the db identity. `POSTGRES_PASSWORD` is NOT in those labels.
 
 ## Commands
 
@@ -219,18 +220,18 @@ artifact until you decide to import.
 ### Dev target host
 
 ```bash
-./scripts/dev-host/lifecycle.sh setup          # First-time: 拉/检查 db image + build dev apps
-./scripts/dev-host/lifecycle.sh doctor         # Pre-flight
-./scripts/dev-host/lifecycle.sh start          # compose up + 后台 spawn compose watch(自动 sync src/package.json)
-./scripts/dev-host/lifecycle.sh stop
-./scripts/dev-host/lifecycle.sh restart        # Hard restart (recreate + re-read secrets)
-./scripts/dev-host/lifecycle.sh migrate        # Apply pending schema migrations to runtime db
-./scripts/dev-host/lifecycle.sh logs
+./ops/dev/setup.sh          # First-time: 拉/检查 db image + build dev apps
+./ops/dev/doctor.sh         # Pre-flight
+./ops/dev/lifecycle.sh start          # compose up + 后台 spawn compose watch(自动 sync src/package.json)
+./ops/dev/lifecycle.sh stop
+./ops/dev/lifecycle.sh restart        # Hard restart (recreate + re-read secrets)
+./ops/dev/migrate.sh        # Apply pending schema migrations to runtime db
+./ops/dev/logs.sh [svc]
 # Optional image publishing (offline / first-time local setup → registry):
-./scripts/dev-host/build_image.sh        # build english_backend_dev + english_frontend_dev
+./ops/dev/build_image.sh        # build english_backend_dev + english_frontend_dev
                                           # dev host does NOT push (stay local)
-./scripts/prod-host/build_image.sh       # build english_backend + english_frontend
-./scripts/prod-host/push_image.sh -y     # push prod backend+frontend to DOCKER_REGISTRY
+./ops/prod/build_image.sh       # build english_backend + english_frontend
+./ops/prod/push_image.sh -y     # push prod backend+frontend to DOCKER_REGISTRY
 ./db/scripts/build.sh                    # bake content-baked db image (CMS host)
 ./db/scripts/push.sh -y                  # push db image to DOCKER_REGISTRY
 ```
@@ -242,16 +243,16 @@ No `.env.dev` is needed. The dev compose file defaults `ALLOWED_ORIGINS` to `htt
 ### Prod target host
 
 ```bash
-./scripts/prod-host/lifecycle.sh setup         # First-time: 拉 db image + build prod apps
-./scripts/prod-host/lifecycle.sh doctor
-ALLOWED_ORIGINS=https://my.domain ./scripts/prod-host/lifecycle.sh start
-./scripts/prod-host/lifecycle.sh start
-./scripts/prod-host/lifecycle.sh stop
-./scripts/prod-host/lifecycle.sh restart
-./scripts/prod-host/lifecycle.sh logs
+./ops/prod/setup.sh         # First-time: 拉 db image + build prod apps
+./ops/prod/doctor.sh
+ALLOWED_ORIGINS=https://my.domain ./ops/prod/lifecycle.sh start
+./ops/prod/lifecycle.sh start
+./ops/prod/lifecycle.sh stop
+./ops/prod/lifecycle.sh restart
+./ops/prod/logs.sh [svc]
 # Optional image publishing:
-./scripts/prod-host/build_image.sh        # build english_backend + english_frontend
-./scripts/prod-host/db/scripts/push.sh -y      # push them to DOCKER_REGISTRY
+./ops/prod/build_image.sh        # build english_backend + english_frontend
+./ops/prod/push_image.sh -y      # push them to DOCKER_REGISTRY
 ```
 
 `setup` is the recommended entry point for a fresh prod host. Same flow as dev: preflight + ensure `db` image present (auto-pull from `DOCKER_REGISTRY`) + build prod `backend + frontend`. The prod host never bakes db content itself — it pulls from a registry. If `DOCKER_REGISTRY` is empty, `setup` exits with the CMS-side steps.
@@ -266,7 +267,7 @@ The registry namespace (e.g. `docker.io/zhangyu528`) is **shared project config*
 
 ## Image registry namespace
 
-The `DOCKER_REGISTRY` shell variable is the namespace prefix prepended to `image:tag` for `docker push` / `docker pull`. The chain (`scripts/lib.sh` → `resolve_docker_registry`) is, in order of decreasing precedence:
+The `DOCKER_REGISTRY` shell variable is the namespace prefix prepended to `image:tag` for `docker push` / `docker pull`. The chain (`ops/lib.sh` → `resolve_docker_registry`) is, in order of decreasing precedence:
 
 1. **Shell env** — `export DOCKER_REGISTRY=docker.io/youruser` (highest priority; CI / one-off override)
 2. **`./REGISTRY` file at repo root** — committed, shared project config (typical default)
@@ -298,7 +299,7 @@ All 5 images (`db`, `english_backend{,_dev}`, `english_frontend{,_dev}`) carry a
 
 Each file: first non-empty, non-comment line, trimmed. Both files start at the same version; bump them together with `release.sh bump all X.Y.Z`, or independently with `bump dev` / `bump prod`.
 
-Resolution chain (`scripts/lib.sh` → `resolve_image_tag`):
+Resolution chain (`ops/lib.sh` → `resolve_image_tag`):
 1. Per-image env var, e.g. `BACKEND_IMAGE_TAG=v1.2.3`
 2. Generic `IMAGE_TAG` (CI convenience — bumps all images at once)
 3. The VERSION file passed to the helper (`.dev` / `.prod`)
@@ -307,30 +308,30 @@ Resolution chain (`scripts/lib.sh` → `resolve_image_tag`):
 Examples:
 ```bash
 # Use whatever the stream's VERSION file says (default):
-./scripts/dev-host/build_image.sh         # → VERSION.dev
-./scripts/prod-host/build_image.sh        # → VERSION.prod
+./ops/dev/build_image.sh         # → VERSION.dev
+./ops/prod/build_image.sh        # → VERSION.prod
 ./db/scripts/build.sh                # → VERSION.prod
 
 # Bump all images to v1.2.3 for a one-off (CI use):
-IMAGE_TAG=v1.2.3 ./scripts/dev-host/build_image.sh
-IMAGE_TAG=v1.2.3 ./scripts/prod-host/build_image.sh
+IMAGE_TAG=v1.2.3 ./ops/dev/build_image.sh
+IMAGE_TAG=v1.2.3 ./ops/prod/build_image.sh
 IMAGE_TAG=v1.2.3 ./db/scripts/build.sh
 
 # Pin just the db image, leave dev app at VERSION.dev:
 DB_IMAGE_TAG=v0.5.0 ./db/scripts/build.sh
 ```
 
-For a full release (bump + build + push), use `scripts/release.sh dev|prod X.Y.Z` instead of running these individually — see "Release flow" below.
+For a full release (bump + build + push), use `ops/release.sh dev|prod X.Y.Z` instead of running these individually — see "Release flow" below.
 
 The dev/prod `lifecycle.sh` reads the same tags at start time, so what gets pulled from the registry matches what was built. `db/scripts/push.sh` uses the same convention.
 
 ### Drift detection
 
-Every image carries the `type-any-language.app.version` LABEL (sourced from `APP_VERSION` build-arg, which the build scripts set to the resolved `*_IMAGE_TAG`). `lifecycle.sh doctor` (both dev and prod) iterates the running containers and compares each LABEL against the locally-resolved expected tag — mismatches print a `drift` warning, suggesting `lifecycle.sh restart` to pick up the new image. This catches the case where a VERSION file was bumped on the workstation but the target host hasn't pulled/restarted yet.
+Every image carries the `type-any-language.app.version` LABEL (sourced from `APP_VERSION` build-arg, which the build scripts set to the resolved `*_IMAGE_TAG`). `doctor.sh` (both dev and prod) iterates the running containers and compares each LABEL against the locally-resolved expected tag — mismatches print a `drift` warning, suggesting `lifecycle.sh restart` to pick up the new image. This catches the case where a VERSION file was bumped on the workstation but the target host hasn't pulled/restarted yet.
 
 ### Release flow
 
-`scripts/release.sh` is the single point of release orchestration. It updates the right VERSION file, commits, then **builds and pushes** the relevant images — local-only when `DOCKER_REGISTRY` is unset, registry-push when it's set.
+`ops/release.sh` is the single point of release orchestration. It updates the right VERSION file, commits, then **builds and pushes** the relevant images — local-only when `DOCKER_REGISTRY` is unset, registry-push when it's set.
 
 | Subcommand | Bumps | Builds + pushes |
 |---|---|---|
@@ -344,32 +345,32 @@ Local vs remote is controlled by `DOCKER_REGISTRY` (chain: shell env → `./REGI
 
 ```bash
 # Local mode — build images, no push
-./scripts/release.sh dev v0.3.0
+./ops/release.sh dev v0.3.0
 
 # Remote mode — uses REGISTRY file (committed, shared team namespace)
 # (or override via shell env if pushing to a one-off namespace)
-./scripts/release.sh prod v0.3.0 -y
+./ops/release.sh prod v0.3.0 -y
 
 # Re-publish current VERSION (no bump)
-./scripts/release.sh dev
+./ops/release.sh dev
 ```
 
 The full release flow with the new `release.sh` (one command per host):
 
 ```bash
 # On the workstation — after merging changes to master:
-./scripts/release.sh dev v0.3.0       # bump VERSION.dev + build + push dev b/f
-./scripts/release.sh prod v0.3.0 -y    # bump VERSION.prod + bake db + push db + build + push prod b/f
+./ops/release.sh dev v0.3.0       # bump VERSION.dev + build + push dev b/f
+./ops/release.sh prod v0.3.0 -y    # bump VERSION.prod + bake db + push db + build + push prod b/f
 git push
 
 # On each target host — just verify, the images are already in the registry:
-./scripts/<host>/doctor.sh    # should show "drift OK (version=v0.3.0)" for all 3 services
-./scripts/<host>/lifecycle.sh restart   # pull new image and recreate
+./ops/<host>/doctor.sh    # should show "drift OK (version=v0.3.0)" for all 3 services
+./ops/<host>/lifecycle.sh restart   # pull new image and recreate
 ```
 
 Architecture notes:
 - `release.sh dev` only touches the dev app images. The db image is prod-bound and reads `VERSION.prod`; if you want dev to see new content, run `release.sh prod` first (or just push a new db with `VERSION.prod`).
-- `release.sh prod` includes the db bake. That step needs `cms/.env`, so `prod` must run on the CMS host (or a single-machine CMS+prod setup). On a dedicated prod target host without `cms/.env`, run `db/scripts/build.sh` on the CMS host first, then run `scripts/prod-host/build_image.sh` + `db/scripts/push.sh` on the prod host.
+- `release.sh prod` includes the db bake. That step needs `cms/.env`, so `prod` must run on the CMS host (or a single-machine CMS+prod setup). On a dedicated prod target host without `cms/.env`, run `db/scripts/build.sh` on the CMS host first, then run `ops/prod/build_image.sh` + `db/scripts/push.sh` on the prod host.
 - For multi-machine deployments, run each subcommand on its respective host. The script is self-contained per host.
 
 ## Migration from pre-VERSION release
@@ -378,7 +379,7 @@ If you upgraded from a release that used `:latest` (or hardcoded) tags, expect t
 
 1. **`lifecycle.sh start` may fail with "image 未构建"** — the compose file now references a tagged tag (`:v0.1.0` or whatever the stream's VERSION file says), not `:latest`. Fix once:
    ```bash
-   ./scripts/dev-host/build_image.sh    # or prod-host/build_image.sh
+   ./ops/dev/build_image.sh    # or ops/prod/build_image.sh
    ```
    Old `:latest` images on the host will still exist as stale tags. They're harmless; clean up later with `docker rmi english_backend_dev:latest english_frontend_dev:latest`.
 
@@ -391,7 +392,7 @@ There is no automatic `:latest` → tagged retag helper, because it would silent
 The previous release had a single `VERSION` file. This release splits it into `VERSION.dev` and `VERSION.prod` so the two streams can drift. If your local checkout still has the old single `VERSION`:
 
 1. Pull this release. The old `VERSION` is removed; you'll have the two new files instead.
-2. `./scripts/release.sh show` should print both files (they start at the same value as the old single VERSION).
+2. `./ops/release.sh show` should print both files (they start at the same value as the old single VERSION).
 3. Continue as normal — `build_image.sh` / `db/scripts/build.sh` now read from the right stream's file automatically.
 
 ### Testing
@@ -467,7 +468,7 @@ When you add or change a migration in `cms/cms_pipeline/migrations/versions/`:
 
 # Runtime db (the one your backend is actually querying): in-place upgrade,
 # no image bake, no registry push, no volume drop
-./scripts/dev-host/migrate.sh
+./ops/dev/migrate.sh
 ```
 
 `migrate.sh` spins up a one-shot `python:3.11-slim` sidecar on the compose network and runs `pipeline.migrations.runner` against `db:5432`. Idempotent — re-runs are no-ops. The backend picks up the new schema on the next request (no restart needed; uvicorn hot-reload handles Python changes).
@@ -504,7 +505,7 @@ AUDIO_DIR=/your/audio/dir ./cms/scripts/staging.sh audio
 
 For multi-host CMS or production, set `CLOUD_PROVIDER=tencent_cos` in `cms/.env` (plus `CLOUD_BUCKET` / `CLOUD_REGION` / `CLOUD_ACCESS_KEY` / `CLOUD_SECRET_KEY`). MP3s upload to the COS bucket instead of the local directory; `sentences.audio_url` becomes the full COS URL. See `cms/cms_pipeline/storage.py` for the abstraction.
 
-`DB_IMAGE_TAG` is not in `cms/.env` either — its default is the root `VERSION.prod` file (resolved by `scripts/lib.sh` → `resolve_image_tag`); shell env can override it for one-off builds.
+`DB_IMAGE_TAG` is not in `cms/.env` either — its default is the root `VERSION.prod` file (resolved by `ops/lib.sh` → `resolve_image_tag`); shell env can override it for one-off builds.
 
 `DOCKER_REGISTRY` is not in `cms/.env` — it is shared project config that lives in the committed `REGISTRY` file at the repo root (see [Image registry namespace](#image-registry-namespace) above). Override at push time via shell env if you need a one-off namespace:
 ```bash
@@ -516,9 +517,9 @@ export DOCKER_REGISTRY=docker.io/youruser   # overrides REGISTRY file
 
 `POSTGRES_PASSWORD` is resolved **exclusively on the db side** (`db/scripts/source_db.sh` / `build.sh` / `migrate.sh`) in this order:
 1. **Shell env** — `export POSTGRES_PASSWORD=...` (temporary, e.g. CI)
-2. **`.secrets/postgres_password`** (chmod 600) — the same file `scripts/{dev-host,prod-host}/lifecycle.sh` writes on first start. For a **multi-host** setup, the operator copies this file from the dev/prod host to the CMS host:
+2. **`.secrets/postgres_password`** (chmod 600) — the same file `ops/{dev,prod}/lifecycle.sh` writes on first start. For a **multi-host** setup, the operator copies this file from the dev/prod host to the CMS host:
    ```bash
-   scp user@dev-host:.secrets/postgres_password .secrets/
+   scp user@dev:.secrets/postgres_password .secrets/
    ```
    For a **single-host** setup (CMS + dev on the same machine), the file already exists locally — no extra setup.
 3. **Error** — fails loudly with a hint pointing at both options above.
@@ -549,7 +550,7 @@ Runtime configuration is via shell env (passed to `lifecycle.sh` via `KEY=value 
 
 - `ALLOWED_ORIGINS` — CORS allowlist. Dev defaults to `http://localhost,http://localhost:3000`; prod defaults to `http://localhost`. Override at start time:
   ```bash
-  ALLOWED_ORIGINS=https://my.domain ./scripts/prod-host/lifecycle.sh start
+  ALLOWED_ORIGINS=https://my.domain ./ops/prod/lifecycle.sh start
   ```
 - `DOCKER_REGISTRY` — registry namespace to push to / pull from. Comes from the committed `REGISTRY` file at the repo root; shell env wins. Pull behavior is **asymmetric**:
   - **Prod**: `lifecycle.sh start` auto-pulls the db + backend + frontend images on every start/restart — registry is the source of truth.
@@ -557,8 +558,8 @@ Runtime configuration is via shell env (passed to `lifecycle.sh` via `KEY=value 
 
   Empty = local-only mode (no push to / pull from any registry).
 - `DB_IMAGE_TAG` — which baked db image to pull. Default: `VERSION.prod`.
-- `BACKEND_IMAGE_TAG`, `FRONTEND_IMAGE_TAG` — image tag for backend/frontend. Default: `VERSION.dev` on dev hosts, `VERSION.prod` on prod hosts (resolved by `scripts/lib.sh`). Override per image, or set `IMAGE_TAG` to bump all images at once (CI use):
+- `BACKEND_IMAGE_TAG`, `FRONTEND_IMAGE_TAG` — image tag for backend/frontend. Default: `VERSION.dev` on dev hosts, `VERSION.prod` on prod hosts (resolved by `ops/lib.sh`). Override per image, or set `IMAGE_TAG` to bump all images at once (CI use):
   ```bash
-  IMAGE_TAG=v1.2.3 ./scripts/prod-host/lifecycle.sh start
+  IMAGE_TAG=v1.2.3 ./ops/prod/lifecycle.sh start
   ```
 - `POSTGRES_PASSWORD` — **never set manually**. `lifecycle.sh` generates a fresh 24-char URL-safe value on first start and writes it to `.secrets/postgres_password` (chmod 600). Subsequent restarts reuse the file. Compose mounts it into the db container via `POSTGRES_PASSWORD_FILE` and the assembled `DATABASE_URL_FILE` into the backend container.

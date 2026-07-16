@@ -19,7 +19,7 @@
 #                        (PRD v0.4.0+). Defaults to 5. Per-lib override lives
 #                        on libs[].lesson_size; falls back to defaults.lesson_size.
 #
-# After editing this file, run ./scripts/ops/cms/etl.sh sync to import.
+# After editing this file, run ./ops/cms/etl.sh sync to import.
 # Adding a new lib = add a `libs:` entry + drop a matching CSV. Nothing else.
 
 version: 1

@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 #
-# scripts/dev-host/logs.sh — docker compose logs -f for dev.
+# ops/dev/logs.sh — docker compose logs -f for dev.
 #
 # Read-only wrapper around `docker compose logs -f`. Compose evaluates
 # the full file even for read-only ops, so we populate DB_USER / DB_NAME
 # (or fall back to bake defaults).
 #
 # Usage:
-#   ./scripts/dev-host/logs.sh                  # all services
-#   ./scripts/dev-host/logs.sh backend          # one service
-#   ./scripts/dev-host/logs.sh --tail 100 backend
+#   ./ops/dev/logs.sh                  # all services
+#   ./ops/dev/logs.sh backend          # one service
+#   ./ops/dev/logs.sh --tail 100 backend
 
 set -e
 

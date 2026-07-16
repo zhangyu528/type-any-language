@@ -33,7 +33,7 @@ frontend/
 
 | 变量 | build/runtime | 默认值 | 说明 |
 |---|---|---|---|
-| `NEXT_PUBLIC_API_URL` | build | dev compose `http://localhost:8000` / prod compose `/api` | 浏览器访问的 base URL。**仅 build 时生效** —— 改了要重新 build(`./scripts/ops/{dev,prod}-host/build_image.sh`)。 |
+| `NEXT_PUBLIC_API_URL` | build | dev compose `http://localhost:8000` / prod compose `/api` | 浏览器访问的 base URL。**仅 build 时生效** —— 改了要重新 build(`./ops/{dev,prod}-host/build_image.sh`)。 |
 
 值来自 compose 的 `${NEXT_PUBLIC_API_URL:-default}` 替换,而这个变量又可以被主机的 shell env 覆盖(`export NEXT_PUBLIC_API_URL=... ./dev.sh start`)。详见 `docker-compose.dev.yml` 和 `docker-compose.yml`。
 
@@ -58,7 +58,7 @@ npm run dev          # Next dev server 在 http://localhost:3000
 | `public/**` | compose watch `sync` → next dev 热加载 |
 | `package.json` / `package-lock.json` | compose watch `sync` → 容器里文件被覆盖 → `./run.sh restart` 让 entrypoint 哈希感知后重跑 `npm ci` |
 | `next.config.js` / `tsconfig.json` | compose watch `sync` → 重启生效 |
-| `Dockerfile.dev` / `Dockerfile` / `.dockerignore` | `./scripts/dev-host/build_image.sh && ./run.sh restart` |
+| `Dockerfile.dev` / `Dockerfile` / `.dockerignore` | `./ops/dev/build_image.sh && ./run.sh restart` |
 
 `run.sh start` 自动在后台 spawn 一个 `compose watch` 进程(PID 在 `.compose-frontend-watch.pid`,日志在 `.compose-frontend-watch.log`);`run.sh stop` 顺手清掉。想前台看 sync 日志用 `run.sh watch`。
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# scripts/dev-host/lifecycle.sh — start / stop / restart / reload.
+# ops/dev/lifecycle.sh — start / stop / restart / reload.
 #
-# Daily driver for the dev host. Reads scripts/dev-host/_common.sh for all
+# Daily driver for the dev host. Reads ops/dev/_common.sh for all
 # shared setup (image refs, db label inspection, secrets write, watch
 # lifecycle).
 #
@@ -11,12 +11,12 @@
 #   stop              stop compose watch + dev containers
 #   restart|reload    recreate containers, re-read .secrets
 #
-# Counterpart to scripts/dev-host/{setup,doctor,logs,migrate,watch}.sh.
+# Counterpart to ops/dev/{setup,doctor,logs,migrate,watch}.sh.
 #
 # Usage:
-#   ./scripts/dev-host/lifecycle.sh start
-#   ./scripts/dev-host/lifecycle.sh stop
-#   ./scripts/dev-host/lifecycle.sh restart
+#   ./ops/dev/lifecycle.sh start
+#   ./ops/dev/lifecycle.sh stop
+#   ./ops/dev/lifecycle.sh restart
 
 set -e
 
@@ -48,7 +48,7 @@ cmd_start() {
     echo -e "  后端:   ${_LIB_BLUE}http://localhost:8000${_LIB_NC}"
     echo -e "  API文档: ${_LIB_BLUE}http://localhost:8000/docs${_LIB_NC}"
     echo "  db.user=$DB_USER  db.name=$DB_NAME  content.version=$DB_VERSION"
-    echo "  compose watch: tail -f $WATCH_LOG_FILE   (前台跑: ./scripts/dev-host/watch.sh)"
+    echo "  compose watch: tail -f $WATCH_LOG_FILE   (前台跑: ./ops/dev/watch.sh)"
 }
 
 cmd_stop() {
@@ -89,11 +89,11 @@ cmd_restart() {
 
     if [ -n "$backend_before" ] && [ "$backend_before" != "$backend_after" ]; then
         warn "$BACKEND_IMAGE image ID 变化了 — 你是改了 Dockerfile?"
-        warn "  这种情况请用 scripts/dev-host/build_image.sh 重 build 后再 restart"
+        warn "  这种情况请用 ops/dev/build_image.sh 重 build 后再 restart"
     fi
     if [ -n "$frontend_before" ] && [ "$frontend_before" != "$frontend_after" ]; then
         warn "$FRONTEND_IMAGE image ID 变化了 — 你是改了 Dockerfile?"
-        warn "  这种情况请用 scripts/dev-host/build_image.sh 重 build 后再 restart"
+        warn "  这种情况请用 ops/dev/build_image.sh 重 build 后再 restart"
     fi
 
     ok "服务已重启(secrets 已重读)"
@@ -103,7 +103,7 @@ cmd_reload() { cmd_restart "$@"; }
 
 usage() {
     cat <<EOF
-用法: ./scripts/dev-host/lifecycle.sh <command>
+用法: ./ops/dev/lifecycle.sh <command>
 
 命令:
   start            启动 dev 容器(热重载) + 后台 spawn compose watch
@@ -111,13 +111,13 @@ usage() {
   restart|reload   recreate + 重读 secrets (≈5s, 不重 build image)
 
 典型工作流:
-  ./scripts/dev-host/lifecycle.sh start
+  ./ops/dev/lifecycle.sh start
   # ...改代码 / .secrets / docker-compose.dev.yml 后...
-  ./scripts/dev-host/lifecycle.sh restart
+  ./ops/dev/lifecycle.sh restart
 
 环境覆盖:
-  ALLOWED_ORIGINS=https://my.domain ./scripts/dev-host/lifecycle.sh start
-  IMAGE_TAG=v1.2 ./scripts/dev-host/lifecycle.sh start
+  ALLOWED_ORIGINS=https://my.domain ./ops/dev/lifecycle.sh start
+  IMAGE_TAG=v1.2 ./ops/dev/lifecycle.sh start
 EOF
 }
 

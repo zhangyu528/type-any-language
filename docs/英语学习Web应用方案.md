@@ -124,7 +124,7 @@
 │                                                                        │
 
 
-│  scripts/ops/{dev-host,prod-host}/run.sh start                         │
+│  ops/{dev,prod}/lifecycle.sh start                              │
 
 
 │        │                                                               │
@@ -190,7 +190,7 @@
 | 配置文件 | `cms/.env` | 无（shell env + `.secrets/`） |
 
 
-| 入口脚本 | `cms/scripts/*.sh` | `scripts/ops/{dev-host,prod-host}/*.sh` |
+| 入口脚本 | `cms/scripts/*.sh` | `ops/{dev,prod}/*.sh` |
 
 
 | 需要 Python | 是 | 否 |
@@ -791,10 +791,10 @@ CSV 文件位于 `cms/seed/vocabulary/*.csv`（已提交到仓库，运维同学
 ```bash
 
 
-./scripts/dev-host/lifecycle.sh doctor
+./ops/dev/doctor.sh
 
 
-./scripts/dev-host/lifecycle.sh start        # 首次会自动生成 .secrets/postgres_password
+./ops/dev/lifecycle.sh start        # 首次会自动生成 .secrets/postgres_password
 
 
 ```
@@ -803,7 +803,7 @@ CSV 文件位于 `cms/seed/vocabulary/*.csv`（已提交到仓库，运维同学
 
 
 
-可选：`ALLOWED_ORIGINS=https://my.domain ./scripts/dev-host/lifecycle.sh start`
+可选：`ALLOWED_ORIGINS=https://my.domain ./ops/dev/lifecycle.sh start`
 
 
 
@@ -818,13 +818,13 @@ CSV 文件位于 `cms/seed/vocabulary/*.csv`（已提交到仓库，运维同学
 ```bash
 
 
-ALLOWED_ORIGINS=https://my.domain ./scripts/prod-host/lifecycle.sh start
+ALLOWED_ORIGINS=https://my.domain ./ops/prod/lifecycle.sh start
 
 
-./scripts/prod-host/lifecycle.sh doctor
+./ops/prod/doctor.sh
 
 
-./scripts/prod-host/lifecycle.sh restart
+./ops/prod/lifecycle.sh restart
 
 
 ```
@@ -1002,28 +1002,58 @@ project/
 │   │   │   └── push_image.sh         # 推 registry
 
 
-│   │   ├── dev-host/                 # dev 目标机
+│   │   ├── dev/                       # dev 目标机
 
 
-│   │   │   ├── run.sh
+│   │   │   ├── _common.sh
 
 
-│   │   │   ├── build_image.sh
+│   │   │   ├── lifecycle.sh           # start / stop / restart | reload
 
 
-│   │   │   └── push_image.sh
+│   │   │   ├── doctor.sh
 
 
-│   │   └── prod-host/                # prod 目标机
+│   │   │   ├── setup.sh
 
 
-│   │       ├── run.sh
+│   │   │   ├── logs.sh
+
+
+│   │   │   ├── migrate.sh             # dev-only
+
+
+│   │   │   ├── watch.sh               # dev-only
+
+
+│   │   │   └── build_image.sh
+
+
+│   │   └── prod/                      # prod 目标机
+
+
+│   │       ├── _common.sh
+
+
+│   │       ├── lifecycle.sh
+
+
+│   │       ├── doctor.sh
+
+
+│   │       ├── setup.sh
+
+
+│   │       ├── logs.sh
 
 
 │   │       ├── build_image.sh
 
 
-│   │       └── push_image.sh
+│   │       ├── push_image.sh
+
+
+│   │       └── nginx.conf
 
 
 │   └── dev/                         # 开发者工具（lint/test/generate/...）— 当前为空

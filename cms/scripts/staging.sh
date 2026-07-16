@@ -46,7 +46,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
-source "$SCRIPT_DIR/../../scripts/lib.sh"
+source "$SCRIPT_DIR/../../ops/lib.sh"
 
 # cms/data-pipeline modules (import_vocab, generate_sentences,
 # generate_audio) live at cms/cms_pipeline/. The schema / migrations

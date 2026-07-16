@@ -1,8 +1,8 @@
 #!/bin/bash
 #
-# scripts/prod-host/_common.sh — shared setup for prod-host scripts.
+# ops/prod/_common.sh — shared setup for prod scripts.
 #
-# Sourced by every script in scripts/prod-host/ — it does the bootstrap
+# Sourced by every script in ops/prod/ — it does the bootstrap
 # that otherwise would have to be copy-pasted into each command. Single
 # source of truth for: image tag resolution, db label inspection, secrets
 # file writes, registry auto-pull, port warnings.
@@ -17,7 +17,7 @@ set -e
 : "${PROJECT_DIR:=$(cd "$COMMON_DIR/../.." && pwd)}"
 cd "$PROJECT_DIR"
 # shellcheck disable=SC1091
-source "$PROJECT_DIR/scripts/lib.sh"
+source "$PROJECT_DIR/ops/lib.sh"
 
 # ─── Globals set by setup_prod_host_env ─────────────────────────────────────
 SECRETS_DIR=".secrets"
@@ -106,7 +106,7 @@ write_secrets() {
 
 # ─── auto_pull_from_registry ────────────────────────────────────────────────
 # Pull ONLY the content-baked db image (backend/frontend are built locally
-# on the prod host). Same registry-detect guard as dev-host.
+# on the prod host). Same registry-detect guard as dev.
 auto_pull_from_registry() {
     if [ -z "$DOCKER_REGISTRY" ]; then
         return 0
@@ -127,12 +127,12 @@ gate_preflight() {
     require_docker
     if ! image_exists "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"; then
         err "image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 未构建"
-        info "  → 运行 scripts/prod-host/build_image.sh"
+        info "  → 运行 ops/prod/build_image.sh"
         exit 1
     fi
     if ! image_exists "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"; then
         err "image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 未构建"
-        info "  → 运行 scripts/prod-host/build_image.sh"
+        info "  → 运行 ops/prod/build_image.sh"
         exit 1
     fi
     if ! image_exists "$DB_FULL_IMAGE"; then

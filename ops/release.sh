@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# scripts/release.sh — bump + build + push a project version.
+# ops/release.sh — bump + build + push a project version.
 #
 # The project carries TWO version files so the dev and prod streams
 # can drift independently:
@@ -32,7 +32,7 @@
 #   - DOCKER_REGISTRY=ns     → "remote" mode: builds + tags + pushes to
 #                              that namespace. Set it in the shell:
 #                                export DOCKER_REGISTRY=docker.io/you
-#                                ./scripts/release.sh dev v0.3.0
+#                                ./ops/release.sh dev v0.3.0
 #                              Or commit it to ./REGISTRY at the repo root
 #                              (see REGISTRY file header for the rationale —
 #                              shared project config, not a personal secret).
@@ -45,17 +45,17 @@
 #     must run on the CMS host (or a single-machine CMS+prod setup).
 #     On a dedicated prod target host without cms/.env, run
 #     db/scripts/build.sh on the CMS host first, then run
-#     scripts/prod-host/build_image.sh + push_image.sh on the prod
+#     ops/prod/build_image.sh + push_image.sh on the prod
 #     host.
 #   - For multi-machine deployments, run each subcommand on its
 #     respective host. The script is self-contained per host.
 #
 # Examples:
-#   scripts/release.sh show
-#   scripts/release.sh dev v0.3.0                    # bump + build + push
-#   scripts/release.sh dev v0.3.0 -y                 # skip bump prompt
-#   scripts/release.sh prod                          # re-publish current VERSION.prod
-#   IMAGE_TAG=v0.3.0 ./scripts/release.sh dev        # env override (belt-and-braces)
+#   ops/release.sh show
+#   ops/release.sh dev v0.3.0                    # bump + build + push
+#   ops/release.sh dev v0.3.0 -y                 # skip bump prompt
+#   ops/release.sh prod                          # re-publish current VERSION.prod
+#   IMAGE_TAG=v0.3.0 ./ops/release.sh dev        # env override (belt-and-braces)
 #
 # Requires: shell + git + docker. NO python.
 
@@ -236,8 +236,8 @@ run_step() {
 
 # publish_one <role> <build_script> <push_script> <tag>
 #   role        — "dev app" / "prod app" / "db" (just for logging)
-#   build_script — scripts/ops/<host>/build_image.sh
-#   push_script  — scripts/ops/<host>/push_image.sh (or empty to skip)
+#   build_script — ops/<host>/build_image.sh
+#   push_script  — ops/<host>/push_image.sh (or empty to skip)
 #   tag          — IMAGE_TAG value
 publish_one() {
     local role="$1" build="$2" push="$3" tag="$4"
@@ -263,7 +263,7 @@ cmd_dev() {
 
     echo ""
     publish_one "dev app images (backend + frontend, local-only — dev never pushes)" \
-        "./scripts/dev-host/build_image.sh" \
+        "./ops/dev/build_image.sh" \
         "" \
         "$tag"
 
@@ -293,8 +293,8 @@ cmd_prod() {
 
     echo ""
     publish_one "prod app images (backend + frontend)" \
-        "./scripts/prod-host/build_image.sh" \
-        "./scripts/prod-host/push_image.sh" \
+        "./ops/prod/build_image.sh" \
+        "./ops/prod/push_image.sh" \
         "$tag"
 
     git_commit_touched 0 "$touched_prod" "$tag"

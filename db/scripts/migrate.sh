@@ -23,7 +23,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-source "$SCRIPT_DIR/../../scripts/lib.sh"
+source "$SCRIPT_DIR/../../ops/lib.sh"
 
 # Assemble DATABASE_URL — same logic as db/scripts/build.sh (the runner
 # no longer imports cms_pipeline.env, which used to do this in Python).

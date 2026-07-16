@@ -41,7 +41,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # shellcheck disable=SC1091
-source "$PROJECT_DIR/scripts/lib.sh"
+source "$PROJECT_DIR/ops/lib.sh"
 
 # Conventions.
 SOURCE_CONTAINER="cms-source-db"

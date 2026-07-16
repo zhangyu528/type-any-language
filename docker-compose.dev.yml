@@ -11,11 +11,11 @@
 #     Cloud COS, sentences.audio_url is a full COS URL baked into the
 #     db image. Frontend reads it and the browser streams from COS.
 #
-# Run via:  ./scripts/dev-host/lifecycle.sh start
+# Run via:  ./ops/dev/lifecycle.sh start
 # BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG default to the root ./VERSION
-# file (resolved by scripts/lib.sh); the run script exports them before
+# file (resolved by ops/lib.sh); the run script exports them before
 # invoking compose. Override at start time:
-#   BACKEND_IMAGE_TAG=v0.2.0 ./scripts/dev-host/lifecycle.sh start
+#   BACKEND_IMAGE_TAG=v0.2.0 ./ops/dev/lifecycle.sh start
 #
 # The shared `db` service block lives in compose-shared.yml (compose v2.20+
 # `include:`). Both prod and dev compose files include it; this file adds
@@ -41,7 +41,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile.dev
       args:
-        # Project VERSION (resolved by scripts/lib.sh) + best-effort git SHA.
+        # Project VERSION (resolved by ops/lib.sh) + best-effort git SHA.
         # Surfaces in the image as type-any-language.app.{version,git-sha}.
         APP_VERSION: ${BACKEND_IMAGE_TAG:-latest}
         GIT_SHA: ${GIT_SHA:-unknown}
@@ -49,7 +49,7 @@ services:
     environment:
       # CORS allowlist — dev defaults to localhost:3000 (CRA dev server).
       # Override via shell env if needed:
-      #   ALLOWED_ORIGINS=... ./scripts/dev-host/lifecycle.sh start
+      #   ALLOWED_ORIGINS=... ./ops/dev/lifecycle.sh start
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost,http://localhost:3000}
       DATABASE_URL_FILE: /run/secrets/database_url
     secrets:
@@ -89,7 +89,7 @@ services:
   #     property, gain "no bind mount needed, no race between bind and
   #     volume mount, no host frontend/.next pollution".
   #
-  # Run via:  docker compose watch   (or ./scripts/dev-host/lifecycle.sh
+  # Run via:  docker compose watch   (or ./ops/dev/lifecycle.sh
   #           start, which auto-spawns `compose watch` in background).
   # -------------------------------------------------------------------------
   frontend:
@@ -98,7 +98,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.dev
       args:
-        # Project VERSION (resolved by scripts/lib.sh) + best-effort git SHA.
+        # Project VERSION (resolved by ops/lib.sh) + best-effort git SHA.
         # Surfaces in the image as type-any-language.app.{version,git-sha}.
         APP_VERSION: ${FRONTEND_IMAGE_TAG:-latest}
         GIT_SHA: ${GIT_SHA:-unknown}

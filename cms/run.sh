@@ -54,7 +54,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
-source "$SCRIPT_DIR/../scripts/lib.sh"
+source "$SCRIPT_DIR/../ops/lib.sh"
 
 # cms/.env lives at the project root. This script is CMS-only — operators on
 # a target host don't have it and shouldn't be calling this script.

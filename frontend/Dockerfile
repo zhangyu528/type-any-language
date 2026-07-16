@@ -1,6 +1,6 @@
 FROM node:20-alpine
 
-# Project version (root ./VERSION, resolved by scripts/lib.sh) + git SHA.
+# Project version (root ./VERSION, resolved by ops/lib.sh) + git SHA.
 ARG APP_VERSION=latest
 ARG GIT_SHA=unknown
 LABEL type-any-language.app.version="${APP_VERSION}"

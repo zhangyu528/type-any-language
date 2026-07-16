@@ -1,20 +1,23 @@
 #!/bin/bash
 #
-# dev-host/build_image.sh — build backend + frontend images locally for dev.
+# prod/build_image.sh — build backend + frontend images locally for prod.
 #
 # Use this when DOCKER_REGISTRY isn't configured (offline / first-time local
-# setup). Equivalent to:
+# setup on the prod host itself, no separate build pipeline). Equivalent to:
 #
-#   docker compose -f docker-compose.dev.yml build
+#   docker compose build
 #
-# Builds:  english_backend_dev, english_frontend_dev   (matches the image:
-#         names docker-compose.dev.yml declares and dev-host/run.sh checks.)
-# Dockerfiles used: backend/Dockerfile.dev, frontend/Dockerfile.dev.
+# Builds:  english_backend, english_frontend   (matches the image names
+#         docker-compose.yml declares and prod/run.sh checks.)
+# Dockerfiles used: backend/Dockerfile, frontend/Dockerfile.
 #
-# When DOCKER_REGISTRY IS configured, you don't need this script — dev-host/
-# run.sh start will `docker pull` the pre-built images from the registry.
+# When DOCKER_REGISTRY IS configured, you don't need this script —
+# prod/run.sh start will `docker pull` the pre-built images (built
+# elsewhere, e.g. by CI). The content-baked db image is NEVER built here — it must be
+# baked by the CMS host via db/scripts/build.sh and pushed to
+# the registry.
 #
-# After build, run:  ./scripts/dev-host/lifecycle.sh start
+# After build, run:  ./ops/prod/run.sh start
 
 set -e
 
@@ -22,26 +25,26 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
 # shellcheck disable=SC1091
-source "$SCRIPT_DIR/../../scripts/lib.sh"
+source "$SCRIPT_DIR/../../ops/lib.sh"
 
 require_docker
 
-# BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG default to VERSION.dev (the dev
+# BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG default to VERSION.prod (the prod
 # stream's tag). They're exported so docker-compose's
 # ${BACKEND_IMAGE_TAG:-latest} / ${FRONTEND_IMAGE_TAG:-latest}
 # interpolation in the compose file resolves correctly.
-resolve_image_tag BACKEND_IMAGE_TAG VERSION.dev
-resolve_image_tag FRONTEND_IMAGE_TAG VERSION.dev
-warn_if_version_default "$BACKEND_IMAGE_TAG" VERSION.dev
-# DB_IMAGE_TAG defaults to VERSION.prod (db is "prod-bound" content shared
-# by both targets). Resolved here so the DB_FULL_IMAGE we ask for below
-# matches the tag the content-baked db image was actually baked with — otherwise the
-# "image not found" hint would point at `:latest` and mislead.
+resolve_image_tag BACKEND_IMAGE_TAG VERSION.prod
+resolve_image_tag FRONTEND_IMAGE_TAG VERSION.prod
+warn_if_version_default "$BACKEND_IMAGE_TAG" VERSION.prod
+# DB_IMAGE_TAG defaults to VERSION.prod (db is "prod-bound" content).
+# Resolved here so the DB_FULL_IMAGE we ask for below matches the tag
+# the content-baked db image was actually baked with — otherwise the "image not found"
+# hint would point at `:latest` and mislead.
 resolve_image_tag DB_IMAGE_TAG VERSION.prod
 
-COMPOSE_FILE="docker-compose.dev.yml"
-BACKEND_IMAGE="english_backend_dev"
-FRONTEND_IMAGE="english_frontend_dev"
+COMPOSE_FILE="docker-compose.yml"
+BACKEND_IMAGE="english_backend"
+FRONTEND_IMAGE="english_frontend"
 
 # DB_USER / DB_NAME — the compose file's ${DB_USER:?...} / ${DB_NAME:?...}
 # require these to be set even at `docker compose build` time (compose
@@ -78,17 +81,17 @@ fi
 export DB_USER DB_NAME
 
 # Best-effort short git SHA. Falls back to "unknown" if the build context
-# isn't a git checkout (e.g. CI checked out via tarball). Exported so
-# compose's `args: GIT_SHA` block picks it up — surfaces in the image as
-# type-any-language.app.git-sha.
+# isn't a git checkout. Exported so compose's `args: GIT_SHA` block picks
+# it up — surfaces in the image as type-any-language.app.git-sha.
 GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 export GIT_SHA
 
 echo -e "${_LIB_BLUE}=========================================${_LIB_BLUE}"
-echo -e "${_LIB_BLUE} type-any-language · dev build${_LIB_BLUE}"
+echo -e "${_LIB_BLUE} type-any-language · prod build${_LIB_BLUE}"
 echo -e "${_LIB_BLUE}=========================================${_LIB_BLUE}"
 echo ""
 info "Building $BACKEND_IMAGE + $FRONTEND_IMAGE via $COMPOSE_FILE"
+info "(content-baked db image is NOT built here — CMS host db/scripts/build.sh does that)"
 echo ""
 
 "$DOCKER_COMPOSE_CMD" -f "$COMPOSE_FILE" build
@@ -96,4 +99,4 @@ echo ""
 echo ""
 ok "Build done."
 info "  → 检查: docker image inspect $BACKEND_IMAGE"
-info "  → 启动: ./scripts/dev-host/lifecycle.sh start"
+info "  → 启动: ./ops/prod/run.sh start"

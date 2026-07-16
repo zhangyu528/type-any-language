@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# scripts/dev-host/migrate.sh — apply pending schema migrations to running db.
+# ops/dev/migrate.sh — apply pending schema migrations to running db.
 #
 # Lightweight dev iteration path. Equivalent to running
 # `cms/scripts/env.sh` then running the migration runner, but targets the
@@ -20,7 +20,7 @@
 # applied versions in schema_migrations. Re-runs are no-ops.
 #
 # Backend picks up the new schema on the next request (no restart needed).
-# But ./scripts/dev-host/lifecycle.sh restart works fine too.
+# But ./ops/dev/lifecycle.sh restart works fine too.
 #
 # Offline fallback: cms/cms_pipeline/migrations/apply_to_runtime.sql brings
 # a stale db up to head. Use when no backend image is cached and
@@ -44,7 +44,7 @@ cmd_migrate() {
     local db_cid
     db_cid="$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" ps -q db 2>/dev/null | head -1)"
     if [ -z "$db_cid" ]; then
-        err "db 容器没在跑 — 先 ./scripts/dev-host/lifecycle.sh start"
+        err "db 容器没在跑 — 先 ./ops/dev/lifecycle.sh start"
         return 1
     fi
 
@@ -122,7 +122,7 @@ cmd_migrate() {
     echo ""
     ok "=== migrate 完成 ==="
     info "  backend hot reload 自动捡新 schema;要确认:"
-    info "    ./scripts/dev-host/lifecycle.sh restart"
+    info "    ./ops/dev/lifecycle.sh restart"
 }
 
 cmd_migrate

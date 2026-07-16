@@ -1,10 +1,10 @@
 #!/bin/bash
 #
-# prod-host/push_image.sh — push PROD backend + frontend images to $DOCKER_REGISTRY.
+# prod/push_image.sh — push PROD backend + frontend images to $DOCKER_REGISTRY.
 #
 # Symmetric with db/scripts/push.sh (CMS host pushes the db image;
 # target hosts push their own backend/frontend images). Run this AFTER
-# ./scripts/prod-host/build_image.sh has produced the images locally.
+# ./ops/prod/build_image.sh has produced the images locally.
 # Push is a deliberate, separate step: you might build many times locally
 # before you're ready to publish.
 #
@@ -38,9 +38,9 @@
 #
 # Examples:
 #   export DOCKER_REGISTRY=docker.io/youruser
-#   ./scripts/prod-host/push_image.sh             # interactive
-#   ./scripts/prod-host/push_image.sh -y          # CI
-#   ./scripts/prod-host/push_image.sh doctor      # check prereqs
+#   ./ops/prod/push_image.sh             # interactive
+#   ./ops/prod/push_image.sh -y          # CI
+#   ./ops/prod/push_image.sh doctor      # check prereqs
 #
 # Requires: shell + docker. NO python.
 
@@ -49,11 +49,11 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
-source "$SCRIPT_DIR/../../scripts/lib.sh"
+source "$SCRIPT_DIR/../../ops/lib.sh"
 
 # DOCKER_REGISTRY: shell env > ./REGISTRY file > detect_default_registry().
-# Pairs with db/scripts/push.sh (CMS host pushes db image); the prod-host
-# pushes its own backend+frontend. dev-host does NOT have a push script —
+# Pairs with db/scripts/push.sh (CMS host pushes db image); the prod
+# pushes its own backend+frontend. dev does NOT have a push script —
 # dev is local-only (image lifecycle owned by build + dev-side tagging,
 # never registry-pollutes a shared namespace).
 resolve_docker_registry
@@ -108,7 +108,7 @@ cmd_doctor() {
 
     if ! image_exists "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"; then
         err "本地 image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 不存在"
-        info "  → 先跑 ./scripts/prod-host/build_image.sh"
+        info "  → 先跑 ./ops/prod/build_image.sh"
         ok=0
     else
         ok "本地 image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 存在"
@@ -116,7 +116,7 @@ cmd_doctor() {
 
     if ! image_exists "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"; then
         err "本地 image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 不存在"
-        info "  → 先跑 ./scripts/prod-host/build_image.sh"
+        info "  → 先跑 ./ops/prod/build_image.sh"
         ok=0
     else
         ok "本地 image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 存在"
@@ -153,12 +153,12 @@ cmd_push() {
 
     if ! image_exists "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"; then
         err "本地 image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 不存在"
-        info "  → 先跑 ./scripts/prod-host/build_image.sh"
+        info "  → 先跑 ./ops/prod/build_image.sh"
         exit 1
     fi
     if ! image_exists "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"; then
         err "本地 image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 不存在"
-        info "  → 先跑 ./scripts/prod-host/build_image.sh"
+        info "  → 先跑 ./ops/prod/build_image.sh"
         exit 1
     fi
 
@@ -214,7 +214,7 @@ cmd_push() {
 
     echo ""
     info "下一步:"
-    info "  其他目标机 export DOCKER_REGISTRY=$DOCKER_REGISTRY && ./scripts/prod-host/run.sh start"
+    info "  其他目标机 export DOCKER_REGISTRY=$DOCKER_REGISTRY && ./ops/prod/run.sh start"
     info "  (run.sh 会自动 docker pull 新 image)"
 }
 
@@ -237,10 +237,10 @@ usage() {
 
 示例:
   export DOCKER_REGISTRY=docker.io/youruser
-  ./scripts/prod-host/build_image.sh && \\
-    ./scripts/prod-host/push_image.sh         # 交互
-  ./scripts/prod-host/push_image.sh -y        # CI
-  ./scripts/prod-host/push_image.sh doctor    # 前置检查
+  ./ops/prod/build_image.sh && \\
+    ./ops/prod/push_image.sh         # 交互
+  ./ops/prod/push_image.sh -y        # CI
+  ./ops/prod/push_image.sh doctor    # 前置检查
 
 退出码:
   0  成功 (或用户取消)

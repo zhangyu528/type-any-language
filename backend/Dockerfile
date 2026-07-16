@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# Project version (root ./VERSION, resolved by scripts/lib.sh) + git SHA
+# Project version (root ./VERSION, resolved by ops/lib.sh) + git SHA
 # (best-effort, "unknown" if not in a git checkout). Surfaces in
 # `docker inspect` as type-any-language.app.{version,git-sha}.
 ARG APP_VERSION=latest

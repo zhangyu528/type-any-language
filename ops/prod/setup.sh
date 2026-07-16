@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# scripts/prod-host/setup.sh — first-time (or post-reset) bootstrap.
+# ops/prod/setup.sh — first-time (or post-reset) bootstrap.
 #
 # Walks the operator through the image dependency chain so a fresh prod
 # host is one command away from `./lifecycle.sh start`:
@@ -10,7 +10,7 @@
 #      DB_USER / DB_NAME from its OCI labels). Prod host NEVER bakes
 #      db content itself — only pulls from registry or expects a
 #      pre-loaded image.
-#   3. prod app images: call scripts/prod-host/build_image.sh.
+#   3. prod app images: call ops/prod/build_image.sh.
 #      Skipped if both already present.
 #   4. Final summary.
 #
@@ -68,7 +68,7 @@ cmd_setup() {
             info "    1. CMS 主机: cms/scripts/staging.sh   # 数据管线(sync / sentences / audio)"
             info "    2. CMS 主机: db/scripts/build.sh       # 烤 db image"
             info "    3. CMS 主机: db/scripts/push.sh -y    # 推 registry"
-            info "    4. 本机配置 REGISTRY / DOCKER_REGISTRY,再跑一次 ./scripts/prod-host/setup.sh"
+            info "    4. 本机配置 REGISTRY / DOCKER_REGISTRY,再跑一次 ./ops/prod/setup.sh"
             info "  (或: 手动 docker load/tar 把 content-baked db image 搬过来)"
             err "content-baked db image 缺失 — 完成上面的步骤后,再跑一次 setup"
             return 1
@@ -87,9 +87,9 @@ cmd_setup() {
        image_exists "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"; then
         ok "  ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 已存在"
         ok "  ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 已存在"
-        info "  (要 rebuild? 跑: scripts/prod-host/build_image.sh)"
+        info "  (要 rebuild? 跑: ops/prod/build_image.sh)"
     else
-        info "  调 scripts/prod-host/build_image.sh..."
+        info "  调 ops/prod/build_image.sh..."
         echo ""
         if "$COMMON_DIR/build_image.sh"; then
             echo ""
@@ -102,7 +102,7 @@ cmd_setup() {
     echo ""
 
     ok "=== setup 完成 ==="
-    info "  下一步: ./scripts/prod-host/lifecycle.sh start"
+    info "  下一步: ./ops/prod/lifecycle.sh start"
     info "  启动后访问:"
     info "    前端: http://localhost  (经 nginx :80)"
     info "    API:  http://localhost/api/docs"

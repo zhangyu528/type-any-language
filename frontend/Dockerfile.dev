@@ -12,8 +12,8 @@
 
 FROM node:20-alpine
 
-# OCI labels consumed by run.sh's drift_check (see scripts/ops/dev-host/run.sh).
-# APP_VERSION comes from scripts/lib.sh → resolve_image_tag → VERSION.dev.
+# OCI labels consumed by run.sh's drift_check (see ops/dev/run.sh).
+# APP_VERSION comes from ops/lib.sh → resolve_image_tag → VERSION.dev.
 ARG APP_VERSION=latest
 ARG GIT_SHA=unknown
 LABEL type-any-language.app.version="${APP_VERSION}"

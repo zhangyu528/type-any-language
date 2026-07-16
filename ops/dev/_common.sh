@@ -1,8 +1,8 @@
 #!/bin/bash
 #
-# scripts/dev-host/_common.sh — shared setup for the dev-host scripts.
+# ops/dev/_common.sh — shared setup for the dev scripts.
 #
-# Sourced by every script in scripts/dev-host/ — it does the bootstrap that
+# Sourced by every script in ops/dev/ — it does the bootstrap that
 # otherwise would have to be copy-pasted into each command. Single source
 # of truth for: image tag resolution, db label inspection, secrets file
 # writes, watch process lifecycle, port warnings.
@@ -18,11 +18,11 @@ set -e
 # PROJECT_DIR is needed by setup_dev_host_env. We use bash-trickery here:
 # the caller sets $PROJECT_DIR by exporting the same value it uses for
 # itself; if not exported, we fall back to a 2-level walk-up from
-# scripts/dev-host/.
+# ops/dev/.
 : "${PROJECT_DIR:=$(cd "$COMMON_DIR/../.." && pwd)}"
 cd "$PROJECT_DIR"
 # shellcheck disable=SC1091
-source "$PROJECT_DIR/scripts/lib.sh"
+source "$PROJECT_DIR/ops/lib.sh"
 
 # ─── Globals set by setup_dev_host_env ─────────────────────────────────────
 SECRETS_DIR=".secrets"
@@ -50,7 +50,7 @@ setup_dev_host_env() {
     resolve_docker_registry
     if [ -n "$DOCKER_REGISTRY" ]; then
         if [ "${_DOCKER_REGISTRY_SOURCE:-}" = "detect" ]; then
-            info "DOCKER_REGISTRY=$DOCKER_REGISTRY (auto-detected — 仅 prod-host + db 用,dev 不 push)"
+            info "DOCKER_REGISTRY=$DOCKER_REGISTRY (auto-detected — 仅 prod + db 用,dev 不 push)"
         else
             info "DOCKER_REGISTRY=$DOCKER_REGISTRY (setup 一次性 bootstrap 拉取用,start 不再 auto-pull)"
         fi
@@ -223,12 +223,12 @@ gate_preflight() {
     require_docker
     if ! image_exists "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"; then
         err "image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 未构建"
-        info "  → 运行 scripts/dev-host/build_image.sh"
+        info "  → 运行 ops/dev/build_image.sh"
         exit 1
     fi
     if ! image_exists "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"; then
         err "image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 未构建"
-        info "  → 运行 scripts/dev-host/build_image.sh"
+        info "  → 运行 ops/dev/build_image.sh"
         exit 1
     fi
     if ! image_exists "$DB_FULL_IMAGE"; then
@@ -237,7 +237,7 @@ gate_preflight() {
             info "  → 设置 DB_IMAGE_TAG 后由脚本拉取,或: docker pull $DB_FULL_IMAGE"
         else
             info "  → 运行 db/scripts/build.sh(可用 --tag dev 标记)"
-            info "  → 之后再次运行 scripts/dev-host/start.sh"
+            info "  → 之后再次运行 ops/dev/start.sh"
         fi
         exit 1
     fi

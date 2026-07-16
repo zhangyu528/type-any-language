@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# scripts/prod-host/lifecycle.sh — start / stop / restart / reload.
+# ops/prod/lifecycle.sh — start / stop / restart / reload.
 #
-# Daily driver for the prod host. Reads scripts/prod-host/_common.sh for
+# Daily driver for the prod host. Reads ops/prod/_common.sh for
 # all shared setup (image refs, db label inspection, secrets write,
 # registry auto-pull).
 #
@@ -12,7 +12,7 @@
 #   stop              stop prod containers
 #   restart|reload    recreate + re-read .secrets
 #
-# Counterpart to scripts/prod-host/{setup,doctor,logs}.sh.
+# Counterpart to ops/prod/{setup,doctor,logs}.sh.
 
 set -e
 
@@ -66,11 +66,11 @@ cmd_restart() {
 
     if [ -n "$backend_before" ] && [ "$backend_before" != "$backend_after" ]; then
         warn "$BACKEND_IMAGE image ID 变化了 — 你是改了 Dockerfile?"
-        warn "  这种情况请用 scripts/prod-host/build_image.sh 重 build 后再 restart"
+        warn "  这种情况请用 ops/prod/build_image.sh 重 build 后再 restart"
     fi
     if [ -n "$frontend_before" ] && [ "$frontend_before" != "$frontend_after" ]; then
         warn "$FRONTEND_IMAGE image ID 变化了 — 你是改了 Dockerfile?"
-        warn "  这种情况请用 scripts/prod-host/build_image.sh 重 build 后再 restart"
+        warn "  这种情况请用 ops/prod/build_image.sh 重 build 后再 restart"
     fi
 
     ok "服务已重启(secrets 已重读)"
@@ -80,7 +80,7 @@ cmd_reload() { cmd_restart "$@"; }
 
 usage() {
     cat <<EOF
-用法: ./scripts/prod-host/lifecycle.sh <command>
+用法: ./ops/prod/lifecycle.sh <command>
 
 命令:
   start            启动生产容器 (DOCKER_REGISTRY 配了会先 pull baked db image)
@@ -88,13 +88,13 @@ usage() {
   restart|reload   recreate + 重读 secrets (≈5s, 不重 build image)
 
 典型工作流:
-  ./scripts/prod-host/lifecycle.sh start
+  ./ops/prod/lifecycle.sh start
   # ...改 .secrets / docker-compose.yml / 重新 push 了 db image 后...
-  ./scripts/prod-host/lifecycle.sh restart
+  ./ops/prod/lifecycle.sh restart
 
 环境覆盖:
-  ALLOWED_ORIGINS=https://my.domain ./scripts/prod-host/lifecycle.sh start
-  IMAGE_TAG=v1.2 ./scripts/prod-host/lifecycle.sh start
+  ALLOWED_ORIGINS=https://my.domain ./ops/prod/lifecycle.sh start
+  IMAGE_TAG=v1.2 ./ops/prod/lifecycle.sh start
 EOF
 }
 

@@ -47,7 +47,7 @@
 #   AUDIO_DIR=/my/audio/dir ./cms/scripts/staging.sh audio
 #   DEFAULT_BUCKET_TARGET_SIZE=500 ./cms/scripts/staging.sh sentences
 # DB_IMAGE_TAG is also not here — its default is the root ./VERSION file
-# (resolved by scripts/lib.sh), with cms/.env / shell env able to pin a
+# (resolved by ops/lib.sh), with cms/.env / shell env able to pin a
 # specific version when needed.
 #
 # DOCKER_REGISTRY is not in cms/.env either — it lives in the committed
@@ -70,7 +70,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
 # shellcheck disable=SC1091
-source "$SCRIPT_DIR/../../scripts/lib.sh"
+source "$SCRIPT_DIR/../../ops/lib.sh"
 
 TEMPLATE="cms/.env.example.cms"
 TARGET="${CONTENT_ENV_FILE:-cms/.env}"

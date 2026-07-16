@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# scripts/dev-host/setup.sh — first-time (or post-reset) bootstrap.
+# ops/dev/setup.sh — first-time (or post-reset) bootstrap.
 #
 # Walks the operator through the image dependency chain so a fresh clone
 # is one command away from `./lifecycle.sh start`:
@@ -16,7 +16,7 @@
 #        - db/scripts/build.sh                (pg_dump → docker build)
 #      with DB_IMAGE_TAG=dev-local so the resulting image doesn't collide
 #      with the team's VERSION.prod tag.
-#   3. dev app images: call scripts/dev-host/build_image.sh (handles
+#   3. dev app images: call ops/dev/build_image.sh (handles
 #      both at once). Skipped if both already present.
 #   4. Final summary.
 #
@@ -24,7 +24,7 @@
 # or invoke the CMS pipeline (sync / sentences / audio).
 # Re-run as many times as you want — nothing destructive.
 #
-# Counterpart to scripts/dev-host/{lifecycle,doctor,logs,migrate,watch}.sh.
+# Counterpart to ops/dev/{lifecycle,doctor,logs,migrate,watch}.sh.
 
 set -e
 
@@ -125,9 +125,9 @@ cmd_setup() {
        image_exists "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"; then
         ok "  ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 已存在"
         ok "  ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 已存在"
-        info "  (要 rebuild? 跑: scripts/dev-host/build_image.sh)"
+        info "  (要 rebuild? 跑: ops/dev/build_image.sh)"
     else
-        info "  调 scripts/dev-host/build_image.sh..."
+        info "  调 ops/dev/build_image.sh..."
         echo ""
         if "$COMMON_DIR/build_image.sh"; then
             echo ""
@@ -141,7 +141,7 @@ cmd_setup() {
 
     # 4. Final summary
     ok "=== setup 完成 ==="
-    info "  下一步: ./scripts/dev-host/lifecycle.sh start"
+    info "  下一步: ./ops/dev/lifecycle.sh start"
     info "  启动后访问:"
     info "    前端: http://localhost:3000"
     info "    后端: http://localhost:8000  (API 文档: /docs)"

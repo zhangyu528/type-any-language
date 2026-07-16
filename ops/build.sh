@@ -1,8 +1,8 @@
 #!/bin/bash
 #
-# scripts/build.sh — build all docker images locally, no push.
+# ops/build.sh — build all docker images locally, no push.
 #
-# Build-only counterpart to scripts/release.sh. It orchestrates the
+# Build-only counterpart to ops/release.sh. It orchestrates the
 # existing per-stream build scripts so an operator can produce a complete,
 # locally-runnable set of images in one command:
 #
@@ -10,7 +10,7 @@
 #   - dev app images   (english_backend_dev + english_frontend_dev)
 #   - prod app images  (english_backend + english_frontend)
 #
-# Pushing is intentionally NOT handled here — use scripts/release.sh for
+# Pushing is intentionally NOT handled here — use ops/release.sh for
 # that. This script is for the "build everything so I can run/test it
 # locally" workflow: a CMS host that bakes + locally runs dev, a single-
 # machine CMS+dev+prod setup, or just "rebuild after a code change".
@@ -37,7 +37,7 @@
 #
 # Override all tags at once:
 #
-#   IMAGE_TAG=v1.2.3 ./scripts/build.sh all
+#   IMAGE_TAG=v1.2.3 ./ops/build.sh all
 #
 # Requires: shell + docker (+ python + cms/.env for the db bake).
 
@@ -70,7 +70,7 @@ usage() {
   prod              Build prod 应用镜像 (english_backend + english_frontend)
   -h | help         显示帮助
 
-不负责 push — 想推到 registry 请用 scripts/release.sh。
+不负责 push — 想推到 registry 请用 ops/release.sh。
 
 Image tag 解析(每个 inner build 自己 resolve, 见 lib.sh → resolve_image_tag):
   per-image env (BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG / DB_IMAGE_TAG)
@@ -118,16 +118,16 @@ cmd_all() {
     echo ""
 
     run_step "build dev backend + frontend" \
-        ./scripts/dev-host/build_image.sh
+        ./ops/dev/build_image.sh
     echo ""
 
     run_step "build prod backend + frontend" \
-        ./scripts/prod-host/build_image.sh
+        ./ops/prod/build_image.sh
     echo ""
 
     ok "build all done."
-    info "  → 启动 dev:  ./scripts/dev-host/lifecycle.sh start"
-    info "  → 启动 prod: ./scripts/prod-host/lifecycle.sh start"
+    info "  → 启动 dev:  ./ops/dev/lifecycle.sh start"
+    info "  → 启动 prod: ./ops/prod/lifecycle.sh start"
 }
 
 cmd_db() {
@@ -141,19 +141,19 @@ cmd_db() {
 cmd_dev() {
     info "=== build dev only ==="
     run_step "build dev backend + frontend" \
-        ./scripts/dev-host/build_image.sh
+        ./ops/dev/build_image.sh
     echo ""
     ok "build dev done."
-    info "  → 启动: ./scripts/dev-host/lifecycle.sh start"
+    info "  → 启动: ./ops/dev/lifecycle.sh start"
 }
 
 cmd_prod() {
     info "=== build prod only ==="
     run_step "build prod backend + frontend" \
-        ./scripts/prod-host/build_image.sh
+        ./ops/prod/build_image.sh
     echo ""
     ok "build prod done."
-    info "  → 启动: ./scripts/prod-host/lifecycle.sh start"
+    info "  → 启动: ./ops/prod/lifecycle.sh start"
 }
 
 # ---------------------------------------------------------------------------

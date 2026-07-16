@@ -1,6 +1,6 @@
 # Project-wide registry namespace for `docker push` / `docker pull`.
 #
-# Used by scripts/release.sh, scripts/ops/db/push_image.sh, and the
+# Used by ops/release.sh, ops/db/push_image.sh, and the
 # dev / prod target host run.sh + push_image.sh — anywhere the docker
 # images need to be published or pulled.
 #

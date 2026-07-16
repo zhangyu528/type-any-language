@@ -491,7 +491,7 @@ resolve_docker_registry() {
 # Callers should use this exactly once at the top of a script and store
 # the result in a local var:
 #   local env_file; env_file="$(resolve_content_env_file)"
-#   [ -f "$env_file" ] || err "$env_file 不存在 — 跑 ./scripts/ops/cms/env.sh init"
+#   [ -f "$env_file" ] || err "$env_file 不存在 — 跑 ./cms/scripts/env.sh init"
 #   set -a; . "$env_file"; set +a
 resolve_content_env_file() {
     local root="${PROJECT_DIR:-$(find_repo_root)}"
@@ -508,7 +508,7 @@ resolve_content_env_file() {
 # ---------------------------------------------------------------------------
 # sed_inplace PATTERN FILE — in-place edit, compatible with GNU sed (Linux)
 # and BSD sed (macOS). BSD requires an explicit empty argument after -i.
-# Used by scripts/ops/cms/env.sh to inject smart defaults into cms/.env.
+# Used by cms/scripts/env.sh to inject smart defaults into cms/.env.
 sed_inplace() {
     if sed --version >/dev/null 2>&1; then
         sed -i "$1" "$2"

@@ -9,8 +9,8 @@
 | 角色 | 根目录入口 | 详细脚本 | 配置文件 |
 |---|---|---|---|
 | CMS 主机（生产内容） | — | `cms/scripts/*.sh` | `cms/.env` |
-| 开发目标机 | `./dev.sh` | `scripts/dev-host/*.sh` | **不需要** — shell env + `.secrets/` |
-| 生产目标机 | — | `scripts/prod-host/*.sh` | **不需要** — shell env + `.secrets/` |
+| 开发目标机 | `./dev.sh` | `ops/dev/*.sh` | **不需要** — shell env + `.secrets/` |
+| 生产目标机 | — | `ops/prod/*.sh` | **不需要** — shell env + `.secrets/` |
 
 CMS 主机把内容（词库 + AI 句子 + TTS 音频）烤进 db image，推到 registry。dev / prod 目标机只 `docker pull` 这个 image，不跑 AI、不跑 TTS、不需要 Python，也**不需要写 .env 文件** —— `POSTGRES_PASSWORD` 由 `run.sh` 首次启动时现场生成（写到 `.secrets/postgres_password`，chmod 600），CORS 等运行时配置通过 shell 环境变量覆盖。
 
@@ -21,7 +21,7 @@ CMS 主机把内容（词库 + AI 句子 + TTS 音频）烤进 db image，推到
 | `backend/` | FastAPI 纯读层（无 AI / TTS） | [`backend/README.md`](backend/README.md) |
 | `frontend/` | Next.js 14 app（单页练习 UI） | [`frontend/README.md`](frontend/README.md) |
 | `cms/` | 内容服务（源 + CMS 工具链 + Postgres image 构建上下文） | [`cms/README.md`](cms/README.md) |
-| `scripts/ops/{content,dev-host,prod-host}/` | 主机运维脚本 | 各脚本头部注释 |
+| `ops/{dev,prod}/` | 目标机运维脚本(lifecycle / doctor / setup / build_image 等)+ 顶层 build/release 编排器 | [`ops/README.md`](ops/README.md) |
 | `nginx/` | nginx 反向代理（prod 入口） | — |
 
 详细架构、数据流、环境变量说明见 [`CLAUDE.md`](CLAUDE.md)。
@@ -31,7 +31,7 @@ CMS 主机把内容（词库 + AI 句子 + TTS 音频）烤进 db image，推到
 ## 快速开始（开发环境）
 
 ```bash
-# ./dev.sh 是根目录入口,等价于 scripts/dev-host/lifecycle.sh
+# ./dev.sh 是根目录入口,等价于 ops/dev/lifecycle.sh
 ./dev.sh setup      # 首次:准备 image(自动 bake db + build dev apps,见下)
 ./dev.sh doctor     # 前置检查
 ./dev.sh start      # 起来(首次会现场生成 .secrets/postgres_password)
@@ -92,26 +92,26 @@ prod 主机推自己的 backend+frontend 镜像;db 镜像由 CMS 主机推。
 
 ```bash
 # dev host: 只 build,不 push,直接 start
-./scripts/dev-host/build_image.sh
-./scripts/dev-host/lifecycle.sh start
+./ops/dev/build_image.sh
+./ops/dev/lifecycle.sh start
 
 # prod host: build + push
 export DOCKER_REGISTRY=docker.io/youruser
-./scripts/prod-host/build_image.sh
-./scripts/prod-host/push_image.sh -y
+./ops/prod/build_image.sh
+./ops/prod/push_image.sh -y
 ```
 
 ## 生产环境
 
 ```bash
-ALLOWED_ORIGINS=https://my.domain ./scripts/prod-host/lifecycle.sh start
-./scripts/prod-host/lifecycle.sh doctor
-./scripts/prod-host/lifecycle.sh restart
+ALLOWED_ORIGINS=https://my.domain ./ops/prod/lifecycle.sh start
+./ops/prod/doctor.sh
+./ops/prod/lifecycle.sh restart
 
 # 镜像发布(可选)
 export DOCKER_REGISTRY=docker.io/youruser
-./scripts/prod-host/build_image.sh
-./scripts/prod-host/push_image.sh -y
+./ops/prod/build_image.sh
+./ops/prod/push_image.sh -y
 ```
 
 生产前端通过 nginx 在 `:80` 暴露。

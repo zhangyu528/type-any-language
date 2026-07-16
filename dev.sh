@@ -2,7 +2,7 @@
 #
 # ./dev — root-level entry for dev host operations.
 #
-# Thin dispatcher over scripts/dev-host/. Use this when you want a short,
+# Thin dispatcher over ops/dev/. Use this when you want a short,
 # memorable command from the project root:
 #
 #   ./dev setup          # first-time: 拉/检查 db image, build dev app images
@@ -18,7 +18,7 @@
 #   ./dev build          # build dev app images (backend + frontend)
 #   ./dev                # 默认 = usage
 #
-# Equivalent to invoking the matching scripts/dev-host/<cmd>.sh file
+# Equivalent to invoking the matching ops/dev/<cmd>.sh file
 # directly. `exec` replaces this shell so signals (Ctrl+C) propagate to
 # the child.
 #
@@ -28,28 +28,28 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 case "${1:-}" in
     # lifecycle.sh handles start/stop/restart|reload (4 subcommands in 1 file)
     start|stop|restart|reload)
-        exec "$SCRIPT_DIR/scripts/dev-host/lifecycle.sh" "$@"
+        exec "$SCRIPT_DIR/ops/dev/lifecycle.sh" "$@"
         ;;
     # One-file-per-cmd subcommands
     setup|doctor|logs|migrate|watch|build|status)
-        exec "$SCRIPT_DIR/scripts/dev-host/$1.sh" "$@"
+        exec "$SCRIPT_DIR/ops/dev/$1.sh" "$@"
         ;;
     ""|-h|--help|help)
         cat <<EOF
 用法: ./dev <command>
 
-命令(直接对应 scripts/dev-host/ 下的同名文件):
-  setup        首次环境引导 (scripts/dev-host/setup.sh)
-  doctor       pre-flight (scripts/dev-host/doctor.sh)
-  start        启动 dev 容器 (scripts/dev-host/lifecycle.sh start)
-  stop         停止容器 (scripts/dev-host/lifecycle.sh stop)
-  restart      recreate + 重读 secrets (scripts/dev-host/lifecycle.sh restart)
+命令(直接对应 ops/dev/ 下的同名文件):
+  setup        首次环境引导 (ops/dev/setup.sh)
+  doctor       pre-flight (ops/dev/doctor.sh)
+  start        启动 dev 容器 (ops/dev/lifecycle.sh start)
+  stop         停止容器 (ops/dev/lifecycle.sh stop)
+  restart      recreate + 重读 secrets (ops/dev/lifecycle.sh restart)
   reload       同 restart
-  logs [svc]   跟踪日志 (scripts/dev-host/logs.sh)
-  status       容器状态 (scripts/dev-host/lifecycle.sh 的相关部分)
-  migrate      apply schema migrations (scripts/dev-host/migrate.sh)
-  watch        前台 compose watch (scripts/dev-host/watch.sh)
-  build        build dev app images (scripts/dev-host/build_image.sh)
+  logs [svc]   跟踪日志 (ops/dev/logs.sh)
+  status       容器状态 (ops/dev/lifecycle.sh 的相关部分)
+  migrate      apply schema migrations (ops/dev/migrate.sh)
+  watch        前台 compose watch (ops/dev/watch.sh)
+  build        build dev app images (ops/dev/build_image.sh)
 
 示例:
   ./dev setup
