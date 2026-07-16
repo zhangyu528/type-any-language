@@ -1983,6 +1983,74 @@ select:focus-visible {
 }
 
 /* ============================================================
+   PracticeChrome — top-right auth affordance.
+
+   Lifted out of <style jsx> in PracticeChrome.tsx so the rule
+   actually applies: next/link renders an <a> outside the styled-jsx
+   React tree, so its hash-class suffix never gets added, and the
+   scoped selector misses the rendered element. Global selector
+   matches anywhere. Same visual result; no behavior change.
+   ============================================================ */
+.practice-chrome__login {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 var(--space-4);
+  font-size: 13px;
+  font-weight: var(--type-body-emphasis-weight);
+  color: var(--surface);
+  background: var(--label-primary);
+  border-radius: var(--radius-circle);
+  text-decoration: none;
+  transition: opacity var(--duration-fast) var(--ease-standard),
+              transform var(--duration-fast) var(--ease-standard);
+}
+
+.practice-chrome__login:hover {
+  opacity: 0.85;
+  transform: translateY(-1px);
+}
+
+/* ============================================================
+   PracticeChrome — left brand link (home).
+
+   Same root cause as __login: <Link> inner <a> doesn't pick up
+   styled-jsx scoped class. Logo + name + hover wash moved here
+   so the rendered <a> actually receives the visual treatment.
+   ============================================================ */
+.practice-chrome__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  text-decoration: none;
+  color: var(--label-primary);
+  padding: var(--space-1) var(--space-2);
+  margin: calc(var(--space-1) * -1) calc(var(--space-2) * -1);
+  border-radius: var(--radius-sm);
+  transition: background var(--duration-fast) var(--ease-standard);
+}
+
+.practice-chrome__brand:hover {
+  background: var(--surface-secondary);
+}
+
+.practice-chrome__brand-mark {
+  font-size: 16px;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.practice-chrome__brand-name {
+  font-size: 14px;
+  font-weight: var(--type-body-emphasis-weight);
+  letter-spacing: -0.01em;
+}
+
+@media (max-width: 640px) {
+  .practice-chrome__brand-name { display: none; }
+}
+
+/* ============================================================
    prefers-reduced-motion — disable all auth animations.
    Covers the (auth) layout's keyframes (blob drift, card rise)
    and the page-level ones (char rise, field rise, shake, spin,

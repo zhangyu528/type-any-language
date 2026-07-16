@@ -169,53 +169,16 @@ export function PracticeChrome() {
           z-index: 50;
           font-family: var(--font-body);
         }
-        .practice-chrome__brand {
-          display: inline-flex;
-          align-items: center;
-          gap: var(--space-2);
-          text-decoration: none;
-          color: var(--label-primary);
-          padding: var(--space-1) var(--space-2);
-          margin: calc(var(--space-1) * -1) calc(var(--space-2) * -1);
-          border-radius: var(--radius-sm);
-          transition: background var(--duration-fast) var(--ease-standard);
-        }
-        .practice-chrome__brand:hover {
-          background: var(--surface-secondary);
-        }
-        .practice-chrome__brand-mark {
-          font-size: 16px;
-          color: var(--accent);
-          line-height: 1;
-        }
-        .practice-chrome__brand-name {
-          font-size: 14px;
-          font-weight: var(--type-body-emphasis-weight);
-          letter-spacing: -0.01em;
-        }
+        /* .practice-chrome__brand / __brand-mark / __brand-name → globals.css
+           (next/link doesn't pick up styled-jsx scoped class on its inner <a>).
+           Same root cause as __login. */
         .practice-chrome__right {
           display: flex;
           align-items: center;
           gap: var(--space-3);
         }
-        .practice-chrome__login {
-          display: inline-flex;
-          align-items: center;
-          height: 28px;
-          padding: 0 var(--space-4);
-          font-size: 13px;
-          font-weight: var(--type-body-emphasis-weight);
-          color: var(--surface);
-          background: var(--label-primary);
-          border-radius: var(--radius-circle);
-          text-decoration: none;
-          transition: opacity var(--duration-fast) var(--ease-standard),
-                      transform var(--duration-fast) var(--ease-standard);
-        }
-        .practice-chrome__login:hover {
-          opacity: 0.85;
-          transform: translateY(-1px);
-        }
+        /* .practice-chrome__login → moved to globals.css (next/link doesn't
+           pick up styled-jsx scoped class on its inner <a>). */
         .practice-chrome__avatar {
           display: inline-flex;
           align-items: center;
@@ -223,7 +186,7 @@ export function PracticeChrome() {
           width: 28px;
           height: 28px;
           border-radius: var(--radius-circle);
-          background: var(--accent);
+          background: var(--label-primary);
           color: var(--surface);
           font-size: 13px;
           font-weight: var(--type-body-emphasis-weight);
@@ -335,9 +298,8 @@ export function PracticeChrome() {
           background: var(--surface-secondary);
           box-shadow: 0 0 0 2px rgba(28, 28, 28, 0.18);
         }
-        @media (max-width: 640px) {
-          .practice-chrome__brand-name { display: none; }
-        }
+        /* .practice-chrome__brand-name responsive rule → globals.css
+           (paired with the other brand rules). */
       `}</style>
     </div>
   );
