@@ -3,7 +3,7 @@
 dbtools.importer — read CMS staging files → write to db.
 
 This module is the **only** place that knows both "what CMS produced
-in cms/.local/staging/" and "what the db schema looks like". The
+in cms/staging/" and "what the db schema looks like". The
 CMS pipeline (cms/cms_pipeline/{import_vocab,generate_sentences,
 generate_audio}.py) produces JSON / JSONL files in staging/. This
 importer reads them and applies the changes to the db.
@@ -18,7 +18,7 @@ Why a separate module:
     AI/TTS steps
 
 Staging layout produced by the CMS pipeline:
-    cms/.local/staging/
+    cms/staging/
     ├── vocabulary/
     │   └── <lib>.json            # list of {word, phonetic, ...}
     ├── sentences/
@@ -76,12 +76,12 @@ def find_project_root() -> Path:
 
 
 def find_staging_dir() -> Path:
-    """The CMS pipeline writes here. Default: cms/.local/staging/.
+    """The CMS pipeline writes here. Default: cms/staging/.
     Override via CMS_STAGING_DIR env var (rare — for tests)."""
     env = os.environ.get("CMS_STAGING_DIR", "").strip()
     if env:
         return Path(env)
-    return find_project_root() / "cms" / ".local" / "staging"
+    return find_project_root() / "cms" / "staging"
 
 
 # ---------------------------------------------------------------------------

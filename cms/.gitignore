@@ -8,11 +8,14 @@
 # cms/.env.example.cms. Resolved by lib.sh::resolve_content_env_file.
 .env
 
-# CMS working dir — generated TTS MP3s and any future per-machine
-# state (logs, caches, ...) that staging.sh / generate_audio.py writes.
-# Lives inside the project (cms/.local/) so default-path writes
-# work on Windows + sandboxed Linux hosts without extra setup. dev/prod
-# runtime does NOT read this — audio is uploaded to Tencent Cloud COS
-# by generate_audio.py (configured via CLOUD_* env vars). The db image
-# itself no longer carries audio files.
+# .local/ — CMS working dir (per-machine state). Currently only
+# holds audio/ (local MP3 cache for CLOUD_PROVIDER=local_fs fallback);
+# may grow per-machine state in the future (caches, logs, ...). Lives
+# inside the project so default-path writes work on Windows + sandboxed
+# Linux hosts without extra setup. dev/prod runtime does NOT read this
+# — audio is uploaded to Tencent Cloud COS by generate_audio.py, and
+# the staging dir (the CMS pipeline output) lives at ./staging/ (sibling
+# of .gitignore) which is git-tracked and NOT under .local/, so this
+# rule does not affect it.
 .local/
+.local/**

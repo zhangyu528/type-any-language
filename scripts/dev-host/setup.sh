@@ -8,16 +8,20 @@
 #   1. Preflight: docker + compose must be present.
 #   2. db image: must be locally present (build reads DB_USER / DB_NAME
 #      from its OCI labels — a hard requirement, not a convenience).
-#      If missing, try:
-#        - DOCKER_REGISTRY set → docker pull
-#        - cms/.env present (or scaffoldable via env.sh init, validated
-#          by doctor) → single-host auto-bake (full CMS pipeline on this
-#          host)
+#      dev hosts do NOT pull db image from any registry, and do NOT run
+#      the CMS pipeline. Instead, if no image is present, we look for
+#      cms/staging/ (git-tracked content data — should be present after
+#      `git pull`), then run:
+#        - db/scripts/import_staging.sh all   (UPSERT staging → staging db)
+#        - db/scripts/build.sh                (pg_dump → docker build)
+#      with DB_IMAGE_TAG=dev-local so the resulting image doesn't collide
+#      with the team's VERSION.prod tag.
 #   3. dev app images: call scripts/dev-host/build_image.sh (handles
 #      both at once). Skipped if both already present.
 #   4. Final summary.
 #
-# Does NOT create .secrets/, start any containers, or push to a registry.
+# Does NOT create .secrets/, start any containers, push to a registry,
+# or invoke the CMS pipeline (sync / sentences / audio).
 # Re-run as many times as you want — nothing destructive.
 #
 # Counterpart to scripts/dev-host/{lifecycle,doctor,logs,migrate,watch}.sh.
@@ -59,6 +63,9 @@ cmd_setup() {
     echo ""
 
     # 2. content-baked db image — must be present locally for the dev app build.
+    #    dev hosts build it locally with DB_IMAGE_TAG=dev-local (no pull,
+    #    no registry round-trip). The input is cms/staging/, which is
+    #    git-tracked — `git pull` is the staging transmission layer.
     info "Step 1/2: content-baked db image ($DB_FULL_IMAGE)"
     local got_image=0
     if image_exists "$DB_FULL_IMAGE"; then
@@ -66,66 +73,42 @@ cmd_setup() {
         got_image=1
     else
         warn "content-baked db image 不在本地"
-        if [ -n "$DOCKER_REGISTRY" ]; then
-            info "  DOCKER_REGISTRY=$DOCKER_REGISTRY — 尝试 docker pull..."
+        info "  dev 主机不 pull image — 改为本地 build"
+        # Check cms/staging/ — the git-tracked content data.
+        if [ ! -d "$PROJECT_DIR/cms/staging" ]; then
+            err "  cms/staging/ 不存在 — dev 主机需要先有 CMS 内容数据"
+            info "    1. git pull (cms/staging/ 已 git tracked)"
+            info "    2. 或 rsync cms-host:cms/staging/ cms/staging/"
+            return 1
+        fi
+        # cms/.env — db/scripts/build.sh checks for it. dev hosts don't
+        # need real keys (we're not running the CMS pipeline), so scaffold
+        # an empty file just to pass build.sh's existence check. The
+        # POSTGRES_PASSWORD used at db-init time comes from .secrets/,
+        # not cms/.env, so leaving AI/TENCENT keys empty is fine.
+        CONTENT_ENV_FILE_PATH="$(resolve_content_env_file)"
+        if [ ! -f "$CONTENT_ENV_FILE_PATH" ]; then
+            info "  scaffold 一份空 $CONTENT_ENV_FILE_PATH(只过存在性检查,key 留空)"
+            touch "$CONTENT_ENV_FILE_PATH"
+        fi
+        info "  跑 db/scripts/import_staging.sh all (UPSERT staging → staging db)..."
+        echo ""
+        if "$PROJECT_DIR/db/scripts/import_staging.sh" all; then
             echo ""
-            if docker pull "$DB_FULL_IMAGE"; then
-                echo ""
-                ok "  pull 成功"
+            info "  跑 db/scripts/build.sh (本地 build, tag=dev-local)..."
+            echo ""
+            if DB_IMAGE_TAG=dev-local "$PROJECT_DIR/db/scripts/build.sh"; then
+                ok "  本地 bake 完成 (db image tag=dev-local)"
                 got_image=1
             else
-                warn "  pull 失败 — fallback 到本地 auto-bake"
-            fi
-        fi
-        if [ "$got_image" = "0" ]; then
-            # cms/.env 缺失 → 先 scaffold (env.sh init 幂等,已存在会跳过)。
-            CONTENT_ENV_FILE_PATH="$(resolve_content_env_file)"
-            if [ ! -f "$CONTENT_ENV_FILE_PATH" ]; then
-                info "  本机没有 $CONTENT_ENV_FILE_PATH — 先 scaffold 一个:"
-                echo ""
-                if ! "$PROJECT_DIR/cms/scripts/env.sh" init; then
-                    err "  env.sh init 失败 — 检查 cms/.env.example.cms 是否存在"
-                    return 1
-                fi
-                echo ""
-                warn "  ↑ 上面只是 scaffold,secrets 还要手动填 (nano $CONTENT_ENV_FILE_PATH)"
-                echo ""
-            fi
-            if ! "$PROJECT_DIR/cms/scripts/env.sh" doctor; then
-                err "  $CONTENT_ENV_FILE_PATH 还差 key — 填好后重跑 setup"
+                err "  db bake 失败 — 看上面错误"
+                info "    cms/staging/ 已就位,staging db + import 都已 ok"
                 return 1
             fi
-            info "  跑 cms/run.sh (CMS driver: ensure-db + sync/sentences/audio)..."
-            echo ""
-            if "$PROJECT_DIR/cms/run.sh"; then
-                echo ""
-                info "  跑 db/scripts/import_staging.sh all (Load: UPSERT staging 文件 → staging db)..."
-                echo ""
-                if "$PROJECT_DIR/db/scripts/import_staging.sh" all; then
-                    echo ""
-                    info "  跑 db/scripts/build.sh (烤 db image)..."
-                    echo ""
-                    if "$PROJECT_DIR/db/scripts/build.sh"; then
-                        ok "  自动 bake 完成"
-                        got_image=1
-                    else
-                        err "  db bake 失败 — 看上面错误"
-                        info "    cms/.local/staging/ 里是 staging 文件,stage db + import 都已 ok"
-                        return 1
-                    fi
-                else
-                    err "  db import 失败 — 看上面错误"
-                    info "    ./cms/run.sh doctor                # 内容管线 preflight"
-                    info "    ./db/scripts/import_staging.sh doctor      # importer preflight"
-                    return 1
-                fi
-            else
-                err "  CMS driver 失败 — 看上面错误"
-                info "  手动排查:"
-                info "    docker logs cms-source-db        # 如果 source db 起不来"
-                info "    ./cms/run.sh doctor     # 内容管线 preflight"
-                return 1
-            fi
+        else
+            err "  db import 失败 — 看上面错误"
+            info "    ./db/scripts/import_staging.sh doctor  # importer preflight"
+            return 1
         fi
     fi
     if inspect_db_image_labels; then

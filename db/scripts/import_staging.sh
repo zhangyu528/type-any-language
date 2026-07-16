@@ -7,7 +7,7 @@
 # Why this lives in db/scripts/:
 #   This is the inverse of db/scripts/build.sh's export_bundle.py.
 #   The data flow is:
-#     CMS pipeline →  cms/.local/staging/  →  importer  →  db
+#     CMS pipeline →  cms/staging/  →  importer  →  db
 #   The importer is the one place that knows both file format and
 #   schema, so it lives with the schema (db/tools/dbtools/). This
 #   shell is its entry point.
