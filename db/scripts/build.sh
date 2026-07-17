@@ -203,9 +203,26 @@ cmd_bake() {
     # Best-effort short git SHA. Same convention as dev/prod build scripts.
     git_sha="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
+    # content.version label = the db/VERSION value at bake time, NOT the
+    # image tag. Decoupling the two means:
+    #   - dev hosts can bake with --tag=dev-local while the label still
+    #     reflects what db/VERSION was when the bake happened;
+    #   - ops/{dev,prod}/setup.sh + doctor.sh can compare
+    #     `image.content.version` vs current `db/VERSION` to decide
+    #     whether the local db image is stale (rather than just checking
+    #     `image_exists`).
+    # Falls back to the image tag only when db/VERSION is missing (the
+    # warn_if_version_default call above will have already warned).
+    local content_version
+    content_version="$(read_version_file db/VERSION)"
+    if [ "$content_version" = "v0.0.0" ]; then
+        content_version="$DB_IMAGE_TAG"
+        warn "db/VERSION 缺失 — content.version label 回退为 image tag ($content_version)"
+    fi
+
     echo
     info "Building image: ${FULL_IMAGE}"
-    info "  labels: db.user=$POSTGRES_USER  db.name=$POSTGRES_DB  version=$DB_IMAGE_TAG  baked_at=$baked_at"
+    info "  labels: db.user=$POSTGRES_USER  db.name=$POSTGRES_DB  content.version=$content_version  baked_at=$baked_at"
     info "          app.version=$DB_IMAGE_TAG  app.git-sha=$git_sha"
 
     # Hand off the assembly + build to db/builder.py. That module
@@ -217,7 +234,7 @@ cmd_bake() {
             --tag "${FULL_IMAGE}" \
             --db-user "${POSTGRES_USER}" \
             --db-name "${POSTGRES_DB}" \
-            --content-version "${DB_IMAGE_TAG}" \
+            --content-version "${content_version}" \
             --baked-at "${baked_at}" \
             --git-sha "${git_sha}"; then
         err "builder.py failed"

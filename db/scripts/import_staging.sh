@@ -9,7 +9,7 @@
 #   The data flow is:
 #     CMS pipeline →  cms/staging/  →  importer  →  db
 #   The importer is the one place that knows both file format and
-#   schema, so it lives with the schema (db/tools/dbtools/). This
+#   schema, so it lives with the schema (db/dbtools/). This
 #   shell is its entry point.
 #
 # Idempotent: re-running only inserts new rows; existing rows are
@@ -30,7 +30,20 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "$SCRIPT_DIR/../../ops/lib.sh"
 
-# PYTHONPATH=db/tools — the importer lives at db/tools/dbtools/.
-PYTHONPATH="${PROJECT_DIR}/db/tools${PYTHONPATH:+:$PYTHONPATH}" \
+# Assemble DATABASE_URL — see ops/lib.sh::db_assemble_url. The importer
+# no longer imports cms_pipeline.env, which used to do this in Python.
+if [ -z "${DATABASE_URL:-}" ]; then
+    if ! db_assemble_url; then
+        exit 1
+    fi
+fi
+
+# Force UTF-8 IO so importer print lines (✓ / ✗ / box-drawing in
+# per-lib summaries) don't blow up on Windows GBK consoles.
+export PYTHONIOENCODING="${PYTHONIOENCODING:-utf-8}"
+
+# PYTHONPATH=db — the importer lives at db/dbtools/.
+PYTHONPATH="${PROJECT_DIR}/db${PYTHONPATH:+:$PYTHONPATH}" \
     python3 -m dbtools.importer "$@"

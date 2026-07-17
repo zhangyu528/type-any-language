@@ -37,8 +37,8 @@ Env handling — minimal:
 
 Usage
 -----
-    python -m dbtools.init_schema                        # from project root, PYTHONPATH=db/tools
-    PYTHONPATH=db/tools python3 db/tools/dbtools/init_schema.py
+    python -m dbtools.init_schema                        # from project root, PYTHONPATH=db
+    PYTHONPATH=db python3 db/dbtools/init_schema.py
     ./db/scripts/init_schema.sh              # wrapper
 """
 from __future__ import annotations
@@ -47,11 +47,11 @@ import sys
 from pathlib import Path
 
 # Allow running this file directly (python init_schema.py) AND as
-# `python -m cms_pipeline.init_schema` from the project root. Same pattern as
-# the data-pipeline modules, but the bootstrap here points at db/tools
-# not cms/tools.
+# `python -m dbtools.init_schema` from the project root. Same pattern as
+# the data-pipeline modules, but the bootstrap here points at db/
+# not cms/.
 if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from db_url import load_cms_env_into_os_environ, resolve_database_url  # noqa: E402
 else:
     from .db_url import load_cms_env_into_os_environ, resolve_database_url  # noqa: E402
@@ -59,10 +59,10 @@ else:
 
 def _ensure_backend_on_path() -> None:
     """The schema definitions live in backend/app/models/*.py. We need
-    them importable, but the CMS host's PYTHONPATH is `db/tools/`
+    them importable, but the CMS host's PYTHONPATH is `db/`
     (not `backend/`). Add backend/ once.
     """
-    backend_path = Path(__file__).resolve().parent.parent.parent.parent / "backend"
+    backend_path = Path(__file__).resolve().parent.parent.parent / "backend"
     backend_path_str = str(backend_path)
     if backend_path_str not in sys.path:
         sys.path.insert(0, backend_path_str)

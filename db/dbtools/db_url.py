@@ -1,5 +1,5 @@
 """
-db/tools/dbtools/db_url.py — minimal env-loader for db-only modules.
+db/dbtools/db_url.py — minimal env-loader for db-only modules.
 
 Lives next to init_schema.py + migrations/ because the schema code
 needs DATABASE_URL but should NOT depend on the data-pipeline's
@@ -12,8 +12,8 @@ POSTGRES_PORT, POSTGRES_PASSWORD). It does NOT call any external
 dependencies (no psycopg2, no openai, no tencentcloud SDKs).
 
 Used by:
-  - db/tools/dbtools/init_schema.py (primary)
-  - db/tools/dbtools/migrations/runner.py (if it needs a connection too)
+  - db/dbtools/init_schema.py (primary)
+  - db/dbtools/migrations/runner.py (if it needs a connection too)
 
 Mirrors the URL assembly in db/scripts/build.sh (via ops/lib.sh's
 db_assemble_url helper) so all db-side code agrees on what DATABASE_URL
@@ -36,11 +36,11 @@ _DEFAULT_POSTGRES_PORT = "5432"
 
 def find_project_root() -> Path:
     """Project root = parent of this file's package's parent.
-    This file lives at db/tools/dbtools/db_url.py → 4 hops up
-    (dbtools/ → db/tools/ → db/ → project_root) gives the project
+    This file lives at db/dbtools/db_url.py → 3 hops up
+    (dbtools/ → db/ → project_root) gives the project
     root.
     """
-    return Path(__file__).resolve().parent.parent.parent.parent
+    return Path(__file__).resolve().parent.parent.parent
 
 
 def _load_cms_env(env_path: Path) -> dict[str, str]:

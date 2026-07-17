@@ -1,7 +1,7 @@
 """
 dbtools — db-side Python package (schema bootstrap + migrations).
 
-Lives at db/tools/dbtools/ (separate from the data-pipeline's
+Lives at db/dbtools/ (separate from the data-pipeline's
 `cms_pipeline` package at cms/cms_pipeline/). The two packages coexist on
 PYTHONPATH because the data-pipeline still needs to invoke
 `dbtools.init_schema` from cms/scripts/staging.sh.

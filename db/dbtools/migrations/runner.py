@@ -1,5 +1,5 @@
 """
-cms/cms_pipeline/migrations/runner.py — minimal migration runner.
+db/dbtools/migrations/runner.py — minimal migration runner.
 
 Why not Alembic: Alembic is a great tool for projects with many migrations
 and large teams. For this project the migration count is small (currently
@@ -38,6 +38,14 @@ Public API:
 
     ensure_schema_migrations_table(conn) -> None
         Create the bookkeeping table if missing. Idempotent.
+
+Invoked by:
+  - db/scripts/migrate.sh  — source-db (cms-source-db) on the CMS host
+  - ops/dev/migrate.sh     — runtime db (type-any-language-db-1) on a
+                             dev target host, via a sidecar container
+                             on the compose network
+
+Both callers set PYTHONPATH=/db and run `python -m dbtools.migrations.runner`.
 """
 from __future__ import annotations
 
@@ -52,7 +60,7 @@ import psycopg2
 import psycopg2.extensions
 
 
-VERSIONS_PACKAGE = "cms.migrations.versions"
+VERSIONS_PACKAGE = "dbtools.migrations.versions"
 _BOOKKEEPING_TABLE = "schema_migrations"
 
 

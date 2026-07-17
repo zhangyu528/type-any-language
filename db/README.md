@@ -45,7 +45,7 @@ db/
 │   ├── push.sh               # docker push the baked image to $DOCKER_REGISTRY
 │   └── export_bundle.py      # pg_dump the staging db into .bake-staging/.../dump.sql
 │
-└── tools/dbtools/            # Python implementation
+└── dbtools/                  # Python implementation
     ├── db_url.py             # minimal env-loader (POSTGRES_* → DATABASE_URL)
     ├── init_schema.py        # base schema (idempotent)
     ├── importer.py           # staging files → db (UPSERT)
@@ -57,7 +57,7 @@ db/
 
 The `dbtools` Python package is **distinct** from `cms_pipeline` so both can
 coexist on `PYTHONPATH` without import shadowing. Only `db/scripts/*.sh`
-references it (via `PYTHONPATH=db/tools`).
+references it (via `PYTHONPATH=db`).
 
 ## End-to-end flow
 
@@ -166,7 +166,7 @@ OCI labels on the image (read by `ops/{dev,prod}/lifecycle.sh` via
 ## Adding a new migration
 
 ```bash
-# 1. Write db/tools/dbtools/migrations/versions/0010_<name>.py
+# 1. Write db/dbtools/migrations/versions/0010_<name>.py
 #    - version = "0010_<name>"
 #    - def upgrade(conn): conn.execute("ALTER TABLE ...")
 #    - def downgrade(conn): conn.execute("ALTER TABLE ...")
@@ -215,7 +215,7 @@ These never require a migration; `db/scripts/build.sh` re-runs
 
 ### Schema changes (modify table structure)
 
-These require a new migration under `db/tools/dbtools/migrations/versions/`.
+These require a new migration under `db/dbtools/migrations/versions/`.
 Apply with `./db/scripts/migrate.sh` before baking, so `pg_dump` picks up
 the new shape.
 

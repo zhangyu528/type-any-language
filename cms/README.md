@@ -42,8 +42,7 @@ db/
 │   ├── build.sh        # export staging db → init/01-content.sql + docker build
 │   ├── push.sh         # push english_db_content 到 DOCKER_REGISTRY
 │   └── export_bundle.py # pg_dump staging db → SQL(不依赖 cms)
-├── tools/              # Python 包 dbtools/
-│   └── dbtools/        # init_schema / migrations / importer / db_url
+├── dbtools/             # Python 包 dbtools/(init_schema / migrations / importer / db_url)
 └── init/01-content.sql # 由 db/scripts/build.sh 填(`.gitignore`d,运行时由 image 跑)
 ```
 

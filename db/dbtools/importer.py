@@ -48,10 +48,11 @@ import argparse
 import json
 import os
 import sys
+import uuid
 from pathlib import Path
 
 if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from dbtools.db_url import load_cms_env_into_os_environ, resolve_database_url  # noqa: E402
 else:
     from .db_url import load_cms_env_into_os_environ, resolve_database_url  # noqa: E402
@@ -60,19 +61,19 @@ else:
 def find_project_root() -> Path:
     """Project root = the dir containing `cms/` and `db/`.
 
-    This file lives at db/tools/dbtools/importer.py. The walk up the
-    parents is: importer.py → dbtools/ → db/tools/ → db/ → project_root.
-    So `parent.parent.parent.parent` (4 hops) lands on the project root.
+    This file lives at db/dbtools/importer.py. The walk up the
+    parents is: importer.py → dbtools/ → db/ → project_root.
+    So `parent.parent.parent` (3 hops) lands on the project root.
 
     Note: when the module is run as `python -m dbtools.importer` from
     the project root (the common case), `__file__` is the full path
     to this .py file, so the walk works regardless of CWD.
 
     CAVEAT: this resolution only works if the script is at
-    db/tools/dbtools/importer.py relative to the project root. Do NOT
+    db/dbtools/importer.py relative to the project root. Do NOT
     relocate this file without updating this function.
     """
-    return Path(__file__).resolve().parent.parent.parent.parent
+    return Path(__file__).resolve().parent.parent.parent
 
 
 def find_staging_dir() -> Path:
@@ -136,11 +137,11 @@ def _upsert_lib(cur, lib: dict) -> str:
 
     cur.execute(
         """
-        INSERT INTO vocabulary_libs (name, level, description, word_count)
-        VALUES (%s, %s, %s, 0)
+        INSERT INTO vocabulary_libs (id, name, level, description, word_count)
+        VALUES (%s, %s, %s, %s, 0)
         RETURNING id
         """,
-        (lib["display"], level, lib.get("description", "")),
+        (str(uuid.uuid4()), lib["display"], level, lib.get("description", "")),
     )
     return str(cur.fetchone()[0])
 
@@ -163,13 +164,14 @@ def _upsert_words(cur, lib_id: str, words: list) -> int:
         cur.execute(
             """
             INSERT INTO vocabulary_words (
-                lib_id, word, phonetic, translation, part_of_speech,
+                id, lib_id, word, phonetic, translation, part_of_speech,
                 frequency, register, domain, example, tags, lesson_index
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             )
             """,
             (
+                str(uuid.uuid4()),
                 lib_id,
                 w["word"],
                 w.get("phonetic", ""),
@@ -267,11 +269,25 @@ def _upsert_sentence(cur, lib_id: str, s: dict) -> bool:
         return False
     cur.execute(
         """
-        INSERT INTO sentences (lib_id, text, chinese_text, audio_url, difficulty)
-        VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO sentences (
+            id, lib_id, text, chinese_text, audio_url, difficulty,
+            target_words, topic, register, cefr, tags
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
-        (lib_id, s["text"], s.get("chinese_text", ""),
-         s.get("audio_url", ""), s.get("difficulty", "beginner")),
+        (
+            str(uuid.uuid4()),
+            lib_id,
+            s["text"],
+            s.get("chinese_text", ""),
+            s.get("audio_url", ""),
+            s.get("difficulty", "beginner"),
+            s.get("target_words") or [],
+            s.get("topic", ""),
+            s.get("register", ""),
+            s.get("cefr", ""),
+            s.get("tags") or [],
+        ),
     )
     return True
 

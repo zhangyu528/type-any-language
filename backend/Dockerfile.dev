@@ -1,28 +1,93 @@
+# ============================================================================
+# backend/Dockerfile.dev — dev image for english_backend_dev.
+#
+# 与 production image (Dockerfile, 烤 source + pip install) 完全不同。
+# 这个 image 跑 `uvicorn --reload`,依赖外部 compose bind-mount 提供源码。
+#
+# 设计要点 (改之前先读完):
+#   1. 不跑 `RUN apt-get install ffmpeg` — 后端根本不用 ffmpeg
+#   2. 不跑 `RUN pip install -r requirements.txt` — 详见下方 "No `RUN pip install`"
+#   3. `COPY . .` 是兜底 — 冷启容器时 uvicorn 才有源码 import
+#   4. entrypoint.sh 做 hash-aware pip install — 详见 entrypoint.sh 顶部注释
+# ============================================================================
+
 FROM python:3.11-slim
 
-# Project version (per-segment VERSION file: backend/VERSION for this
-# image — the same file gates the prod english_backend image; resolved
-# by ops/lib.sh → resolve_image_tag) + git SHA.
+# OCI labels consumed by ops/dev/_common.sh → drift_check.
+# APP_VERSION comes from ops/lib.sh → resolve_image_tag → backend/VERSION
+# (the same file gates the prod english_backend image).
 ARG APP_VERSION=latest
 ARG GIT_SHA=unknown
 LABEL type-any-language.app.version="${APP_VERSION}"
 LABEL type-any-language.app.git-sha="${GIT_SHA}"
 
+# /app is the conventional WORKDIR (Twelve-Factor App; matches frontend's
+# WORKDIR for cross-service consistency). All COPY / ENTRYPOINT / CMD
+# paths below are relative to /app. docker-compose.dev.yml mounts
+# ./backend → /app at runtime, overwriting COPY . . with host source
+# (so HMR via uvicorn --reload picks up code edits without rebuild).
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY entrypoint.sh ./
+# ----------------------------------------------------------------------------
+# No `RUN apt-get install ffmpeg` and No `RUN pip install -r requirements.txt`
+#
+# ffmpeg:
+#   - 后端代码完全用不到 ffmpeg (CLAUDE.md: 后端没有 /audio endpoint,
+#     前端直接从 COS 流式播放 mp3, 后端只是 FastAPI 文字接口)
+#   - prod image (backend/Dockerfile) 已经在 commit 5d16afe (split cms+db)
+#     里删掉了;dev image 是历史遗留,顺手清掉
+#   - 副作用:build 不再访问 debian.org 拉 ffmpeg,避开 sandbox/某些
+#     registry mirror 不稳定的问题 (libasound2-data 偶尔 500 EOF)
+#
+# pip install:
+#   - entrypoint.sh 的双 gate 保证 cold start 时按需重装:
+#       gate 1: requirements.txt 的 SHA256 是否变了
+#               (或 HASH_FILE 缺失 — 容器重建总是缺失)
+#       gate 2: site-packages 里 fastapi 是否可 import
+#   - HASH_FILE (/tmp/.requirements.sha256) 运行时由 entrypoint 写,
+#     .dockerignore 排除 → image 里没有 → cold start 必触发 gate 1
+#     重装,即使镜像层里已经烤好了 site-packages 也白搭
+#   - 路径必须不是 /app — docker-compose.dev.yml 把 ./backend bind-mount
+#     到 /app,container 里写 /app/.requirements.sha256 会直接污染 host
+#     工作树。/tmp 是 bind-mount 覆盖不到的安全位置
+#   - 烤 deps 的成本(不烤则免):
+#       * image build 时间 (几十秒)
+#       * image 体积 (~50 MB for the 7 deps in requirements.txt)
+#       * image push/pull 时间 (本地影响小,远程明显)
+#   - 删了之后:build 极快,image 小 ~50MB,cold start 走 entrypoint
+#     装包 (10s~1min)。总时长不变,只是从 build 阶段挪到 start 阶段。
+#   - frontend dev image 同样删了 `RUN npm ci`,行为一致
+#
+# 想恢复 `RUN pip install`:加回 RUN + 在 Dockerfile 里算 hash 写入
+# HASH_FILE (否则冷启会空重装一次)。详见 entrypoint.sh 顶部注释。
+# ----------------------------------------------------------------------------
 COPY . .
+RUN chmod +x ./entrypoint.sh
 
 EXPOSE 8000
 
-# entrypoint.sh runs at start; currently a no-op (just execs the CMD)
-# but kept wired up so frontend/entrypoint.sh parity is preserved and
-# future pre-start hooks have a place to go.
+# ----------------------------------------------------------------------------
+# ENTRYPOINT + CMD: hash-aware pip install → exec dev server
+#
+# entrypoint.sh 在 exec CMD 之前会:
+#   - 算 requirements.txt 的 SHA256
+#   - 跟 /tmp/.requirements.sha256 (HASH_FILE) 比
+#   - 不一致 OR fastapi 不可 import → 跑 pip install -r requirements.txt
+#   - 一致 → 跳过 (秒启)
+#
+# gate 双保险:
+#   - gate 1 (requirements changed)  抓 requirements.txt 改了
+#   - gate 2 (deps wiped)            抓 site-packages 被 wipe 了
+#
+# docker-compose.dev.yml 把 ./backend bind-mount 到 /app,所以容器里的
+# app/、entrypoint.sh、requirements.txt 全是 host 版本,改 .py 直接被
+# uvicorn --reload 捕获,不需要 image rebuild。改 requirements.txt 必须
+# container restart + entrypoint 重装 (uvicorn 不监听 requirements)。
+#
+# CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000",
+# "--reload"] 是兜底默认值;docker-compose.dev.yml 的 command: 会覆盖
+# 它,但保留可以让 `docker run <image>` 不带 command 也跑 dev server,
+# 方便裸跑调试。
+# ----------------------------------------------------------------------------
 ENTRYPOINT ["sh", "./entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

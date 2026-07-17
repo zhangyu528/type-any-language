@@ -16,7 +16,7 @@ localhost:55432 from this session) and exercises:
 Run with DATABASE_URL set:
 
     DATABASE_URL=postgresql://english_user:testpw@localhost:55432/english_learning \
-        PYTHONPATH=cms/tools:db/tools python cms/cms_pipeline/tests/test_phase2_e2e.py
+        PYTHONPATH=cms:db python cms/cms_pipeline/tests/test_phase2_e2e.py
 """
 import os
 import sys
@@ -29,8 +29,8 @@ import psycopg2
 # --- Make cms + backend importable ---
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "backend"))
-sys.path.insert(0, str(ROOT))                # cms/tools/ — data pipeline
-sys.path.insert(0, str(ROOT / "db" / "tools"))  # db/tools/ — schema + migrations
+sys.path.insert(0, str(ROOT))                # cms/ — data pipeline
+sys.path.insert(0, str(ROOT / "db"))  # db/ — schema + migrations
 
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",

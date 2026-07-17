@@ -56,3 +56,4 @@ Thumbs.db
 
 # ── Local development artifacts (host-only) ───────────────────────────────
 **/.package-lock.sha256
+**/.requirements.sha256

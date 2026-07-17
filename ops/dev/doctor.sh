@@ -66,6 +66,20 @@ cmd_doctor() {
                 ok "  db.name = $DB_NAME"
                 ok "  content.version = $DB_VERSION"
                 ok "  content.baked-at = $DB_BAKED_AT"
+                # Version alignment — does the local image reflect the
+                # current db/VERSION? Mirrors the check in setup.sh so
+                # `./dev doctor` catches stale-bake issues that setup
+                # would have rebaked. Drift between label and db/VERSION
+                # means the image was baked against an older db/VERSION
+                # (e.g. after a release bump without re-baking locally).
+                local expected_db_version
+                expected_db_version="$(read_version_file db/VERSION)"
+                if [ "$DB_VERSION" = "$expected_db_version" ]; then
+                    ok "  content.version 跟 db/VERSION 对齐 ($DB_VERSION)"
+                else
+                    warn "  content.version=$DB_VERSION ≠ db/VERSION=$expected_db_version — image 已落后"
+                    info "    → 跑: ./dev setup (会自动 rebake)"
+                fi
             else
                 warn "  content-baked db image 缺少 type-any-language.* labels — 重新 bake?"
             fi

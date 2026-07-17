@@ -45,6 +45,14 @@
 # warning and let the run proceed; the operator can re-run later once the
 # external service is back.
 #
+# NOT called by the dev host. Dev hosts run a different on-demand
+# pipeline — `./ops/dev/setup.sh content` — which deliberately skips
+# (c)/(d) and only does the db-side import+bake+restart loop. See the
+# dev-host section of CLAUDE.md for the dev side's content-refresh
+# command. This script's audience is genuinely CMS-only: any host that
+# has cms/.env with real AI/TENCENT keys and is willing to spend API
+# quota on content generation.
+#
 # Exit codes:
 #   0   all steps reached the end (sentences / audio may have warned)
 #   1   hard failure on (b), OR cms/.env missing
