@@ -34,6 +34,19 @@ secrets:
 
 services:
   # -------------------------------------------------------------------------
+  # db — override of the shared service from compose-shared.yml. Dev mode
+  # uses the locally-baked `english_db_content_dev` image (produced by
+  # `./ops/dev/setup.sh content`) at the per-segment `db/VERSION` tag
+  # (e.g. english_db_content_dev:v0.1.0) instead of the prod-bound
+  # `english_db_content:v0.1.0`. The name suffix carries the
+  # dev/prod distinction; the tag is just the schema/content version
+  # and is shared. The shell can still force a registry tag by exporting
+  # DB_IMAGE / DB_IMAGE_TAG at start time.
+  # -------------------------------------------------------------------------
+  db:
+    image: ${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}english_db_content_dev:${DB_IMAGE_TAG:-latest}
+
+  # -------------------------------------------------------------------------
   # Backend — hot-reload via ./backend bind-mount + uvicorn --reload
   # -------------------------------------------------------------------------
   backend:

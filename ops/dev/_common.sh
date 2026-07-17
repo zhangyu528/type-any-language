@@ -57,12 +57,22 @@ setup_dev_host_env() {
     else
         info "DOCKER_REGISTRY 未设置 (local-only mode — 仅本机使用)"
     fi
-    DB_IMAGE="${DB_IMAGE:-english_db_content}"
+    DB_IMAGE="${DB_IMAGE:-english_db_content_dev}"
     # *_IMAGE_TAG resolve to per-segment VERSION files:
     #   DB_IMAGE_TAG       ← db/VERSION (db is prod-bound content shared by both targets)
     #   BACKEND_IMAGE_TAG  ← backend/VERSION (gates both english_backend_dev + english_backend)
     #   FRONTEND_IMAGE_TAG ← frontend/VERSION (gates both frontend images)
     # Shell env still overrides. Exported for compose interpolation.
+    #
+    # DB_IMAGE special-case: dev hosts use a separate image name
+    # (`english_db_content_dev`) and bake locally — `english_db_content`
+    # (no suffix) is prod-bound and shared with prod hosts. The dev
+    # image carries the same tag (`db/VERSION`, e.g. v0.1.0) as the prod
+    # image, since the tag is just the schema/content version, not a
+    # runtime-environment marker. The name suffix carries the
+    # dev/prod distinction. Shell env still wins — operators can pull
+    # a release-tagged prod image by exporting DB_IMAGE and DB_IMAGE_TAG
+    # explicitly.
     resolve_image_tag DB_IMAGE_TAG       db/VERSION
     resolve_image_tag BACKEND_IMAGE_TAG  backend/VERSION
     resolve_image_tag FRONTEND_IMAGE_TAG frontend/VERSION
@@ -72,8 +82,8 @@ setup_dev_host_env() {
     # Prepend the registry prefix ONLY when DOCKER_REGISTRY was explicitly
     # configured (shell env or REGISTRY file). Auto-detected registries
     # (docker.io/$USER) are guesses — prepending them makes compose look
-    # for "zhangyu528/english_db_content:v0.2.0-rc.1" locally, which fails
-    # because locally-built images are tagged "english_db_content:v0.2.0-rc.1"
+    # for "zhangyu528/english_db_content_dev:v0.2.0-rc.1" locally, which fails
+    # because locally-built images are tagged "english_db_content_dev:v0.2.0-rc.1"
     # (no prefix). So when the source is "detect", force DOCKER_REGISTRY to
     # empty for the rest of the script — compose's
     #   image: ${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DB_IMAGE}:${DB_IMAGE_TAG}

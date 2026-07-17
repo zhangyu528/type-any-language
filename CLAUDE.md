@@ -18,12 +18,18 @@ This project intentionally separates **content production** from **content servi
 
 The CMS host produces **staging files** (vocabulary JSON + sentences JSONL) via the
 CMS pipeline. The CMS pipeline does **not** touch the database — the db side has its
-own importer (`db/tools/dbtools/importer.py`) that reads the staging files and
+own importer (`db/dbtools/importer.py`) that reads the staging files and
 UPSERTs them into the database. Then the db image is baked from that database and
 pushed to a registry. Target hosts `docker pull` the image and serve it — they
 never need AI keys, TTS keys, or Python. **Target hosts need no .env file at all**
 — runtime configuration (only `ALLOWED_ORIGINS`) is passed via shell env, and the
 host-side secret (`POSTGRES_PASSWORD`) is generated on first start by `lifecycle.sh`.
+
+### Dev host can also bake content on demand
+
+The "target hosts are a pure read-layer" rule above has one explicit opt-in: **`ops/dev/setup.sh content`**. Dev hosts treat `cms/staging/` as git-tracked read-only input (it's already committed into the repo), and that one command does `import_staging.sh` → `build.sh` (tag = `dev-local`) → `lifecycle.sh restart`, so the running dev containers swap to the freshly baked image in a single step.
+
+It does NOT call `cms/run.sh` — the CMS pipeline (sync / sentences / audio) is still strictly CMS-host territory. Dev hosts that need fresh content edit CSVs / sentences JSONL upstream, commit, `git pull`, then run `./ops/dev/setup.sh content`. The freshly baked image is `english_db_content:dev-local`; it's a sandbox-only tag and never reaches the registry.
 
 ### ETL architecture (CMS produces files, db imports them)
 
@@ -210,7 +216,7 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 | sync (CSV → JSON) | `cms/cms_pipeline/import_vocab.py` | `cms/staging/vocabulary/<lib>.json` |
 | sentences (AI → JSONL) | `cms/cms_pipeline/generate_sentences.py` | appends to `cms/staging/sentences/<lib>.jsonl` |
 | audio (TTS → URL) | `cms/cms_pipeline/generate_audio.py` | updates `audio_url` field in sentences JSONL |
-| import (files → db) | **`db/tools/dbtools/importer.py`** | UPSERT into `vocabulary_libs` / `vocabulary_words` / `sentences` |
+| import (files → db) | **`db/dbtools/importer.py`** | UPSERT into `vocabulary_libs` / `vocabulary_words` / `sentences` |
 | bake (db → image) | `db/scripts/build.sh` | builds the `db` image from `db/init/01-content.sql` |
 
 The CMS pipeline (steps sync/sentences/audio) **never** opens a db connection.

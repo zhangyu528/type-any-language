@@ -39,6 +39,7 @@ CMS 主机把内容（词库 + AI 句子 + TTS 音频）烤进 db image，推到
 ./dev.sh stop       # 停
 ./dev.sh restart    # 硬重启(≈5s,重新加载 secrets)
 ./dev.sh migrate    # 改了 cms/cms_pipeline/migrations/versions/*.py 后:把新 schema 应用到正在跑的 runtime db
+./dev.sh setup content   # git pull 了新的 cms/staging 内容后:按需烤 db image + 重启 dev 容器
 ```
 
 > 没装 docker / daemon 没起,`./dev.sh doctor` 会直接报错,先装 docker。
