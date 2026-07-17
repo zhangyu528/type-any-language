@@ -141,6 +141,8 @@ export default function LoginPage() {
           ))}
         </h1>
 
+        <p className="auth-form__subtitle">继续你的练习</p>
+
         <label className="auth-field auth-field-1">
           <span className="auth-field__label">邮箱</span>
           <span className="auth-field__input-wrap">
@@ -458,6 +460,47 @@ export default function LoginPage() {
             font-weight: var(--type-body-emphasis-weight);
           }
           .auth-form__alt a:hover { text-decoration: underline; }
+
+          /* Subtitle (just under the title). Lands after the title's
+             last char finishes rising (3 chars × 50ms = 150ms).
+             Negative margin-top pulls it into the title's 16px gap,
+             so visually title↔subtitle = 4px while keeping the
+             form-level gap unchanged for label↔field, etc. */
+          .auth-form__subtitle {
+            font-size: var(--type-body);
+            color: var(--label-tertiary);
+            margin: 0;
+            margin-top: calc(var(--space-4) * -1 + var(--space-1));
+            animation: auth-field-rise 400ms var(--ease-emphasized) both;
+            animation-delay: 160ms;
+          }
+
+          /* Focus ring: 4px soft ring on the input when its wrap has
+             focus. Existing icon-color transition stays. */
+          .auth-field__input-wrap:focus-within .auth-field__input {
+            border-color: var(--label-secondary);
+            box-shadow: 0 0 0 4px rgba(28, 28, 30, 0.08);
+          }
+
+          /* Error state on the input itself: red border + red soft ring +
+             brief 240ms attention motion. The whole-card shake is already
+             covered by .auth-form-shake-wrap on submit error. */
+          .auth-field__input--error,
+          .auth-field__input-wrap:focus-within .auth-field__input--error {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px rgba(215, 0, 21, 0.10);
+            animation: auth-field-error-attn 240ms var(--ease-standard) both;
+          }
+          @keyframes auth-field-error-attn {
+            0%, 100% { transform: translateX(0); }
+            30%      { transform: translateX(-2px); }
+            70%      { transform: translateX(2px); }
+          }
+
+          @media (prefers-reduced-motion: reduce) {
+            .auth-form__subtitle { animation: none !important; }
+            .auth-field__input--error { animation: none !important; }
+          }
         ` }} />
       </form>
     </div>
