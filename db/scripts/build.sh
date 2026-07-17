@@ -21,7 +21,7 @@
 # Image labels baked in (read by prod/dev run.sh via `docker inspect`):
 #   type-any-language.db.user           POSTGRES_USER (default: english_user; shell env override)
 #   type-any-language.db.name           POSTGRES_DB   (default: english_learning; shell env override)
-#   type-any-language.content.version   DB_IMAGE_TAG  (default: VERSION.prod; cms/.env / shell env override)
+#   type-any-language.content.version   DB_IMAGE_TAG  (default: db/VERSION; cms/.env / shell env override)
 #   type-any-language.content.baked-at  <UTC timestamp>
 #
 # Subcommands:
@@ -68,11 +68,11 @@ else
 fi
 
 DB_IMAGE="${DB_IMAGE:-english_db_content}"
-# DB_IMAGE_TAG defaults to VERSION.prod (db is "prod-bound" content, shared
+# DB_IMAGE_TAG defaults to db/VERSION (db is prod-bound content, shared
 # by both dev and prod targets). Callers can still pin a specific tag by
 # setting DB_IMAGE_TAG in cms/.env or the shell.
-resolve_image_tag DB_IMAGE_TAG VERSION.prod
-warn_if_version_default "$DB_IMAGE_TAG" VERSION.prod
+resolve_image_tag DB_IMAGE_TAG db/VERSION
+warn_if_version_default "$DB_IMAGE_TAG" db/VERSION
 FULL_IMAGE="${DB_IMAGE}:${DB_IMAGE_TAG}"
 
 # Source-of-truth for what's inside the image. These get baked into
@@ -80,29 +80,13 @@ FULL_IMAGE="${DB_IMAGE}:${DB_IMAGE_TAG}"
 POSTGRES_USER="${POSTGRES_USER:-english_user}"
 POSTGRES_DB="${POSTGRES_DB:-english_learning}"
 
-# DATABASE_URL assembly — see cms/cms_pipeline/env.py for the same logic.
-# Priority: explicit env var > assembled from POSTGRES_PASSWORD + defaults.
-# Note: cms/.env is still loaded for POSTGRES_PASSWORD, but
-# db/scripts/export_bundle.py no longer imports any cms Python code.
+# DATABASE_URL assembly — see ops/lib.sh::db_assemble_url for the chain
+# (shell env > POSTGRES_PASSWORD env > .secrets/postgres_password; defaults
+# for the rest). The db scripts no longer import any cms Python module.
 if [ -z "${DATABASE_URL:-}" ]; then
-    POSTGRES_HOST="${POSTGRES_HOST:-localhost}"
-    POSTGRES_PORT="${POSTGRES_PORT:-5432}"
-    if [ -z "${POSTGRES_PASSWORD:-}" ] && [ -f .secrets/postgres_password ]; then
-        POSTGRES_PASSWORD="$(cat .secrets/postgres_password)"
-    fi
-    if [ -z "${POSTGRES_PASSWORD:-}" ]; then
-        err "POSTGRES_PASSWORD missing — export it, or copy .secrets/postgres_password from the dev/prod host"
+    if ! db_assemble_url; then
         exit 1
     fi
-    # URL-encode each component (gen_secret output is URL-safe by default,
-    # but be defensive). Use python if available, fall back to a noop pass.
-    if command -v python3 &> /dev/null; then
-        DATABASE_URL="$(POSTGRES_USER="$POSTGRES_USER" POSTGRES_DB="$POSTGRES_DB" POSTGRES_HOST="$POSTGRES_HOST" POSTGRES_PORT="$POSTGRES_PORT" POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-            python3 -c 'import os, urllib.parse; print("postgresql://%s:%s@%s:%s/%s" % (urllib.parse.quote(os.environ["POSTGRES_USER"], safe=""), urllib.parse.quote(os.environ["POSTGRES_PASSWORD"], safe=""), os.environ["POSTGRES_HOST"], os.environ["POSTGRES_PORT"], os.environ["POSTGRES_DB"]))')"
-    else
-        DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}"
-    fi
-    export DATABASE_URL
 fi
 
 # SOURCE_OF_TRUTH_FOR_SQL_DUMP — db/scripts/export_bundle.py.
@@ -246,7 +230,7 @@ cmd_bake() {
 
     echo
     ok "Built: ${FULL_IMAGE}"
-    info "To push: export DOCKER_REGISTRY=... && ./cms/scripts/db/scripts/push.sh"
+    info "To push: export DOCKER_REGISTRY=... && ./db/scripts/push.sh"
 }
 
 usage() {
@@ -256,11 +240,11 @@ Usage: $0 [doctor]
   (no args)   Bake: export content from DB → assemble into db/ → docker build
   doctor      Pre-flight environment check
 
-Push is a separate step: ./cms/scripts/db/scripts/push.sh
+Push is a separate step: ./db/scripts/push.sh
 
 Environment (sourced from cms/.env):
   DB_IMAGE        Image name (default: english_db_content)
-  DB_IMAGE_TAG    Image tag (default: VERSION.prod) — also baked into image label
+  DB_IMAGE_TAG    Image tag (default: db/VERSION) — also baked into image label
   POSTGRES_USER   Baked into image label as type-any-language.db.user
                   (default: english_user). The dump.sql's OWNER must match.
   POSTGRES_DB     Baked into image label as type-any-language.db.name
@@ -268,11 +252,13 @@ Environment (sourced from cms/.env):
 
 DOCKER_REGISTRY is NOT used by this script (push is a separate concern).
 Set it in the shell before running db/scripts/push.sh:
-  export DOCKER_REGISTRY=... && ./cms/scripts/db/scripts/push.sh
+  export DOCKER_REGISTRY=... && ./db/scripts/push.sh
 
 Versioning:
-  DB_IMAGE_TAG       resolves from VERSION.prod (or IMAGE_TAG env override).
-  VERSION.dev / VERSION.prod are the two project version files — see ops/release.sh.
+  DB_IMAGE_TAG       resolves from db/VERSION (or IMAGE_TAG env override).
+  The db segment has a single VERSION file (db/VERSION) — see CLAUDE.md
+  for the full per-segment VERSION layout and ops/release.sh for the
+  bump-and-publish flow.
 
 The actual image-build steps (assemble bundle, copy into db/init/,
 run docker build with the right labels) live in db/builder.py —

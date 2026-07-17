@@ -42,11 +42,12 @@ setup_prod_host_env() {
         info "DOCKER_REGISTRY 未设置 (auto-pull off, local-only mode)"
     fi
     DB_IMAGE="${DB_IMAGE:-english_db_content}"
-    # All three *_IMAGE_TAG resolve from VERSION.prod (this is the prod host).
-    resolve_image_tag DB_IMAGE_TAG       VERSION.prod
-    resolve_image_tag BACKEND_IMAGE_TAG  VERSION.prod
-    resolve_image_tag FRONTEND_IMAGE_TAG VERSION.prod
-    warn_if_version_default "$BACKEND_IMAGE_TAG" VERSION.prod
+    # All three *_IMAGE_TAG resolve from per-segment VERSION files
+    # (this is the prod host).
+    resolve_image_tag DB_IMAGE_TAG       db/VERSION
+    resolve_image_tag BACKEND_IMAGE_TAG  backend/VERSION
+    resolve_image_tag FRONTEND_IMAGE_TAG frontend/VERSION
+    warn_if_version_default "$BACKEND_IMAGE_TAG" backend/VERSION
 
     if [ "${_DOCKER_REGISTRY_SOURCE:-}" = "shell" ] || [ "${_DOCKER_REGISTRY_SOURCE:-}" = "file" ]; then
         DB_FULL_IMAGE="${DOCKER_REGISTRY}/${DB_IMAGE}:${DB_IMAGE_TAG}"

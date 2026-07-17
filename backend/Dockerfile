@@ -1,8 +1,10 @@
 FROM python:3.11-slim
 
-# Project version (root ./VERSION, resolved by ops/lib.sh) + git SHA
-# (best-effort, "unknown" if not in a git checkout). Surfaces in
-# `docker inspect` as type-any-language.app.{version,git-sha}.
+# Project version (per-segment VERSION file: backend/VERSION for this
+# image — the same file gates english_backend_dev; resolved by
+# ops/lib.sh → resolve_image_tag) + git SHA (best-effort, "unknown" if
+# not in a git checkout). Surfaces in `docker inspect` as
+# type-any-language.app.{version,git-sha}.
 ARG APP_VERSION=latest
 ARG GIT_SHA=unknown
 LABEL type-any-language.app.version="${APP_VERSION}"

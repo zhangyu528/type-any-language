@@ -29,18 +29,19 @@ source "$SCRIPT_DIR/../../ops/lib.sh"
 
 require_docker
 
-# BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG default to VERSION.prod (the prod
-# stream's tag). They're exported so docker-compose's
-# ${BACKEND_IMAGE_TAG:-latest} / ${FRONTEND_IMAGE_TAG:-latest}
+# BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG default to the backend / frontend
+# segments' per-stream VERSION files (one file per segment, no dev/prod
+# split — gates both the dev and prod image tags). They're exported so
+# docker-compose's ${BACKEND_IMAGE_TAG:-latest} / ${FRONTEND_IMAGE_TAG:-latest}
 # interpolation in the compose file resolves correctly.
-resolve_image_tag BACKEND_IMAGE_TAG VERSION.prod
-resolve_image_tag FRONTEND_IMAGE_TAG VERSION.prod
-warn_if_version_default "$BACKEND_IMAGE_TAG" VERSION.prod
-# DB_IMAGE_TAG defaults to VERSION.prod (db is "prod-bound" content).
+resolve_image_tag BACKEND_IMAGE_TAG  backend/VERSION
+resolve_image_tag FRONTEND_IMAGE_TAG frontend/VERSION
+warn_if_version_default "$BACKEND_IMAGE_TAG" backend/VERSION
+# DB_IMAGE_TAG defaults to db/VERSION (db is prod-bound content).
 # Resolved here so the DB_FULL_IMAGE we ask for below matches the tag
 # the content-baked db image was actually baked with — otherwise the "image not found"
 # hint would point at `:latest` and mislead.
-resolve_image_tag DB_IMAGE_TAG VERSION.prod
+resolve_image_tag DB_IMAGE_TAG db/VERSION
 
 COMPOSE_FILE="docker-compose.yml"
 BACKEND_IMAGE="english_backend"

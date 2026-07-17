@@ -29,7 +29,7 @@
 #                        3. auto-detect: detect_default_registry()
 #                                        (docker.io/$USER or "")
 #
-# Pushes (tag = VERSION.prod by default):
+# Pushes (tag = backend/VERSION / frontend/VERSION by default):
 #   english_backend   → ${DOCKER_REGISTRY}/english_backend:vX.Y.Z
 #   english_frontend  → ${DOCKER_REGISTRY}/english_frontend:vX.Y.Z
 #
@@ -61,10 +61,11 @@ resolve_docker_registry
 COMPOSE_FILE="docker-compose.yml"
 BACKEND_IMAGE="english_backend"
 FRONTEND_IMAGE="english_frontend"
-# *_IMAGE_TAG default to VERSION.prod (the prod stream's tag).
-resolve_image_tag BACKEND_IMAGE_TAG VERSION.prod
-resolve_image_tag FRONTEND_IMAGE_TAG VERSION.prod
-warn_if_version_default "$BACKEND_IMAGE_TAG" VERSION.prod
+# *_IMAGE_TAG default to the backend / frontend segments' per-stream
+# VERSION files (one file per segment, no dev/prod split).
+resolve_image_tag BACKEND_IMAGE_TAG  backend/VERSION
+resolve_image_tag FRONTEND_IMAGE_TAG frontend/VERSION
+warn_if_version_default "$BACKEND_IMAGE_TAG" backend/VERSION
 
 # ---------------------------------------------------------------------------
 # doctor — pre-flight checks. Returns 0/1, doesn't push.
@@ -231,8 +232,8 @@ usage() {
 配置 (shell env):
   DOCKER_REGISTRY         registry 命名空间 (REQUIRED for push)
                           解析: shell env > ./REGISTRY 文件 > detect_default_registry()
-  BACKEND_IMAGE_TAG       backend  image tag (默认: VERSION.prod)
-  FRONTEND_IMAGE_TAG      frontend image tag (默认: VERSION.prod)
+  BACKEND_IMAGE_TAG       backend  image tag (默认: backend/VERSION)
+  FRONTEND_IMAGE_TAG      frontend image tag (默认: frontend/VERSION)
   IMAGE_TAG               通用 tag 覆盖 (CI 用，一次性给所有 image 设同 tag)
 
 示例:

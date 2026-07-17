@@ -12,9 +12,10 @@
 #     db image. Frontend reads it and the browser streams from COS.
 #
 # Run via:  ./ops/dev/lifecycle.sh start
-# BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG default to the root ./VERSION
-# file (resolved by ops/lib.sh); the run script exports them before
-# invoking compose. Override at start time:
+# BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG default to the per-segment
+# VERSION files (backend/VERSION, frontend/VERSION; resolved by
+# ops/lib.sh — the same file gates english_backend); the run script
+# exports them before invoking compose. Override at start time:
 #   BACKEND_IMAGE_TAG=v0.2.0 ./ops/dev/lifecycle.sh start
 #
 # The shared `db` service block lives in compose-shared.yml (compose v2.20+

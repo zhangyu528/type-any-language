@@ -1,6 +1,8 @@
 FROM node:20-alpine
 
-# Project version (root ./VERSION, resolved by ops/lib.sh) + git SHA.
+# Project version (per-segment VERSION file: frontend/VERSION for this
+# image — the same file gates english_frontend_dev; resolved by
+# ops/lib.sh → resolve_image_tag) + git SHA.
 ARG APP_VERSION=latest
 ARG GIT_SHA=unknown
 LABEL type-any-language.app.version="${APP_VERSION}"

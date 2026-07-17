@@ -1,8 +1,8 @@
 #!/bin/bash
 #
-# cms/db/scripts/push.sh — push the baked db image to $DOCKER_REGISTRY.
+# db/scripts/push.sh — push the baked db image to $DOCKER_REGISTRY.
 #
-# Run this AFTER ./cms/scripts/db/scripts/build.sh has produced the image
+# Run this AFTER ./db/scripts/build.sh has produced the image
 # locally. Push is a deliberate, separate step: you might bake many
 # times locally before you're ready to publish.
 #
@@ -34,14 +34,14 @@
 #                                        (docker.io/$USER or "")
 #   DB_IMAGE         image name        (default: english_db_content,
 #                                        shell env override)
-#   DB_IMAGE_TAG     image tag         (default: VERSION.prod,
+#   DB_IMAGE_TAG     image tag         (default: db/VERSION,
 #                                        shell env override)
 #
 # Examples:
 #   export DOCKER_REGISTRY=docker.io/youruser
-#   ./cms/scripts/db/scripts/push.sh             # interactive
-#   ./cms/scripts/db/scripts/push.sh -y          # CI
-#   ./cms/scripts/db/scripts/push.sh doctor      # check prereqs
+#   ./db/scripts/push.sh             # interactive
+#   ./db/scripts/push.sh -y          # CI
+#   ./db/scripts/push.sh doctor      # check prereqs
 #
 # Requires: shell + docker. NO python.
 
@@ -57,13 +57,13 @@ source "$SCRIPT_DIR/../../ops/lib.sh"
 # (OpenAI/Tencent keys, postgres connection, etc.) and shouldn't bleed
 # into push. The values that push DOES care about are all shell-env:
 #   DB_IMAGE         image name (default: english_db_content)
-#   DB_IMAGE_TAG     image tag  (default: root VERSION.prod)
+#   DB_IMAGE_TAG     image tag  (default: db/VERSION)
 #   DOCKER_REGISTRY  registry namespace (default: detect_default_registry())
 # Bake pushes the image — push only needs to know its name + tag +
 # where to send it. Nothing else.
 DB_IMAGE="${DB_IMAGE:-english_db_content}"
-resolve_image_tag DB_IMAGE_TAG VERSION.prod
-warn_if_version_default "$DB_IMAGE_TAG" VERSION.prod
+resolve_image_tag DB_IMAGE_TAG db/VERSION
+warn_if_version_default "$DB_IMAGE_TAG" db/VERSION
 # DOCKER_REGISTRY is push-only concern. Symmetric with dev/prod db/scripts/push.sh.
 # Chain: shell env > ./REGISTRY file > detect_default_registry().
 resolve_docker_registry
@@ -109,7 +109,7 @@ cmd_doctor() {
 
     if ! image_exists "$LOCAL_IMAGE"; then
         err "本地 image $LOCAL_IMAGE 不存在"
-        info "  → 先跑 ./cms/scripts/db/scripts/build.sh"
+        info "  → 先跑 ./db/scripts/build.sh"
         ok=0
     else
         ok "本地 image $LOCAL_IMAGE 存在"
@@ -152,7 +152,7 @@ cmd_push() {
 
     if ! image_exists "$LOCAL_IMAGE"; then
         err "本地 image $LOCAL_IMAGE 不存在"
-        info "  → 先跑 ./cms/scripts/db/scripts/build.sh"
+        info "  → 先跑 ./db/scripts/build.sh"
         exit 1
     fi
 
@@ -212,13 +212,13 @@ usage() {
                    来源: shell env > ./REGISTRY 文件 > detect_default_registry()
                          export DOCKER_REGISTRY=docker.io/youruser
   DB_IMAGE         image 名字  (默认: english_db_content; shell env 覆盖)
-  DB_IMAGE_TAG     image tag   (默认: VERSION.prod; shell env 覆盖)
+  DB_IMAGE_TAG     image tag   (默认: db/VERSION; shell env 覆盖)
 
 示例:
   export DOCKER_REGISTRY=docker.io/youruser
-  ./cms/scripts/db/scripts/push.sh            # 交互
-  ./cms/scripts/db/scripts/push.sh -y         # CI
-  ./cms/scripts/db/scripts/push.sh doctor     # 前置检查
+  ./db/scripts/push.sh            # 交互
+  ./db/scripts/push.sh -y         # CI
+  ./db/scripts/push.sh doctor     # 前置检查
 
 退出码:
   0  成功 (或用户取消)

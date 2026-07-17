@@ -85,10 +85,9 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generat
 ## Repository structure
 
 ```
-├── VERSION.dev           # tag for english_backend_dev / english_frontend_dev (dev stream)
-├── VERSION.prod          # tag for english_db_content / english_backend / english_frontend (prod stream + CMS db)
 ├── REGISTRY              # DOCKER_REGISTRY namespace for push/pull (committed shared config)
 ├── backend/              # FastAPI + SQLAlchemy — pure read-layer
+│   ├── VERSION           # tag for english_backend_dev + english_backend (one file per segment)
 │   ├── app/
 │   │   ├── main.py      # FastAPI entry, CORS, no static mounts
 │   │   ├── config.py    # pydantic-settings with _FILE indirection
@@ -99,9 +98,11 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generat
 │   └── requirements.txt
 │
 ├── frontend/             # Next.js 14 (App Router) + React 18 + TypeScript
+│   ├── VERSION           # tag for english_frontend_dev + english_frontend
 │   └── src/app/         # API client + main page
 │
 ├── cms/              # The content service — produces + ships the content image
+│   ├── VERSION            # placeholder for a future CMS pipeline version stamp (no reader wired today)
 │   ├── run.sh            # CMS driver (entry point; E+T)
 │   ├── source/           # operator-maintained source (git-tracked, hand-edited)
 │   │   ├── manifest.yaml
@@ -113,9 +114,10 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generat
 │   ├── cms_pipeline/     # Python package (manifest / import_vocab / generate_sentences / generate_audio / storage / env)
 │   │   └── README.md
 ├── db/                # Postgres image build context (postgres:15-alpine wrapper)
+│   ├── VERSION         # tag for english_db_content (db is prod-bound; shared by dev + prod targets)
 │   ├── Dockerfile    # copies init/01-content.sql (NO audio — db image has no MP3s)
 │   ├── builder.py    # assemble(bundle) + build_image(target, tag, ...)
-│   ├── scripts/       # db/scripts/ — the db image's own entry points
+│   ├── run.sh        # end-to-end db driver (import + build + push, with dev|prod subcommands)
 │   │   ├── source_db.sh    # cms-source-db container lifecycle (ensure/start/stop/status)
 │   │   ├── init_schema.sh  # python -m dbtools.init_schema (base DDL)
 │   │   ├── migrate.sh      # python -m dbtools.migrations.runner (apply pending migrations)
@@ -263,7 +265,7 @@ No `.env` is needed. `ALLOWED_ORIGINS` defaults to `http://localhost` in the pro
 - **Prod target host**: `docker pull` all 3 from `$DOCKER_REGISTRY` on every `lifecycle.sh start` / `restart` (auto-pulled — registry is the source of truth for prod).
 - **Dev target host**: `setup.sh` does the **one-time bootstrap pull** from `$DOCKER_REGISTRY` when local images are missing. `start` / `restart` **never auto-pull** — dev iteration is local-first; image lifecycle is owned by `build_image.sh` / `db/scripts/build.sh` on the host. This avoids overwriting fresh local builds with stale registry versions. To pull explicitly: `docker pull <full-image>`.
 
-The registry namespace (e.g. `docker.io/zhangyu528`) is **shared project config** that the whole team uses. It is **not** a personal secret, so it lives in the committed `REGISTRY` file at the repo root (symmetric with `VERSION.dev` / `VERSION.prod`), not in `cms/.env` (gitignored). See [Image registry namespace](#image-registry-namespace) below.
+The registry namespace (e.g. `docker.io/zhangyu528`) is **shared project config** that the whole team uses. It is **not** a personal secret, so it lives in the committed `REGISTRY` file at the repo root (symmetric with the per-segment VERSION files), not in `cms/.env` (gitignored). See [Image registry namespace](#image-registry-namespace) below.
 
 ## Image registry namespace
 
@@ -281,43 +283,43 @@ The `REGISTRY` file's format: first non-empty, non-comment line starting with `D
 DOCKER_REGISTRY=docker.io/zhangyu528   # ← uncomment + edit
 ```
 
-> Why committed and not `.env`? Like `VERSION.dev` / `VERSION.prod`, this is shared project config that the whole team should agree on — putting it in a gitignored `.env` means every operator has to set it themselves, and the same value gets typed in N places. Personal secrets (postgres password, AI keys, TTS keys) stay in `cms/.env` (gitignored); shared config lives at the repo root.
+> Why committed and not `.env`? Like the per-segment VERSION files, this is shared project config that the whole team should agree on — putting it in a gitignored `.env` means every operator has to set it themselves, and the same value gets typed in N places. Personal secrets (postgres password, AI keys, TTS keys) stay in `cms/.env` (gitignored); shared config lives at the repo root.
 
 ## Image version tags
 
-All 5 images (`db`, `english_backend{,_dev}`, `english_frontend{,_dev}`) carry an explicit tag. Defaults come from two root files — dev and prod can drift independently:
+All 5 images (`db`, `english_backend{,_dev}`, `english_frontend{,_dev}`) carry an explicit tag. VERSION files are **per-segment** (one file per segment, co-located with the segment's Dockerfile(s) and build scripts) — no dev/prod split:
 
 | Image | Default tag source |
 |---|---|
-| `english_db_content`         | `VERSION.prod` |
-| `english_backend_dev`        | `VERSION.dev`  |
-| `english_frontend_dev`       | `VERSION.dev`  |
-| `english_backend`            | `VERSION.prod` |
-| `english_frontend`           | `VERSION.prod` |
+| `english_db_content`         | `db/VERSION`             |
+| `english_backend_dev`        | `backend/VERSION`        |
+| `english_frontend_dev`       | `frontend/VERSION`       |
+| `english_backend`            | `backend/VERSION`        |
+| `english_frontend`           | `frontend/VERSION`       |
 
-(The db image is "prod-bound" content — it's shared by both targets, so a dev host always pulls db's tag from `VERSION.prod`. Only dev's app images follow `VERSION.dev`.)
+(The db image is "prod-bound" content — it's shared by both targets, so a dev host always pulls db's tag from `db/VERSION`. The backend / frontend VERSION files each gate BOTH the dev and prod image tags for that segment — there's no separate dev stream file. Bumping `backend/VERSION` releases a new `english_backend_dev` and a new `english_backend` at the same tag. `cms/VERSION` exists as a placeholder for a future CMS pipeline version stamp but has no image tied to it today.)
 
-Each file: first non-empty, non-comment line, trimmed. Both files start at the same version; bump them together with `release.sh bump all X.Y.Z`, or independently with `bump dev` / `bump prod`.
+Each file: first non-empty, non-comment line, trimmed.
 
 Resolution chain (`ops/lib.sh` → `resolve_image_tag`):
 1. Per-image env var, e.g. `BACKEND_IMAGE_TAG=v1.2.3`
 2. Generic `IMAGE_TAG` (CI convenience — bumps all images at once)
-3. The VERSION file passed to the helper (`.dev` / `.prod`)
+3. The VERSION file path passed to the helper (e.g. `backend/VERSION`)
 4. Literal `v0.0.0` (won't break a build, but warns once)
 
 Examples:
 ```bash
-# Use whatever the stream's VERSION file says (default):
-./ops/dev/build_image.sh         # → VERSION.dev
-./ops/prod/build_image.sh        # → VERSION.prod
-./db/scripts/build.sh                # → VERSION.prod
+# Use whatever each segment's VERSION file says (default):
+./ops/dev/build_image.sh         # → backend/VERSION, frontend/VERSION, db/VERSION
+./ops/prod/build_image.sh        # → backend/VERSION, frontend/VERSION, db/VERSION
+./db/scripts/build.sh                # → db/VERSION
 
 # Bump all images to v1.2.3 for a one-off (CI use):
 IMAGE_TAG=v1.2.3 ./ops/dev/build_image.sh
 IMAGE_TAG=v1.2.3 ./ops/prod/build_image.sh
 IMAGE_TAG=v1.2.3 ./db/scripts/build.sh
 
-# Pin just the db image, leave dev app at VERSION.dev:
+# Pin just the db image, leave dev app at backend/VERSION:
 DB_IMAGE_TAG=v0.5.0 ./db/scripts/build.sh
 ```
 
@@ -335,9 +337,9 @@ Every image carries the `type-any-language.app.version` LABEL (sourced from `APP
 
 | Subcommand | Bumps | Builds + pushes |
 |---|---|---|
-| `show`              | — | — (print current VERSION.dev / VERSION.prod) |
-| `dev  [X.Y.Z]`      | `VERSION.dev`  | `english_{backend,frontend}_dev` |
-| `prod [X.Y.Z]`      | `VERSION.prod` | db (content-baked) + `english_{backend,frontend}` |
+| `show`              | — | — (print all 4 per-segment VERSION files) |
+| `dev  [X.Y.Z]`      | `backend/VERSION` + `frontend/VERSION` (same tag; single file gates both backend images) | `english_{backend,frontend}_dev` |
+| `prod [X.Y.Z]`      | `db/VERSION` + `backend/VERSION` + `frontend/VERSION` | db (content-baked) + `english_{backend,frontend}` |
 
 `X.Y.Z` is optional: omit it to publish the current VERSION without bumping. Add `-y` to skip the bump-confirmation prompt.
 
@@ -359,8 +361,9 @@ The full release flow with the new `release.sh` (one command per host):
 
 ```bash
 # On the workstation — after merging changes to master:
-./ops/release.sh dev v0.3.0       # bump VERSION.dev + build + push dev b/f
-./ops/release.sh prod v0.3.0 -y    # bump VERSION.prod + bake db + push db + build + push prod b/f
+./ops/release.sh dev v0.3.0       # bump backend/VERSION + frontend/VERSION + build dev b/f
+./ops/release.sh prod v0.3.0 -y    # bump db/VERSION + backend/VERSION + frontend/VERSION
+                                  # + bake db + push db + build + push prod b/f
 git push
 
 # On each target host — just verify, the images are already in the registry:
@@ -369,7 +372,11 @@ git push
 ```
 
 Architecture notes:
-- `release.sh dev` only touches the dev app images. The db image is prod-bound and reads `VERSION.prod`; if you want dev to see new content, run `release.sh prod` first (or just push a new db with `VERSION.prod`).
+- `release.sh dev` only touches the app segments' VERSION files
+  (`backend/VERSION` + `frontend/VERSION`). The content-baked db
+  image is prod-bound and reads `db/VERSION`; if you want dev to see new
+  content, run `release.sh prod` first (or just push a new db with
+  `db/VERSION`).
 - `release.sh prod` includes the db bake. That step needs `cms/.env`, so `prod` must run on the CMS host (or a single-machine CMS+prod setup). On a dedicated prod target host without `cms/.env`, run `db/scripts/build.sh` on the CMS host first, then run `ops/prod/build_image.sh` + `db/scripts/push.sh` on the prod host.
 - For multi-machine deployments, run each subcommand on its respective host. The script is self-contained per host.
 
@@ -387,13 +394,33 @@ If you upgraded from a release that used `:latest` (or hardcoded) tags, expect t
 
 There is no automatic `:latest` → tagged retag helper, because it would silently lie about what's in the image. Rebuilding once is the only correct migration.
 
-### Migration to the two-file model (this release)
+### Migration to per-segment VERSION files (this release)
 
-The previous release had a single `VERSION` file. This release splits it into `VERSION.dev` and `VERSION.prod` so the two streams can drift. If your local checkout still has the old single `VERSION`:
+Earlier releases carried `VERSION.dev` and `VERSION.prod` at the repo
+root, then moved to per-segment files where `backend/` and `frontend/`
+each had a `VERSION.dev` and a `VERSION.prod`. This release simplifies
+to **one file per segment** — there is no dev/prod split anymore:
 
-1. Pull this release. The old `VERSION` is removed; you'll have the two new files instead.
-2. `./ops/release.sh show` should print both files (they start at the same value as the old single VERSION).
-3. Continue as normal — `build_image.sh` / `db/scripts/build.sh` now read from the right stream's file automatically.
+| Before (this release's predecessor) | After |
+|---|---|
+| `VERSION.dev` at repo root                              | (deleted) |
+| `VERSION.prod` at repo root                             | (deleted) |
+| `db/VERSION`                                           | `db/VERSION` (unchanged) |
+| `cms/VERSION` (placeholder)                             | `cms/VERSION` (unchanged) |
+| `backend/VERSION.dev` + `backend/VERSION.prod`         | `backend/VERSION` (gates both english_backend_dev + english_backend) |
+| `frontend/VERSION.dev` + `frontend/VERSION.prod`        | `frontend/VERSION` (gates both english_frontend_dev + english_frontend) |
+
+The db segment has always had a single VERSION file (db has no
+dev/prod split — its image is prod-bound content shared by both
+targets). The CMS segment's `cms/VERSION` is a placeholder for a
+future CMS pipeline version stamp; no reader is wired to it today.
+
+`ops/release.sh` now bumps a single file per stream (dev bumps just
+`backend/VERSION` + `frontend/VERSION`; prod bumps `db/VERSION` +
+`backend/VERSION` + `frontend/VERSION`), and `show` prints all 4
+per-segment files. The resolution chain is unchanged — every read site
+passes an explicit path to `ops/lib.sh::resolve_image_tag`, and
+`read_version_file` requires that path (no implicit root-level fallback).
 
 ### Testing
 
@@ -505,7 +532,7 @@ AUDIO_DIR=/your/audio/dir ./cms/scripts/staging.sh audio
 
 For multi-host CMS or production, set `CLOUD_PROVIDER=tencent_cos` in `cms/.env` (plus `CLOUD_BUCKET` / `CLOUD_REGION` / `CLOUD_ACCESS_KEY` / `CLOUD_SECRET_KEY`). MP3s upload to the COS bucket instead of the local directory; `sentences.audio_url` becomes the full COS URL. See `cms/cms_pipeline/storage.py` for the abstraction.
 
-`DB_IMAGE_TAG` is not in `cms/.env` either — its default is the root `VERSION.prod` file (resolved by `ops/lib.sh` → `resolve_image_tag`); shell env can override it for one-off builds.
+`DB_IMAGE_TAG` is not in `cms/.env` either — its default is `db/VERSION` (resolved by `ops/lib.sh` → `resolve_image_tag`); shell env can override it for one-off builds.
 
 `DOCKER_REGISTRY` is not in `cms/.env` — it is shared project config that lives in the committed `REGISTRY` file at the repo root (see [Image registry namespace](#image-registry-namespace) above). Override at push time via shell env if you need a one-off namespace:
 ```bash
@@ -542,7 +569,7 @@ These have code-level defaults in `db/scripts/build.sh` (db-side knobs: `POSTGRE
 | `CLOUD_PROVIDER` | `local_fs` | `CLOUD_PROVIDER=tencent_cos ./cms/scripts/staging.sh audio` |
 | `CLOUD_BUCKET` / `CLOUD_REGION` / `CLOUD_ACCESS_KEY` / `CLOUD_SECRET_KEY` | (none) | Required when `CLOUD_PROVIDER=tencent_cos` |
 | `DEFAULT_BUCKET_TARGET_SIZE` | `200` | `DEFAULT_BUCKET_TARGET_SIZE=500 ./cms/scripts/staging.sh sentences` |
-| `DB_IMAGE_TAG`  | `VERSION.prod` | `DB_IMAGE_TAG=v0.5.0 ./db/scripts/build.sh` |
+| `DB_IMAGE_TAG`  | `db/VERSION` | `DB_IMAGE_TAG=v0.5.0 ./db/scripts/build.sh` |
 
 ### Target host — no `.env` file required
 
@@ -557,8 +584,8 @@ Runtime configuration is via shell env (passed to `lifecycle.sh` via `KEY=value 
   - **Dev**: `setup.sh` does the **one-time bootstrap pull** when local images are missing. `start` / `restart` **never auto-pull** — image lifecycle is local (build_image.sh / db/scripts/build.sh). Pull manually with `docker pull <full-image>` if needed.
 
   Empty = local-only mode (no push to / pull from any registry).
-- `DB_IMAGE_TAG` — which baked db image to pull. Default: `VERSION.prod`.
-- `BACKEND_IMAGE_TAG`, `FRONTEND_IMAGE_TAG` — image tag for backend/frontend. Default: `VERSION.dev` on dev hosts, `VERSION.prod` on prod hosts (resolved by `ops/lib.sh`). Override per image, or set `IMAGE_TAG` to bump all images at once (CI use):
+- `DB_IMAGE_TAG` — which baked db image to pull. Default: `db/VERSION`.
+- `BACKEND_IMAGE_TAG`, `FRONTEND_IMAGE_TAG` — image tag for backend/frontend. Default: `backend/VERSION` on both dev and prod hosts (the single per-segment file gates both the dev and prod image tags at the same value), same for `frontend/VERSION` (resolved by `ops/lib.sh`). Override per image, or set `IMAGE_TAG` to bump all images at once (CI use):
   ```bash
   IMAGE_TAG=v1.2.3 ./ops/prod/lifecycle.sh start
   ```

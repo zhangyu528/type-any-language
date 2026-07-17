@@ -141,14 +141,20 @@ require_docker    # 脚本用到 docker 时
 
 ## 版本模型
 
-仓库根两个文件控制 image tag:
+每个段目录下自己的 VERSION 文件控制 image tag:
 
 | 文件 | 管哪些 image |
 |---|---|
-| `VERSION.dev`  | `english_backend_dev`、`english_frontend_dev` |
-| `VERSION.prod` | `english_db_content`、`english_backend`、`english_frontend` |
+| `db/VERSION`                | `english_db_content` (dev + prod 共享) |
+| `backend/VERSION`           | `english_backend_dev` + `english_backend` (同一文件管两个 tag) |
+| `frontend/VERSION`          | `english_frontend_dev` + `english_frontend` (同一文件管两个 tag) |
+| `cms/VERSION`               | 占位文件 (cms 段当前没有 image) |
 
-dev 目标机的 `lifecycle.sh` 也读 `VERSION.prod` 来取 `DB_IMAGE_TAG`(因为 db 是 "prod-bound" 内容,两边共享)。完整的解析链和覆盖优先级见仓库根 `CLAUDE.md` 的 "Image version tags" 段。
+每个段一个文件 (没有 dev/prod 拆分) —— bump `backend/VERSION` 会同时
+发布新的 `english_backend_dev` 和 `english_backend`,bump `frontend/VERSION`
+同理。dev 目标机的 `lifecycle.sh` 也读 `db/VERSION` 来取 `DB_IMAGE_TAG`
+(因为 db 是 "prod-bound" 内容,两边共享)。完整的解析链和覆盖优先级见
+仓库根 `CLAUDE.md` 的 "Image version tags" 段。
 
 `ops/release.sh` 是版本管理的唯一入口 —— 优先用它,别手改 VERSION 文件。
 

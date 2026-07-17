@@ -229,17 +229,28 @@ detect_default_registry() {
 # ---------------------------------------------------------------------------
 # Version resolution
 # ---------------------------------------------------------------------------
-# The project's image tags (db + backend + frontend) all default to the
-# contents of a VERSION file in the repo root, with shell-env overrides.
-# The dev and prod run scripts also call resolve_image_tag so the image
-# they pull matches the one that was built.
+# Each segment owns its own VERSION file, co-located with the segment's
+# Dockerfile(s) and build scripts:
 #
-# The repo now carries TWO version files so dev and prod can drift
-# independently:
-#   VERSION.dev   → tag for english_backend_dev / english_frontend_dev
-#   VERSION.prod  → tag for english_db_content / english_backend / english_frontend
-# (db is "prod-bound" content: it's shared by both targets, so dev always
-# reads db's tag from VERSION.prod.)
+#   db/VERSION                       ← english_db_content (db is prod-bound
+#                                       content shared by both targets)
+#   cms/VERSION                      ← placeholder (cms has no docker image
+#                                       today; reserved for a future CMS pipeline
+#                                       version stamp)
+#   backend/VERSION                  ← english_backend_dev + english_backend
+#   frontend/VERSION                 ← english_frontend_dev + english_frontend
+#
+# One file per segment (no dev/prod split): backend/VERSION gates both the
+# dev and prod backend image tags, frontend/VERSION gates both frontend
+# image tags. Dev and prod streams therefore always release at the same
+# per-segment version — when you bump backend, you bump both backend
+# images at once.
+#
+# All callers resolve tags by passing an explicit relative path (relative to
+# find_repo_root) — there is no implicit root-level fallback. There is no
+# VERSION file at the repo root in the current layout; every segment owns
+# its own file (e.g. db/VERSION, backend/VERSION) and callers pass the
+# per-segment path explicitly.
 #
 # Resolution order (highest priority first):
 #   1. Per-image env var, e.g. BACKEND_IMAGE_TAG=v1.2.3
@@ -259,8 +270,11 @@ find_repo_root() {
             echo "$dir"
             return 0
         fi
-        # Match any VERSION* file (VERSION, VERSION.dev, VERSION.prod, ...).
-        # nullglob means an empty expansion doesn't produce a literal pattern.
+        # Match any VERSION* file: catches the per-segment files
+        # (db/VERSION, backend/VERSION, ...). The glob is intentionally
+        # permissive — repo-root detection doesn't care which segment the
+        # file belongs to. nullglob means an empty expansion doesn't
+        # produce a literal pattern.
         local _saved; _saved="$(shopt -p nullglob 2>/dev/null || true)"
         shopt -s nullglob
         for f in "$dir"/VERSION*; do
@@ -278,32 +292,21 @@ find_repo_root() {
     echo ""
 }
 
-# read_version_file [path]  → echoes the first non-empty, non-comment line
+# read_version_file <path>  → echoes the first non-empty, non-comment line
 # of $path (stripped of BOM / CR / surrounding whitespace), or "v0.0.0" if
 # the file is missing or contains no usable content.
 #
-# If $path is empty/unset, falls back to scanning the repo root for any
-# VERSION* file (priority: VERSION → VERSION.prod → VERSION.dev) — this is
-# the back-compat path for callers that haven't been updated yet.
+# $path is REQUIRED and must be relative to find_repo_root (e.g.
+# `db/VERSION`, `backend/VERSION`). The previous back-compat that
+# scanned root-level VERSION / VERSION.prod / VERSION.dev was removed when
+# the layout moved per-segment — there's nothing at the root to scan now.
+# If you forget to pass a path, you get v0.0.0 + a warn_if_version_default
+# warning, not a silent fallback to a stale file.
 read_version_file() {
     local path="${1:-}"
     if [ -z "$path" ]; then
-        local root
-        root="$(find_repo_root)"
-        if [ -z "$root" ]; then
-            echo "v0.0.0"
-            return 0
-        fi
-        # Priority order for the implicit lookup. New callers should always
-        # pass the path explicitly; this is purely a safety net.
-        for path in "$root/VERSION" "$root/VERSION.prod" "$root/VERSION.dev"; do
-            if [ -f "$path" ]; then break; fi
-            path=""
-        done
-        if [ -z "$path" ]; then
-            echo "v0.0.0"
-            return 0
-        fi
+        echo "v0.0.0"
+        return 0
     fi
     if [ ! -f "$path" ]; then
         echo "v0.0.0"
@@ -328,10 +331,10 @@ read_version_file() {
 #   Otherwise, set it (in the caller's scope, exported) to:
 #     ${IMAGE_TAG} if set, else $(read_version_file "$path"), else "v0.0.0".
 #
-# Usage (callers should always pass the path of the VERSION file):
-#       resolve_image_tag DB_IMAGE_TAG       VERSION.prod
-#       resolve_image_tag BACKEND_IMAGE_TAG  VERSION.dev
-#       resolve_image_tag FRONTEND_IMAGE_TAG VERSION.prod
+# Usage (callers should always pass the per-segment path):
+#       resolve_image_tag DB_IMAGE_TAG       db/VERSION
+#       resolve_image_tag BACKEND_IMAGE_TAG  backend/VERSION
+#       resolve_image_tag FRONTEND_IMAGE_TAG frontend/VERSION
 resolve_image_tag() {
     local var="$1"
     local path="${2:-}"
@@ -374,8 +377,9 @@ warn_if_version_default() {
 # `docker push` / `docker pull` (e.g. docker.io/zhangyu528, ghcr.io/myorg).
 # Unlike POSTGRES_PASSWORD or AI_API_KEY, it is NOT a personal secret — it
 # is project config that the whole team shares. It therefore lives in a
-# committed REGISTRY file at the repo root (symmetric with VERSION.dev /
-# VERSION.prod), not in the gitignored cms/.env.
+# committed REGISTRY file at the repo root (symmetric with the per-segment
+# VERSION files like db/VERSION / backend/VERSION), not in the
+# gitignored cms/.env.
 #
 # Resolution order (highest priority first):
 #   1. Shell env:    export DOCKER_REGISTRY=docker.io/youruser
@@ -501,6 +505,87 @@ resolve_content_env_file() {
     else
         echo "$root/$f"
     fi
+}
+
+# ---------------------------------------------------------------------------
+# Database URL assembly
+# ---------------------------------------------------------------------------
+# Several db-side scripts (build.sh, migrate.sh, ...) need a DATABASE_URL
+# to talk to the staging db. The url is built from POSTGRES_USER / DB /
+# HOST / PORT / PASSWORD — and the password has its own resolution chain
+# (shell env > .secrets/postgres_password). Centralising it here keeps the
+# three scripts in lockstep so a policy change is one edit, not three.
+#
+# Resolution order (matches the per-script inline blocks this replaced):
+#   1. Explicit shell env:    DATABASE_URL already set → use as-is
+#   2. POSTGRES_USER / POSTGRES_DB / POSTGRES_HOST / POSTGRES_PORT defaults
+#   3. POSTGRES_PASSWORD:    shell env > .secrets/postgres_password > fail
+#   4. url-encode each component (defensive — gen_secret output is
+#      URL-safe, but operator-supplied passwords may not be)
+#
+# Usage (from a sourced script):
+#       db_assemble_url
+#       # $DATABASE_URL is now exported and set in the caller's shell
+#
+# Behaviour on missing password: prints a friendly `err` and returns 1
+# (does NOT exit). Callers decide whether to fail hard or carry on with
+# the unset value (e.g. build.sh exits; doctor subcommands warn).
+
+# db_url_defaults — echo "user:db:host:port" with code defaults applied
+# to any unset component. Doesn't touch the password.
+db_url_defaults() {
+    local user="${POSTGRES_USER:-english_user}"
+    local db="${POSTGRES_DB:-english_learning}"
+    local host="${POSTGRES_HOST:-localhost}"
+    local port="${POSTGRES_PORT:-5432}"
+    echo "$user:$db:$host:$port"
+}
+
+# db_resolve_password — set POSTGRES_PASSWORD from .secrets/ if not already
+# in the environment. Echoes the resolved password (empty on failure).
+db_resolve_password() {
+    if [ -n "${POSTGRES_PASSWORD:-}" ]; then
+        echo "$POSTGRES_PASSWORD"
+        return 0
+    fi
+    local root="${PROJECT_DIR:-$(find_repo_root)}"
+    if [ -f "$root/.secrets/postgres_password" ]; then
+        cat "$root/.secrets/postgres_password"
+        return 0
+    fi
+    return 1
+}
+
+# db_assemble_url — populate and export DATABASE_URL using the chain above.
+# Returns 0 on success, 1 if POSTGRES_PASSWORD can't be resolved.
+# Components are URL-encoded defensively (gen_secret is URL-safe, but
+# operator-typed passwords may contain characters psycopg2 won't accept
+# without encoding).
+db_assemble_url() {
+    if [ -n "${DATABASE_URL:-}" ]; then
+        export DATABASE_URL
+        return 0
+    fi
+    local password
+    if ! password="$(db_resolve_password)"; then
+        err "POSTGRES_PASSWORD missing — export it, or copy .secrets/postgres_password from the dev/prod host"
+        return 1
+    fi
+    POSTGRES_USER="${POSTGRES_USER:-english_user}"
+    POSTGRES_DB="${POSTGRES_DB:-english_learning}"
+    POSTGRES_HOST="${POSTGRES_HOST:-localhost}"
+    POSTGRES_PORT="${POSTGRES_PORT:-5432}"
+    export POSTGRES_USER POSTGRES_DB POSTGRES_HOST POSTGRES_PORT POSTGRES_PASSWORD="$password"
+    if command -v python3 &> /dev/null; then
+        DATABASE_URL="$(POSTGRES_USER="$POSTGRES_USER" POSTGRES_DB="$POSTGRES_DB" POSTGRES_HOST="$POSTGRES_HOST" POSTGRES_PORT="$POSTGRES_PORT" POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+            python3 -c 'import os, urllib.parse; print("postgresql://%s:%s@%s:%s/%s" % (urllib.parse.quote(os.environ["POSTGRES_USER"], safe=""), urllib.parse.quote(os.environ["POSTGRES_PASSWORD"], safe=""), os.environ["POSTGRES_HOST"], os.environ["POSTGRES_PORT"], os.environ["POSTGRES_DB"]))')"
+    else
+        # Fallback: rely on shell-side composition. Safe only when the
+        # password contains no url-unsafe characters (gen_secret output
+        # qualifies; manual input might not).
+        DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}"
+    fi
+    export DATABASE_URL
 }
 
 # ---------------------------------------------------------------------------

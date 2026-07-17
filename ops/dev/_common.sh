@@ -58,15 +58,15 @@ setup_dev_host_env() {
         info "DOCKER_REGISTRY 未设置 (local-only mode — 仅本机使用)"
     fi
     DB_IMAGE="${DB_IMAGE:-english_db_content}"
-    # *_IMAGE_TAG resolve to:
-    #   DB_IMAGE_TAG       ← VERSION.prod (db is "prod-bound" content shared by both targets)
-    #   BACKEND_IMAGE_TAG  ← VERSION.dev
-    #   FRONTEND_IMAGE_TAG ← VERSION.dev
+    # *_IMAGE_TAG resolve to per-segment VERSION files:
+    #   DB_IMAGE_TAG       ← db/VERSION (db is prod-bound content shared by both targets)
+    #   BACKEND_IMAGE_TAG  ← backend/VERSION (gates both english_backend_dev + english_backend)
+    #   FRONTEND_IMAGE_TAG ← frontend/VERSION (gates both frontend images)
     # Shell env still overrides. Exported for compose interpolation.
-    resolve_image_tag DB_IMAGE_TAG       VERSION.prod
-    resolve_image_tag BACKEND_IMAGE_TAG  VERSION.dev
-    resolve_image_tag FRONTEND_IMAGE_TAG VERSION.dev
-    warn_if_version_default "$BACKEND_IMAGE_TAG" VERSION.dev
+    resolve_image_tag DB_IMAGE_TAG       db/VERSION
+    resolve_image_tag BACKEND_IMAGE_TAG  backend/VERSION
+    resolve_image_tag FRONTEND_IMAGE_TAG frontend/VERSION
+    warn_if_version_default "$BACKEND_IMAGE_TAG" backend/VERSION
 
     # Image full references (used in inspect / pull paths).
     # Prepend the registry prefix ONLY when DOCKER_REGISTRY was explicitly

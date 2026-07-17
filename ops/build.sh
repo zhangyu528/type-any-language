@@ -31,9 +31,11 @@
 # own resolution via lib.sh → resolve_image_tag):
 #
 #   per-image env (BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG / DB_IMAGE_TAG)
-#   > IMAGE_TAG                  # unified override for one-off builds
-#   > VERSION.dev / VERSION.prod # the project's two stream files
-#   > v0.0.0                     # last-resort default (will warn once)
+#   > IMAGE_TAG                       # unified override for one-off builds
+#   > db/VERSION                       # content-baked db image
+#   > backend/VERSION                  # backend stream (dev + prod tags)
+#   > frontend/VERSION                 # frontend stream (dev + prod tags)
+#   > v0.0.0                           # last-resort default (will warn once)
 #
 # Override all tags at once:
 #
@@ -75,7 +77,7 @@ usage() {
 Image tag 解析(每个 inner build 自己 resolve, 见 lib.sh → resolve_image_tag):
   per-image env (BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG / DB_IMAGE_TAG)
   > IMAGE_TAG                       (统一覆盖)
-  > VERSION.dev / VERSION.prod      (仓库根)
+  > db/VERSION / backend/VERSION / frontend/VERSION    (per-segment, 单文件同时管 dev+prod)
   > v0.0.0                          (缺省)
 
 示例:
