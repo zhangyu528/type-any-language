@@ -43,7 +43,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
     from cms_pipeline.storage import get_storage, LocalFsStorage
 else:
-    from .storage import get_storage, LocalFsStorage
+    from .storage import get_storage, LocalFsStorage, TencentCosStorage
 
 
 DEFAULT_VOICE_TYPE = "1001"          # standard female
@@ -140,8 +140,18 @@ def read_cms_env() -> dict:
 # --- Main pipeline ---
 
 def fill_one_lib(staging: Path, lib: str, storage, tencent_cfg,
-                 force: bool, dry_run: bool) -> dict:
+                 force: bool, dry_run: bool, limit: int | None = None,
+                 rewrite_urls: bool = False) -> dict:
     """Fill audio_url for all sentences in <lib>.jsonl that need it.
+
+    If `limit` is set, only process at most that many missing sentences
+    per call (the rest stay for a subsequent run). Already-filled
+    sentences are not counted against the limit.
+
+    If `rewrite_urls` is True, don't call TTS — just recompute the
+    `audio_url` field for every sentence whose MP3 already exists in
+    storage. Use this when the public_url format has changed (e.g.
+    path-style → virtual-hosted) and the JSONL still has stale URLs.
 
     Returns a stats dict: {lib, total, generated, skipped, failed}.
     """
@@ -150,7 +160,14 @@ def fill_one_lib(staging: Path, lib: str, storage, tencent_cfg,
         return {"lib": lib, "status": "no-sentences-file", "total": 0}
 
     sentences = read_sentences_jsonl(sentences_path)
-    targets = [s for s in sentences if force or not s.get("audio_url")]
+    if rewrite_urls:
+        # Touch every sentence; only mutate those whose MP3 already
+        # exists in storage.
+        targets = list(sentences)
+    else:
+        targets = [s for s in sentences if force or not s.get("audio_url")]
+    if limit is not None:
+        targets = targets[:limit]
     if not targets:
         return {
             "lib": lib, "status": "all-done",
@@ -178,6 +195,21 @@ def fill_one_lib(staging: Path, lib: str, storage, tencent_cfg,
             continue
         key = f"audio/{audio_filename(text)}"
         try:
+            if rewrite_urls:
+                # URL-rewrite mode: never call TTS. If the MP3 is in
+                # storage, restamp the URL; otherwise leave the row
+                # alone (the operator can re-run without --rewrite-urls
+                # to actually generate the audio later).
+                if not storage.exists(key):
+                    n_skip += 1
+                    continue
+                public = storage.public_url(key)
+                idx = by_text[text]
+                sentences[idx]["audio_url"] = public
+                n_gen += 1
+                if i % 50 == 0 or i == len(targets):
+                    print(f"    [{i}/{len(targets)}] rewritten={n_gen} skipped={n_skip}")
+                continue
             if storage.exists(key) and not force:
                 # Reuse existing audio, but re-stamp the public_url
                 # (in case storage provider changed).
@@ -238,6 +270,12 @@ def main() -> int:
         "--dry-run", action="store_true",
         help="List which libs/sentences need audio; don't generate.",
     )
+    parser.add_argument(
+        "--rewrite-urls", action="store_true",
+        help="Recompute audio_url for sentences whose MP3 already exists "
+             "in storage; skip TTS. Use when the URL format has changed "
+             "(e.g. path-style → virtual-hosted) but the audio is still good.",
+    )
     args = parser.parse_args()
 
     staging = find_staging_dir()
@@ -261,13 +299,12 @@ def main() -> int:
     # without importing the full Config object.
     cloud_provider = env.get("CLOUD_PROVIDER", "local_fs").strip() or "local_fs"
     if cloud_provider == "local_fs":
-        from cms_pipeline.storage import LocalFsStorage, _LOCAL_DEFAULT_ROOT
+        from cms_pipeline.storage import _LOCAL_DEFAULT_ROOT
         audio_dir = env.get("AUDIO_DIR") or str(
             find_project_root() / _LOCAL_DEFAULT_ROOT
         )
         storage = LocalFsStorage(audio_dir)
     elif cloud_provider == "tencent_cos":
-        from cms_pipeline.storage import TencentCosStorage
         storage = TencentCosStorage(
             bucket=env.get("CLOUD_BUCKET", ""),
             region=env.get("CLOUD_REGION", ""),
@@ -291,14 +328,15 @@ def main() -> int:
     if isinstance(storage, LocalFsStorage):
         print(f"[generate_audio] audio_dir:  {storage.root}")
     print(f"[generate_audio] mode:       "
-          f"{'dry-run' if args.dry_run else 'force' if args.force else 'fill-missing'}")
+          f"{'dry-run' if args.dry_run else 'rewrite-urls' if args.rewrite_urls else 'force' if args.force else 'fill-missing'}")
     print(f"[generate_audio] libs:       {', '.join(targets)}")
     print()
 
     results = []
     for lib in targets:
         results.append(fill_one_lib(staging, lib, storage, tencent_cfg,
-                                   args.force, args.dry_run))
+                                   args.force, args.dry_run, args.limit,
+                                   args.rewrite_urls))
 
     for r in results:
         st = r["status"]

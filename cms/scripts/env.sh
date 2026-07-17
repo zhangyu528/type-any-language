@@ -46,9 +46,9 @@
 #   POSTGRES_USER=other ./db/scripts/build.sh
 #   AUDIO_DIR=/my/audio/dir ./cms/scripts/staging.sh audio
 #   DEFAULT_BUCKET_TARGET_SIZE=500 ./cms/scripts/staging.sh sentences
-# DB_IMAGE_TAG is also not here — its default is the root ./VERSION file
-# (resolved by ops/lib.sh), with cms/.env / shell env able to pin a
-# specific version when needed.
+# DB_IMAGE_TAG is also not here — its default is the per-segment
+# db/VERSION file (resolved by ops/lib.sh), with cms/.env / shell env
+# able to pin a specific version when needed.
 #
 # DOCKER_REGISTRY is not in cms/.env either — it lives in the committed
 # ./REGISTRY file at the repo root (shared project config, not a secret).
@@ -93,9 +93,10 @@ SECRET_KEYS=(
 # POSTGRES_PORT/POSTGRES_DB/DB_IMAGE/DEFAULT_BUCKET_TARGET_SIZE are
 # intentionally NOT here — they have code-level defaults (see env.py +
 # db/scripts/build.sh) and can be overridden via shell env when needed.
-# DB_IMAGE_TAG is also not here — its default is the root ./VERSION file
-# (lib.sh's resolve_image_tag). TENCENT_* is checked separately below
-# (all-or-nothing, but only the audio subcommand actually needs them).
+# DB_IMAGE_TAG is also not here — its default is the per-segment
+# db/VERSION file (lib.sh's resolve_image_tag). TENCENT_* is checked
+# separately below (all-or-nothing, but only the audio subcommand
+# actually needs them).
 # POSTGRES_PASSWORD is NOT here — CMS modules don't connect to the db,
 # the db side resolves it itself (shell env or .secrets/postgres_password).
 REQUIRED_KEYS=(

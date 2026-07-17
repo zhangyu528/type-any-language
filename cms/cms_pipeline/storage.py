@@ -159,17 +159,23 @@ class TencentCosStorage(Storage):
                 "(pip install cos-python-sdk-v5)"
             ) from exc
         self.bucket = bucket
-        # Use the explicit endpoint if given (CDN custom domain or
-        # non-default region), else synthesize the standard COS endpoint.
-        cos_endpoint = endpoint or f"https://cos.{region}.myqcloud.com"
+        # cos-python-sdk-v5's CosConfig.Endpoint is the host portion only
+        # (no scheme). Passing `https://...` makes the SDK splice the
+        # scheme back in and produce malformed hosts like
+        # `{bucket}.https` (verified empirically — gives DNS failures on
+        # every request). Default to letting the SDK derive the host from
+        # Region + Scheme, and keep `self._endpoint` for public_url().
+        cos_endpoint = endpoint or f"cos.{region}.myqcloud.com"
         config = CosConfig(
             Region=region,
             SecretId=access_key,
             SecretKey=secret_key,
+            Scheme="https",
             Endpoint=cos_endpoint,
         )
         self._client = CosS3Client(config)
-        self._endpoint = cos_endpoint
+        # public_url() needs the full origin (with scheme).
+        self._endpoint = "https://" + cos_endpoint.lstrip("/")
 
     def put(self, key: str, data: bytes) -> None:
         # Simple upload (<= 5MB covers every TTS-generated MP3 in practice;
@@ -191,10 +197,13 @@ class TencentCosStorage(Storage):
 
     def public_url(self, key: str) -> str:
         # If endpoint is a CDN custom domain (no ".cos." in host), use it
-        # as-is. Otherwise use the standard COS bucket URL form.
+        # as-is. Otherwise use the COS virtual-hosted style:
+        # https://{bucket}.{region}.myqcloud.com/{key}. COS rejects
+        # path-style access with "PathStyleDomainForbidden" (verified),
+        # so we must always put the bucket in the subdomain, not the path.
         if "cos." not in self._endpoint:
             return f"{self._endpoint.rstrip('/')}/{key.lstrip('/')}"
-        return f"{self._endpoint.rstrip('/')}/{self.bucket}/{key.lstrip('/')}"
+        return f"https://{self.bucket}.{self._endpoint.split('://', 1)[-1].rstrip('/')}/{key.lstrip('/')}"
 
 
 # ---------------------------------------------------------------------------
