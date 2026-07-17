@@ -6,14 +6,14 @@
 #
 # Why this lives in db/scripts/ instead of cms/scripts/:
 #   Schema definition is a db concern. The Python implementation
-#   (init_schema.py + migrations/) now lives at db/tools/cms/ —
+#   (init_schema.py + migrations/) now lives at db/tools/dbtools/ —
 #   the schema and migration versions are owned by the db side.
 #   cms/cms_pipeline/ remains for the data-pipeline code only
 #   (import_vocab, generate_sentences, generate_audio, ...).
 #
 #   This shell script is the db-side entry point. It shells out
-#   to `python -m dbtools.init_schema` — same package name ("cms")
-#   as before, just resolved against a different directory.
+#   to `python -m dbtools.init_schema` (the "dbtools" package,
+#   resolved via PYTHONPATH=db/tools).
 #
 # Usage:
 #   # 1. Make sure a populated db is reachable (cms-source-db or local).

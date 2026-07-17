@@ -1,5 +1,5 @@
 """
-db/tools/cms/db_url.py — minimal env-loader for db-only modules.
+db/tools/dbtools/db_url.py — minimal env-loader for db-only modules.
 
 Lives next to init_schema.py + migrations/ because the schema code
 needs DATABASE_URL but should NOT depend on the data-pipeline's
@@ -12,11 +12,12 @@ POSTGRES_PORT, POSTGRES_PASSWORD). It does NOT call any external
 dependencies (no psycopg2, no openai, no tencentcloud SDKs).
 
 Used by:
-  - db/tools/cms/init_schema.py (primary)
-  - db/tools/cms/migrations/runner.py (if it needs a connection too)
+  - db/tools/dbtools/init_schema.py (primary)
+  - db/tools/dbtools/migrations/runner.py (if it needs a connection too)
 
-Mirrors the URL assembly in db/scripts/{build,export_bundle}.py so
-all db-side code agrees on what DATABASE_URL means.
+Mirrors the URL assembly in db/scripts/build.sh (via ops/lib.sh's
+db_assemble_url helper) so all db-side code agrees on what DATABASE_URL
+means.
 """
 from __future__ import annotations
 

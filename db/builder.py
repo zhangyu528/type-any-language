@@ -227,7 +227,7 @@ def main() -> int:
     parser.add_argument("--db-name", default="english_learning")
     parser.add_argument(
         "--content-version", required=True,
-        help="The image's content version (= DB_IMAGE_TAG = VERSION.prod).",
+        help="The image's content version (= DB_IMAGE_TAG = db/VERSION).",
     )
     parser.add_argument(
         "--baked-at", default=None,

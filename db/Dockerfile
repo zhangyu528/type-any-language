@@ -41,10 +41,11 @@ ARG DB_USER=english_user
 ARG DB_NAME=english_learning
 ARG CONTENT_VERSION=latest
 ARG BAKED_AT=unknown
-# Project code version (root ./VERSION, resolved by ops/lib.sh).
+# Project code version (per-segment VERSION file: db/VERSION for this
+# image, resolved by ops/lib.sh → resolve_image_tag).
 # Same value as CONTENT_VERSION today, but conceptually distinct:
 # APP_VERSION is the project semver, CONTENT_VERSION is the content
-# snapshot identifier (currently derived from the same VERSION file).
+# snapshot identifier (currently derived from the same db/VERSION file).
 ARG APP_VERSION=latest
 ARG GIT_SHA=unknown
 

@@ -52,24 +52,20 @@ SOURCE_VOLUME="cms-source-data"
 # renames it to cms-source-db in-place (preserves the data volume).
 LEGACY_CONTAINER_NAMES=("english_db" "english_db_dev")
 
-# Resolve user / db / password from env (cms/.env) or shell.
-# Falls back to code defaults (same as db/scripts/build.sh) so the
-# script works in CI too.
+# Resolve user / db / password. POSTGRES_PASSWORD comes from shell env
+# first, then .secrets/postgres_password — both via the shared helper in
+# ops/lib.sh (same chain as build.sh / migrate.sh).
 load_source_db_env() {
     : "${POSTGRES_USER:=english_user}"
     : "${POSTGRES_DB:=english_learning}"
-    # POSTGRES_PASSWORD comes from shell env first, then .secrets/, then
-    # cms/.env (whichever loaded first).
-    if [ -z "${POSTGRES_PASSWORD:-}" ] && [ -f "$PROJECT_DIR/.secrets/postgres_password" ]; then
-        POSTGRES_PASSWORD="$(cat "$PROJECT_DIR/.secrets/postgres_password")"
-    fi
-    if [ -z "${POSTGRES_PASSWORD:-}" ]; then
+    if ! POSTGRES_PASSWORD="$(db_resolve_password)"; then
         err "POSTGRES_PASSWORD unset — export it, or copy .secrets/postgres_password from a dev/prod host"
         return 1
     fi
+    export POSTGRES_PASSWORD
     : "${POSTGRES_HOST:=localhost}"
     : "${POSTGRES_PORT:=5432}"
-    export POSTGRES_USER POSTGRES_DB POSTGRES_PASSWORD POSTGRES_HOST POSTGRES_PORT
+    export POSTGRES_USER POSTGRES_DB POSTGRES_HOST POSTGRES_PORT
 }
 
 # detect_running_source_db — return the running container name (any of

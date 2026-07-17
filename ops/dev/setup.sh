@@ -15,7 +15,7 @@
 #        - db/scripts/import_staging.sh all   (UPSERT staging → staging db)
 #        - db/scripts/build.sh                (pg_dump → docker build)
 #      with DB_IMAGE_TAG=dev-local so the resulting image doesn't collide
-#      with the team's VERSION.prod tag.
+#      with the team's db/VERSION tag.
 #   3. dev app images: call ops/dev/build_image.sh (handles
 #      both at once). Skipped if both already present.
 #   4. Final summary.

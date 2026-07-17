@@ -37,8 +37,8 @@ Env handling — minimal:
 
 Usage
 -----
-    python -m cms_pipeline.init_schema                       # from project root, PYTHONPATH=db/tools
-    PYTHONPATH=db/tools python3 db/tools/cms/init_schema.py
+    python -m dbtools.init_schema                        # from project root, PYTHONPATH=db/tools
+    PYTHONPATH=db/tools python3 db/tools/dbtools/init_schema.py
     ./db/scripts/init_schema.sh              # wrapper
 """
 from __future__ import annotations
