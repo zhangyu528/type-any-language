@@ -50,11 +50,11 @@ source "$SCRIPT_DIR/../../ops/lib.sh"
 
 # cms/data-pipeline modules (import_vocab, generate_sentences,
 # generate_audio) live at cms/cms_pipeline/. The schema / migrations
-# live at db/tools/dbtools/. Both packages have to coexist on
+# live at db/dbtools/. Both packages have to coexist on
 # PYTHONPATH (so `python -m cms_pipeline.X` for data pipeline and
 # both work) — the
 # package names are different so they don't shadow each other.
-export PYTHONPATH="${PROJECT_DIR}/cms:${PROJECT_DIR}/db/tools${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH="${PROJECT_DIR}/cms:${PROJECT_DIR}/db${PYTHONPATH:+:$PYTHONPATH}"
 
 # Force Python IO to UTF-8 so Unicode glyphs in pipeline output (✓ / ✗
 # / box-drawing in import_vocab / generate_sentences / generate_audio /
