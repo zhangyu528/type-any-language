@@ -57,63 +57,62 @@ make release-prod [X.Y.Z]
 
 ## 快速开始（开发环境）
 
-> 以下示例用 Makefile 写法（推荐）。`./ops/dev/*.sh` 直接调用也完全等价。
+> 以下示例统一用 Makefile（推荐）。`./ops/.../*.sh` 直接调用也完全等价，但 Makefile 在 macOS / Linux / Windows (Git Bash / WSL) 行为完全一致，不需要 chmod。
 
 ```bash
-# ./dev.sh 是根目录入口,等价于 ops/dev/lifecycle.sh
-./dev.sh setup      # 首次:准备 image(自动 bake db + build dev apps,见下)
-./dev.sh doctor     # 前置检查
-./dev.sh start      # 起来(首次会现场生成 .secrets/postgres_password)
-./dev.sh logs       # 看日志
-./dev.sh stop       # 停
-./dev.sh restart    # 硬重启(≈5s,重新加载 secrets)
-./dev.sh migrate    # 改了 cms/cms_pipeline/migrations/versions/*.py 后:把新 schema 应用到正在跑的 runtime db
-./dev.sh setup content   # git pull 了新的 cms/staging 内容后:按需烤 db image + 重启 dev 容器
+make dev-setup         # 首次:准备 image(自动 bake db + build dev apps,见下)
+make dev-doctor        # 前置检查
+make dev-start         # 起来(首次会现场生成 .secrets/postgres_password)
+make dev-logs          # 看日志
+make dev-stop          # 停
+make dev-restart       # 硬重启(≈5s,重新加载 secrets)
+make dev-migrate       # 改了 db/dbtools/migrations/versions/*.py 后:把新 schema 应用到正在跑的 runtime db
+make dev-setup-content # git pull 了新的 cms/staging 内容后:按需烤 db image + 重启 dev 容器
 ```
 
-> 没装 docker / daemon 没起,`./dev.sh doctor` 会直接报错,先装 docker。
+> 没装 docker / daemon 没起,`make dev-doctor` 会直接报错,先装 docker。
 
 访问:
 - 前端: <http://localhost:3000>
 - API: <http://localhost:8000/docs>(Swagger UI)
 
-### `setup` 做什么
+### `dev-setup` 做什么
 
-`./dev.sh setup` 把 dev 跑起来所需的所有 image 摆到位,**不启动容器、不动 secrets、不 push**:
+`make dev-setup` 把 dev 跑起来所需的所有 image 摆到位,**不启动容器、不动 secrets、不 push**:
 
 1. **db image** —— 按以下顺序找一个可用的:
    - 本地已有 → 用本地的
    - `DOCKER_REGISTRY` 显式配置(shell env 或 `REGISTRY` 文件) → `docker pull`
-   - 本机有 `cms/.env`(或没有但 `env.sh init` 能 scaffold) → `env.sh doctor` 当 gate → **自动跑整条内容链**:起 `cms-source-db` 容器 → `init-schema` → `sync` → `sentences`(AI) → `audio`(TTS) → `db/scripts/build.sh`。每步都是 idempotent,重新跑不会重复烧钱
+   - 本机有 `cms/.env`(或没有但 `make cms-env-init` 能 scaffold) → `make cms-env-doctor` 当 gate → **自动跑整条内容链**:起 `cms-source-db` 容器 → `make db-init-schema` → `make cms-sync` → `make cms-sentences`(AI) → `make cms-audio`(TTS) → `make db-bake`。每步都是 idempotent,重新跑不会重复烧钱
 
 2. **dev app images** (`english_backend_dev` + `english_frontend_dev`) —— 缺失就 build
 
-3. **Final summary** —— 提示下一步 `./dev.sh start`
+3. **Final summary** —— 提示下一步 `make dev-start`
 
 > auto-detect 出来的 `docker.io/$USER` 当 DOCKER_REGISTRY 是 solo dev 兜底,只用于 push,不会自动 pull(避免 429)。
 
 如果还没有 baked db image,要么:
-- 让 `./dev.sh setup` 自动烤(本机有 `cms/.env` 或能 scaffold 时自动走完整链);要么
-- 等 CMS 主机推一份到 registry(显式设了 `DOCKER_REGISTRY` run.sh 会自动 pull)。
-- 手动(不走 setup):`./cms/scripts/env.sh` 引导 `cms/.env`,再 `./db/scripts/build.sh`。
+- 让 `make dev-setup` 自动烤(本机有 `cms/.env` 或能 scaffold 时自动走完整链);要么
+- 等 CMS 主机推一份到 registry(显式设了 `DOCKER_REGISTRY` 时 setup 会自动 pull)。
+- 手动(不走 setup):`make cms-env-init` 引导 `cms/.env`,再 `make db-bake`。
 
-需要换 CORS 白名单:`ALLOWED_ORIGINS=https://my.domain ./dev.sh start`
+需要换 CORS 白名单:`ALLOWED_ORIGINS=https://my.domain make dev-start`
 
 ### schema 改了之后
 
-dev 改了 `cms/cms_pipeline/migrations/versions/*.py` 的话:
+dev 改了 `db/dbtools/migrations/versions/*.py` 的话:
 
 ```bash
 # 升 source db(给将来 bake 用):起 cms-source-db 后跑
-./cms/scripts/staging.sh init-schema
+make db-init-schema
 
 # 升正在跑的 runtime db —— 轻量,不动 image、不 push、不 drop volume
-./dev.sh migrate
+make dev-migrate
 ```
 
-`migrate` 用一次性 `python:3.11-slim` sidecar 跑 `pipeline.migrations.runner`,幂等。backend 下次请求自动捡新 schema(uvicorn hot reload)。
+`make dev-migrate` 用一次性 `python:3.11-slim` sidecar 跑 `pipeline.migrations.runner`,幂等。backend 下次请求自动捡新 schema(uvicorn hot reload)。
 
-> 网络拉不到 `python:3.11-slim`(典型情况:docker registry mirrors 坏了)时,`migrate` 会失败并打印离线 fallback:用 `cms/cms_pipeline/migrations/apply_to_runtime.sql` 走 `docker exec ... psql`。但这个 SQL 只覆盖"老 db 升到当前 head",**不能**处理新加的 migration —— 那种情况得修 docker 网络。
+> 网络拉不到 `python:3.11-slim`(典型情况:docker registry mirrors 坏了)时,`make dev-migrate` 会失败并打印离线 fallback:用 `db/dbtools/migrations/apply_to_runtime.sql` 走 `docker exec ... psql`。但这个 SQL 只覆盖"老 db 升到当前 head",**不能**处理新加的 migration —— 那种情况得修 docker 网络。
 
 ## 镜像发布(可选,无 registry 时跳过)
 
@@ -122,26 +121,29 @@ prod 主机推自己的 backend+frontend 镜像;db 镜像由 CMS 主机推。
 
 ```bash
 # dev host: 只 build,不 push,直接 start
-./ops/dev/build_image.sh
-./ops/dev/lifecycle.sh start
+make dev-build
+make dev-start
 
 # prod host: build + push
 export DOCKER_REGISTRY=docker.io/youruser
-./ops/prod/build_image.sh
-./ops/prod/push_image.sh -y
+make prod-build
+make prod-push
 ```
+
+> 看当前所有 per-segment VERSION 文件:`make release-show`
+> 一站式 release(自动 bump + build + push):`make release-dev [X.Y.Z]` / `make release-prod [X.Y.Z]`
 
 ## 生产环境
 
 ```bash
-ALLOWED_ORIGINS=https://my.domain ./ops/prod/lifecycle.sh start
-./ops/prod/doctor.sh
-./ops/prod/lifecycle.sh restart
+ALLOWED_ORIGINS=https://my.domain make prod-start
+make prod-doctor
+make prod-restart
 
 # 镜像发布(可选)
 export DOCKER_REGISTRY=docker.io/youruser
-./ops/prod/build_image.sh
-./ops/prod/push_image.sh -y
+make prod-build
+make prod-push
 ```
 
 生产前端通过 nginx 在 `:80` 暴露。
@@ -149,15 +151,17 @@ export DOCKER_REGISTRY=docker.io/youruser
 ## CMS 主机(生产内容)
 
 ```bash
-./cms/scripts/env.sh                    # 第一次:引导 cms/.env
-./cms/scripts/staging.sh doctor         # 前置检查
-./cms/scripts/staging.sh sync           # csv → 词库表
-./cms/scripts/staging.sh sentences      # OpenAI 批量填句子
-./cms/scripts/staging.sh audio          # 腾讯云 TTS 批量烤 MP3
-./db/scripts/build.sh             # 烤 db image
-export DOCKER_REGISTRY=...                 # 推前设一下
-./db/scripts/push.sh [-y]        # 推 registry
+make cms-env-init              # 第一次:引导 cms/.env
+make cms-staging-doctor        # 前置检查
+make cms-sync                  # csv → 词库表
+make cms-sentences             # OpenAI 批量填句子
+make cms-audio                 # 腾讯云 TTS 批量烤 MP3
+make db-bake                   # 烤 db image
+export DOCKER_REGISTRY=...     # 推前设一下
+make db-push                   # 推 registry
 ```
+
+> 一键跑完整 CMS 流水线(同步 → AI 句子 → TTS → 写 staging db):`make cms-run`
 
 CMS 流程的细节(每个 Python 工具的参数、词库 CSV 格式、db image label 含义)
 见 [`cms/README.md`](cms/README.md)。
