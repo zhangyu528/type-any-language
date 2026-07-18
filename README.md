@@ -28,7 +28,36 @@ CMS 主机把内容（词库 + AI 句子 + TTS 音频）烤进 db image，推到
 
 ---
 
+## 统一入口：Makefile
+
+整个仓库的运维入口在 `Makefile`。每个 target 内部都用 `bash <script> <subcommand>` 调用 —— **不依赖 `.sh` 文件的 unix executable 位**，所以在 macOS、Linux、Windows (Git Bash / WSL) 上行为完全一致。
+
+```bash
+make help          # 列出所有 target + 一句话用途(默认 goal)
+make dev-setup     # 首次 bootstrap(等价 ./ops/dev/setup.sh)
+make dev-start     # 启 dev 容器 + 后台 compose watch
+make dev-stop
+make dev-restart
+make dev-doctor    # 只读诊断
+make dev-logs      # 跟踪日志
+make dev-migrate   # 应用 schema migrations
+make dev-setup-content   # git pull 拿到新 cms/staging 后:重烤 db + restart
+make release-show
+make release-dev [X.Y.Z]
+make release-prod [X.Y.Z]
+# ... cms-env-init / cms-sync / cms-sentences / cms-audio /
+#     db-bake / db-push / db-import / prod-* / build-*
+```
+
+`make help` 会列出全部 ~47 个 target，按 host 角色分组（dev / prod / cms / db / release / meta）。
+
+老的 `./ops/.../*.sh` 直接调用仍然 work（文件保持 executable），Makefile 只是统一入口。Windows 用户只要 Git Bash / WSL 自带 `make` 就能用，无需 chmod 任何东西。
+
+---
+
 ## 快速开始（开发环境）
+
+> 以下示例用 Makefile 写法（推荐）。`./ops/dev/*.sh` 直接调用也完全等价。
 
 ```bash
 # ./dev.sh 是根目录入口,等价于 ops/dev/lifecycle.sh
