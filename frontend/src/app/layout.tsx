@@ -1,4 +1,5 @@
-import Home from './page';
+import AppHeader from './components/AppHeader';
+import { AuthProvider } from './lib/auth';
 import './globals.css';
 
 export default function RootLayout({
@@ -27,7 +28,21 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {/* AuthProvider wraps everything (including the chrome) so
+            AppHeader can call useAuth() to swap login pill ↔ avatar
+            based on the cookie-derived `user` state. Without this
+            wrapper, AppHeader would render before the provider
+            hydrates and throw "useAuth must be used inside
+            <AuthProvider>". */}
+        <AuthProvider>
+          {/* Global top chrome. Self-hides on /login + /signup via
+              usePathname — those pages have their own brand link
+              inside the aurora glass card. */}
+          <AppHeader />
+          {children}
+        </AuthProvider>
+      </body>
     </html>
   );
 }

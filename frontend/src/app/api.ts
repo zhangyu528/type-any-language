@@ -240,3 +240,122 @@ export function saveTranslationProgress(progress: TranslationProgress): void {
     /* 隐私模式静默 */
   }
 }
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+//
+// All five exports live here as a single client layer because they share
+// the same surface: HTTP + cookie + ApiError. The /login + /signup pages
+// use these directly; the <AuthProvider> (lib/auth.tsx) uses apiMe on
+// mount to hydrate global user state.
+
+/** Public user projection. Mirrors backend's UserPublic schema. */
+export interface AuthUser {
+  id: string;
+  email: string;
+  display_name: string;
+  created_at: string; // ISO timestamp from the backend
+}
+
+/**
+ * ApiError — custom error type that wraps HTTP failures with a
+ * structured payload. Use `err instanceof ApiError` then read
+ * `.status`, `.message`, and (for signup/login) `.fieldErrors`.
+ *
+ * - 4xx / 5xx responses: throw ApiError with parsed body
+ * - network failures (fetch rejects): re-thrown as-is so callers
+ *   can show a "no network" toast without instanceof checks
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly fieldErrors?: Record<string, string>;
+
+  constructor(status: number, message: string, fieldErrors?: Record<string, string>) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.fieldErrors = fieldErrors;
+  }
+}
+
+/**
+ * Internal: parse a fetch Response into JSON or throw ApiError.
+ * Used by all four auth functions below so the error shape is uniform.
+ */
+async function parseOrThrow(res: Response): Promise<unknown> {
+  let body: { detail?: string; field_errors?: Record<string, string> } | null = null;
+  try {
+    body = await res.json();
+  } catch {
+    // body wasn't JSON; fall through with null
+  }
+  if (res.ok) return body;
+  const message = body?.detail ?? `HTTP ${res.status}`;
+  throw new ApiError(res.status, message, body?.field_errors);
+}
+
+/** POST /api/auth/signup. Returns the new user. Server sets the cookie. */
+export async function apiSignup(input: {
+  email: string;
+  password: string;
+  display_name?: string;
+}): Promise<AuthUser> {
+  const res = await fetch(`${API_BASE_URL}/api/auth/signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: input.email,
+      password: input.password,
+      ...(input.display_name ? { display_name: input.display_name } : {}),
+    }),
+    credentials: 'include',
+  });
+  const body = (await parseOrThrow(res)) as AuthUser;
+  return body;
+}
+
+/** POST /api/auth/login. Returns the user. Server sets the cookie. */
+export async function apiLogin(input: { email: string; password: string }): Promise<AuthUser> {
+  const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+    credentials: 'include',
+  });
+  const body = (await parseOrThrow(res)) as AuthUser;
+  return body;
+}
+
+/** POST /api/auth/logout. Throws on network failure; otherwise resolves void. */
+export async function apiLogout(): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/auth/logout`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  if (!res.ok && res.status !== 401) {
+    await parseOrThrow(res);
+  }
+}
+
+/**
+ * GET /api/auth/me. **Does NOT throw on 401** — returns null instead.
+ * That's the difference from the auth endpoints: anonymous is a state
+ * the <AuthProvider> needs to know about, not an error. Network
+ * failures still reject (the caller's catch will see a TypeError,
+ * not an ApiError, and can show a "no network" UI).
+ */
+export async function apiMe(): Promise<AuthUser | null> {
+  const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
+    credentials: 'include',
+  });
+  if (res.status === 401) return null;
+  if (!res.ok) {
+    // Treat any other non-ok as null too — better UX than a hard
+    // throw on first render. (e.g. backend down shouldn't log
+    // every user out.)
+    return null;
+  }
+  const body = (await res.json()) as { user: AuthUser | null };
+  return body.user;
+}

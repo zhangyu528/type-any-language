@@ -1213,3 +1213,163 @@ select:focus-visible {
     line-height: var(--type-title-1-lh);
   }
 }
+
+/* ============================================================
+   AppHeader — 36px frosted glass top chrome
+   ------------------------------------------------------------
+   Single source of truth for the global brand + auth entry.
+   Mounted in page.tsx (Home + TranslationStage) and hidden on
+   /login + /signup via the component's usePathname check.
+
+   Token usage:
+     --surface  (cool white) for the chrome base
+     --label-primary  (charcoal) for the brand text + login pill
+     --surface-secondary  (mist) for the brand hover
+     --radius-circle  (9999px) for the pill
+     --space-*  for padding + gaps
+     --duration-fast / --ease-standard  for transitions
+   ============================================================ */
+.app-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 36px;
+  padding: 0 var(--space-5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  z-index: 50;
+  font-family: var(--font-body);
+}
+
+/* Brand mark + name on the left */
+.app-header__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  margin: calc(var(--space-1) * -1) calc(var(--space-2) * -1);
+  border-radius: var(--radius-sm);
+  color: var(--label-primary);
+  text-decoration: none;
+  transition: background var(--duration-fast) var(--ease-standard);
+}
+.app-header__brand:hover {
+  background: var(--surface-secondary);
+}
+.app-header__brand:focus-visible {
+  outline: 2px solid var(--label-primary);
+  outline-offset: 2px;
+}
+.app-header__brand-mark {
+  font-size: 16px;
+  color: var(--accent);
+  line-height: 1;
+}
+.app-header__brand-name {
+  font-size: 14px;
+  font-weight: var(--type-body-emphasis-weight);
+  letter-spacing: -0.01em;
+}
+@media (max-width: 640px) {
+  /* Drop the brand name on phones — the enso still reads as
+     "go home", and 36px is too tight for both glyphs + pill. */
+  .app-header__brand-name { display: none; }
+}
+
+/* Right-side nav: login pill (and future avatar/menu slots) */
+.app-header__nav {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.app-header__login {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 var(--space-4);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: var(--type-body-emphasis-weight);
+  letter-spacing: 0.01em;
+  color: var(--on-primary);
+  background: linear-gradient(180deg, #2C2C2E 0%, #1C1C1E 100%);
+  border: 0;
+  border-radius: var(--radius-circle);
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  transition: opacity var(--duration-fast) var(--ease-standard),
+              transform var(--duration-fast) var(--ease-standard),
+              box-shadow var(--duration-fast) var(--ease-standard);
+}
+.app-header__login:hover {
+  opacity: 0.88;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.14);
+}
+.app-header__login:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.app-header__login:focus-visible {
+  outline: 2px solid var(--label-primary);
+  outline-offset: 2px;
+}
+
+/* Signed-in state: avatar circle + 登出 text button.
+   Same vocabulary as the login pill (28px tall, dark fill), so the
+   swap anonymous → signed-in doesn't shift the chrome height. */
+.app-header__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-circle);
+  background: var(--label-primary);
+  color: var(--on-primary);
+  font-size: 13px;
+  font-weight: var(--type-body-emphasis-weight);
+  text-decoration: none;
+  transition: opacity var(--duration-fast) var(--ease-standard),
+              transform var(--duration-fast) var(--ease-standard);
+}
+.app-header__avatar:hover {
+  opacity: 0.85;
+  transform: translateY(-1px);
+}
+.app-header__avatar:focus-visible {
+  outline: 2px solid var(--label-primary);
+  outline-offset: 2px;
+}
+.app-header__logout {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 var(--space-3);
+  font-family: inherit;
+  font-size: var(--type-caption);
+  font-weight: var(--type-body-weight);
+  color: var(--label-tertiary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-standard),
+              background var(--duration-fast) var(--ease-standard);
+}
+.app-header__logout:hover {
+  color: var(--label-primary);
+  background: var(--surface-secondary);
+}
+.app-header__logout:focus-visible {
+  outline: 2px solid var(--label-primary);
+  outline-offset: 2px;
+}
