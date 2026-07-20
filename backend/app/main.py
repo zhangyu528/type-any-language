@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import engine, Base
-from app.routers import content, lessons, sentences, vocabulary
+from app.routers import content, lessons, sentences, vocabulary, auth
 
 settings = get_settings()
 
@@ -51,6 +51,7 @@ app.include_router(vocabulary.router)
 app.include_router(sentences.router)
 app.include_router(content.router)
 app.include_router(lessons.router)
+app.include_router(auth.router)
 
 
 @app.get("/")
