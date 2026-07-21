@@ -111,13 +111,20 @@ cmd_check() {
     info "all checks passed"
 }
 
-# fetch_segment <segment>  — segment ∈ {cms, db, all}
+# fetch_segment <segment> <tier>
+#   segment ∈ {cms, db, all}
+#   tier    ∈ {dev, prod}   selects which GH secret suffix to read
 # Emits `export K=V` lines on stdout for the requested segment keys.
 # Sub-shell sourcing of the artifact means secrets only reach the
 # sub-shell's env; we then re-emit them as export-lines for the caller
 # to eval. Caller-process env is mutated only after `eval`.
 fetch_segment() {
     local segment="$1"
+    local tier="$2"
+    case "$tier" in
+        dev|prod) ;;
+        *) die "fetch_segment: tier must be dev|prod (got: $tier)" ;;
+    esac
     need_auth
 
     local request_id artifact_name run_id conclusion tmp env_file
@@ -129,9 +136,9 @@ fetch_segment() {
             || uuidgen 2>/dev/null \
             || date +%s%N
     )"
-    artifact_name="secrets-${segment}-${request_id}"
+    artifact_name="secrets-${tier}-${segment}-${request_id}"
 
-    info "dispatching sync-secrets.yml which=${segment} request_id=${request_id}"
+    info "dispatching sync-secrets.yml tier=${tier} which=${segment} request_id=${request_id}"
     # Capture stderr — gh returns helpful 404 messages that would
     # otherwise be swallowed by the >/dev/null on stdout.
     # Auto-detect the repo's default branch from origin/HEAD; fall back
@@ -159,6 +166,7 @@ fetch_segment() {
     info "ref = $gh_ref"
     if ! gh workflow run sync-secrets.yml \
             --ref "$gh_ref" \
+            -f tier="$tier" \
             -f which="$segment" \
             -f request_id="$request_id" \
             >/dev/null; then
@@ -201,7 +209,7 @@ fetch_segment() {
     # This subdir is .gitignore'd: `/.fetch-*` is added to .gitignore
     # so even if the script crashes before trap, nothing leaks into
     # the index.
-    local workdir="${PROJECT_DIR}/.fetch-${segment}-${request_id}"
+    local workdir="${PROJECT_DIR}/.fetch-${tier}-${segment}-${request_id}"
     mkdir -p "$workdir"
     # Register the workdir for the top-level EXIT trap. Do NOT set a
     # function-local trap — it'd be removed when fetch_segment returns.
@@ -245,7 +253,12 @@ fetch_segment() {
 
 usage() {
     cat <<EOF
-用法: $0 <command>
+用法: $0 <command>:<tier>
+
+Tier:
+  dev   (default) read *_DEV repo-level secrets
+  prod           read *_PROD repo-level secrets +
+                  TENCENT_DB_ADMIN_URL from Environment 'production'
 
 Commands:
   eval-cms    Emit export-lines for AI_*/TENCENT_*/CLOUD_*  (eval in caller)
@@ -254,26 +267,70 @@ Commands:
   check       Preflight: gh installed, authenticated, repo matches
   help        This message
 
-Typical workflow (CMS host):
+Shorthand:
+  eval-cms           ===  eval-cms:dev
+  eval-db            ===  eval-db:dev
+  eval-all           ===  eval-all:dev
+  eval-cms:prod      force prod tier
+  eval-db:prod       force prod tier (fetches TENCENT_DB_ADMIN_URL
+                     from GH Environment 'production' — required
+                     reviewers gate applies)
+
+Typical workflow (CMS host, dev):
   cd ~/<repo>
   eval "\$(scripts/secrets/fetch_secrets.sh eval-cms)"
   ./cms/scripts/staging.sh sentences
   ./cms/scripts/staging.sh audio
 
-Typical workflow (db / dev host):
+Typical workflow (db / dev host, dev tier):
   cd ~/<repo>
   eval "\$(scripts/secrets/fetch_secrets.sh eval-db)"
   ./ops/dev/setup.sh bootstrap
+
+Typical workflow (prod host):
+  cd ~/<repo>
+  eval "\$(scripts/secrets/fetch_secrets.sh eval-db:prod)"  # also pulls TENCENT_DB_ADMIN_URL
+  ./ops/prod/setup.sh bootstrap
 
 The caller-process env is mutated only after you eval the script's
 stdout — secrets live only in that process memory, never on disk.
 EOF
 }
 
+# Parse the subcommand: split on optional ':' for tier override.
+# Examples: eval-cms         -> segment=cms       tier=dev
+#           eval-db:prod     -> segment=db        tier=prod
+parse_cmd() {
+    local raw="$1"
+    # Strip the leading 'eval-' (or accept already-stripped bare segment).
+    case "$raw" in
+        eval-*) SEGMENT="${raw#eval-}" ;;
+        *)      SEGMENT="$raw" ;;
+    esac
+    # Optional ':tier' suffix.
+    case "$SEGMENT" in
+        *:*)
+            TIER="${SEGMENT##*:}"
+            SEGMENT="${SEGMENT%%:*}"
+            ;;
+        *)
+            TIER="dev"
+            ;;
+    esac
+    case "$TIER" in
+        dev|prod) ;;
+        *) die "tier must be dev|prod (got: $TIER)" ;;
+    esac
+    case "$SEGMENT" in
+        cms|db|all) ;;
+        *) die "segment must be cms|db|all (got: $SEGMENT)" ;;
+    esac
+}
+
 case "$cmd" in
-    eval-cms)   fetch_segment cms ;;
-    eval-db)    fetch_segment db  ;;
-    eval-all)   fetch_segment all ;;
+    eval-cms|eval-cms:dev|eval-cms:prod) parse_cmd "$cmd"; fetch_segment "$SEGMENT" "$TIER" ;;
+    eval-db|eval-db:dev|eval-db:prod)    parse_cmd "$cmd"; fetch_segment "$SEGMENT" "$TIER" ;;
+    eval-all|eval-all:dev|eval-all:prod) parse_cmd "$cmd"; fetch_segment "$SEGMENT" "$TIER" ;;
     check)      cmd_check ;;
     help|-h|--help) usage ;;
     *) die "unknown command: $cmd (try: $0 help)" ;;
