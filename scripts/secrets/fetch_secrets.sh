@@ -121,9 +121,9 @@ cmd_check() {
 fetch_segment() {
     local segment="$1"
     local tier="$2"
-    case "$tier" in
-        dev|prod) ;;
-        *) die "fetch_segment: tier must be dev|prod (got: $tier)" ;;
+    case "$TIER" in
+        dev|test|prod) ;;
+        *) die "fetch_segment: tier must be dev|test|prod (got: $tier)" ;;
     esac
     need_auth
 
@@ -256,9 +256,10 @@ usage() {
 用法: $0 <command>:<tier>
 
 Tier:
-  dev   (default) read *_DEV repo-level secrets
-  prod           read *_PROD repo-level secrets +
-                  TENCENT_DB_ADMIN_URL from Environment 'production'
+  dev   (default) read from GH Environment 'dev'
+  test            read from GH Environment 'test'
+  prod            read from GH Environment 'prod' (may pause for
+                  required reviewers if configured in the GH UI)
 
 Commands:
   eval-cms    Emit export-lines for AI_*/TENCENT_*/CLOUD_*  (eval in caller)
@@ -271,10 +272,10 @@ Shorthand:
   eval-cms           ===  eval-cms:dev
   eval-db            ===  eval-db:dev
   eval-all           ===  eval-all:dev
-  eval-cms:prod      force prod tier
+  eval-cms:test      force test tier
   eval-db:prod       force prod tier (fetches TENCENT_DB_ADMIN_URL
-                     from GH Environment 'production' — required
-                     reviewers gate applies)
+                     from env 'prod' — required reviewers gate applies
+                     if the GH Environment has them configured)
 
 Typical workflow (CMS host, dev):
   cd ~/<repo>
@@ -300,6 +301,7 @@ EOF
 # Parse the subcommand: split on optional ':' for tier override.
 # Examples: eval-cms         -> segment=cms       tier=dev
 #           eval-db:prod     -> segment=db        tier=prod
+#           eval-cms:test    -> segment=cms       tier=test
 parse_cmd() {
     local raw="$1"
     # Strip the leading 'eval-' (or accept already-stripped bare segment).
@@ -318,8 +320,8 @@ parse_cmd() {
             ;;
     esac
     case "$TIER" in
-        dev|prod) ;;
-        *) die "tier must be dev|prod (got: $TIER)" ;;
+        dev|test|prod) ;;
+        *) die "tier must be dev|test|prod (got: $TIER)" ;;
     esac
     case "$SEGMENT" in
         cms|db|all) ;;
@@ -328,9 +330,9 @@ parse_cmd() {
 }
 
 case "$cmd" in
-    eval-cms|eval-cms:dev|eval-cms:prod) parse_cmd "$cmd"; fetch_segment "$SEGMENT" "$TIER" ;;
-    eval-db|eval-db:dev|eval-db:prod)    parse_cmd "$cmd"; fetch_segment "$SEGMENT" "$TIER" ;;
-    eval-all|eval-all:dev|eval-all:prod) parse_cmd "$cmd"; fetch_segment "$SEGMENT" "$TIER" ;;
+    eval-cms|eval-cms:dev|eval-cms:test|eval-cms:prod) parse_cmd "$cmd"; fetch_segment "$SEGMENT" "$TIER" ;;
+    eval-db|eval-db:dev|eval-db:test|eval-db:prod)    parse_cmd "$cmd"; fetch_segment "$SEGMENT" "$TIER" ;;
+    eval-all|eval-all:dev|eval-all:test|eval-all:prod) parse_cmd "$cmd"; fetch_segment "$SEGMENT" "$TIER" ;;
     check)      cmd_check ;;
     help|-h|--help) usage ;;
     *) die "unknown command: $cmd (try: $0 help)" ;;
