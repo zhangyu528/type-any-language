@@ -8,6 +8,17 @@
 # Never commit: each host generates its own on first start.
 .secrets/
 
+# Per-call artifact download dir used by scripts/secrets/fetch_secrets.sh.
+# Bound to the script's lifetime via `trap rm -rf RETURN`, but the
+# ignore entry is belt-and-suspenders against a crash mid-fetch.
+/.fetch-*
+
+# Dev-only per-branch state (cloud-db era).
+# .dev/dev-db-name  — persists the db name chosen for the current
+#                     git branch / SHA so the same db is reused across
+#                     restarts. Written by ops/dev/setup.sh.
+.dev/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -36,14 +47,6 @@ ENV/
 # Node
 node_modules/
 npm-debug.log*
-
-# bake staging
-.bake-staging/
-
-# Test artifacts (used by the test path that exercises the labels-read
-# path in dev/prod build_image.sh — not normally created in real use)
-.db-image-build/
-.audio/
 
 # Logs
 *.log

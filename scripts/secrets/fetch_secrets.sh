@@ -49,7 +49,7 @@
 #   4. `gh run download <id> --name secrets-<seg>-<id> --dir <mktemp>`
 #      <mktemp> = `mktemp -d`; `trap 'rm -rf <mktemp>' RETURN` cleans up
 #   5. `( set -a; . <mktemp>/secrets.env; set +a; env -0 | tr '\0' '\n' |
-#         grep -E '^(AI_|TENCENT_|CLOUD_|TENCENT_DB_|DATABASE_URL)=' )`
+#         grep -E '^(AI_|TENCENT_|CLOUD_|TENCENT_DB_|DATABASE_URL)' )`
 #      — sub-shell inherits nothing from caller, so secrets only enter
 #      the caller's env via `eval`. The mktemp is removed before the
 #      sub-shell returns.
@@ -63,6 +63,15 @@ cmd="${1:-help}"; shift || true
 
 die()  { echo "[fetch_secrets][ERR] $*" >&2; exit 1; }
 info() { echo "[fetch_secrets][INFO] $*" >&2; }
+
+# Global EXIT trap: clean up any .fetch-<segment>-<id> workdirs left
+# behind by fetch_segment. Function-local traps get removed when the
+# function returns, so the trap must be at the top level. EXIT (not
+# RETURN) — RETURN fires after every `source`/`.` file's implicit
+# return, which would wipe secrets.env mid-source.
+_FETCH_WORKDIR=""
+cleanup_workdir() { [ -n "$_FETCH_WORKDIR" ] && rm -rf "$_FETCH_WORKDIR"; }
+trap cleanup_workdir EXIT
 
 need_gh() {
     command -v gh >/dev/null 2>&1 || die "gh CLI 未装; 安装: https://cli.github.com (需要 >= 2.0 支持 gh run download --name)"
@@ -125,12 +134,35 @@ fetch_segment() {
     info "dispatching sync-secrets.yml which=${segment} request_id=${request_id}"
     # Capture stderr — gh returns helpful 404 messages that would
     # otherwise be swallowed by the >/dev/null on stdout.
+    # Auto-detect the repo's default branch from origin/HEAD; fall back
+    # to the local branch's upstream if origin/HEAD isn't set, then to
+    # 'master'. Hard-coding 'main' here is wrong (this repo's default
+    # is 'master') and 422's with a confusing "no ref found" message.
+    local gh_ref
+    if [ -n "${GH_SECRETS_REF:-}" ]; then
+        gh_ref="$GH_SECRETS_REF"
+    else
+        gh_ref="$(
+            git -C "$PROJECT_DIR" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null \
+                | sed 's@^origin/@@' \
+                || true
+        )"
+        if [ -z "$gh_ref" ]; then
+            gh_ref="$(
+                git -C "$PROJECT_DIR" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null \
+                    | sed 's@^origin/@@' \
+                    || true
+            )"
+        fi
+        gh_ref="${gh_ref:-master}"
+    fi
+    info "ref = $gh_ref"
     if ! gh workflow run sync-secrets.yml \
-            --ref "${GH_SECRETS_REF:-main}" \
+            --ref "$gh_ref" \
             -f which="$segment" \
             -f request_id="$request_id" \
             >/dev/null; then
-        die "gh workflow run 失败 — 确认 (a) sync-secrets.yml 在 default branch 上 push 了,(b) gh token 有 actions:write,(c) 当前 dir 的 upstream repo 拥有 secret"
+        die "gh workflow run 失败 — 确认 (a) sync-secrets.yml 在 ref='$gh_ref' 上 push 了,(b) gh token 有 actions:write,(c) 当前 dir 的 upstream repo 拥有 secret"
     fi
 
     info "waiting for run to complete..."
@@ -158,17 +190,34 @@ fetch_segment() {
         die "sync-secrets.yml 退出结论=$conclusion (run_id=$run_id); 用 gh run view $run_id 看日志"
     fi
 
-    tmp="$(mktemp -d)"
-    trap 'rm -rf "$tmp"' RETURN
+    # `gh run download` (2.86 on Windows at least) extracts the named
+    # artifact's contents (the workflow's `secrets.env` file) to the
+    # CURRENT working directory, regardless of `--dir`. The cwd must
+    # be a git repo (gh 404s otherwise) and must not already contain a
+    # file named `secrets.env` (zip extraction errors with "file
+    # exists"). We cd into a per-call subdir of PROJECT_DIR so both
+    # constraints are satisfied, and trap the cleanup.
+    #
+    # This subdir is .gitignore'd: `/.fetch-*` is added to .gitignore
+    # so even if the script crashes before trap, nothing leaks into
+    # the index.
+    local workdir="${PROJECT_DIR}/.fetch-${segment}-${request_id}"
+    mkdir -p "$workdir"
+    # Register the workdir for the top-level EXIT trap. Do NOT set a
+    # function-local trap — it'd be removed when fetch_segment returns.
+    _FETCH_WORKDIR="$workdir"
+    # From here on, every action uses workdir as cwd. We need PROJECT_DIR
+    # to be a parent so gh's git-rev-parse still walks up and finds .git.
+    cd "$workdir"
 
     info "downloading artifact ${artifact_name}"
-    if ! gh run download "$run_id" --name "$artifact_name" --dir "$tmp" >/dev/null 2>&1; then
-        die "artifact 拉取失败 — 确认 token 有 actions:read, 且 artifact 名匹配 (run_id=$run_id)"
+    if ! gh run download "$run_id" --name "$artifact_name" >/dev/null 2>&1; then
+        die "artifact 拉取失败 — 确认 token 有 actions:read, 且 artifact 名匹配 (run_id=$run_id, name=$artifact_name)"
     fi
 
-    env_file="$tmp/secrets.env"
+    local env_file="$workdir/secrets.env"
     if [ ! -f "$env_file" ]; then
-        die "artifact 内缺 $env_file"
+        die "artifact 内缺 secrets.env (workdir content: $(ls -A "$workdir" 2>/dev/null | tr '\n' ' '))"
     fi
 
     # Source inside a sub-shell so secrets only enter the sub-shell env.
@@ -188,7 +237,9 @@ fetch_segment() {
         set +a
         # `env -0` prints all env vars NUL-separated; tr turns NULs into
         # newlines for grep. Only emit the keys for this segment.
-        env -0 | tr '\0' '\n' | grep -E "${prefix}=" | sed 's/^/export /'
+        # `|| true` because grep returns 1 when no match — the user
+        # simply hasn't pushed that key yet, not a script failure.
+        env -0 | tr '\0' '\n' | grep -E "${prefix}" | sed 's/^/export /' || true
     )
 }
 
