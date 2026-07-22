@@ -5,18 +5,17 @@
 # Thin dispatcher over ops/dev/. Use this when you want a short,
 # memorable command from the project root:
 #
-#   ./dev setup          # first-time: 拉/检查 db image, build dev app images
-#   ./dev doctor         # pre-flight
+#   ./dev setup          # first-time: verify cloud-db + build dev app images
+#   ./dev doctor         # pre-flight (docker / images / cloud-db)
 #   ./dev start          # compose up + 后台 spawn compose watch (热重载)
 #   ./dev stop
 #   ./dev restart        # hard restart (recreate + re-read secrets)
 #   ./dev reload         # alias for restart
 #   ./dev logs [svc]     # docker compose logs -f
 #   ./dev status         # 容器状态
-#   ./dev migrate        # apply pending schema migrations
+#   ./dev migrate        # apply pending schema migrations (host-side runner)
 #   ./dev watch          # foreground compose watch (Ctrl+C 退出)
 #   ./dev build          # build dev app images (backend + frontend)
-#   ./dev content        # on-demand: import staging files + bake + restart
 #   ./dev                # 默认 = usage
 #
 # Equivalent to invoking the matching ops/dev/<cmd>.sh file
@@ -33,8 +32,8 @@ case "${1:-}" in
         ;;
     # setup.sh has its own sub-dispatcher — strip the `setup` keyword
     # (which is our dispatcher arm name, not setup.sh's) and exec the
-    # remainder. So `./dev.sh setup` → `setup.sh` (default cmd_setup),
-    # and `./dev.sh setup content` → `setup.sh content` (cmd_content).
+    # remainder. So `./dev setup` → `setup.sh` (default cmd_setup),
+    # and `./dev setup bootstrap` → `setup.sh bootstrap` (cmd_bootstrap).
     setup)
         case "${2:-}" in
             -h|--help|help) exec "$SCRIPT_DIR/dev.sh" -h ;;
@@ -50,27 +49,29 @@ case "${1:-}" in
 用法: ./dev <command>
 
 命令(直接对应 ops/dev/ 下的同名文件):
-  setup [content]  首次环境引导 (ops/dev/setup.sh)。
-                   无参数 = 完整 bootstrap;带 content = on-demand 烤 + 重启
-  doctor           pre-flight (ops/dev/doctor.sh)
-  start            启动 dev 容器 (ops/dev/lifecycle.sh start)
-  stop             停止容器 (ops/dev/lifecycle.sh stop)
-  restart          recreate + 重读 secrets (ops/dev/lifecycle.sh restart)
-  reload           同 restart
-  logs [svc]       跟踪日志 (ops/dev/logs.sh)
-  status           容器状态 (ops/dev/lifecycle.sh 的相关部分)
-  migrate          apply schema migrations (ops/dev/migrate.sh)
-  watch            前台 compose watch (ops/dev/watch.sh)
-  build            build dev app images (ops/dev/build_image.sh)
+  setup [bootstrap] 首次环境引导 (ops/dev/setup.sh)。
+                    无参数 = verify cloud-db + build dev 应用镜像。
+                    带 bootstrap = 一次性 cloud-db setup(写 .secrets/database_url)
+  doctor            pre-flight (ops/dev/doctor.sh)
+  start             启动 dev 容器 (ops/dev/lifecycle.sh start)
+  stop              停止容器 (ops/dev/lifecycle.sh stop)
+  restart           recreate + 重读 secrets (ops/dev/lifecycle.sh restart)
+  reload            同 restart
+  logs [svc]        跟踪日志 (ops/dev/logs.sh)
+  status            容器状态 (ops/dev/lifecycle.sh 的相关部分)
+  migrate           apply schema migrations (ops/dev/migrate.sh — host-side runner)
+  watch             前台 compose watch (ops/dev/watch.sh)
+  build             build dev app images (ops/dev/build_image.sh)
 
 示例:
-  ./dev setup
+  ./dev setup                    # verify cloud-db + build dev 应用镜像
+  ./dev setup bootstrap          # 一次性 cloud-db setup(首次)
   ./dev doctor
   ./dev start
   # ... 改代码 ...
   ./dev restart
-  # ... git pull 了新的 cms/staging 内容后,按需烤 + 重启 ...
-  ./dev setup content
+  # ... 改了 schema 后 ...
+  ./dev migrate
 EOF
         ;;
     *)

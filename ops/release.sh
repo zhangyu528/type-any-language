@@ -5,8 +5,6 @@
 # Each segment owns one VERSION file (no dev/prod split — single file
 # gates both the dev and prod image tags for that segment):
 #
-#   db/VERSION            ← english_db_content (db is prod-bound content
-#                            shared by both targets)
 #   cms/VERSION           ← placeholder (cms has no docker image today;
 #                            reserved for a future CMS pipeline version
 #                            stamp — no reader wired to this file today)
@@ -16,15 +14,20 @@
 # Bumping backend/VERSION releases a new english_backend_dev AND a new
 # english_backend at the same tag; same for frontend/VERSION.
 #
+# The runtime database is TencentDB — there is no db image in the
+# release pipeline. Content goes straight from cms/staging/ into the
+# cloud db via db/scripts/import_staging.sh (run on the CMS host,
+# separately from this release script). Dev / prod hosts only need the
+# backend + frontend images.
+#
 # Subcommands:
-#   show                  Print all 4 per-segment VERSION files.
+#   show                  Print all 3 per-segment VERSION files.
 #   dev  [X.Y.Z]          Bump backend/VERSION + frontend/VERSION
 #                         (if X.Y.Z given) + build the dev app images.
 #                         dev never pushes — image lifecycle is local.
-#   prod [X.Y.Z]          Bump db/VERSION + backend/VERSION +
-#                         frontend/VERSION (if X.Y.Z given) + bake +
-#                         push the content-baked db image + build + push
-#                         the prod app images.
+#   prod [X.Y.Z]          Bump backend/VERSION + frontend/VERSION
+#                         (if X.Y.Z given) + build + push the prod
+#                         app images.
 #   -h | help             Show usage.
 #
 # Flags (apply to dev / prod):
@@ -45,18 +48,10 @@
 #                              shared project config, not a personal secret).
 #
 # Architecture notes:
-#   - `dev` touches ONLY the app segments' VERSION files
-#     (backend/VERSION + frontend/VERSION). The content-baked db
-#     image is prod-bound and reads db/VERSION; if you want dev to see new
-#     content, run `prod` first (or just push a new db with db/VERSION).
-#   - `prod` includes the db bake. The bake step needs the CMS secrets
-#     (AI_*, TENCENT_*, CLOUD_*), which now come from GitHub Environments
-#     via `scripts/secrets/fetch_secrets.sh eval-cms` — `prod` therefore
-#     must run on a host that has access to the upstream repo's secrets
-#     (CMS host, or a single-machine CMS+prod setup). On a dedicated
-#     prod target host without secrets access, run db/scripts/build.sh
-#     on the CMS host first, then run ops/prod/build_image.sh +
-#     push_image.sh on the prod host.
+#   - `dev` and `prod` both touch ONLY the app segments' VERSION files
+#     (backend/VERSION + frontend/VERSION). The cloud db has no
+#     version stamp; schema is tracked by schema_migrations row count,
+#     content is the latest db/scripts/import_staging.sh run.
 #   - For multi-machine deployments, run each subcommand on its
 #     respective host. The script is self-contained per host.
 #
@@ -80,15 +75,13 @@ source "$SCRIPT_DIR/lib.sh"
 # Each release stream touches its own set of per-segment VERSION files.
 # One file per segment (no dev/prod split): backend/VERSION gates both
 # english_backend_dev + english_backend, frontend/VERSION gates both
-# english_frontend_dev + english_frontend. dev bumps just the app
-# segments (no db — dev never ships a new content-baked db image);
-# prod bumps db + backend + frontend in lockstep (same tag applied to
-# all three).
+# english_frontend_dev + english_frontend. dev and prod both bump just
+# the app segments (no db image in the pipeline anymore).
 #
-# ops/release.sh show prints all 4 per-segment files.
+# ops/release.sh show prints all 3 per-segment files.
 DEV_VERSION_PATHS=(backend/VERSION frontend/VERSION)
-PROD_VERSION_PATHS=(db/VERSION backend/VERSION frontend/VERSION)
-ALL_VERSION_PATHS=(db/VERSION cms/VERSION backend/VERSION frontend/VERSION)
+PROD_VERSION_PATHS=(backend/VERSION frontend/VERSION)
+ALL_VERSION_PATHS=(cms/VERSION backend/VERSION frontend/VERSION)
 YES=0
 
 # Resolve DOCKER_REGISTRY once at startup. The chain is:
@@ -109,11 +102,11 @@ usage() {
 用法: $0 <command> [X.Y.Z] [-y]
 
 命令:
-  show                打印 4 个 per-segment VERSION 文件
+  show                打印 3 个 per-segment VERSION 文件
   dev  [X.Y.Z]        bump backend/VERSION + frontend/VERSION (如指定)
                       + build dev 应用镜像
-  prod [X.Y.Z]        bump db/VERSION + backend/VERSION + frontend/VERSION
-                      (如指定) + bake db + push db + build + push prod 应用镜像
+  prod [X.Y.Z]        bump backend/VERSION + frontend/VERSION (如指定)
+                      + build + push prod 应用镜像
   -h | help           显示帮助
 
 Flags:
@@ -129,15 +122,13 @@ Flags:
 示例:
   $0 show
   $0 dev  v0.3.0                    # dev 流: bump + build
-  $0 prod v0.3.0 -y                 # prod 流: bump + bake db + push + build prod + push
+  $0 prod v0.3.0 -y                 # prod 流: bump + build + push
   $0 dev                            # 不 bump, 只 publish 当前 dev VERSION 文件
 
 架构前提:
-  - dev  不动 content-baked db image (db 用 db/VERSION)
-  - prod 含 db bake — 需要 CMS 密钥(AI_*/TENCENT_*/CLOUD_*),现从 GH Environments
-    拉取: eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"。必须能在有 secrets
-    权限的机器上跑 (CMS 主机,或单机的 CMS+prod)。无 secrets 权限的 prod target 主机
-    请先在 CMS 主机上跑 db/scripts/build.sh,再到 prod 主机跑 push_image.sh。
+  - 不动 db — runtime db 是 TencentDB,没有 image 要 release。Content 用
+    db/scripts/import_staging.sh 直接 UPSERT 到云 db(在 CMS 主机上,跟
+    release 脚本独立)。
   - 多机部署: 在各自主机上跑对应的 subcommand
 EOF
 }
@@ -204,7 +195,6 @@ git_commit_touched() {
 # ---------------------------------------------------------------------------
 
 cmd_show() {
-    info "db/VERSION       = $(read_version_file db/VERSION)"
     info "cms/VERSION      = $(read_version_file cms/VERSION)"
     info "backend/VERSION  = $(read_version_file backend/VERSION)"
     info "frontend/VERSION = $(read_version_file frontend/VERSION)"
@@ -286,7 +276,7 @@ run_step() {
 }
 
 # publish_one <role> <build_script> <push_script> <tag>
-#   role        — "dev app" / "prod app" / "db" (just for logging)
+#   role        — "dev app" / "prod app" (just for logging)
 #   build_script — ops/<host>/build_image.sh
 #   push_script  — ops/<host>/push_image.sh (or empty to skip)
 #   tag          — IMAGE_TAG value
@@ -335,14 +325,6 @@ cmd_prod() {
     tag="$(bump_stream_paths "prod" "$requested" "${PROD_VERSION_PATHS[@]}")"
     local touched_prod=0
     [ "${RELEASEd_BUMP:-0}" = "1" ] && touched_prod=1
-
-    echo ""
-    # db first — content-baked, must go before the app images in the registry
-    # so target hosts pulling by tag get a consistent set.
-    publish_one "content-baked db image (content-baked)" \
-        "./db/scripts/build.sh" \
-        "./db/scripts/push.sh" \
-        "$tag"
 
     echo ""
     publish_one "prod app images (backend + frontend)" \

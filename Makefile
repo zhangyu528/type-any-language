@@ -22,13 +22,9 @@ SHELL := /usr/bin/env bash
 # dev target host — daily driver (containers + compose watch)
 # ---------------------------------------------------------------------------
 
-## dev-setup: first-time bootstrap (ensure db image + build dev apps)
+## dev-setup: first-time bootstrap (verify cloud-db + build dev apps)
 dev-setup:
 	@bash ops/dev/setup.sh
-
-## dev-setup-content: rebake dev db image from cms/staging + restart
-dev-setup-content:
-	@bash ops/dev/setup.sh content
 
 ## dev-start: start dev containers + background compose watch
 dev-start:
@@ -42,7 +38,7 @@ dev-stop:
 dev-restart:
 	@bash ops/dev/lifecycle.sh restart
 
-## dev-doctor: preflight check (images / drift / ports)
+## dev-doctor: preflight check (images / drift / ports / cloud-db)
 dev-doctor:
 	@bash ops/dev/doctor.sh
 
@@ -54,7 +50,7 @@ dev-logs:
 dev-watch:
 	@bash ops/dev/watch.sh
 
-## dev-migrate: apply pending schema migrations to running dev db
+## dev-migrate: apply pending schema migrations to live cloud db (host-side runner)
 dev-migrate:
 	@bash ops/dev/migrate.sh
 
@@ -66,7 +62,7 @@ dev-build:
 # prod target host — pre-built, no watch, registry-pulled
 # ---------------------------------------------------------------------------
 
-## prod-setup: first-time bootstrap (pull db image + build prod apps)
+## prod-setup: first-time bootstrap (verify cloud-db + build prod apps)
 prod-setup:
 	@bash ops/prod/setup.sh
 
@@ -82,7 +78,7 @@ prod-stop:
 prod-restart:
 	@bash ops/prod/lifecycle.sh restart
 
-## prod-doctor: preflight check for prod host
+## prod-doctor: preflight check for prod host (includes cloud-db probe)
 prod-doctor:
 	@bash ops/prod/doctor.sh
 
@@ -104,24 +100,24 @@ prod-push:
 # ---------------------------------------------------------------------------
 
 ## cms-env-init: first-time create cms/.env + smart defaults
-cms-env-init:
-	@bash cms/scripts/env.sh init
+# retired — secrets come from GitHub Environments via
+#   eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"
+# (see scripts/secrets/fetch_secrets.sh and CLAUDE.md "CMS host —
+# secrets come from GitHub Environments"). Use cms-doctor as the
+# pre-flight to confirm fetch_secrets.sh was eval'd.
 
 ## cms-env-show: print current cms/.env (secrets redacted)
-cms-env-show:
-	@bash cms/scripts/env.sh show
+# retired — see cms-env-init above.
 
 ## cms-env-doctor: validate cms/.env completeness
-cms-env-doctor:
-	@bash cms/scripts/env.sh doctor
+# retired — see cms-env-init above.
 
 ## cms-env-update KEY=VALUE: update one key, keep others unchanged
-cms-env-update:
-	@bash cms/scripts/env.sh update
+# retired — see cms-env-init above.
 
-## cms-sync: CSVs → cms/staging/vocabulary/<lib>.json (Extract)
-cms-sync:
-	@bash cms/scripts/staging.sh sync
+## cms-vocab: CSVs → cms/staging/vocabulary/<lib>.json (Extract)
+cms-vocab:
+	@bash cms/scripts/staging.sh vocab
 
 ## cms-sentences: OpenAI → cms/staging/sentences/<lib>.jsonl
 cms-sentences:
@@ -131,43 +127,19 @@ cms-sentences:
 cms-audio:
 	@bash cms/scripts/staging.sh audio
 
-## cms-staging-doctor: cms/.env + Python deps preflight
+## cms-staging-doctor: cms env + Python deps preflight
 cms-staging-doctor:
 	@bash cms/scripts/staging.sh doctor
 
-## cms-publish: export staging bundle for db side
-cms-publish:
-	@bash cms/scripts/staging.sh publish
-
-## cms-export: alias of cms-publish
-cms-export:
-	@bash cms/scripts/staging.sh export
-
-## cms-run: full CMS pipeline (sync + sentences + audio + db bake)
+## cms-run: full CMS pipeline (vocab + sentences + audio, no db import)
 cms-run:
 	@bash cms/run.sh
 
 # ---------------------------------------------------------------------------
-# db — content side: source db + import + bake + push
+# db — cloud-db (TencentDB) side: bootstrap + import + migrate
 # ---------------------------------------------------------------------------
 
-## db-source-ensure: idempotent start of cms-source-db (returns 0 if reachable)
-db-source-ensure:
-	@bash db/scripts/source_db.sh ensure
-
-## db-source-status: print source db state
-db-source-status:
-	@bash db/scripts/source_db.sh status
-
-## db-source-start: force-start cms-source-db
-db-source-start:
-	@bash db/scripts/source_db.sh start
-
-## db-source-stop: stop cms-source-db
-db-source-stop:
-	@bash db/scripts/source_db.sh stop
-
-## db-import: import cms/staging/* into staging db (UPSERT)
+## db-import: import cms/staging/* into cloud db (UPSERT)
 db-import:
 	@bash db/scripts/import_staging.sh all
 
@@ -175,17 +147,17 @@ db-import:
 db-init-schema:
 	@bash db/scripts/init_schema.sh
 
-## db-migrate: apply pending schema migrations to staging db
+## db-migrate: apply pending schema migrations to cloud db
 db-migrate:
 	@bash db/scripts/migrate.sh
 
-## db-bake: dump + assemble + docker build (english_db_content*)
-db-bake:
-	@bash db/scripts/build.sh
+## db-bootstrap-dev: one-time ROLE/DB/GRANT for a dev host (writes .secrets/database_url)
+db-bootstrap-dev:
+	@bash ops/dev/setup.sh bootstrap
 
-## db-push: push baked db image to $DOCKER_REGISTRY
-db-push:
-	@bash db/scripts/push.sh
+## db-bootstrap-prod: one-time ROLE/DB/GRANT for a prod host (writes .secrets/database_url)
+db-bootstrap-prod:
+	@bash ops/prod/setup.sh bootstrap
 
 # ---------------------------------------------------------------------------
 # release orchestration + multi-image local builds
@@ -199,17 +171,13 @@ release-show:
 release-dev:
 	@bash ops/release.sh dev
 
-## release-prod [X.Y.Z]: bump db/VERSION + backend/VERSION + frontend/VERSION + bake db + build + push all
+## release-prod [X.Y.Z]: bump backend/VERSION + frontend/VERSION + build + push prod apps
 release-prod:
 	@bash ops/release.sh prod
 
-## build-all: local multi-image build (db + dev + prod), no push
+## build-all: local multi-image build (dev + prod), no push
 build-all:
 	@bash ops/build.sh
-
-## build-db: only bake content-baked db image
-build-db:
-	@bash ops/build.sh db
 
 ## build-dev-only: only build dev app images
 build-dev-only:

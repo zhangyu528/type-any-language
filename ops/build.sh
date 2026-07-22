@@ -6,33 +6,30 @@
 # existing per-stream build scripts so an operator can produce a complete,
 # locally-runnable set of images in one command:
 #
-#   - content-baked db image         (content-baked, via db/scripts/build.sh)
 #   - dev app images   (english_backend_dev + english_frontend_dev)
 #   - prod app images  (english_backend + english_frontend)
 #
+# The runtime database is TencentDB — there is no db image in the
+# build pipeline. Content goes straight from cms/staging/ into the
+# cloud db via db/scripts/import_staging.sh on the CMS host (a
+# separate step from this build script).
+#
 # Pushing is intentionally NOT handled here — use ops/release.sh for
 # that. This script is for the "build everything so I can run/test it
-# locally" workflow: a CMS host that bakes + locally runs dev, a single-
-# machine CMS+dev+prod setup, or just "rebuild after a code change".
+# locally" workflow: a single-machine CMS+dev+prod setup, or just
+# "rebuild after a code change".
 #
 # Subcommands:
-#   (default) | all    Build db + dev + prod (the typical full local build).
-#   db                 Just bake the content-baked db image (CMS content pipeline output).
-#   dev                Build dev backend+frontend (requires content-baked db image present).
-#   prod               Build prod backend+frontend (requires content-baked db image present).
+#   (default) | all    Build dev + prod (the typical full local build).
+#   dev                Build dev backend+frontend only.
+#   prod               Build prod backend+frontend only.
 #   -h | help          Show usage.
-#
-# The dev / prod app builds each need the db image's OCI labels
-# (DB_USER / DB_NAME) — that's why the db bake runs first under `all`.
-# If you already have a content-baked db image at the right tag, just run `dev` / `prod`
-# directly (or pull it from the registry with `docker pull`).
 #
 # Image tags follow the standard chain (each inner build script does its
 # own resolution via lib.sh → resolve_image_tag):
 #
-#   per-image env (BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG / DB_IMAGE_TAG)
+#   per-image env (BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG)
 #   > IMAGE_TAG                       # unified override for one-off builds
-#   > db/VERSION                       # content-baked db image
 #   > backend/VERSION                  # backend stream (dev + prod tags)
 #   > frontend/VERSION                 # frontend stream (dev + prod tags)
 #   > v0.0.0                           # last-resort default (will warn once)
@@ -41,7 +38,7 @@
 #
 #   IMAGE_TAG=v1.2.3 ./ops/build.sh all
 #
-# Requires: shell + docker (+ python for the db bake).
+# Requires: shell + docker.
 
 set -e
 
@@ -53,7 +50,7 @@ source "$SCRIPT_DIR/lib.sh"
 
 require_docker
 
-# Per-image env vars (BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG / DB_IMAGE_TAG)
+# Per-image env vars (BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG)
 # propagate automatically because they're already in the environment.
 # IMAGE_TAG is the unified override — export it so every inner resolve_image_tag
 # call picks it up consistently.
@@ -66,8 +63,7 @@ usage() {
 用法: $0 <command>
 
 命令:
-  (default) | all   Build db + dev + prod (完整本地 build)
-  db                只 bake content-baked db image (CMS 内容流水线产物)
+  (default) | all   Build dev + prod (完整本地 build)
   dev               Build dev 应用镜像 (english_backend_dev + english_frontend_dev)
   prod              Build prod 应用镜像 (english_backend + english_frontend)
   -h | help         显示帮助
@@ -75,25 +71,22 @@ usage() {
 不负责 push — 想推到 registry 请用 ops/release.sh。
 
 Image tag 解析(每个 inner build 自己 resolve, 见 lib.sh → resolve_image_tag):
-  per-image env (BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG / DB_IMAGE_TAG)
+  per-image env (BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG)
   > IMAGE_TAG                       (统一覆盖)
-  > db/VERSION / backend/VERSION / frontend/VERSION    (per-segment, 单文件同时管 dev+prod)
+  > backend/VERSION / frontend/VERSION    (per-segment, 单文件同时管 dev+prod)
   > v0.0.0                          (缺省)
 
 示例:
-  $0                          # 默认: db + dev + prod
+  $0                          # 默认: dev + prod
   $0 all                      # 同上
-  $0 dev                      # 只 dev 流 (假定 content-baked db image 已存在)
-  $0 db                       # 只 bake db
+  $0 dev                      # 只 dev 流
+  $0 prod                     # 只 prod 流
   IMAGE_TAG=v0.3.0 $0 all     # 一次性覆盖所有 tag
-  DB_IMAGE_TAG=v0.5.0 $0 all  # 只覆盖 db tag,dev/prod 走各自的 VERSION 文件
 
 架构前提:
-  - dev / prod 的 build_image.sh 需要 content-baked db image 的 OCI label (DB_USER / DB_NAME),
-    所以 all / dev / prod 都假设 content-baked db image 已经在本地(或先跑过 db)。
-  - db bake 需要 db 凭据 (DATABASE_URL / POSTGRES_PASSWORD via `eval $(fetch_secrets.sh eval-db)`
-    或 .secrets/postgres_password) + 跑着 cms-source-db 容器(或用本地 postgres / CI db;
-    legacy english_db / english_db_dev 名仍探测到)。cms/.env 已退役。
+  - 不动 db — runtime db 是 TencentDB,没有 image 要 build。Content 用
+    db/scripts/import_staging.sh 直接 UPSERT 到云 db(在 CMS 主机上跑,
+    跟本脚本独立)。
   - 多机部署: 各自机器跑各自的 inner build 脚本即可,build.sh 主要方便
     单机 CMS+dev+prod 一把梭。
 EOF
@@ -112,13 +105,7 @@ run_step() {
 }
 
 cmd_all() {
-    info "=== build all (db + dev + prod) ==="
-    echo ""
-
-    # db first — its OCI labels (DB_USER / DB_NAME) are needed by the
-    # dev / prod build scripts' compose interpolation.
-    run_step "bake content-baked db image (content-baked)" \
-        ./db/scripts/build.sh
+    info "=== build all (dev + prod) ==="
     echo ""
 
     run_step "build dev backend + frontend" \
@@ -132,14 +119,6 @@ cmd_all() {
     ok "build all done."
     info "  → 启动 dev:  ./ops/dev/lifecycle.sh start"
     info "  → 启动 prod: ./ops/prod/lifecycle.sh start"
-}
-
-cmd_db() {
-    info "=== build db only ==="
-    run_step "bake content-baked db image (content-baked)" \
-        ./db/scripts/build.sh
-    echo ""
-    ok "build db done."
 }
 
 cmd_dev() {
@@ -165,7 +144,6 @@ cmd_prod() {
 # ---------------------------------------------------------------------------
 case "${1:-}" in
     all|"")         cmd_all ;;
-    db)             cmd_db ;;
     dev)            cmd_dev ;;
     prod)           cmd_prod ;;
     -h|--help|help) usage ;;
