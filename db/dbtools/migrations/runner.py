@@ -40,10 +40,11 @@ Public API:
         Create the bookkeeping table if missing. Idempotent.
 
 Invoked by:
-  - db/scripts/migrate.sh  — source-db (cms-source-db) on the CMS host
-  - ops/dev/migrate.sh     — runtime db (type-any-language-db-1) on a
-                             dev target host, via a sidecar container
-                             on the compose network
+  - db/scripts/migrate.sh  — any host with DATABASE_URL (typically the
+                             CMS host, runs migrations against the cloud db)
+  - ops/dev/migrate.sh     — dev target host, host-side runner that
+                             sources db/scripts/lib.sh::resolve_dev_db_url
+                             and re-execs db/scripts/migrate.sh
 
 Both callers set PYTHONPATH=/db and run `python -m dbtools.migrations.runner`.
 """

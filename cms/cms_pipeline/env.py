@@ -12,10 +12,10 @@ get validated settings.
 Validation contract:
   - DATABASE_URL / POSTGRES_PASSWORD are NOT touched here. CMS modules
     do not connect to the database — they only write files to
-    cms/staging/. The db side (db/scripts/source_db.sh / build.sh /
-    migrate.sh) resolves the password itself from shell env or
-    .secrets/postgres_password, and assembles DATABASE_URL before
-    invoking db-side Python.
+    cms/staging/. The db side (db/scripts/bootstrap_tencent.sh /
+    init_schema.sh / migrate.sh / import_staging.sh) resolves DATABASE_URL
+    itself from shell env or .secrets/database_url before invoking
+    db-side Python.
   - AI_API_KEY / AI_BASE_URL / AI_MODEL are OPTIONAL at load time.
     Each is `str | None`. Consumer modules that talk to OpenAI should
     call `cfg.require_ai()` first, which raises with a clear pointer
@@ -73,7 +73,8 @@ class Config:
     audio_dir: str
 
     # Staging output dir — where CMS writes vocabulary/sentences JSON+JSONL
-    # files. git-tracked; consumed by db/scripts/import_staging.sh at bake time.
+    # files. git-tracked; consumed by db/scripts/import_staging.sh on
+    # any host with DATABASE_URL (typically the CMS host).
     staging_dir: str
 
     # Cloud storage — Optional. Required only when CLOUD_PROVIDER is
@@ -163,8 +164,8 @@ _DEFAULT_AUDIO_DIR = "cms/.local/audio"
 # Where the CMS pipeline writes its output JSON/JSONL (vocabulary/*.json,
 # sentences/*.jsonl, manifest.json). This directory IS git-tracked (see
 # cms/.gitignore) — it's the "transmission layer" between CMS host and
-# dev hosts. CMS writes here, dev pulls via git, dev runs
-# db/scripts/import_staging.sh to UPSERT into the local staging db.
+# the db's L step. CMS writes here; db/scripts/import_staging.sh reads
+# from here and UPSERTs into the cloud db.
 #
 # Override via CMS_STAGING_DIR in the shell (rare; mostly for tests).
 _DEFAULT_STAGING_DIR = "cms/staging"

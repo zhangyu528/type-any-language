@@ -22,11 +22,13 @@ environment, typically:
                     `eval "$(scripts/secrets/fetch_secrets.sh eval-db)"`
                     to inject DATABASE_URL from GitHub Secrets.
 
-The legacy fallback to .secrets/postgres_password is retained so
-direct invocations of `PYTHONPATH=db python3 -m dbtools.importer` (or
-init_schema / migrations.runner) still work without bootstrap — useful
-for ad-hoc CLI use where the operator composes POSTGRES_* env vars
-by hand.
+The legacy fallback to .secrets/postgres_password is retained as a
+defensive last-resort for direct invocations of
+`PYTHONPATH=db python3 -m dbtools.init_schema` / `dbtools.importer`
+without prior bootstrap (e.g. legacy ad-hoc CLI use where the operator
+composes POSTGRES_* env vars by hand). Cloud-db path exports
+DATABASE_URL via resolve_dev_db_url / resolve_prod_db_url before Python
+starts — this fallback never runs on a freshly-bootstrapped host.
 
 Mirrors the URL assembly in db/scripts/migrate.sh /
 db/scripts/import_staging.sh (via ops/lib.sh's db_assemble_url helper)
@@ -39,8 +41,8 @@ import sys
 from pathlib import Path
 from urllib.parse import quote
 
-# Code defaults — match db/scripts/build.sh and db/scripts/export_bundle.py
-# so any of them produces the same DATABASE_URL for the same env.
+# Code defaults — match db/scripts/lib.sh (resolve_*_db_url) so any
+# caller produces the same DATABASE_URL for the same env.
 _DEFAULT_POSTGRES_USER = "english_user"
 _DEFAULT_POSTGRES_DB = "english_learning"
 _DEFAULT_POSTGRES_HOST = "localhost"
@@ -67,7 +69,8 @@ def resolve_database_url() -> str:
     running
         eval "$(scripts/secrets/fetch_secrets.sh eval-db)"
     first, or by relying on db_assemble_url (from the db-side shell
-    scripts) which writes .secrets/postgres_password on first start.
+    scripts) which falls back to .secrets/postgres_password for
+    self-hosted / ad-hoc CLI use.
     """
     explicit = os.environ.get("DATABASE_URL", "").strip()
     if explicit:
@@ -80,15 +83,16 @@ def resolve_database_url() -> str:
 
     pw = os.environ.get("POSTGRES_PASSWORD", "").strip()
     if not pw:
-        # Last resort: try .secrets/postgres_password (same fallback
-        # db/scripts/build.sh uses).
+        # Last resort: try .secrets/postgres_password (legacy fallback for
+        # self-hosted postgres without bootstrap_tencent.sh).
         secrets = find_project_root() / ".secrets" / "postgres_password"
         if secrets.is_file():
             pw = secrets.read_text(encoding="utf-8").strip()
     if not pw:
         sys.exit(
             "POSTGRES_PASSWORD is empty. Set POSTGRES_PASSWORD in the shell, "
-            "or provide .secrets/postgres_password."
+            "or provide .secrets/postgres_password. For cloud-db hosts, run "
+            "`ops/{dev,prod}/setup.sh bootstrap` instead."
         )
 
     return f"postgresql://{quote(user, safe='')}:{quote(pw, safe='')}@{host}:{port}/{db}"

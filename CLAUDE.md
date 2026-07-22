@@ -4,89 +4,63 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-English learning web app — plays a sentence's audio and the user types the complete sentence. **All content (vocabulary, AI-generated sentences, TTS audio) is baked into the db image at build time on the CMS host.** Target hosts (dev / prod) are a pure read-layer: no AI calls, no TTS calls, no scheduler, no Python on the host.
+English learning web app — plays a sentence's audio and the user types the complete sentence. **The runtime database lives in Tencent Cloud (TencentDB) Postgres, not in a baked Docker image.** Target hosts (dev / prod) are a pure read-layer: no AI calls, no TTS calls, no scheduler, no db container — just `backend` + `frontend` (and `nginx` on prod). The CMS host produces staging files (`cms/staging/`); `db/scripts/import_staging.sh` UPSERTs them straight into the live cloud db.
 
-## Two-host architecture
+## Three-segment architecture
 
-This project intentionally separates **content production** from **content serving**:
+This project intentionally separates **content production** from **content serving** from **content storage**:
 
-| Host | Role | What lives here | What runs here |
+| Host / Service | Role | What lives here | What runs here |
 |---|---|---|---|
 | **CMS host** | Content production (writes staging files) | `cms/` (env, scripts, source, tools) | Python + Docker |
 | **Target host** (dev or prod) | Content serving | `ops/dev/` or `ops/prod/` | Docker only |
-| **DB image build** (CMS host or CI) | Schema + db container + bake + importer | `db/` (Dockerfile, builder, scripts, tools/dbtools/) | Docker only |
+| **DB image build** (CMS host or CI) | Schema + importer + cloud-db bootstrap | `db/` (scripts, dbtools) | Docker **and** Python — but no `docker build` |
+| **TencentDB** (external) | Runtime database (shared across all target hosts) | schema + vocabulary + sentences tables; bootstrap-created ROLE/DB per host | managed Postgres service |
 
 The CMS host produces **staging files** (vocabulary JSON + sentences JSONL) via the
-CMS pipeline. The CMS pipeline does **not** touch the database — the db side has its
-own importer (`db/dbtools/importer.py`) that reads the staging files and
-UPSERTs them into the database. Then the db image is baked from that database and
-pushed to a registry. Target hosts `docker pull` the image and serve it — they
-never need AI keys, TTS keys, or Python. **Target hosts need no .env file at all**
-— runtime configuration (only `ALLOWED_ORIGINS`) is passed via shell env, and the
-host-side secret (`POSTGRES_PASSWORD`) is generated on first start by `lifecycle.sh`.
+CMS pipeline. `db/scripts/import_staging.sh` (on the CMS host, or any machine
+with `DATABASE_URL`) reads them and UPSERTs straight into the cloud Postgres.
+Target hosts `docker pull` only `english_backend{,_dev}` + `english_frontend{,_dev}`
+images — they never need AI keys, TTS keys, or Python. Backend reads `DATABASE_URL`
+from a host-side `.secrets/database_url` file written by `db/scripts/bootstrap_tencent.sh`
+(called from `ops/{dev,prod}/setup.sh bootstrap`); compose mounts it as a
+`secrets:` file and the container reads it via `DATABASE_URL_FILE`.
 
-### Dev host can also bake content on demand
+**Target hosts need no .env file at all** — runtime configuration (only
+`ALLOWED_ORIGINS`) is passed via shell env, and the DSN is the `.secrets/database_url`
+file. The cloud db's password is provisioned once per host by `setup.sh bootstrap`.
 
-The "target hosts are a pure read-layer" rule above has one explicit opt-in: **`ops/dev/setup.sh content`**. Dev hosts treat `cms/staging/` as git-tracked read-only input (it's already committed into the repo), and that one command does `import_staging.sh` → `build.sh` (tag = `dev-local`) → `lifecycle.sh restart`, so the running dev containers swap to the freshly baked image in a single step.
+### Dev host can also import + migrate on demand
 
-It does NOT call `cms/run.sh` — the CMS pipeline (sync / sentences / audio) is still strictly CMS-host territory. Dev hosts that need fresh content edit CSVs / sentences JSONL upstream, commit, `git pull`, then run `./ops/dev/setup.sh content`. The freshly baked image is `english_db_content:dev-local`; it's a sandbox-only tag and never reaches the registry.
+The "target hosts are a pure read-layer" rule above has two dev-only opt-ins:
+
+- **`ops/dev/migrate.sh`** — apply pending schema migrations to the live cloud
+  db (host-side runner, no sidecar container). Use after editing
+  `db/dbtools/migrations/versions/*.py`.
+- **`db/scripts/import_staging.sh`** — UPSERT `cms/staging/` into the cloud db.
+  Operators typically run this on the CMS host, but a dev host with
+  `DATABASE_URL` in env can run it too.
 
 ### ETL architecture (CMS produces files, db imports them)
 
-The CMS/db split follows an ETL pattern: **E**xtract (CSVs) and **T**ransform
-(AI / TTS) live entirely on the CMS side as files in `cms/staging/`; the
-**L**oad (UPSERT into Postgres) is the db side's job, via `dbtools.importer`.
-
-```
-        CMS host (Python)                              CMS/db boundary
-                                                                       
-   cms/seed/vocabulary/*.csv  ─┐                                    
-   cms/seed/prompts/*.yaml    │                                    
-   cms/seed/manifest.yaml     │   a) import_vocab.py                
-                                ├──────────────►  cms/staging/ 
-   cms/.env (AI_*, TENCENT_*)   │                     vocabulary/    
-                                │                     *.json         
-                                │                                       
-                                │   b) generate_sentences.py           
-                                │     reads vocab JSON, calls          
-                                │     OpenAI, appends to               
-                                ▼                                       
-                          cms/staging/                           
-                              sentences/*.jsonl                          
-                                │                                        
-                                │   c) generate_audio.py               
-                                │     reads sentences JSONL,           
-                                │     calls TTS, uploads to            
-                                │     Storage (LocalFs / Tencent COS), 
-                                │     updates audio_url in JSONL       
-                                ▼                                        
-                          cms/staging/                           
-                              sentences/*.jsonl   ──►   FILES (公共区)  
-                                                                       
-        db side (Python + Postgres)                                     
-                          ┌──────────────────────────────────┐            
-                          │ d) dbtools.importer (all)         │            
-                          │    reads staging files            │            
-                          │    UPSERTs into:                  │            
-                          │      vocabulary_libs              │            
-                          │      vocabulary_words             │            
-                          │      sentences (+ audio_url)      │            
-                          └──────────────────────────────────┘            
-                                                                           
-                          e) db/scripts/build.sh                            
-                             pg_dump → 01-content.sql → docker build       
-                                                                           
-                          f) db/scripts/push.sh                             
-                             → DOCKER_REGISTRY                               
-```
+The CMS/db split follows an ETL pattern: **E**xtract (CSVs) and
+**T**ransform (AI / TTS) live entirely on the CMS side as files in
+`cms/staging/`; the **L**oad (UPSERT into TencentDB) is a separate
+step (`db/scripts/import_staging.sh`) run on any host with
+`DATABASE_URL` exported — typically the CMS host, but a dev host
+with `DATABASE_URL` can do it too. There is no db image — the cloud
+db is the canonical state.
 
 **Why ETL, not direct db writes?** The CMS side stays ignorant of the schema —
 only the importer knows about `vocabulary_libs` / `vocabulary_words` / `sentences`.
 Operators can re-run any single CMS step (CSVs → JSON, AI → JSONL, TTS → audio)
-without touching the database, and a failed `import_staging.sh` doesn't cost an
+without touching the database, and a failed `import_staging.sh` does not cost an
 extra OpenAI call (the JSONL is already on disk).
 
-Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generated on first start by `lifecycle.sh` (or reused if `.secrets/postgres_password` already exists) and written to `.secrets/postgres_password` (chmod 600). It is injected via compose's `secrets` block + `*_FILE` env indirection.
+The DSN never lives in a docker image. Host-side `DATABASE_URL` is provisioned
+once per target host by `ops/{dev,prod}/setup.sh bootstrap` (writes
+`.secrets/database_url`, chmod 600). Backend reads it via compose's `secrets:`
+block + `DATABASE_URL_FILE`.
 
 ## Repository structure
 
@@ -114,41 +88,34 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generat
 │   │   ├── manifest.yaml
 │   │   ├── vocabulary/   # CSVs per lib
 │   │   └── prompts/      # LLM prompts (sentences.yaml)
-│   ├── scripts/          # CMS shell tools (env.sh + staging.sh; not entry)
-│   │   ├── env.sh        # cms/.env lifecycle
+│   ├── scripts/          # CMS shell tools (staging.sh; not entry)
+│   │   └── staging.sh    # E+T file producer wrapper
 │   │   └── staging.sh    # E+T file producer wrapper
 │   ├── cms_pipeline/     # Python package (manifest / import_vocab / generate_sentences / generate_audio / storage / env)
 │   │   └── README.md
-├── db/                # Postgres image build context (postgres:15-alpine wrapper)
-│   ├── VERSION         # tag for english_db_content (db is prod-bound; shared by dev + prod targets)
-│   ├── Dockerfile    # copies init/01-content.sql (NO audio — db image has no MP3s)
-│   ├── builder.py    # assemble(bundle) + build_image(target, tag, ...)
-│   ├── run.sh        # end-to-end db driver (import + build + push, with dev|prod subcommands)
-│   │   ├── source_db.sh    # cms-source-db container lifecycle (ensure/start/stop/status)
-│   │   ├── init_schema.sh  # python -m dbtools.init_schema (base DDL)
-│   │   ├── migrate.sh      # python -m dbtools.migrations.runner (apply pending migrations)
-│   │   ├── import_staging.sh  # python -m dbtools.importer (staging files → db UPSERT)
-│   │   ├── build.sh        # export staging db → assemble → docker build
-│   │   ├── push.sh         # push english_db_content to DOCKER_REGISTRY
-│   │   └── export_bundle.py   # pg_dump the staging db → SQL (independent of CMS)
-│   ├── tools/                # Python package dbtools/ — schema + importer
-│   │   └── dbtools/          # init_schema / migrations / importer / db_url
-│   └── init/
-│       └── 01-content.sql   # pg_dump snapshot (bake-time output; .gitignore'd)
+├── db/                # Schema + importer + migrations + cloud-db bootstrap
+│   ├── scripts/        # shell entry points
+│   │   ├── lib.sh              # cloud-db helpers (resolve_dev/prod_db_url, render_db_name)
+│   │   ├── bootstrap_tencent.sh  # one-time ROLE/DB/GRANT + write .secrets/database_url
+│   │   ├── init_schema.sh      # python -m dbtools.init_schema (base DDL)
+│   │   ├── migrate.sh          # python -m dbtools.migrations.runner (apply pending migrations)
+│   │   └── import_staging.sh   # python -m dbtools.importer (staging files -> db UPSERT)
+│   └── dbtools/                # Python package dbtools/ - schema + importer
+│       └── (init_schema / migrations / importer / db_url)
 │
 ├── ops/                    # target-host operations + image build/release orchestrator
 │   ├── README.md            # ops/ layout, lib.sh helpers, conventions for new scripts
 │   ├── lib.sh               # shared helpers (ok/warn/err, docker detection, gen_secret)
-│   ├── build.sh             # local multi-image build (db + dev + prod) — no push
+├── build.sh             # local multi-image build (dev + prod) - no push
 │   ├── release.sh           # release orchestrator: bump + build + push (dev / prod / show)
 │   ├── build_ielts_csv.py   # one-off data-prep tool (IELTS word list → cms CSV format)
 │   ├── dev/                 # dev target host — lifecycle + per-subcommand helpers
-│   │   ├── _common.sh       # shared setup (image refs, db labels, secrets, watch)
+│   │   ├── _common.sh       # shared setup (image refs, cloud-db contract, watch)
 │   │   ├── lifecycle.sh     # start / stop / restart | reload
 │   │   ├── doctor.sh
 │   │   ├── setup.sh
 │   │   ├── logs.sh
-│   │   ├── migrate.sh       # schema migration (dev-only)
+│   │   ├── migrate.sh       # apply schema migrations to live cloud db (host-side runner)
 │   │   ├── watch.sh         # foreground compose watch (dev-only)
 │   │   └── build_image.sh   # build english_backend_dev + english_frontend_dev
 │   └── prod/                # prod target host — same shape, no migrate/watch
@@ -161,50 +128,59 @@ Secrets never live inside the db image. Host-side `POSTGRES_PASSWORD` is generat
 │       ├── push_image.sh    # push prod backend+frontend to DOCKER_REGISTRY
 │       └── nginx.conf       # prod-only reverse proxy config
 │
-├── compose-shared.yml       # shared `db` service block — `include:`d by both compose files
-├── docker-compose.yml        # prod stack orchestration (compose v2.20+ `include:`)
+├── docker-compose.yml        # prod stack orchestration (backend + frontend + nginx)
 └── docker-compose.dev.yml    # dev stack orchestration (hot-reload, compose-watch)
 ```
 
-The runtime `docker-compose.yml` references the `db` image as a service — the image's OCI labels (`type-any-language.db.user`, `type-any-language.db.name`, `type-any-language.content.version`, `type-any-language.content.baked-at`) are read at start time by `ops/dev/lifecycle.sh` / `ops/prod/lifecycle.sh` to discover the db identity. `POSTGRES_PASSWORD` is NOT in those labels.
+The runtime `docker-compose.yml` mounts the host-side `.secrets/database_url`
+into the backend container via compose's `secrets:` block + `DATABASE_URL_FILE`.
+The backend reads it opaquely; nothing in the image depends on the DSN host.
 
 ## Commands
 
 ### CMS host — content production
 
-> **Rename notes** (recent releases):
->
-> - `.env.db` → `cms/.env` (one-time `mv`, then `staging.sh` / `db/scripts/build.sh` keeps working; the file is gitignored).
-> - `cms/scripts/etl.sh` → `cms/scripts/staging.sh`. The script no longer does L (Load is now exclusively the db-side `./db/scripts/import_staging.sh all`); the CMS ETL split is now visible at the script-name level: `staging.sh` produces files in `cms/staging/`, `cms/run.sh` orchestrates the CMS driver through E+T, `db/scripts/import_staging.sh` is the separate Load step.
-> - `run.sh` moved up one level: was inside `cms/scripts/`, now at `cms/run.sh` (entry point vs tools split is visible at the dir level — tools stay under `cms/scripts/`, the main driver is the bare `cms/run.sh` you type first).
->
-> To pin a different env path, export `CONTENT_ENV_FILE=/some/path/.env.staging` in the shell (same precedence pattern as `DOCKER_REGISTRY`).
+> **History note** (secrets storage migration): prior to the GitHub
+> Environments migration, this project stored AI/TENCENT/CLOUD credentials
+> in a local `cms/.env` (gitignored), managed by `cms/scripts/env.sh`
+> (init/update/show/doctor). Both the file and the bootstrap script have
+> since been retired. All CMS secrets now live in GitHub Environments
+> (`dev` / `test` / `prod`) and are fetched into the process environment
+> on demand by `scripts/secrets/fetch_secrets.sh eval-cms` (cms segment)
+> or `scripts/secrets/fetch_secrets.sh eval-db` (db segment). Operators
+> only need a `gh auth login`-authenticated workstation and access to the
+> upstream repo's secrets — there is no longer a local cms/.env file to
+> bootstrap. The CMS pipeline modules (`cms/cms_pipeline/*.py`) read
+> everything from `os.environ` with `setdefault` semantics, so process
+> env values injected by `fetch_secrets.sh` always win.
 
 ```bash
-# 1. 引导 cms/.env(首次)
-./cms/scripts/env.sh                # First-time cms/.env creation (interactive)
-./cms/scripts/env.sh doctor        # 验证 cms/.env 完整性
+# 0. 一次性 bootstrap (新工作站 / 改完 cms/pyproject.toml 后):
+#    装 Python deps + 验 gh/auth/repo + 打印 eval 行让操作员粘贴
+./cms/scripts/bootstrap.sh                # 默认装 [audio,cos]; --no-extras 只装 base
+
+# 1. 注入 CMS 密钥到当前 shell 的 process env (每次新 shell,或写到 ~/.bashrc)
+#    这一行 bootstrap.sh 会原样打印出来 — 复制粘贴即可
+eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"
 
 # 2. 跑内容管线 (writes staging files; db import is a separate step)
-./cms/scripts/staging.sh doctor     # Pre-flight: cms/.env + Python deps
-./cms/scripts/staging.sh sync       # CSVs → cms/staging/vocabulary/<lib>.json
-./cms/scripts/staging.sh sentences  # OpenAI → cms/staging/sentences/<lib>.jsonl
-./cms/scripts/staging.sh audio      # Tencent TTS → updates audio_url in sentences JSONL
+#    run.sh 默认入口会跑 vocab + sentences + audio 三步;缺 AI_*/TENCENT_*
+#    会硬卡退出 1(不再 warn 跳过,避免误以为跑完)。只跑 vocab 用 cmd_vocab.sh。
+./cms/run.sh                              # vocab + sentences + audio (硬依赖,缺密钥=exit 1)
+# ./cms/scripts/cmd_vocab.sh              # 只跑 vocab (不需要任何密钥)
 
-# 3. db side: import staging files → Postgres (separate step, db's job)
-./db/scripts/source_db.sh ensure    # 起 staging db (cms-source-db 容器或本地 postgres)
-./db/scripts/init_schema.sh         # (首次) 建 vocabulary_* / sentences / schema_migrations
-./db/scripts/migrate.sh             # 跑 pending schema migrations
-./db/scripts/import_staging.sh      # reads staging files, UPSERTs to db (独立步骤)
+# 3. db side: import staging files -> TencentDB (separate step, db's job)
+#    Requires DATABASE_URL in env (cloud-db path: bootstrap_tencent.sh writes
+#    .secrets/database_url, then db/scripts/lib.sh::resolve_*_db_url exports it).
+#    Self-hosted postgres users set DATABASE_URL via shell env or
+#    `eval "$(scripts/secrets/fetch_secrets.sh eval-db)"`.
+./db/scripts/init_schema.sh         # (first time) build vocabulary_* / sentences / schema_migrations
+./db/scripts/migrate.sh             # run pending schema migrations
+./db/scripts/import_staging.sh      # reads staging files, UPSERTs to cloud db (separate step)
 
-# 4. 烤 db image (从 staging db 读, 独立步骤, db 的职责)
-./db/scripts/build.sh         # export staging db → db/init/01-content.sql + docker build
-./db/scripts/push.sh [-y]    # Push the db image to DOCKER_REGISTRY
-
-# 5. 一步到位 (CMS driver + 3 个独立 db 步)
+# 4. One-shot (CMS driver + 1 db step)
 ./cms/run.sh                                       # CMS driver (E+T)
-./db/scripts/import_staging.sh all              # db: L (UPSERT staging 文件 → db)
-./db/scripts/build.sh                            # db: bake db image
+./db/scripts/import_staging.sh all                 # db: L (UPSERT staging files -> cloud db)
 ```
 
 `cms/scripts/staging.sh` is a thin wrapper over the `cms/cms_pipeline/*.py` modules. Each subcommand has its own `--help`. For module-by-module usage details, run `python -m cms_pipeline.<module> --help` (e.g. `python -m cms_pipeline.import_vocab --help`).
@@ -213,45 +189,53 @@ The runtime `docker-compose.yml` references the `db` image as a service — the 
 
 | Step | Tool | What it writes |
 |---|---|---|
-| sync (CSV → JSON) | `cms/cms_pipeline/import_vocab.py` | `cms/staging/vocabulary/<lib>.json` |
+| vocab (CSV → JSON) | `cms/cms_pipeline/import_vocab.py` | `cms/staging/vocabulary/<lib>.json` |
 | sentences (AI → JSONL) | `cms/cms_pipeline/generate_sentences.py` | appends to `cms/staging/sentences/<lib>.jsonl` |
 | audio (TTS → URL) | `cms/cms_pipeline/generate_audio.py` | updates `audio_url` field in sentences JSONL |
 | import (files → db) | **`db/dbtools/importer.py`** | UPSERT into `vocabulary_libs` / `vocabulary_words` / `sentences` |
-| bake (db → image) | `db/scripts/build.sh` | builds the `db` image from `db/init/01-content.sql` |
+| bake (db -> image) | *(retired)* | runtime db is TencentDB - no image bake |
 
-The CMS pipeline (steps sync/sentences/audio) **never** opens a db connection.
-Only `dbtools.importer` and `db/scripts/build.sh` touch Postgres. To re-run a single
-CMS step (e.g. you edited a CSV and only need to re-sync the vocab JSON), there's no
-need to spin up Postgres; the files in `cms/staging/` are the stable
+The CMS pipeline (steps vocab/sentences/audio) **never** opens a db connection.
+Only `dbtools.importer` touches Postgres. To re-run a single CMS step
+(e.g. you edited a CSV and only need to re-run the vocab step), there is no
+need to touch the database at all; the files in `cms/staging/` are the stable
 artifact until you decide to import.
 
 ### Dev target host
 
 ```bash
-./ops/dev/setup.sh          # First-time: 拉/检查 db image + build dev apps
-./ops/dev/doctor.sh         # Pre-flight
-./ops/dev/lifecycle.sh start          # compose up + 后台 spawn compose watch(自动 sync src/package.json)
+```bash
+./ops/dev/setup.sh          # First-time: verify cloud-db + build dev apps
+./ops/dev/setup.sh bootstrap   # (one-time) cloud-db setup - writes .secrets/database_url
+./ops/dev/doctor.sh         # Pre-flight (includes cloud-db reachability probe)
+./ops/dev/lifecycle.sh start          # compose up + background compose watch (auto-sync src/package.json)
 ./ops/dev/lifecycle.sh stop
 ./ops/dev/lifecycle.sh restart        # Hard restart (recreate + re-read secrets)
-./ops/dev/migrate.sh        # Apply pending schema migrations to runtime db
+./ops/dev/migrate.sh        # Apply pending schema migrations to live cloud db (host-side runner)
 ./ops/dev/logs.sh [svc]
-# Optional image publishing (offline / first-time local setup → registry):
+# Optional image publishing (offline / first-time local setup -> registry):
 ./ops/dev/build_image.sh        # build english_backend_dev + english_frontend_dev
                                           # dev host does NOT push (stay local)
 ./ops/prod/build_image.sh       # build english_backend + english_frontend
 ./ops/prod/push_image.sh -y     # push prod backend+frontend to DOCKER_REGISTRY
-./db/scripts/build.sh                    # bake content-baked db image (CMS host)
-./db/scripts/push.sh -y                  # push db image to DOCKER_REGISTRY
+./db/scripts/import_staging.sh all   # UPSERT latest cms/staging/ content into cloud db
 ```
 
-No `.env.dev` is needed. The dev compose file defaults `ALLOWED_ORIGINS` to `http://localhost,http://localhost:3000`; override via shell env. `POSTGRES_PASSWORD` is generated on first start.
+No `.env.dev` is needed. The dev compose file defaults `ALLOWED_ORIGINS` to `http://localhost,http://localhost:3000`; override via shell env. The cloud-db DSN comes from `.secrets/database_url` (written by `setup.sh bootstrap`) or `DATABASE_URL` in env.
 
-`setup` is the recommended entry point for a fresh checkout. It runs preflight (docker + compose), ensures the `db` image is present locally (auto-pulls from `DOCKER_REGISTRY` if set, otherwise — on a single-host CMS+dev machine — scaffolds `cms/.env` via `env.sh init` + validates with `env.sh doctor`, then runs the full local content pipeline: CSVs → staging JSON → AI sentences JSONL → TTS audio URLs → `import_staging.sh` UPSERTs to db → `db/scripts/build.sh` bakes the db image), and builds the dev `backend + frontend` images. It does NOT start containers or create `.secrets/` — that's `start`'s job. Re-running `setup` is safe (idempotent — every step short-circuits on existing state).
+`setup` is the recommended entry point for a fresh checkout. It runs preflight
+(docker + compose), verifies the cloud-db contract (`.secrets/database_url` or
+`DATABASE_URL` in env), and builds the dev `backend + frontend` images.
+It does NOT start containers or create `.secrets/` - that is `start`'s job.
+Re-running `setup` is safe (idempotent - every step short-circuits on existing state).
+Cloud-db bootstrap is a separate step (`./ops/dev/setup.sh bootstrap`).
 
 ### Prod target host
 
 ```bash
-./ops/prod/setup.sh         # First-time: 拉 db image + build prod apps
+```bash
+./ops/prod/setup.sh         # First-time: verify cloud-db + build prod apps
+./ops/prod/setup.sh bootstrap   # (one-time) cloud-db setup - writes .secrets/database_url
 ./ops/prod/doctor.sh
 ALLOWED_ORIGINS=https://my.domain ./ops/prod/lifecycle.sh start
 ./ops/prod/lifecycle.sh start
@@ -263,13 +247,17 @@ ALLOWED_ORIGINS=https://my.domain ./ops/prod/lifecycle.sh start
 ./ops/prod/push_image.sh -y      # push them to DOCKER_REGISTRY
 ```
 
-`setup` is the recommended entry point for a fresh prod host. Same flow as dev: preflight + ensure `db` image present (auto-pull from `DOCKER_REGISTRY`) + build prod `backend + frontend`. The prod host never bakes db content itself — it pulls from a registry. If `DOCKER_REGISTRY` is empty, `setup` exits with the CMS-side steps.
+`setup` is the recommended entry point for a fresh prod host. Same flow as dev:
+preflight + cloud-db contract verify + build prod `backend + frontend`.
+No db image to pull - runtime db is TencentDB. If `DOCKER_REGISTRY` is empty,
+`setup` exits in local-only mode (no push, no pull).
 
-No `.env` is needed. `ALLOWED_ORIGINS` defaults to `http://localhost` in the prod compose — override via shell env (shown above) or edit the compose file directly. `POSTGRES_PASSWORD` is generated on first start.
+No `.env` is needed. `ALLOWED_ORIGINS` defaults to `http://localhost` in the prod compose - override via shell env (shown above) or edit the compose file directly. The cloud-db DSN comes from `.secrets/database_url` (written by `setup.sh bootstrap`) or `DATABASE_URL` in env.
 
-**Image registry model**: CMS host pushes the content-baked `db` image; each target host pushes its own `backend + frontend` images.
-- **Prod target host**: `docker pull` all 3 from `$DOCKER_REGISTRY` on every `lifecycle.sh start` / `restart` (auto-pulled — registry is the source of truth for prod).
-- **Dev target host**: `setup.sh` does the **one-time bootstrap pull** from `$DOCKER_REGISTRY` when local images are missing. `start` / `restart` **never auto-pull** — dev iteration is local-first; image lifecycle is owned by `build_image.sh` / `db/scripts/build.sh` on the host. This avoids overwriting fresh local builds with stale registry versions. To pull explicitly: `docker pull <full-image>`.
+**Image registry model**: each target host pushes its own `backend + frontend`
+images. There is no db image in the pipeline.
+- **Prod target host**: `docker pull` backend + frontend from `$DOCKER_REGISTRY` on every `lifecycle.sh start` / `restart` (auto-pulled - registry is the source of truth for prod).
+- **Dev target host**: `setup.sh` does the **one-time bootstrap pull** from `$DOCKER_REGISTRY` when local images are missing. `start` / `restart` **never auto-pull** - dev iteration is local-first; image lifecycle is owned by `build_image.sh` on the host. This avoids overwriting fresh local builds with stale registry versions. To pull explicitly: `docker pull <full-image>`.
 
 The registry namespace (e.g. `docker.io/zhangyu528`) is **shared project config** that the whole team uses. It is **not** a personal secret, so it lives in the committed `REGISTRY` file at the repo root (symmetric with the per-segment VERSION files), not in `cms/.env` (gitignored). See [Image registry namespace](#image-registry-namespace) below.
 
@@ -289,21 +277,20 @@ The `REGISTRY` file's format: first non-empty, non-comment line starting with `D
 DOCKER_REGISTRY=docker.io/zhangyu528   # ← uncomment + edit
 ```
 
-> Why committed and not `.env`? Like the per-segment VERSION files, this is shared project config that the whole team should agree on — putting it in a gitignored `.env` means every operator has to set it themselves, and the same value gets typed in N places. Personal secrets (postgres password, AI keys, TTS keys) stay in `cms/.env` (gitignored); shared config lives at the repo root.
+> Why committed and not `.env`? Like the per-segment VERSION files, this is shared project config that the whole team should agree on — putting it in a gitignored `.env` means every operator has to set it themselves, and the same value gets typed in N places. Personal secrets (postgres password, AI keys, TTS keys) live in GitHub Environments and are fetched per-session via `scripts/secrets/fetch_secrets.sh`; shared config lives at the repo root.
 
 ## Image version tags
 
-All 5 images (`db`, `english_backend{,_dev}`, `english_frontend{,_dev}`) carry an explicit tag. VERSION files are **per-segment** (one file per segment, co-located with the segment's Dockerfile(s) and build scripts) — no dev/prod split:
+The 4 app images (`english_backend{,_dev}`, `english_frontend{,_dev}`) carry an explicit tag. VERSION files are **per-segment** (one file per segment, co-located with the segment's build scripts) — no dev/prod split. There is no db image — the runtime database is TencentDB (external Postgres service).
 
 | Image | Default tag source |
 |---|---|
-| `english_db_content`         | `db/VERSION`             |
 | `english_backend_dev`        | `backend/VERSION`        |
 | `english_frontend_dev`       | `frontend/VERSION`       |
 | `english_backend`            | `backend/VERSION`        |
 | `english_frontend`           | `frontend/VERSION`       |
 
-(The db image is "prod-bound" content — it's shared by both targets, so a dev host always pulls db's tag from `db/VERSION`. The backend / frontend VERSION files each gate BOTH the dev and prod image tags for that segment — there's no separate dev stream file. Bumping `backend/VERSION` releases a new `english_backend_dev` and a new `english_backend` at the same tag. `cms/VERSION` exists as a placeholder for a future CMS pipeline version stamp but has no image tied to it today.)
+(The backend / frontend VERSION files each gate BOTH the dev and prod image tags for that segment — there's no separate dev stream file. Bumping `backend/VERSION` releases a new `english_backend_dev` and a new `english_backend` at the same tag. `cms/VERSION` exists as a placeholder for a future CMS pipeline version stamp but has no image tied to it today. Schema version lives in `schema_migrations` row count; content version = the timestamp of the most recent successful `db/scripts/import_staging.sh` run.)
 
 Each file: first non-empty, non-comment line, trimmed.
 
@@ -316,22 +303,17 @@ Resolution chain (`ops/lib.sh` → `resolve_image_tag`):
 Examples:
 ```bash
 # Use whatever each segment's VERSION file says (default):
-./ops/dev/build_image.sh         # → backend/VERSION, frontend/VERSION, db/VERSION
-./ops/prod/build_image.sh        # → backend/VERSION, frontend/VERSION, db/VERSION
-./db/scripts/build.sh                # → db/VERSION
+./ops/dev/build_image.sh         # → backend/VERSION, frontend/VERSION
+./ops/prod/build_image.sh        # → backend/VERSION, frontend/VERSION
 
 # Bump all images to v1.2.3 for a one-off (CI use):
 IMAGE_TAG=v1.2.3 ./ops/dev/build_image.sh
 IMAGE_TAG=v1.2.3 ./ops/prod/build_image.sh
-IMAGE_TAG=v1.2.3 ./db/scripts/build.sh
-
-# Pin just the db image, leave dev app at backend/VERSION:
-DB_IMAGE_TAG=v0.5.0 ./db/scripts/build.sh
 ```
 
 For a full release (bump + build + push), use `ops/release.sh dev|prod X.Y.Z` instead of running these individually — see "Release flow" below.
 
-The dev/prod `lifecycle.sh` reads the same tags at start time, so what gets pulled from the registry matches what was built. `db/scripts/push.sh` uses the same convention.
+The dev/prod `lifecycle.sh` reads the same tags at start time, so what gets pulled from the registry matches what was built.
 
 ### Drift detection
 
@@ -343,9 +325,9 @@ Every image carries the `type-any-language.app.version` LABEL (sourced from `APP
 
 | Subcommand | Bumps | Builds + pushes |
 |---|---|---|
-| `show`              | — | — (print all 4 per-segment VERSION files) |
+| `show`              | — | — (print all 3 per-segment VERSION files) |
 | `dev  [X.Y.Z]`      | `backend/VERSION` + `frontend/VERSION` (same tag; single file gates both backend images) | `english_{backend,frontend}_dev` |
-| `prod [X.Y.Z]`      | `db/VERSION` + `backend/VERSION` + `frontend/VERSION` | db (content-baked) + `english_{backend,frontend}` |
+| `prod [X.Y.Z]`      | `backend/VERSION` + `frontend/VERSION` | `english_{backend,frontend}` |
 
 `X.Y.Z` is optional: omit it to publish the current VERSION without bumping. Add `-y` to skip the bump-confirmation prompt.
 
@@ -363,28 +345,36 @@ Local vs remote is controlled by `DOCKER_REGISTRY` (chain: shell env → `./REGI
 ./ops/release.sh dev
 ```
 
-The full release flow with the new `release.sh` (one command per host):
+The full release flow with `release.sh` (one command per host):
 
 ```bash
 # On the workstation — after merging changes to master:
 ./ops/release.sh dev v0.3.0       # bump backend/VERSION + frontend/VERSION + build dev b/f
-./ops/release.sh prod v0.3.0 -y    # bump db/VERSION + backend/VERSION + frontend/VERSION
-                                  # + bake db + push db + build + push prod b/f
+./ops/release.sh prod v0.3.0 -y    # bump backend/VERSION + frontend/VERSION + build + push prod b/f
 git push
 
 # On each target host — just verify, the images are already in the registry:
-./ops/<host>/doctor.sh    # should show "drift OK (version=v0.3.0)" for all 3 services
+./ops/<host>/doctor.sh    # should show "drift OK (version=v0.3.0)" for backend + frontend
 ./ops/<host>/lifecycle.sh restart   # pull new image and recreate
 ```
 
+Content (staging files → cloud db UPSERT) is a separate workflow:
+
+```bash
+# On the CMS host (or any host with DATABASE_URL):
+./cms/run.sh                                # produce cms/staging/* (vocab + sentences + audio)
+./db/scripts/import_staging.sh all          # UPSERT into TencentDB
+```
+
 Architecture notes:
-- `release.sh dev` only touches the app segments' VERSION files
-  (`backend/VERSION` + `frontend/VERSION`). The content-baked db
-  image is prod-bound and reads `db/VERSION`; if you want dev to see new
-  content, run `release.sh prod` first (or just push a new db with
-  `db/VERSION`).
-- `release.sh prod` includes the db bake. That step needs `cms/.env`, so `prod` must run on the CMS host (or a single-machine CMS+prod setup). On a dedicated prod target host without `cms/.env`, run `db/scripts/build.sh` on the CMS host first, then run `ops/prod/build_image.sh` + `db/scripts/push.sh` on the prod host.
-- For multi-machine deployments, run each subcommand on its respective host. The script is self-contained per host.
+- `release.sh dev` and `release.sh prod` both touch only the app segments'
+  VERSION files (`backend/VERSION` + `frontend/VERSION`). There is no
+  db image to release — runtime data lives in TencentDB.
+- Content (vocab / sentences / audio) is a separate workflow, independent
+  of `release.sh`. The CMS host runs `./cms/run.sh` (E + T) then
+  `./db/scripts/import_staging.sh all` (L). No docker images are involved.
+- For multi-machine deployments, run each subcommand on its respective
+  host. The script is self-contained per host.
 
 ## Migration from pre-VERSION release
 
@@ -411,7 +401,7 @@ to **one file per segment** — there is no dev/prod split anymore:
 |---|---|
 | `VERSION.dev` at repo root                              | (deleted) |
 | `VERSION.prod` at repo root                             | (deleted) |
-| `db/VERSION`                                           | `db/VERSION` (unchanged) |
+| `db/VERSION`                                           | (deleted — runtime db is TencentDB, no image) |
 | `cms/VERSION` (placeholder)                             | `cms/VERSION` (unchanged) |
 | `backend/VERSION.dev` + `backend/VERSION.prod`         | `backend/VERSION` (gates both english_backend_dev + english_backend) |
 | `frontend/VERSION.dev` + `frontend/VERSION.prod`        | `frontend/VERSION` (gates both english_frontend_dev + english_frontend) |
@@ -440,7 +430,7 @@ cd backend && python -m pytest tests/test_file.py::test_name -v
 
 ## Key API Endpoints
 
-All read-only. Sentences and audio are pre-baked into the db image by the CMS host (commit `f26265d refactor(backend): strip to read-layer`); the runtime never generates, never validates against a server-side cache.
+All read-only. Sentences and audio are pre-baked into the cloud database by the CMS host (commit `f26265d refactor(backend): strip to read-layer`); the runtime never generates, never validates against a server-side cache.
 
 | Endpoint | Method | Description |
 |---|---|---|
@@ -458,124 +448,131 @@ Answer validation is **client-side**: the frontend normalizes (lowercase, strip 
 
 ## Data flow
 
-**Bake time (CMS host, ETL file-based):**
-1. Operator commits new CSVs to `cms/seed/vocabulary/`.
-2. `staging.sh sync` writes them to `cms/staging/vocabulary/<lib>.json` (no db write).
+**Content production (CMS host, ETL file-based):**
+1. Operator commits new CSVs to `cms/source/vocabulary/`.
+2. `staging.sh vocab` writes them to `cms/staging/vocabulary/<lib>.json` (no db write).
 3. `staging.sh sentences` calls OpenAI and appends to `cms/staging/sentences/<lib>.jsonl` up to `DEFAULT_BUCKET_TARGET_SIZE` per (lib, difficulty).
 4. `staging.sh audio` calls Tencent TTS; MP3s land in the configured `Storage` (local `cms/.local/audio/` by default, or Tencent Cloud COS when `CLOUD_PROVIDER=tencent_cos`), and each sentence's `audio_url` field in the JSONL is set to the storage's `public_url(key)`.
-5. `db/scripts/import_staging.sh` reads the staging files and UPSERTs them into `vocabulary_libs` / `vocabulary_words` / `sentences` on the staging db (`cmstools.importer`).
-6. `db/scripts/build.sh` runs `pg_dump` on the 3 content tables, stages the SQL into `db/init/01-content.sql`, builds the db image.
-7. `db/scripts/push.sh` pushes to `DOCKER_REGISTRY`.
+5. `db/scripts/import_staging.sh` reads the staging files and UPSERTs them into `vocabulary_libs` / `vocabulary_words` / `sentences` on the cloud db (`dbtools.importer`). Cloud DSN comes from `.secrets/database_url` (written by `db/scripts/bootstrap_tencent.sh` via `ops/{dev,prod}/setup.sh bootstrap`).
 
 **Runtime (target host):**
-1. `lifecycle.sh start` reads the db image's labels, generates (or reuses) `POSTGRES_PASSWORD` and writes both `.secrets/postgres_password` + `.secrets/database_url`, then `compose up`.
-2. On first start, the db image's `/docker-entrypoint-initdb.d/` runs `01-content.sql` (creates schema, loads content). **No audio init step** — the db image carries no audio.
+1. `lifecycle.sh start` verifies `.secrets/database_url` exists (written by one-time `setup.sh bootstrap`), then `compose up`.
+2. Backend container reads `DATABASE_URL_FILE=/run/secrets/database_url` and connects to TencentDB.
 3. Frontend fetches a sentence, browser plays its MP3 directly from `sentences.audio_url` (a full Tencent Cloud COS URL). The backend exposes no `/audio` endpoint.
 4. User submits answer → `validate_answer()` normalizes (lowercase, strip punctuation/spaces) and compares.
 
 **Audio architecture (cloud, not image):**
-- MP3s live in Tencent Cloud COS, not in the db image.
-- `sentences.audio_url` is the full COS URL, baked into the image at `db/scripts/build.sh` time.
+- MP3s live in Tencent Cloud COS, not in any docker image.
+- `sentences.audio_url` is the full COS URL, written by the CMS audio step into the staging JSONL and then UPSERTed into the cloud db via `dbtools.importer`.
 - The frontend reads `sentences[i].audio_url` and the browser streams audio from COS directly — no proxy through backend, no nginx `/audio` location, no `shared-audio` docker volume.
-- This keeps the db image small (schema + sentences table only, no binary blobs) and lets audio be updated without re-baking the db image.
-- Provider is selected via `CLOUD_PROVIDER` in `cms/.env`. Default `local_fs` writes to `cms/.local/audio/` (single-host CMS, no cloud account needed). `tencent_cos` uploads to a COS bucket (multi-host CMS or production). See `cms/cms_pipeline/storage.py` for the abstraction.
+- This keeps the runtime db small (schema + sentences table only, no binary blobs) and lets audio be updated without a db migration.
+- Provider is selected via `CLOUD_PROVIDER` in the process env (typically supplied by `eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"`). Default `local_fs` writes to `cms/.local/audio/` (single-host CMS, no cloud account needed). `tencent_cos` uploads to a COS bucket (multi-host CMS or production). See `cms/cms_pipeline/storage.py` for the abstraction.
 
 ## Schema migrations
 
-Schema lives in two places that must stay in sync:
-- **`backend/app/models/*.py`** — SQLAlchemy declarative schema (the runtime truth)
-- **`db/init/01-content.sql`** — pg_dump snapshot baked into the db image (the *initial* truth for fresh volumes)
-- **`cms/cms_pipeline/migrations/versions/*.py`** — ordered DDL applied to existing volumes when schema evolves
+Schema lives in three places that must stay in sync:
+- **`backend/app/models/*.py`** — SQLAlchemy declarative schema (the runtime truth the read-layer queries against)
+- **`db/dbtools/init_schema.py`** — base `CREATE TABLE IF NOT EXISTS` (the *initial* truth for fresh dbs)
+- **`db/dbtools/migrations/versions/*.py`** — ordered DDL applied to existing dbs when schema evolves
 
 Migrations use a tiny hand-written runner (`cms/cms_pipeline/migrations/runner.py`, ~60 lines, no Alembic). Each version is a Python module exposing `upgrade(conn)` / `downgrade(conn)`. Idempotent via `ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` etc.
 
 ### Dev iteration (light-touch)
 
-When you add or change a migration in `cms/cms_pipeline/migrations/versions/`:
+When you add or change a migration in `db/dbtools/migrations/versions/`:
 
 ```bash
-# Source db (CMS pipeline, if running): the migrations apply so a future
-# bake has the new schema in 01-content.sql
-./db/scripts/init_schema.sh    # base schema (idempotent CREATE TABLE IF NOT EXISTS)
-./db/scripts/migrate.sh        # pending schema migrations (runner.py)
-
-# Runtime db (the one your backend is actually querying): in-place upgrade,
-# no image bake, no registry push, no volume drop
-./ops/dev/migrate.sh
+# Live cloud db (the one your backend is actually querying): in-place
+# upgrade via the host-side runner. No sidecar container, no image
+# bake, no registry push.
+./ops/dev/migrate.sh        # source db/scripts/lib.sh; resolve_dev_db_url; exec db/scripts/migrate.sh
 ```
 
-`migrate.sh` spins up a one-shot `python:3.11-slim` sidecar on the compose network and runs `pipeline.migrations.runner` against `db:5432`. Idempotent — re-runs are no-ops. The backend picks up the new schema on the next request (no restart needed; uvicorn hot-reload handles Python changes).
-
-**Offline fallback** (when `python:3.11-slim` can't be pulled, e.g. broken registry mirrors): `cms/cms_pipeline/migrations/apply_to_runtime.sql` is a pre-rolled SQL file that brings a stale runtime db up to the current head in one shot. `migrate.sh` prints the exact `docker exec ... psql < apply_to_runtime.sql` command on pull failure. This file applies all known migrations and stamps them as done — it only works for upgrading an old db to head, not for dev-iteration of a brand-new migration (which needs the runner).
+`ops/dev/migrate.sh` requires `python3` + `psycopg2-binary` + `sqlalchemy`
+on the host (the same deps `db/scripts/init_schema.sh` and
+`import_staging.sh` need). Idempotent — re-runs are no-ops. The backend
+picks up the new schema on the next request (no restart needed; uvicorn
+hot-reload handles Python changes).
 
 ### Production rollout
 
 When the operator merges new schema changes:
-1. CMS host: `staging.sh init-schema` (already in `release.sh prod`'s flow once the bake-pipeline gap is closed)
-2. CMS host: `db/scripts/build.sh` + `db/scripts/push.sh` — new db image has the latest schema baked into `01-content.sql`
-3. Target hosts: `lifecycle.sh restart` (or `setup` on a fresh host) auto-pulls the new image
-4. Fresh-volume target hosts: initdb picks up the new `01-content.sql` automatically
-5. Existing-volume target hosts: postgres skips initdb. Operator must either `docker compose down -v` (data = baked content, drop is safe) OR run `cms/cms_pipeline/migrations/apply_to_runtime.sql` first to migrate in place
+1. CMS host (or any host with `DATABASE_URL`): `./db/scripts/migrate.sh` — runs `dbtools.migrations.runner` against the cloud db
+2. Operator also runs `./db/scripts/import_staging.sh all` if content needs to be refreshed (CMS pipeline ran first)
+3. Target hosts: `./ops/<host>/lifecycle.sh restart` — pulls the latest `english_backend{,_dev}` + `english_frontend{,_dev}` from the registry (backend picks up the schema change on next request)
+4. Fresh cloud dbs (created by `bootstrap_tencent.sh`): the base schema in `db/dbtools/init_schema.py` runs via `./db/scripts/init_schema.sh`. Existing cloud dbs keep their data; migrations are additive.
 
 ## Environment variables
 
-### CMS host — `cms/.env` (created by `cms/scripts/env.sh`)
+### CMS host — secrets come from GitHub Environments
 
-`cms/.env` holds **only provider secrets and operator decisions**. Everything else — the db image name, the audio output directory, and the sentences-bucket size — has code-level defaults and is therefore NOT in the file. See [CMS host config knobs](#cms-host-config-knobs) for the override pattern.
+CMS secrets (`AI_*`, `TENCENT_*`, `CLOUD_*`) live in GitHub Environments
+(`dev` / `test` / `prod`), not in any local file. The standard way to
+inject them into a workstation shell is:
 
-Required (in `cms/.env`):
+```bash
+eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"
+```
+
+(`eval-db` for the db segment; `eval-all` for both.) The fetched values
+land only in the calling process's environment — they are never written
+to disk by fetch_secrets.sh. Every CMS pipeline module reads them
+straight from `os.environ`; nothing the operator types persists beyond
+the session.
+
+Required keys when running `./cms/scripts/staging.sh sentences`:
+
 - `AI_API_KEY` — OpenAI-compatible LLM key
-- `AI_BASE_URL` — OpenAI-compatible endpoint (default in template: `https://api.openai.com/v1`; switch to Azure / local / Anthropic-compatible endpoints as needed)
-- `AI_MODEL` — model name (default in template: `gpt-3.5-turbo`; switch to `gpt-4o` / etc. as needed)
-- `TENCENT_SECRET_ID`, `TENCENT_SECRET_KEY`, `TENCENT_APP_ID` — Tencent Cloud TTS; required when running `staging.sh audio`, optional otherwise
+- `AI_BASE_URL` — OpenAI-compatible endpoint (typical default: `https://api.openai.com/v1`; switch to Azure / local / Anthropic-compatible endpoints as needed)
+- `AI_MODEL` — model name (typical default: `gpt-3.5-turbo`; switch to `gpt-4o` / etc. as needed)
 
-**`POSTGRES_PASSWORD` / `DATABASE_URL` are NOT in `cms/.env` and not read by CMS code.** CMS modules (sync / sentences / audio) do not connect to the database — they only write files to `cms/staging/`. The db side (`db/scripts/source_db.sh` / `build.sh` / `migrate.sh`) resolves `POSTGRES_PASSWORD` itself from shell env or `.secrets/postgres_password` and assembles `DATABASE_URL` before invoking db-side Python. See [Where the db password comes from](#where-the-db-password-comes-from) below.
+Required keys when running `./cms/scripts/staging.sh audio`
+(all-or-nothing, but optional otherwise):
 
-`AUDIO_DIR` is also **not** in `cms/.env` by default. It now means "root of the local Storage" (only used when `CLOUD_PROVIDER=local_fs`); the code default is `cms/.local/audio` (so Windows / sandboxed Linux hosts can run without sudo). Override via shell env if you need a different location:
+- `TENCENT_SECRET_ID`, `TENCENT_SECRET_KEY`, `TENCENT_APP_ID` — Tencent Cloud TTS
+
+**`DATABASE_URL` is NOT a CMS secret and not read by CMS code.** CMS modules (vocab / sentences / audio) do not connect to the database — they only write files to `cms/staging/`. The db side (`db/scripts/bootstrap_tencent.sh` / `init_schema.sh` / `migrate.sh` / `import_staging.sh`) resolves `DATABASE_URL` from `.secrets/database_url` (written by `bootstrap_tencent.sh` once per host) or from `DATABASE_URL` shell env before invoking db-side Python. See [Where the database URL comes from](#where-the-database-url-comes-from) below.
+
+For multi-host CMS or production, set `CLOUD_PROVIDER=tencent_cos` (plus `CLOUD_BUCKET` / `CLOUD_REGION` / `CLOUD_ACCESS_KEY` / `CLOUD_SECRET_KEY`) in the GH Environment. MP3s upload to the COS bucket instead of the local directory; `sentences.audio_url` becomes the full COS URL. See `cms/cms_pipeline/storage.py` for the abstraction.
+
+`DOCKER_REGISTRY` is shared project config that lives in the committed `REGISTRY` file at the repo root (see [Image registry namespace](#image-registry-namespace) above). Override at push time via shell env if you need a one-off namespace:
 ```bash
-AUDIO_DIR=/your/audio/dir ./cms/scripts/staging.sh audio
+export DOCKER_REGISTRY=docker.io/youruser   # overrides REGISTRY file (only affects prod app images — no db image to push)
+./ops/prod/push_image.sh -y
 ```
 
-For multi-host CMS or production, set `CLOUD_PROVIDER=tencent_cos` in `cms/.env` (plus `CLOUD_BUCKET` / `CLOUD_REGION` / `CLOUD_ACCESS_KEY` / `CLOUD_SECRET_KEY`). MP3s upload to the COS bucket instead of the local directory; `sentences.audio_url` becomes the full COS URL. See `cms/cms_pipeline/storage.py` for the abstraction.
+#### Where the database URL comes from
 
-`DB_IMAGE_TAG` is not in `cms/.env` either — its default is `db/VERSION` (resolved by `ops/lib.sh` → `resolve_image_tag`); shell env can override it for one-off builds.
+`DATABASE_URL` is resolved on the db side (`db/scripts/bootstrap_tencent.sh` / `lib.sh::resolve_dev_db_url` / `resolve_prod_db_url`) in this order:
 
-`DOCKER_REGISTRY` is not in `cms/.env` — it is shared project config that lives in the committed `REGISTRY` file at the repo root (see [Image registry namespace](#image-registry-namespace) above). Override at push time via shell env if you need a one-off namespace:
-```bash
-export DOCKER_REGISTRY=docker.io/youruser   # overrides REGISTRY file
-./db/scripts/push.sh
-```
-
-#### Where the db password comes from
-
-`POSTGRES_PASSWORD` is resolved **exclusively on the db side** (`db/scripts/source_db.sh` / `build.sh` / `migrate.sh`) in this order:
-1. **Shell env** — `export POSTGRES_PASSWORD=...` (temporary, e.g. CI)
-2. **`.secrets/postgres_password`** (chmod 600) — the same file `ops/{dev,prod}/lifecycle.sh` writes on first start. For a **multi-host** setup, the operator copies this file from the dev/prod host to the CMS host:
+1. **Shell env** — `export DATABASE_URL=postgres://...` (temporary, e.g. CI / self-hosted postgres)
+2. **`.secrets/database_url`** (chmod 600) — written by `db/scripts/bootstrap_tencent.sh` when the operator runs `ops/{dev,prod}/setup.sh bootstrap`. For a **multi-host** setup, the operator copies this file from one target host to another:
    ```bash
-   scp user@dev:.secrets/postgres_password .secrets/
+   scp user@dev:.secrets/database_url .secrets/
    ```
    For a **single-host** setup (CMS + dev on the same machine), the file already exists locally — no extra setup.
-3. **Error** — fails loudly with a hint pointing at both options above.
+3. **Computed** — `db/scripts/lib.sh::resolve_*_db_url` reads `TENCENT_DB_HOST` / `TENCENT_DB_{DEV,PROD}_USER` / `TENCENT_DB_{DEV,PROD}_PASSWORD` from env or `.secrets/tencent_db_*` files, and `render_db_name` for the per-user / per-branch db name. Assembles the full DSN.
+4. **Error** — fails loudly with a hint pointing at the bootstrap entry point.
 
-The CMS side (`cms/.env`, `cms_pipeline/env.py`, `cms/scripts/*.sh`) **does not need or read this password** — it has no db connection to make.
+The CMS side (`cms/cms_pipeline/*.py`, `cms/scripts/*.sh`, `cms/run.sh`) **does not need or read this DSN** — it has no db connection to make. `db/scripts/import_staging.sh` needs it (it's the L step), and the CMS host runs that script directly via `PYTHONPATH=db python3 -m dbtools.importer ...` with `DATABASE_URL` exported by `db/scripts/lib.sh::resolve_dev_db_url` (or shell env).
 
-### CMS host config knobs (NOT in `cms/.env`)
+### CMS host config knobs (read from env or shell, not from a file)
 
-These have code-level defaults in `db/scripts/build.sh` (db-side knobs: `POSTGRES_*` / `DB_IMAGE_*`) and `cms/cms_pipeline/env.py` (CMS-side knobs: `AUDIO_DIR` / `CLOUD_*` / `DEFAULT_BUCKET_TARGET_SIZE`). Override via shell env when you need a different value:
+These have code-level defaults in `db/dbtools/db_url.py` (db-side `POSTGRES_*` knobs) and `cms/cms_pipeline/env.py` (CMS-side knobs: `AUDIO_DIR` / `CLOUD_*` / `DEFAULT_BUCKET_TARGET_SIZE`). Override via shell env when you need a different value:
 
 | Knob | Code default | Override example |
 |---|---|---|
-| `POSTGRES_USER` | `english_user` | `POSTGRES_USER=foo ./db/scripts/build.sh` |
-| `POSTGRES_HOST` | `localhost` | `POSTGRES_HOST=db.internal ./db/scripts/build.sh` |
+| `POSTGRES_USER` | `english_user` | `POSTGRES_USER=foo ./db/scripts/init_schema.sh` |
+| `POSTGRES_HOST` | `localhost` | `POSTGRES_HOST=db.internal ./db/scripts/init_schema.sh` |
 | `POSTGRES_PORT` | `5432` | (same pattern) |
 | `POSTGRES_DB`   | `english_learning` | (same pattern) |
-| `POSTGRES_PASSWORD` | (none — db side resolves via shell env or `.secrets/postgres_password`) | `POSTGRES_PASSWORD=... ./db/scripts/build.sh` |
-| `DB_IMAGE`      | `english_db_content` | (same pattern) |
+| `POSTGRES_PASSWORD` | (none — db side resolves via shell env, `.secrets/database_url`, or `.secrets/tencent_db_*` files) | `POSTGRES_PASSWORD=... ./db/scripts/init_schema.sh` |
+| `TENCENT_DB_HOST` | (none) | `TENCENT_DB_HOST=postgres.tencentcloud.com:5432 ./db/scripts/lib.sh` |
+| `TENCENT_DB_USER` / `TENCENT_DB_PASSWORD` | (none) | Required when running `db/scripts/lib.sh::resolve_*_db_url` without a pre-written `.secrets/database_url` |
 | `AUDIO_DIR`     | `cms/.local/audio` | `AUDIO_DIR=/my/audio/dir ./cms/scripts/staging.sh audio` |
 | `CLOUD_PROVIDER` | `local_fs` | `CLOUD_PROVIDER=tencent_cos ./cms/scripts/staging.sh audio` |
 | `CLOUD_BUCKET` / `CLOUD_REGION` / `CLOUD_ACCESS_KEY` / `CLOUD_SECRET_KEY` | (none) | Required when `CLOUD_PROVIDER=tencent_cos` |
 | `DEFAULT_BUCKET_TARGET_SIZE` | `200` | `DEFAULT_BUCKET_TARGET_SIZE=500 ./cms/scripts/staging.sh sentences` |
-| `DB_IMAGE_TAG`  | `db/VERSION` | `DB_IMAGE_TAG=v0.5.0 ./db/scripts/build.sh` |
 
 ### Target host — no `.env` file required
 
@@ -586,13 +583,12 @@ Runtime configuration is via shell env (passed to `lifecycle.sh` via `KEY=value 
   ALLOWED_ORIGINS=https://my.domain ./ops/prod/lifecycle.sh start
   ```
 - `DOCKER_REGISTRY` — registry namespace to push to / pull from. Comes from the committed `REGISTRY` file at the repo root; shell env wins. Pull behavior is **asymmetric**:
-  - **Prod**: `lifecycle.sh start` auto-pulls the db + backend + frontend images on every start/restart — registry is the source of truth.
-  - **Dev**: `setup.sh` does the **one-time bootstrap pull** when local images are missing. `start` / `restart` **never auto-pull** — image lifecycle is local (build_image.sh / db/scripts/build.sh). Pull manually with `docker pull <full-image>` if needed.
+  - **Prod**: `lifecycle.sh start` auto-pulls the backend + frontend images on every start/restart — registry is the source of truth.
+  - **Dev**: `setup.sh` does the **one-time bootstrap pull** when local images are missing. `start` / `restart` **never auto-pull** — image lifecycle is local (build_image.sh). Pull manually with `docker pull <full-image>` if needed.
 
   Empty = local-only mode (no push to / pull from any registry).
-- `DB_IMAGE_TAG` — which baked db image to pull. Default: `db/VERSION`.
 - `BACKEND_IMAGE_TAG`, `FRONTEND_IMAGE_TAG` — image tag for backend/frontend. Default: `backend/VERSION` on both dev and prod hosts (the single per-segment file gates both the dev and prod image tags at the same value), same for `frontend/VERSION` (resolved by `ops/lib.sh`). Override per image, or set `IMAGE_TAG` to bump all images at once (CI use):
   ```bash
   IMAGE_TAG=v1.2.3 ./ops/prod/lifecycle.sh start
   ```
-- `POSTGRES_PASSWORD` — **never set manually**. `lifecycle.sh` generates a fresh 24-char URL-safe value on first start and writes it to `.secrets/postgres_password` (chmod 600). Subsequent restarts reuse the file. Compose mounts it into the db container via `POSTGRES_PASSWORD_FILE` and the assembled `DATABASE_URL_FILE` into the backend container.
+- `DATABASE_URL` — **not read from the image**. Backend reads `DATABASE_URL_FILE=/run/secrets/database_url`; the file `.secrets/database_url` is written once per host by `ops/{dev,prod}/setup.sh bootstrap` (which calls `db/scripts/bootstrap_tencent.sh`). For self-hosted postgres or CI, export `DATABASE_URL` in the shell before `compose up`. The compose file has no `db` service, no `POSTGRES_PASSWORD` env, and no `db-data` volume — runtime data lives in the cloud db.

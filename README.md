@@ -2,25 +2,26 @@
 
 听音写句 — 播放句子音频，用户根据音频输入完整句子。
 
-## 项目分两个角色
+## 项目角色
 
-这套代码同时维护 **CMS 主机**（生产内容、烤 db image）和 **目标主机**（dev / prod，只跑容器）。一台机器可以同时扮演两种角色，但脚本路径分开管理：
+这套代码维护三个角色 — **CMS 主机**（生产内容）、**dev / prod 目标机**（只跑容器）、**TencentDB**（外部共享 Postgres，云上独立服务）。一台机器可以同时扮演多个角色（单机 CMS+dev+prod 是常见部署），但脚本路径按角色分开管理：
 
-| 角色 | 根目录入口 | 详细脚本 | 配置文件 |
+| 角色 | 根目录入口 | 详细脚本 | 数据库 |
 |---|---|---|---|
-| CMS 主机（生产内容） | — | `cms/scripts/*.sh` | `cms/.env` |
-| 开发目标机 | `./dev.sh` | `ops/dev/*.sh` | **不需要** — shell env + `.secrets/` |
-| 生产目标机 | — | `ops/prod/*.sh` | **不需要** — shell env + `.secrets/` |
+| CMS 主机（生产内容） | — | `cms/scripts/*.sh` | 把 staging 内容 UPSERT 到 **TencentDB**（外部云 db） |
+| 开发目标机 | `./dev.sh` | `ops/dev/*.sh` | 读 **TencentDB**（`.secrets/database_url`） |
+| 生产目标机 | — | `ops/prod/*.sh` | 读 **TencentDB**（`.secrets/database_url`） |
 
-CMS 主机把内容（词库 + AI 句子 + TTS 音频）烤进 db image，推到 registry。dev / prod 目标机只 `docker pull` 这个 image，不跑 AI、不跑 TTS、不需要 Python，也**不需要写 .env 文件** —— `POSTGRES_PASSWORD` 由 `run.sh` 首次启动时现场生成（写到 `.secrets/postgres_password`，chmod 600），CORS 等运行时配置通过 shell 环境变量覆盖。
+dev / prod 目标机只跑 backend + frontend（dev 还有 compose watch 做热重载），**没有 db 容器、没有 .env 文件**。运行时数据库（TencentDB）是外部依赖 —— backend 容器通过 compose `secrets:` block 把 host 侧的 `.secrets/database_url` 挂进来，DSN 进 `DATABASE_URL_FILE=/run/secrets/database_url`。Backend 不需要知道 db 在哪；网络可达、DSN 对即可。`POSTGRES_PASSWORD` 不再需要 —— 密码写进 `.secrets/database_url`，由 `db/scripts/bootstrap_tencent.sh` 在每个 host 一次性 setup 时写入。
 
 ## 仓库结构（按角色）
 
 | 目录 | 内容 | 文档 |
 |---|---|---|
-| `backend/` | FastAPI 纯读层（无 AI / TTS） | [`backend/README.md`](backend/README.md) |
+| `backend/` | FastAPI 纯读层（无 AI / TTS / 无 db 连接配置） | [`backend/README.md`](backend/README.md) |
 | `frontend/` | Next.js 14 app（单页练习 UI） | [`frontend/README.md`](frontend/README.md) |
-| `cms/` | 内容服务（源 + CMS 工具链 + Postgres image 构建上下文） | [`cms/README.md`](cms/README.md) |
+| `cms/` | 内容服务（源 + CMS 工具链；把文件写到 `cms/staging/`，由 db 侧 import 到云 db） | [`cms/README.md`](cms/README.md) |
+| `db/` | db 工具链（importer / migrations / init_schema / cloud-db bootstrap） | [`db/README.md`](db/README.md) |
 | `ops/{dev,prod}/` | 目标机运维脚本(lifecycle / doctor / setup / build_image 等)+ 顶层 build/release 编排器 | [`ops/README.md`](ops/README.md) |
 | `nginx/` | nginx 反向代理（prod 入口） | — |
 
@@ -38,18 +39,18 @@ make dev-setup     # 首次 bootstrap(等价 ./ops/dev/setup.sh)
 make dev-start     # 启 dev 容器 + 后台 compose watch
 make dev-stop
 make dev-restart
-make dev-doctor    # 只读诊断
+make dev-doctor    # 只读诊断(docker / images / drift / cloud-db 可达性)
 make dev-logs      # 跟踪日志
-make dev-migrate   # 应用 schema migrations
-make dev-setup-content   # git pull 拿到新 cms/staging 后:重烤 db + restart
+make dev-migrate   # 应用 schema migrations (host-side runner,写云 db)
 make release-show
 make release-dev [X.Y.Z]
 make release-prod [X.Y.Z]
-# ... cms-env-init / cms-sync / cms-sentences / cms-audio /
-#     db-bake / db-push / db-import / prod-* / build-*
+# ... cms-vocab / cms-sentences / cms-audio /
+#     db-bootstrap-dev / db-bootstrap-prod / db-import /
+#     prod-* / build-*
 ```
 
-`make help` 会列出全部 ~47 个 target，按 host 角色分组（dev / prod / cms / db / release / meta）。
+`make help` 会列出全部 targets，按 host 角色分组（dev / prod / cms / db / release / meta）。
 
 老的 `./ops/.../*.sh` 直接调用仍然 work（文件保持 executable），Makefile 只是统一入口。Windows 用户只要 Git Bash / WSL 自带 `make` 就能用，无需 chmod 任何东西。
 
@@ -60,17 +61,21 @@ make release-prod [X.Y.Z]
 > 以下示例统一用 Makefile（推荐）。`./ops/.../*.sh` 直接调用也完全等价，但 Makefile 在 macOS / Linux / Windows (Git Bash / WSL) 行为完全一致，不需要 chmod。
 
 ```bash
-make dev-setup         # 首次:准备 image(自动 bake db + build dev apps,见下)
-make dev-doctor        # 前置检查
-make dev-start         # 起来(首次会现场生成 .secrets/postgres_password)
-make dev-logs          # 看日志
-make dev-stop          # 停
-make dev-restart       # 硬重启(≈5s,重新加载 secrets)
-make dev-migrate       # 改了 db/dbtools/migrations/versions/*.py 后:把新 schema 应用到正在跑的 runtime db
-make dev-setup-content # git pull 了新的 cms/staging 内容后:按需烤 db image + 重启 dev 容器
+# (一次性,首次) 在共享 TencentDB 上为本机创建 ROLE/DB + 写 .secrets/database_url
+make db-bootstrap-dev            # 等价 ./ops/dev/setup.sh bootstrap
+
+# 之后每次都跑(idempotent)
+make dev-setup                   # 验 cloud-db 契约 + build dev 应用镜像
+make dev-doctor                  # 前置检查(docker + compose + images + cloud-db 可达性)
+make dev-start                   # 起来 — 自动用 .secrets/database_url
+make dev-logs                    # 看日志
+make dev-stop                    # 停
+make dev-restart                 # 硬重启(≈5s,重新加载 secrets)
+make dev-migrate                 # 改了 db/dbtools/migrations/versions/*.py 后:把新 schema 应用到云 db
 ```
 
 > 没装 docker / daemon 没起,`make dev-doctor` 会直接报错,先装 docker。
+> 没 `.secrets/database_url` 也没 `DATABASE_URL` 环境变量,`make dev-doctor` 会提示跑 `make db-bootstrap-dev`(cloud-db 主机)或 `export DATABASE_URL=postgres://...`(自管 / CI)。
 
 访问:
 - 前端: <http://localhost:3000>
@@ -78,23 +83,12 @@ make dev-setup-content # git pull 了新的 cms/staging 内容后:按需烤 db i
 
 ### `dev-setup` 做什么
 
-`make dev-setup` 把 dev 跑起来所需的所有 image 摆到位,**不启动容器、不动 secrets、不 push**:
+`make dev-setup` 把 dev 跑起来所需的镜像 + 凭据摆到位,**不启动容器、不动 secrets、不 push**:
 
-1. **db image** —— 按以下顺序找一个可用的:
-   - 本地已有 → 用本地的
-   - `DOCKER_REGISTRY` 显式配置(shell env 或 `REGISTRY` 文件) → `docker pull`
-   - 本机有 `cms/.env`(或没有但 `make cms-env-init` 能 scaffold) → `make cms-env-doctor` 当 gate → **自动跑整条内容链**:起 `cms-source-db` 容器 → `make db-init-schema` → `make cms-sync` → `make cms-sentences`(AI) → `make cms-audio`(TTS) → `make db-bake`。每步都是 idempotent,重新跑不会重复烧钱
-
-2. **dev app images** (`english_backend_dev` + `english_frontend_dev`) —— 缺失就 build
-
-3. **Final summary** —— 提示下一步 `make dev-start`
-
-> auto-detect 出来的 `docker.io/$USER` 当 DOCKER_REGISTRY 是 solo dev 兜底,只用于 push,不会自动 pull(避免 429)。
-
-如果还没有 baked db image,要么:
-- 让 `make dev-setup` 自动烤(本机有 `cms/.env` 或能 scaffold 时自动走完整链);要么
-- 等 CMS 主机推一份到 registry(显式设了 `DOCKER_REGISTRY` 时 setup 会自动 pull)。
-- 手动(不走 setup):`make cms-env-init` 引导 `cms/.env`,再 `make db-bake`。
+1. **Preflight** —— docker / compose 必须在
+2. **cloud-db 契约** —— 验证 `.secrets/database_url` 存在(cloud-db 主机)或 `DATABASE_URL` 在 shell env(自管 / CI)。任一就绪即可
+3. **dev app images** (`english_backend_dev` + `english_frontend_dev`) —— 缺失就 build
+4. **Final summary** —— 提示下一步 `make dev-start`
 
 需要换 CORS 白名单:`ALLOWED_ORIGINS=https://my.domain make dev-start`
 
@@ -103,21 +97,17 @@ make dev-setup-content # git pull 了新的 cms/staging 内容后:按需烤 db i
 dev 改了 `db/dbtools/migrations/versions/*.py` 的话:
 
 ```bash
-# 升 source db(给将来 bake 用):起 cms-source-db 后跑
-make db-init-schema
-
-# 升正在跑的 runtime db —— 轻量,不动 image、不 push、不 drop volume
-make dev-migrate
+make dev-migrate                 # 把新 schema 应用到云 db(host-side runner)
 ```
 
-`make dev-migrate` 用一次性 `python:3.11-slim` sidecar 跑 `pipeline.migrations.runner`,幂等。backend 下次请求自动捡新 schema(uvicorn hot reload)。
+`make dev-migrate` 在 host 跑 `pipeline.migrations.runner`(需要 python3 + psycopg2-binary + sqlalchemy 已装,这些 `db/scripts/init_schema.sh` / `import_staging.sh` 也要用,所以一次性装好就行)。Idempotent。backend 下次请求自动捡新 schema(uvicorn hot reload)。
 
-> 网络拉不到 `python:3.11-slim`(典型情况:docker registry mirrors 坏了)时,`make dev-migrate` 会失败并打印离线 fallback:用 `db/dbtools/migrations/apply_to_runtime.sql` 走 `docker exec ... psql`。但这个 SQL 只覆盖"老 db 升到当前 head",**不能**处理新加的 migration —— 那种情况得修 docker 网络。
+> dev 自带 `cms/staging/` 是 git tracked —— 改了 CSV / sentence / audio 后 commit + git pull,然后在 CMS 主机(或有 `DATABASE_URL` 的任何机器)上跑 `make db-import` 把 staging 内容 UPSERT 到云 db。dev 主机不用跑这步。
 
 ## 镜像发布(可选,无 registry 时跳过)
 
 dev 主机 **不 push**(dev 是开发机,image 留在本地,跑 build 后直接 start)。
-prod 主机推自己的 backend+frontend 镜像;db 镜像由 CMS 主机推。
+prod 主机推自己的 backend+frontend 镜像。
 
 ```bash
 # dev host: 只 build,不 push,直接 start
@@ -136,6 +126,11 @@ make prod-push
 ## 生产环境
 
 ```bash
+# (一次性,首次) 在共享 TencentDB 上为 prod 创建 ROLE/DB + 写 .secrets/database_url
+make db-bootstrap-prod           # 等价 ./ops/prod/setup.sh bootstrap
+
+# 之后每次都跑
+make prod-setup                  # 验 cloud-db + build prod 应用镜像
 ALLOWED_ORIGINS=https://my.domain make prod-start
 make prod-doctor
 make prod-restart
@@ -151,17 +146,33 @@ make prod-push
 ## CMS 主机(生产内容)
 
 ```bash
-make cms-env-init              # 第一次:引导 cms/.env
-make cms-staging-doctor        # 前置检查
-make cms-sync                  # csv → 词库表
+eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"   # 灌 AI_*/TENCENT_*/CLOUD_* 进进程环境
+make cms-doctor                # 前置检查 (process env + Python deps)
+make cms-vocab                 # csv → 词库表
 make cms-sentences             # OpenAI 批量填句子
 make cms-audio                 # 腾讯云 TTS 批量烤 MP3
-make db-bake                   # 烤 db image
-export DOCKER_REGISTRY=...     # 推前设一下
-make db-push                   # 推 registry
+
+# 把 staging 内容 UPSERT 到云 db(独立步骤,在 CMS 主机或任何能 reach 云 db 的机器)
+make db-import                 # 等价 ./db/scripts/import_staging.sh all
 ```
 
-> 一键跑完整 CMS 流水线(同步 → AI 句子 → TTS → 写 staging db):`make cms-run`
+> 一键跑完整 CMS 流水线(词库 → AI 句子 → TTS):`make cms-run`
 
-CMS 流程的细节(每个 Python 工具的参数、词库 CSV 格式、db image label 含义)
-见 [`cms/README.md`](cms/README.md)。
+CMS 流程的细节(每个 Python 工具的参数、词库 CSV 格式)见 [`cms/README.md`](cms/README.md)。
+
+## Migrating an existing host
+
+If you're upgrading from a pre-cloud-db release that used a baked `db` image + `.secrets/postgres_password` + `db-data` named volume, clean up the orphan artifacts after pulling this release:
+
+```bash
+# Drop the orphan db container + volume (data = baked content, drop is safe)
+docker compose -f docker-compose.dev.yml down -v   # or docker-compose.yml on prod
+
+# Drop the orphan secrets file (no longer read)
+rm -f .secrets/postgres_password
+
+# Bootstrap the cloud db (writes .secrets/database_url)
+make db-bootstrap-dev    # or make db-bootstrap-prod
+```
+
+After that, `make dev-start` (or `make prod-start`) works as in a fresh install.

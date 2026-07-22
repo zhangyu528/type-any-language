@@ -17,8 +17,10 @@ Modules in this package:
                    POSTGRES_* / DATABASE_URL from the process env
                    (typically injected by `scripts/secrets/fetch_secrets.sh
                    eval-db` on the CMS host, or supplied by .secrets/
-                   postgres_password written by ops/<host>/lifecycle.sh
-                   first start). No deps on the data-pipeline.
+                   database_url written once per host by
+                   `ops/{dev,prod}/setup.sh bootstrap` →
+                   `db/scripts/bootstrap_tencent.sh`). No deps on the
+                   data-pipeline.
     migrations    — schema migration runner + version files. Each
                    version is a Python module exposing upgrade(conn) /
                    optional downgrade(conn).

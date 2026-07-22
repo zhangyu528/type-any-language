@@ -16,8 +16,11 @@
 #   resolved via PYTHONPATH=db).
 #
 # Usage:
-#   # 1. Make sure a populated db is reachable (cms-source-db or local).
-#   ./db/scripts/source_db.sh ensure
+#   # 1. Make sure DATABASE_URL points at the cloud db (or self-hosted db).
+#   #    cloud-db: ./ops/{dev,prod}/setup.sh bootstrap writes .secrets/database_url;
+#   #              db/scripts/lib.sh::resolve_*_db_url exports DATABASE_URL before this runs.
+#   #    self-host / CI: `eval "$(scripts/secrets/fetch_secrets.sh eval-db)"`
+#   #                    or export DATABASE_URL directly.
 #   # 2. Apply the base schema.
 #   ./db/scripts/init_schema.sh
 #

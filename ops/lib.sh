@@ -229,14 +229,13 @@ detect_default_registry() {
 # Version resolution
 # ---------------------------------------------------------------------------
 # Each segment owns its own VERSION file, co-located with the segment's
-# Dockerfile(s) and build scripts:
+# build scripts (no db image — runtime data lives in TencentDB):
 #
-#   db/VERSION                       ← english_db_content (db is prod-bound
-#                                       content shared by both targets)
+#   backend/VERSION                  ← english_backend_dev + english_backend
+#   frontend/VERSION                 ← english_frontend_dev + english_frontend
 #   cms/VERSION                      ← placeholder (cms has no docker image
 #                                       today; reserved for a future CMS pipeline
 #                                       version stamp)
-#   backend/VERSION                  ← english_backend_dev + english_backend
 #   frontend/VERSION                 ← english_frontend_dev + english_frontend
 #
 # One file per segment (no dev/prod split): backend/VERSION gates both the

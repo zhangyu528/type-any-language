@@ -15,18 +15,16 @@
 #   (d) cms/scripts/cmd_audio.sh        — TTS-fill → 更新 audio_url
 #       (best-effort — 缺 TENCENT_* 则 skip; TTS 失败 → warn 但继续)
 #
-# Notably absent BOTH: Load (db/scripts/import_staging.sh) and bake
-# (db/scripts/build.sh). Both are db's responsibility and run as separate
-# operator commands. After run.sh exits:
+# Notably absent: Load (db/scripts/import_staging.sh). That's the L
+# step and runs as a separate operator command. After run.sh exits:
 #
-#   ./db/scripts/import_staging.sh all   # L: UPSERT staging files → staging db
-#   ./db/scripts/build.sh                # bake: pg_dump → docker build
+#   ./db/scripts/import_staging.sh all   # L: UPSERT staging files → cloud db
 #
 # CMS-side modules do NOT connect to the database — they only write
-# files. POSTGRES_PASSWORD is therefore NOT needed by this script (or
-# any cms_pipeline.* Python module). The db side (db/scripts/source_db.sh
-# / build.sh / migrate.sh) resolves the password itself from shell env or
-# .secrets/postgres_password.
+# files. DATABASE_URL is therefore NOT needed by this script (or any
+# cms_pipeline.* Python module). The db side (db/scripts/bootstrap_tencent.sh
+# / import_staging.sh / migrate.sh) resolves DATABASE_URL itself from shell
+# env or .secrets/database_url.
 #
 # 历史:旧 staging.sh vocab / sentences / audio 入口被拆分到
 # cms/scripts/cmd_*.sh。run.sh 现在直接 exec 这三个 cmd_*.sh(不走
@@ -198,9 +196,8 @@ cmd_run() {
     # NOTE: Load (db/scripts/import_staging.sh) is NOT here on purpose —
     # it's db's responsibility and runs separately. See header doc.
     ok "  CMS driver 完成 — staging 文件已写到 cms/staging/"
-    info "  下一步 (db 端两个独立步骤):"
-    info "    ./db/scripts/import_staging.sh all    # UPSERT staging 文件 → staging db"
-    info "    ./db/scripts/build.sh                 # 烤 db image"
+    info "  下一步 (db 端独立步骤):"
+    info "    ./db/scripts/import_staging.sh all    # UPSERT staging 文件 → 云 db"
     return 0
 }
 
@@ -212,12 +209,11 @@ usage() {
   (无参数) | run    跑 CMS driver (vocab → sentences → audio; 不含 L)
   -h|--help|help    显示本帮助
 
-典型工作流 (CMS 主机,四段独立步骤):
+典型工作流 (CMS 主机,两段独立步骤):
   ./cms/scripts/bootstrap.sh                       # 一次性:装 deps + 验 gh/auth + 打印 eval 行
   eval "\$(./scripts/secrets/fetch_secrets.sh eval-cms)"   # 注入 AI/TENCENT/CLOUD 密钥
   ./cms/run.sh                                     # E+T → cms/staging/
-  ./db/scripts/import_staging.sh all               # db: UPSERT staging 文件 → staging db (L)
-  ./db/scripts/build.sh                            # db: pg_dump + docker build (bake)
+  ./db/scripts/import_staging.sh all               # db: UPSERT staging 文件 → 云 db (L)
 
 注意:
   - 步骤语义:vocab 硬卡,sentences / audio 缺 env 也硬卡(不是 warn 跳过)。

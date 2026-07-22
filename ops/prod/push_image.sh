@@ -2,11 +2,14 @@
 #
 # prod/push_image.sh — push PROD backend + frontend images to $DOCKER_REGISTRY.
 #
-# Symmetric with db/scripts/push.sh (CMS host pushes the db image;
-# target hosts push their own backend/frontend images). Run this AFTER
-# ./ops/prod/build_image.sh has produced the images locally.
+# Run this AFTER ./ops/prod/build_image.sh has produced the images locally.
 # Push is a deliberate, separate step: you might build many times locally
 # before you're ready to publish.
+#
+# Note: there is no db image to push — runtime data lives in TencentDB,
+# which is shared by all target hosts. Content (staging files → cloud db
+# UPSERT) is a separate CMS-host workflow (cms/run.sh →
+# db/scripts/import_staging.sh).
 #
 # Subcommands:
 #   (no args)    Push with interactive confirmation prompt.
@@ -33,9 +36,6 @@
 #   english_backend   → ${DOCKER_REGISTRY}/english_backend:vX.Y.Z
 #   english_frontend  → ${DOCKER_REGISTRY}/english_frontend:vX.Y.Z
 #
-# The content-baked db image is NOT pushed here — CMS host's db/scripts/push.sh
-# is the source of truth for that image (it's content-baked, not built here).
-#
 # Examples:
 #   export DOCKER_REGISTRY=docker.io/youruser
 #   ./ops/prod/push_image.sh             # interactive
@@ -52,10 +52,9 @@ cd "$PROJECT_DIR"
 source "$SCRIPT_DIR/../../ops/lib.sh"
 
 # DOCKER_REGISTRY: shell env > ./REGISTRY file > detect_default_registry().
-# Pairs with db/scripts/push.sh (CMS host pushes db image); the prod
-# pushes its own backend+frontend. dev does NOT have a push script —
-# dev is local-only (image lifecycle owned by build + dev-side tagging,
-# never registry-pollutes a shared namespace).
+# prod pushes its own backend+frontend images. dev does NOT have a push
+# script — dev is local-only (image lifecycle owned by build + dev-side
+# tagging, never registry-pollutes a shared namespace).
 resolve_docker_registry
 
 COMPOSE_FILE="docker-compose.yml"
@@ -171,7 +170,6 @@ cmd_push() {
     info "  $BACKEND_IMAGE  →  $backend_remote"
     info "  $FRONTEND_IMAGE →  $frontend_remote"
     info ""
-    info "  (content-baked db image 由 CMS 主机 ./db/scripts/push.sh 推)"
 
     # Brief metadata block.
     local backend_id frontend_id

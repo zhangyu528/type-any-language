@@ -31,11 +31,16 @@ easier to read, audit, and modify than a generated Alembic env.py.
 Env handling — minimal:
   This module resolves DATABASE_URL via db_url.py (a 60-line helper)
   which reads only POSTGRES_* + DATABASE_URL from the process env (or
-  the .secrets/postgres_password fallback). It does NOT depend on
-  cms/cms_pipeline/env.py (the data-pipeline's full Config loader that
+  the .secrets/postgres_password defensive fallback). It does NOT depend
+  on cms/cms_pipeline/env.py (the data-pipeline's full Config loader that
   also pulls in TENCENT_*, AI_*, AUDIO_DIR — none of which are db
   concerns) and it no longer reads any local cms/.env. Keeps the db
   schema code free of data-pipeline deps.
+
+  On the cloud-db path, `db/scripts/lib.sh::resolve_*_db_url` exports
+  DATABASE_URL via `.secrets/database_url` (written once per host by
+  `bootstrap_tencent.sh`) before Python starts — the python fallback
+  chain never runs in the normal flow.
 
 Usage
 -----

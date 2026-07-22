@@ -4,7 +4,17 @@
 
 
 
-**版本：v3.0.0**
+**版本：v3.0.0** (历史快照)
+
+> ⚠️ **历史方案说明**:本文档描述的是 v3.0.0 时代的内容烤链架构
+> (CMS 主机 → `db/scripts/build.sh` 烤 db image → 目标机 `docker pull`)。
+> **当前架构已迁移到 TencentDB** — 运行时数据库在腾讯云 Postgres,
+> 目标机通过 `.secrets/database_url`(由 `ops/{dev,prod}/setup.sh bootstrap`
+> 一次性写入)直连云 db,不再有 db image / `db-data` 卷 / `bake_image.sh`。
+> 完整当前架构见仓库根 `CLAUDE.md` 和 `db/README.md`。
+> 本文档保留作为**架构演进历史参考**,章节里具体到 bake / 烤 image /
+> `01-content.sql` / `db-data` / `content.version` label 的描述已与代码脱节。
+> 实际实现以代码仓库为准。
 
 
 
@@ -67,7 +77,7 @@
 │        │                                                               │
 
 
-│        ▼  staging.sh sync (import_vocab.py)                           │
+│        ▼  staging.sh vocab (import_vocab.py)                           │
 
 
 │  PostgreSQL ◀── staging.sh sentences (OpenAI)                          │
@@ -283,7 +293,7 @@
        ▼
 
 
-2. staging.sh sync → cms/staging/vocabulary/<lib>.json（不连 DB）
+2. staging.sh vocab → cms/staging/vocabulary/<lib>.json（不连 DB）
 
 
        │
@@ -587,7 +597,7 @@
 
 
 
-CSV 文件位于 `cms/seed/vocabulary/*.csv`（已提交到仓库，运维同学维护）。通过 `cms/scripts/staging.sh sync`（底层 `cms/cms_pipeline/import_vocab.py`）写入 `cms/staging/vocabulary/<lib>.json`（**ETL 的 E 步骤，CMS 端只产文件,不连 DB**）。db 端通过 `db/scripts/import_staging.sh`（`dbtools.importer`）把 JSONL 文件 UPSERT 进 staging db。
+CSV 文件位于 `cms/seed/vocabulary/*.csv`（已提交到仓库，运维同学维护）。通过 `cms/scripts/staging.sh vocab`（底层 `cms/cms_pipeline/import_vocab.py`）写入 `cms/staging/vocabulary/<lib>.json`（**ETL 的 E 步骤，CMS 端只产文件,不连 DB**）。db 端通过 `db/scripts/import_staging.sh`（`dbtools.importer`）把 JSONL 文件 UPSERT 进 staging db。
 
 
 
@@ -761,7 +771,7 @@ CSV 文件位于 `cms/seed/vocabulary/*.csv`（已提交到仓库，运维同学
 ./cms/scripts/staging.sh doctor         # 前置检查
 
 
-./cms/scripts/staging.sh sync           # csv → 词库表
+./cms/scripts/staging.sh vocab           # csv → 词库表
 
 
 ./cms/scripts/staging.sh sentences      # OpenAI 填句子

@@ -327,9 +327,9 @@ def main() -> int:
 
     # Resolve DATABASE_URL straight from the process env. Caller is
     # expected to have either run `eval "$(scripts/secrets/fetch_secrets.sh
-    # eval-db)"` (CMS host) or have .secrets/postgres_password written
-    # by ops/<host>/lifecycle.sh first start (target host). See
-    # db/dbtools/db_url.py for the full resolution chain.
+    # eval-db)"` (CMS host) or `ops/<host>/setup.sh bootstrap` (target host,
+    # writes .secrets/database_url). See db/dbtools/db_url.py for the full
+    # resolution chain.
     database_url = resolve_database_url()
 
     staging = find_staging_dir()
