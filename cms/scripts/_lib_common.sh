@@ -91,12 +91,10 @@ staging_usage_body() {
   vocab         csv → cms/staging/vocabulary/<lib>.json (E: Extract)
   sentences  调 OpenAI 追加句子到 cms/staging/sentences/<lib>.jsonl (T: Transform)
   audio      调 Tencent TTS 烤 MP3,更新 audio_url 字段 (T: Transform; 跳过已设的)
-  export       pass-through to db/scripts/export_bundle.py
   -h|--help    显示本帮助
 
-每个子命令的真实逻辑在 ./cmd_*.sh,可单独跑也可被 cms/run.sh 调用。
-
-注意:之前的 doctor 子命令已退役,被 cms/scripts/bootstrap.sh(一次性
-装 Python deps)取代 —— 装包是"do once"操作,不该每次启动时重复判断。
+注意:export 子命令已退役 — db/scripts/export_bundle.py 不再存在,
+内容直接通过 db/scripts/import_staging.sh UPSERT 到云 db,不再走
+pg_dump → dump.sql → image 的 bake 链路。
 EOF
 }

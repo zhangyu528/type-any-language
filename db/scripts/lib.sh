@@ -60,7 +60,7 @@ _db_lib_find_repo_root() {
             echo "$dir"
             return 0
         fi
-        if [ -f "$dir/REGISTRY" ] || [ -f "$dir/db/VERSION" ]; then
+        if [ -f "$dir/REGISTRY" ]; then
             echo "$dir"
             return 0
         fi

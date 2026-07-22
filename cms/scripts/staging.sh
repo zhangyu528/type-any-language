@@ -42,10 +42,14 @@ dispatch() {
         vocab)        exec "$SCRIPT_DIR/cmd_vocab.sh"     "$@" ;;
         sentences)    exec "$SCRIPT_DIR/cmd_sentences.sh" "$@" ;;
         audio)        exec "$SCRIPT_DIR/cmd_audio.sh"     "$@" ;;
-        export)       exec "$SCRIPT_DIR/cmd_export.sh"    "$@" ;;
+        export)
+            err "export 子命令已移除 — db/scripts/export_bundle.py 已退役"
+            err "  内容直接通过 db/scripts/import_staging.sh UPSERT 到云 db,"
+            err "  不再需要 pg_dump → dump.sql → image 的 bake 链路"
+            exit 1 ;;
         publish)
             err "publish 子命令已移除 — schema 没有 published 标志"
-            err "  直接跑: ./db/scripts/build.sh"
+            err "  直接跑 ./db/scripts/import_staging.sh 把 staging 文件 UPSERT 到 db"
             exit 1 ;;
         -h|--help|help|"") usage ;;
         *) err "未知子命令: $sub"; usage; exit 1 ;;
