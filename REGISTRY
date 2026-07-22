@@ -1,25 +1,44 @@
 # Project-wide registry namespace for `docker push` / `docker pull`.
 #
-# Used by ops/release.sh, ops/db/push_image.sh, and the
-# dev / prod target host run.sh + push_image.sh — anywhere the docker
-# images need to be published or pulled.
+# Used by ops/release.sh, ops/prod/push_image.sh, and the dev / prod
+# target host lifecycle.sh (auto-pull on prod `start` / `restart`).
 #
 # Resolution chain (highest priority first):
-#   1. Shell env: `export DOCKER_REGISTRY=docker.io/youruser`
+#   1. Shell env: `export DOCKER_REGISTRY=ccr.ccs.tencentyun.com/your-ns`
 #   2. This file (REGISTRY) — first non-empty, non-comment DOCKER_REGISTRY= line
 #   3. Auto-detect (lib.sh → detect_default_registry) — docker.io/$USER or empty
 #
 # Format: a namespace prefix prepended to `image:tag` for push/pull.
-#   docker.io/zhangyu528
-#   ghcr.io/myorg
-#   registry.gitlab.com/mygroup
+#   docker.io/zhangyu528           — Docker Hub (公共,慢,要登录)
+#   ccr.ccs.tencentyun.com/your-ns — 腾讯云 TCR (推荐,见下文)
+#   ghcr.io/myorg                  — GitHub Container Registry
+#   registry.gitlab.com/mygroup    — GitLab Container Registry
 #
 # This file is COMMITTED to git. It is shared project config, not a
-# personal secret. Personal secrets (postgres password, AI keys, TTS
-# keys) live in `cms/.env` (gitignored) on the CMS host.
+# personal secret. Personal secrets (postgres password, AI keys, TTS keys)
+# live in GitHub Environments and are fetched per-session via
+# scripts/secrets/fetch_secrets.sh.
+#
+# Recommended: Tencent Cloud TCR (容器镜像服务)
+# ------------------------------------------------
+# If your prod host is a Tencent Cloud CVM, **use TCR**. It is the
+# recommended prod path because:
+#   • CVM 跟 TCR 在同一 VPC 时,`docker pull` 走内网,无公网流量费
+#   • 个人版免费额度够个人项目用
+#   • 可用 CVM 的 RAM role 免密登录,不需要 docker login
+#   • 跟 TencentDB 同控制台,运维心智统一
+#
+# Setup:
+#   1. 腾讯云控制台 → 容器镜像服务 TCR → 创建个人版实例(选最近的 region)
+#   2. 在实例里建命名空间(例如 type-any-language)
+#   3. 创建一个访问凭证(临时 token,或给 CVM 绑 RAM role)
+#   4. 把下面的 DOCKER_REGISTRY 行取消注释,填你的 namespace:
+#         DOCKER_REGISTRY=ccr.ccs.tencentyun.com/your-tcr-id/type-any-language
+#   5. 第一次手动 docker login 一次(或 CVM 用 RAM role 自动认证)
 #
 # Leave this file empty (no uncommented DOCKER_REGISTRY= line) to fall
-# back to detect_default_registry() (docker.io/$USER on most dev hosts).
-# Uncomment + edit the line below to pin a shared registry for the team.
+# back to detect_default_registry() (docker.io/$USER on most dev hosts)
+# or local-only mode (no push, no auto-pull). Uncomment + edit the
+# line below to pin a shared registry for the team.
 
 # DOCKER_REGISTRY=docker.io/youruser

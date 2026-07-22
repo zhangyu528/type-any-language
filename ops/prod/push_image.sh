@@ -77,7 +77,8 @@ cmd_doctor() {
 
     if [ -z "$DOCKER_REGISTRY" ]; then
         err "DOCKER_REGISTRY 未设置 — push 需要 registry"
-        info "  → export DOCKER_REGISTRY=docker.io/youruser"
+        info "  → export DOCKER_REGISTRY=ccr.ccs.tencentyun.com/your-tcr-id/type-any-language   (腾讯云 TCR,推荐)"
+        info "  → 或 docker.io/youruser (Docker Hub)"
         info "  → 或在仓库根的 REGISTRY 文件里设置 (commit 后全队共享)"
         ok=0
     else

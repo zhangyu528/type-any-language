@@ -259,13 +259,13 @@ images. There is no db image in the pipeline.
 - **Prod target host**: `docker pull` backend + frontend from `$DOCKER_REGISTRY` on every `lifecycle.sh start` / `restart` (auto-pulled - registry is the source of truth for prod).
 - **Dev target host**: `setup.sh` does the **one-time bootstrap pull** from `$DOCKER_REGISTRY` when local images are missing. `start` / `restart` **never auto-pull** - dev iteration is local-first; image lifecycle is owned by `build_image.sh` on the host. This avoids overwriting fresh local builds with stale registry versions. To pull explicitly: `docker pull <full-image>`.
 
-The registry namespace (e.g. `docker.io/zhangyu528`) is **shared project config** that the whole team uses. It is **not** a personal secret, so it lives in the committed `REGISTRY` file at the repo root (symmetric with the per-segment VERSION files), not in `cms/.env` (gitignored). See [Image registry namespace](#image-registry-namespace) below.
+The registry namespace (e.g. `ccr.ccs.tencentyun.com/your-ns` for **TCR**, or `docker.io/youruser` for Docker Hub) is **shared project config** that the whole team uses. It is **not** a personal secret, so it lives in the committed `REGISTRY` file at the repo root (symmetric with the per-segment VERSION files), not in `cms/.env` (gitignored). See [Image registry namespace](#image-registry-namespace) below — for Tencent Cloud prod, **TCR is the recommended path**.
 
 ## Image registry namespace
 
 The `DOCKER_REGISTRY` shell variable is the namespace prefix prepended to `image:tag` for `docker push` / `docker pull`. The chain (`ops/lib.sh` → `resolve_docker_registry`) is, in order of decreasing precedence:
 
-1. **Shell env** — `export DOCKER_REGISTRY=docker.io/youruser` (highest priority; CI / one-off override)
+1. **Shell env** — `export DOCKER_REGISTRY=ccr.ccs.tencentyun.com/your-ns` (highest priority; CI / one-off override)
 2. **`./REGISTRY` file at repo root** — committed, shared project config (typical default)
 3. **`detect_default_registry()`** — `docker.io/$USER` (best-effort guess; useful for solo dev work)
 4. **Empty** — local-only mode; push scripts fail with a clear error, run scripts just skip the auto-pull
@@ -273,11 +273,30 @@ The `DOCKER_REGISTRY` shell variable is the namespace prefix prepended to `image
 The `REGISTRY` file's format: first non-empty, non-comment line starting with `DOCKER_REGISTRY=`. It ships with the `DOCKER_REGISTRY=` line **commented out** — fill it in and uncomment to publish the team's shared namespace.
 
 ```bash
-# REGISTRY
-DOCKER_REGISTRY=docker.io/zhangyu528   # ← uncomment + edit
+# REGISTRY (recommended for Tencent Cloud prod)
+DOCKER_REGISTRY=ccr.ccs.tencentyun.com/your-tcr-id/type-any-language
+# Other valid forms: docker.io/zhangyu528, ghcr.io/myorg, registry.gitlab.com/mygroup
 ```
 
 > Why committed and not `.env`? Like the per-segment VERSION files, this is shared project config that the whole team should agree on — putting it in a gitignored `.env` means every operator has to set it themselves, and the same value gets typed in N places. Personal secrets (postgres password, AI keys, TTS keys) live in GitHub Environments and are fetched per-session via `scripts/secrets/fetch_secrets.sh`; shared config lives at the repo root.
+
+### Recommended: Tencent Cloud TCR for cloud-deployed prod
+
+If the prod host is a Tencent Cloud CVM, the recommended `DOCKER_REGISTRY` is **Tencent Container Registry (TCR)**:
+
+```
+DOCKER_REGISTRY=ccr.ccs.tencentyun.com/your-tcr-id/type-any-language
+```
+
+Why TCR over dockerhub for Tencent Cloud prod:
+- CVM and TCR in the same VPC: `docker pull` goes over the private network — no public-egress bandwidth cost
+- TCR Personal tier is free for small projects
+- CVM RAM role can pull from TCR without `docker login`
+- Same console as TencentDB — unified ops surface
+
+Setup steps: create a TCR Personal instance in the console, create a namespace, get a temporary access token (or attach a CVM RAM role for passwordless pull), fill in `REGISTRY`, `docker login` once on the build host. Subsequent `make release-prod vX.Y.Z -y` builds + pushes to TCR; CVM `make prod-restart` auto-pulls the new tag.
+
+The `REGISTRY` file's inline comment block has more detail on this path. The same code path supports any registry (dockerhub, ghcr.io, gitlab registry, self-hosted) — TCR is just the recommended one for Tencent Cloud users.
 
 ## Image version tags
 
@@ -537,7 +556,7 @@ For multi-host CMS or production, set `CLOUD_PROVIDER=tencent_cos` (plus `CLOUD_
 
 `DOCKER_REGISTRY` is shared project config that lives in the committed `REGISTRY` file at the repo root (see [Image registry namespace](#image-registry-namespace) above). Override at push time via shell env if you need a one-off namespace:
 ```bash
-export DOCKER_REGISTRY=docker.io/youruser   # overrides REGISTRY file (only affects prod app images — no db image to push)
+export DOCKER_REGISTRY=ccr.ccs.tencentyun.com/your-tcr-id/type-any-language   # overrides REGISTRY file (only affects prod app images — no db image to push)
 ./ops/prod/push_image.sh -y
 ```
 

@@ -123,6 +123,38 @@ make prod-push
 > 看当前所有 per-segment VERSION 文件:`make release-show`
 > 一站式 release(自动 bump + build + push):`make release-dev [X.Y.Z]` / `make release-prod [X.Y.Z]`
 
+### 推荐:Tencent Cloud 部署走 TCR(腾讯云容器镜像服务)
+
+如果你的 prod 是腾讯云 CVM,**强烈建议用 TCR 替代 dockerhub**:
+
+1. 腾讯云控制台 → 容器镜像服务 TCR → 创建**个人版**实例
+2. 在实例里建命名空间(例如 `type-any-language`)
+3. 创建访问凭证(临时 token,或给 CVM 绑 RAM role 实现免密)
+4. 在仓库根 `REGISTRY` 文件填一行:
+   ```
+   DOCKER_REGISTRY=ccr.ccs.tencentyun.com/your-tcr-id/type-any-language
+   ```
+5. 第一次手动 `docker login ccr.ccs.tencentyun.com`(或 CVM 用 RAM role 跳过)
+
+之后发版:
+```bash
+# 在本地 build 机
+make release-prod v0.4.0 -y   # bump + build + push 到 TCR
+
+# 在 CVM 上
+ALLOWED_ORIGINS=https://my.domain make prod-restart  # 自动从 TCR pull + 重建
+```
+
+为什么推荐 TCR 而不是 dockerhub:
+- CVM 同 VPC 内网拉取,无公网流量费
+- 个人版免费额度够个人项目
+- 跟 TencentDB 同控制台,运维心智统一
+- RAM role 可让 CVM 免 `docker login`
+
+如果只有 1 台 CVM 且不想用 registry,也可以走 scp 路径
+(`docker save` → scp → `docker load`),但失去了版本回滚能力,
+多机部署也麻烦。
+
 ## 生产环境
 
 ```bash
