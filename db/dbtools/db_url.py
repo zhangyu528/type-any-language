@@ -6,14 +6,14 @@ needs DATABASE_URL but should NOT depend on the data-pipeline's
 full Config object (cms/cms_pipeline/env.py loads TENCENT_*, AI_*,
 AUDIO_DIR — none of which are db concerns).
 
-This module reads cms/.env and assembles DATABASE_URL using only
-db-relevant variables (POSTGRES_USER, POSTGRES_DB, POSTGRES_HOST,
-POSTGRES_PORT, POSTGRES_PASSWORD). It does NOT call any external
-dependencies (no psycopg2, no openai, no tencentcloud SDKs).
-
-Used by:
-  - db/dbtools/init_schema.py (primary)
-  - db/dbtools/migrations/runner.py (if it needs a connection too)
+This module assembles DATABASE_URL using only db-relevant variables
+(POSTGRES_USER, POSTGRES_DB, POSTGRES_HOST, POSTGRES_PORT,
+POSTGRES_PASSWORD). It does NOT call any external dependencies
+(no psycopg2, no openai, no tencentcloud SDKs) and it does NOT
+read any local file — secrets are resolved through the process
+environment (typically injected by `eval "$(scripts/secrets/fetch_secrets.sh
+eval-db)"` or via the .secrets/postgres_password fallback file the
+target-host lifecycle.sh writes).
 
 Mirrors the URL assembly in db/scripts/build.sh (via ops/lib.sh's
 db_assemble_url helper) so all db-side code agrees on what DATABASE_URL
@@ -43,47 +43,18 @@ def find_project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent
 
 
-def _load_cms_env(env_path: Path) -> dict[str, str]:
-    """Load cms/.env into a dict (no os.environ side effects).
-
-    Mirrors lib.sh's `set -a; . ./cms/.env; set +a` semantics:
-    - skip blank lines and lines starting with `#`
-    - strip optional surrounding quotes
-    - use `os.environ.setdefault` for anything the operator already
-      exported in their shell (shell env wins over file)
-    """
-    out: dict[str, str] = {}
-    if not env_path.is_file():
-        sys.exit(
-            f"cms/.env not found at {env_path} — run ./cms/scripts/env.sh init to scaffold"
-        )
-    with env_path.open("r", encoding="utf-8") as f:
-        for raw in f:
-            line = raw.strip()
-            if not line or line.startswith("#"):
-                continue
-            if "=" not in line:
-                continue
-            key, _, value = line.partition("=")
-            key = key.strip()
-            value = value.strip()
-            if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
-                value = value[1:-1]
-            # Don't clobber a shell-set value with the file's value.
-            out.setdefault(key, value)
-    return out
-
-
 def resolve_database_url() -> str:
     """Return the full DATABASE_URL, either from env or assembled from parts.
 
     Priority: explicit DATABASE_URL env var > assembled from code defaults
-    + POSTGRES_PASSWORD (sourced from cms/.env or shell).
+    + POSTGRES_PASSWORD (from the process env or .secrets/postgres_password).
 
-    Caller is expected to have called load_cms_env() once at startup
-    so cms/.env's keys are visible in os.environ; this function falls
-    back to a fresh load if os.environ doesn't have what it needs
-    (defensive — but the normal path is the upfront load).
+    Callers should ensure POSTGRES_PASSWORD / DATABASE_URL are in the
+    process environment before invoking this function — typically by
+    running
+        eval "$(scripts/secrets/fetch_secrets.sh eval-db)"
+    first, or by relying on db_assemble_url (from the db-side shell
+    scripts) which writes .secrets/postgres_password on first start.
     """
     explicit = os.environ.get("DATABASE_URL", "").strip()
     if explicit:
@@ -103,18 +74,8 @@ def resolve_database_url() -> str:
             pw = secrets.read_text(encoding="utf-8").strip()
     if not pw:
         sys.exit(
-            "POSTGRES_PASSWORD is empty. Set it in cms/.env, copy "
-            ".secrets/postgres_password from a dev/prod host, or "
-            "export POSTGRES_PASSWORD=... in the shell."
+            "POSTGRES_PASSWORD is empty. Set POSTGRES_PASSWORD in the shell, "
+            "or provide .secrets/postgres_password."
         )
 
     return f"postgresql://{quote(user, safe='')}:{quote(pw, safe='')}@{host}:{port}/{db}"
-
-
-def load_cms_env_into_os_environ() -> None:
-    """Load cms/.env into os.environ (setdefault semantics)."""
-    project_root = find_project_root()
-    env_path = project_root / "cms" / ".env"
-    loaded = _load_cms_env(env_path)
-    for k, v in loaded.items():
-        os.environ.setdefault(k, v)

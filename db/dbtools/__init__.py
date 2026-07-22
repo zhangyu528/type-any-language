@@ -31,7 +31,7 @@ This package is only loaded by db-side scripts:
    db/scripts/migrate.sh
    (and by cms/scripts/staging.sh's init-schema subcommand)
 
-The data-pipeline (cms/scripts/staging.sh sync / sentences / audio)
+The data-pipeline (cms/scripts/staging.sh vocab / sentences / audio)
 does NOT import from this package — it only invokes
 dbtools.init_schema as a one-shot pre-flight step before the
 data pipeline starts writing to a freshly-bootstrapped db.

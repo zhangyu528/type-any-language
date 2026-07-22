@@ -73,7 +73,7 @@ The full pipeline on the CMS host (single-machine CMS+dev or dedicated CMS host)
 
 # (3) CMS: produce staging files (CSV → JSON → OpenAI JSONL → TTS audio URLs).
 #     None of this touches the db.
-./cms/scripts/staging.sh sync
+./cms/scripts/staging.sh vocab
 ./cms/scripts/staging.sh sentences
 ./cms/scripts/staging.sh audio
 

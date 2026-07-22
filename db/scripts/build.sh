@@ -13,7 +13,7 @@
 #   2. run `docker build` with the right --build-arg / --label
 # What stays in shell:
 #   - preflight (docker installed? source content present?)
-#   - host-side env loading (cms/.env → POSTGRES_PASSWORD → DATABASE_URL)
+#   - host-side db env resolution (shell env / .secrets → DATABASE_URL)
 #   - calling db/scripts/export_bundle.py to produce the staging bundle
 #   - timestamp + git SHA capture (host-bound, easier in shell)
 #   - invoking builder.py and printing the resulting "Built: <tag>" line
@@ -33,7 +33,8 @@
 #   DOCKER_REGISTRY is NOT used here — push is a separate concern.
 #   Source the registry from the shell when you're ready to push:
 #     export DOCKER_REGISTRY=... && ./db/scripts/push.sh
-#   All other vars sourced from cms/.env (defaults match docker-compose.yml).
+# DB configuration comes from shell env plus code defaults. Provider secrets
+# are CMS concerns and are intentionally not read by the db bake.
 #
 # This script does NOT modify content. It only packages whatever is
 # currently in the DB. To update content, run
@@ -52,20 +53,9 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
 source "$SCRIPT_DIR/../../ops/lib.sh"
 
-# Load cms/.env so $DB_IMAGE / $DB_IMAGE_TAG / any user-supplied secrets
-# (AI_API_KEY, TENCENT_*, AUDIO_DIR) resolve. Refuses to continue if
-# cms/.env is missing — run cms/scripts/env.sh first.
-#
-# DATABASE_URL is NOT in cms/.env by convention — see CLAUDE.md. We
-# assemble it from POSTGRES_PASSWORD (env var or .secrets/postgres_password)
-# + code defaults below.
-CONTENT_ENV_FILE_PATH="$(resolve_content_env_file)"
-if [ -f "$CONTENT_ENV_FILE_PATH" ]; then
-    set -a; . "$CONTENT_ENV_FILE_PATH"; set +a
-else
-    echo "[ERR] $CONTENT_ENV_FILE_PATH 不存在 — 跑 ./cms/scripts/env.sh 先引导一份" >&2
-    exit 1
-fi
+# Use shell variables / code defaults. Do not load cms/.env here: CMS provider
+# credentials are consumed only by cms/scripts/staging.sh, while db credentials
+# come from POSTGRES_* / DATABASE_URL / .secrets.
 
 DB_IMAGE="${DB_IMAGE:-english_db_content}"
 # DB_IMAGE_TAG defaults to db/VERSION (db is prod-bound content, shared
@@ -259,7 +249,7 @@ Usage: $0 [doctor]
 
 Push is a separate step: ./db/scripts/push.sh
 
-Environment (sourced from cms/.env):
+Environment (shell env / code defaults):
   DB_IMAGE        Image name (default: english_db_content)
   DB_IMAGE_TAG    Image tag (default: db/VERSION) — also baked into image label
   POSTGRES_USER   Baked into image label as type-any-language.db.user

@@ -29,11 +29,13 @@ list of `upgrade(conn)` calls. This project's migration count is small
 easier to read, audit, and modify than a generated Alembic env.py.
 
 Env handling — minimal:
-  This module reads cms/.env via db_url.py (a 90-line helper) which
-  only resolves POSTGRES_* + DATABASE_URL. It does NOT depend on
+  This module resolves DATABASE_URL via db_url.py (a 60-line helper)
+  which reads only POSTGRES_* + DATABASE_URL from the process env (or
+  the .secrets/postgres_password fallback). It does NOT depend on
   cms/cms_pipeline/env.py (the data-pipeline's full Config loader that
   also pulls in TENCENT_*, AI_*, AUDIO_DIR — none of which are db
-  concerns). Keeps the db schema code free of data-pipeline deps.
+  concerns) and it no longer reads any local cms/.env. Keeps the db
+  schema code free of data-pipeline deps.
 
 Usage
 -----
@@ -52,9 +54,9 @@ from pathlib import Path
 # not cms/.
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from db_url import load_cms_env_into_os_environ, resolve_database_url  # noqa: E402
+    from db_url import resolve_database_url  # noqa: E402
 else:
-    from .db_url import load_cms_env_into_os_environ, resolve_database_url  # noqa: E402
+    from .db_url import resolve_database_url  # noqa: E402
 
 
 def _ensure_backend_on_path() -> None:
@@ -69,9 +71,9 @@ def _ensure_backend_on_path() -> None:
 
 
 def main() -> int:
-    # 1. Load cms/.env + assemble DATABASE_URL. (db-only keys; no
-    #    data-pipeline config needed.)
-    load_cms_env_into_os_environ()
+    # 1. Assemble DATABASE_URL from POSTGRES_* / DATABASE_URL already in
+    #    the process env (typically supplied by fetch_secrets.sh eval-db,
+    #    or by db_assemble_url on the shell side). No local file lookup.
     database_url = resolve_database_url()
 
     # 2. Make backend/app importable so the models + database engine resolve.
