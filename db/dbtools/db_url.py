@@ -11,13 +11,26 @@ This module assembles DATABASE_URL using only db-relevant variables
 POSTGRES_PASSWORD). It does NOT call any external dependencies
 (no psycopg2, no openai, no tencentcloud SDKs) and it does NOT
 read any local file — secrets are resolved through the process
-environment (typically injected by `eval "$(scripts/secrets/fetch_secrets.sh
-eval-db)"` or via the .secrets/postgres_password fallback file the
-target-host lifecycle.sh writes).
+environment, typically:
 
-Mirrors the URL assembly in db/scripts/build.sh (via ops/lib.sh's
-db_assemble_url helper) so all db-side code agrees on what DATABASE_URL
-means.
+  - cloud-db path:  ops/{dev,prod}/setup.sh bootstrap writes
+                    .secrets/database_url; the calling shell exports
+                    DATABASE_URL via resolve_dev_db_url / resolve_prod_db_url
+                    (db/scripts/lib.sh) before Python starts.
+
+  - self-hosted / CI:  operator runs
+                    `eval "$(scripts/secrets/fetch_secrets.sh eval-db)"`
+                    to inject DATABASE_URL from GitHub Secrets.
+
+The legacy fallback to .secrets/postgres_password is retained so
+direct invocations of `PYTHONPATH=db python3 -m dbtools.importer` (or
+init_schema / migrations.runner) still work without bootstrap — useful
+for ad-hoc CLI use where the operator composes POSTGRES_* env vars
+by hand.
+
+Mirrors the URL assembly in db/scripts/migrate.sh /
+db/scripts/import_staging.sh (via ops/lib.sh's db_assemble_url helper)
+so all db-side code agrees on what DATABASE_URL means.
 """
 from __future__ import annotations
 

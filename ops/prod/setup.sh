@@ -2,32 +2,42 @@
 #
 # ops/prod/setup.sh — first-time (or post-reset) bootstrap.
 #
-# Walks the operator through the image dependency chain so a fresh prod
-# host is one command away from `./lifecycle.sh start`:
+# Walks the operator through the steps a fresh prod host needs before
+# `./lifecycle.sh start` will succeed. With the cloud-db write path,
+# the bootstrap is:
 #
 #   1. Preflight: docker + compose must be present.
-#   2. db image: must be locally present (prod build_image.sh reads
-#      DB_USER / DB_NAME from its OCI labels). Prod host NEVER bakes
-#      db content itself — only pulls from registry or expects a
-#      pre-loaded image.
-#   3. prod app images: call ops/prod/build_image.sh.
-#      Skipped if both already present.
+#   2. Cloud-db (TencentDB) bootstrap — one-time per host. Creates the
+#      prod ROLE + DATABASE on the shared instance, writes
+#      .secrets/database_url. Optional here: only invoked when the
+#      operator asks for it (`./ops/prod/setup.sh bootstrap`). Re-running
+#      setup after a working bootstrap skips this step.
+#   3. prod app images: call ops/prod/build_image.sh. Skipped if both
+#      already present.
 #   4. Final summary.
 #
 # Subcommands:
-#   (default)   legacy bootstrap path described above. No CMS re-run.
-#   bootstrap   one-time: first-time setup of per-host credentials in
-#               the shared TencentDB instance (cloud-db path). Prompts
-#               for the admin DSN, writes .secrets/tencent_db_admin_url
-#               (chmod 600), then invokes db/scripts/bootstrap_tencent.sh
-#               with tier=prod. Self-hosted postgres users don't need
-#               this — skip.
+#   (default) | setup    Preflight + build prod app images. Assumes
+#                        the cloud-db has already been bootstrapped
+#                        (run `./ops/prod/setup.sh bootstrap` once for
+#                        a new host, or copy .secrets/database_url
+#                        from a peer host). Self-hosted postgres
+#                        users configure DATABASE_URL via shell env
+#                        instead.
+#   bootstrap            One-time cloud-db (TencentDB) setup. Prompts
+#                        for the admin DSN, writes
+#                        .secrets/tencent_db_admin_url (chmod 600),
+#                        then invokes db/scripts/bootstrap_tencent.sh
+#                        with tier=prod. Self-hosted postgres users
+#                        skip this.
 #
-# Does NOT create .secrets/, start any containers, or push to a registry.
+# Does NOT create .secrets/database_url on its own (only bootstrap does),
+# does NOT start containers, does NOT push to a registry.
 
 set -e
 
 COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$COMMON_DIR/../.." && pwd)"
 # shellcheck source=_common.sh
 source "$COMMON_DIR/_common.sh"
 setup_prod_host_env
@@ -36,6 +46,7 @@ cmd_setup() {
     info "=== prod environment setup ==="
     echo ""
 
+    # 1. Preflight.
     local preflight_ok=1
     if check_docker_installed; then
         ok "docker 已安装: $(docker --version 2>&1 | head -1)"
@@ -58,40 +69,22 @@ cmd_setup() {
     fi
     echo ""
 
-    info "Step 1/2: content-baked db image ($DB_FULL_IMAGE)"
-    if ! image_exists "$DB_FULL_IMAGE"; then
-        warn "content-baked db image 不在本地"
-        if [ -n "$DOCKER_REGISTRY" ]; then
-            info "  DOCKER_REGISTRY 已设,尝试 docker pull..."
-            echo ""
-            if docker pull "$DB_FULL_IMAGE"; then
-                echo ""
-                ok "  pull 成功"
-            else
-                err "  pull 失败 — 检查 registry / 网络 / 凭据"
-                err "  或: 在 CMS 主机上先 push: db/scripts/push.sh -y"
-                return 1
-            fi
-        else
-            info "  prod 主机不 bake content,content-baked db image 必须从 CMS 主机过来:"
-            info "    1. CMS 主机: cms/scripts/staging.sh   # 数据管线(vocab / sentences / audio)"
-            info "    2. CMS 主机: db/scripts/build.sh       # 烤 db image"
-            info "    3. CMS 主机: db/scripts/push.sh -y    # 推 registry"
-            info "    4. 本机配置 REGISTRY / DOCKER_REGISTRY,再跑一次 ./ops/prod/setup.sh"
-            info "  (或: 手动 docker load/tar 把 content-baked db image 搬过来)"
-            err "content-baked db image 缺失 — 完成上面的步骤后,再跑一次 setup"
-            return 1
-        fi
-    fi
-    if inspect_db_image_labels; then
-        ok "  db.user=$DB_USER  db.name=$DB_NAME  content.version=$DB_VERSION"
+    # 2. Cloud-db contract.
+    if [ -f "$DB_URL_FILE" ]; then
+        ok "cloud-db: .secrets/database_url 已就绪"
+    elif [ -n "${DATABASE_URL:-}" ]; then
+        info "cloud-db: DATABASE_URL 在 shell env(自管 db / CI)"
     else
-        warn "  content-baked db image 缺 type-any-language.* label — 重新 bake"
+        err "cloud-db 未配置 — 缺 .secrets/database_url 或 DATABASE_URL"
+        info "  → 云 db 主机(首次): ./ops/prod/setup.sh bootstrap"
+        info "  → 复用:               scp peer-prod:.secrets/database_url .secrets/"
+        info "  → 自管 / CI:          export DATABASE_URL=postgres://..."
         return 1
     fi
     echo ""
 
-    info "Step 2/2: prod app images"
+    # 3. prod app images
+    info "Step 1/1: prod app images"
     if image_exists "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}" && \
        image_exists "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"; then
         ok "  ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 已存在"
@@ -125,9 +118,8 @@ cmd_setup() {
 #     TENCENT_DB_PROD_PASSWORD env (or .secrets/tencent_db_prod_*
 #     files); db name is fixed at "english_prod" (no $USER / SHA
 #     suffix) — render_db_name is bypassed for prod.
-#   - The prod admin DSN is a different connection (typically the
-#     postgres superuser on the same shared instance) than dev.
-#     Same .secrets/tencent_db_admin_url file path — bootstrap_tencent.sh
+#   - The prod admin DSN is the same postgres superuser as dev's
+#     (both target the same shared instance); bootstrap_tencent.sh
 #     uses it to CREATE ROLE english_prod_user (idempotent).
 #   - bootstrap_tencent.sh writes .secrets/database_url exactly once;
 #     subsequent runs reuse the file.
@@ -226,9 +218,9 @@ usage() {
 用法: $0 <command>
 
 命令:
-  (default) | setup    Legacy bootstrap path: ensure db image locally
-                        (pull from registry) + build prod app images.
-                        No CMS re-run.
+  (default) | setup    Preflight + build prod app images. Requires
+                        cloud-db already bootstrapped (or DATABASE_URL
+                        in env). No CMS re-run.
   bootstrap            One-time cloud-db (TencentDB) setup (tier=prod).
                         Prompts for the admin DSN, writes
                         .secrets/tencent_db_admin_url (chmod 600),
@@ -236,12 +228,10 @@ usage() {
                         CREATE ROLE / DATABASE / GRANT. Only needed
                         for prod hosts using cloud-db — self-hosted
                         postgres users skip this.
-  -h|--help|help       Show this help.
 
 典型工作流:
-  ./ops/prod/setup.sh                    # 首次 bootstrap (self-host 或从 registry 拉)
-  # 或 cloud-db 主机:
-  ./ops/prod/setup.sh bootstrap          # 一次性 cloud-db setup
+  ./ops/prod/setup.sh bootstrap          # 首次 (cloud-db 主机)
+  ./ops/prod/setup.sh                    # 之后每次都跑 (build prod images)
   ./ops/prod/lifecycle.sh start          # 日常起容器
 EOF
 }

@@ -1,16 +1,15 @@
 #!/bin/bash
 #
-# db/scripts/import_staging.sh — read CMS staging files and apply to
-# the staging db. The bridge between "CMS pipeline produced files"
+# db/scripts/import_staging.sh — read CMS staging files and UPSERT into
+# the connected db. The bridge between "CMS pipeline produced files"
 # and "the db has the new content".
 #
 # Why this lives in db/scripts/:
-#   This is the inverse of db/scripts/build.sh's export_bundle.py.
-#   The data flow is:
-#     CMS pipeline →  cms/staging/  →  importer  →  db
-#   The importer is the one place that knows both file format and
-#   schema, so it lives with the schema (db/dbtools/). This
-#   shell is its entry point.
+#   This is the canonical Load step of the ETL — CMS produces files
+#   in cms/staging/, this script (via dbtools.importer) writes them
+#   to the db. The importer is the one place that knows both file
+#   format and schema, so it lives with the schema (db/dbtools/).
+#   This shell is its entry point.
 #
 # Idempotent: re-running only inserts new rows; existing rows are
 # skipped (vocab) or updated in place (sentences, audio_url).
@@ -23,8 +22,9 @@
 #   ./db/scripts/import_staging.sh sentences   # just sentences (incl. audio_url)
 #   ./db/scripts/import_staging.sh --dry-run    # show what would happen
 #
-# Make sure a populated db is reachable first:
-#   ./db/scripts/source_db.sh ensure
+# Requires DATABASE_URL in env (cloud-db path: bootstrap_tencent.sh
+# writes .secrets/database_url, and the caller exports it via
+# db/scripts/lib.sh::resolve_*_db_url before this script starts).
 
 set -e
 

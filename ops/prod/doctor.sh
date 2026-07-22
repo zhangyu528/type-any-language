@@ -2,8 +2,10 @@
 #
 # ops/prod/doctor.sh — pre-flight env check (read-only).
 #
-# Validates that everything ops/prod/{start,setup} need is in
+# Validates that everything ops/prod/{lifecycle,setup} need is in
 # place. Does NOT modify anything on disk or call docker compose.
+#
+# Drift check (running containers vs local VERSION) is appended.
 #
 # Exit: 0 if all required checks pass; 1 otherwise.
 
@@ -37,10 +39,30 @@ cmd_doctor() {
         err "未找到 docker-compose / docker compose"; failed=1
     fi
 
-    if [ -f "$PG_PASSWORD_FILE" ]; then
-        ok ".secrets/postgres_password 存在(密码稳定,db 不会重置)"
+    # Cloud-db contract.
+    if [ -f "$DB_URL_FILE" ]; then
+        ok ".secrets/database_url 存在 — backend 会通过 secrets: 挂载进容器"
+        if command -v psql &> /dev/null; then
+            local db_url
+            db_url="$(awk 'NR==1' "$DB_URL_FILE" 2>/dev/null)"
+            if [ -n "$db_url" ]; then
+                if PGPASSWORD= psql "$db_url" -c 'select 1' &>/dev/null; then
+                    ok "  cloud db 可达 ($(awk -F/ '{print $3}' <<<"$db_url"))"
+                else
+                    warn "  cloud db 不可达 — 检查 .secrets/database_url + 网络/凭据"
+                fi
+            fi
+        else
+            info "  psql 未安装 — 跳过可达性探测(只验文件存在)"
+        fi
+    elif [ -n "${DATABASE_URL:-}" ]; then
+        ok "DATABASE_URL 在 shell env(自管 db / CI)"
     else
-        info ".secrets/postgres_password 缺失 — 下次 start 会现场生成"
+        err ".secrets/database_url 不存在 且 DATABASE_URL 未设 — 云 db 未配置"
+        info "  → ./ops/prod/setup.sh bootstrap    # 一次性: cloud-db ROLE/DB + .secrets/database_url"
+        info "  → 或从 peer prod 主机拷过来: scp peer-prod:.secrets/database_url .secrets/"
+        info "  → 或 export DATABASE_URL=postgres://... (自管 / CI)"
+        failed=1
     fi
 
     if check_docker_installed && check_docker_daemon_running; then
@@ -54,25 +76,9 @@ cmd_doctor() {
         else
             warn "image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 缺失 → 运行 ops/prod/build_image.sh"
         fi
-        if image_exists "$DB_FULL_IMAGE"; then
-            ok "content-baked db image $DB_FULL_IMAGE 存在"
-            if inspect_db_image_labels; then
-                ok "  db.user = $DB_USER"
-                ok "  db.name = $DB_NAME"
-                ok "  content.version = $DB_VERSION"
-                ok "  content.baked-at = $DB_BAKED_AT"
-            else
-                warn "  content-baked db image 缺少 type-any-language.* labels — 重新 bake?"
-            fi
-        elif [ -n "$DOCKER_REGISTRY" ]; then
-            warn "content-baked db image $DB_FULL_IMAGE 缺失 → ./ops/prod/lifecycle.sh restart"
-        else
-            warn "content-baked db image $DB_FULL_IMAGE 缺失 → db/scripts/build.sh"
-        fi
     fi
 
     warn_port_in_use 80  "nginx 端口 (宿主机 80)"
-    warn_port_in_use 5432 "postgres 端口 (宿主机 5432)"
 
     if [ -z "$DOCKER_REGISTRY" ]; then
         warn "DOCKER_REGISTRY 未设置(auto-pull 会跳过;本地镜像必须已经构建)"

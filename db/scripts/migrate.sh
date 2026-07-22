@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-# db/scripts/migrate.sh — apply pending schema migrations to a populated
-# source db. Idempotent (runner.py stamps applied versions in
+# db/scripts/migrate.sh — apply pending schema migrations to the
+# connected db. Idempotent (runner.py stamps applied versions in
 # schema_migrations; re-runs are no-ops).
 #
 # Why this lives in db/scripts/:
@@ -9,11 +9,12 @@
 #   (dbtools.migrations.runner) lives at db/dbtools/migrations/.
 #
 # Usage:
-#   # 1. Make sure a populated db is reachable.
-#   ./db/scripts/source_db.sh ensure
-#   # 2. (first time) init schema, then apply migrations.
-#   ./db/scripts/init_schema.sh
+#   # Default: requires DATABASE_URL in env (cloud-db path: the
+#   # caller — CMS db-import driver or ops/dev/migrate.sh — has
+#   # already exported it).
 #   ./db/scripts/migrate.sh
+#   # Self-hosted postgres without DATABASE_URL pre-set:
+#   POSTGRES_PASSWORD=... ./db/scripts/migrate.sh
 #   # On subsequent runs (after editing db/dbtools/migrations/versions/):
 #   ./db/scripts/migrate.sh
 #

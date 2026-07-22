@@ -2,9 +2,10 @@
 #
 # ops/dev/doctor.sh — pre-flight env check (read-only).
 #
-# Validates that everything ops/dev/{start,setup} need is in
-# place — docker, compose, the right images, db image labels, ports not
-# in use. Does NOT modify anything on disk or call docker compose.
+# Validates that everything ops/dev/{lifecycle,setup} need is in place —
+# docker, compose, the right images, .secrets/database_url (cloud-db
+# contract), ports not in use. Does NOT modify anything on disk or call
+# docker compose.
 #
 # Drift check (running containers vs local VERSION) is appended.
 #
@@ -42,10 +43,33 @@ cmd_doctor() {
         err "未找到 docker-compose / docker compose"; failed=1
     fi
 
-    if [ -f "$PG_PASSWORD_FILE" ]; then
-        ok ".secrets/postgres_password 存在(密码稳定,db 不会重置)"
+    # Cloud-db contract: backend reads DATABASE_URL_FILE which points at
+    # .secrets/database_url. Self-hosted/CI operators use DATABASE_URL
+    # shell env instead — that's equally valid.
+    if [ -f "$DB_URL_FILE" ]; then
+        ok ".secrets/database_url 存在 — backend 会通过 secrets: 挂载进容器"
+        # Best-effort reachability probe (skip if psql not installed).
+        if command -v psql &> /dev/null; then
+            local db_url
+            db_url="$(awk 'NR==1' "$DB_URL_FILE" 2>/dev/null)"
+            if [ -n "$db_url" ]; then
+                if PGPASSWORD= psql "$db_url" -c 'select 1' &>/dev/null; then
+                    ok "  cloud db 可达 ($(awk -F/ '{print $3}' <<<"$db_url"))"
+                else
+                    warn "  cloud db 不可达 — 检查 .secrets/database_url + 网络/凭据"
+                fi
+            fi
+        else
+            info "  psql 未安装 — 跳过可达性探测(只验文件存在)"
+        fi
+    elif [ -n "${DATABASE_URL:-}" ]; then
+        ok "DATABASE_URL 在 shell env(自管 db / CI)"
     else
-        info ".secrets/postgres_password 缺失 — 下次 start 会现场生成"
+        err ".secrets/database_url 不存在 且 DATABASE_URL 未设 — 云 db 未配置"
+        info "  → ./ops/dev/setup.sh bootstrap    # 一次性: cloud-db ROLE/DB + .secrets/database_url"
+        info "  → 或从 peer dev 主机拷过来: scp peer-dev:.secrets/database_url .secrets/"
+        info "  → 或 export DATABASE_URL=postgres://... (自管 / CI)"
+        failed=1
     fi
 
     if check_docker_installed && check_docker_daemon_running; then
@@ -59,40 +83,10 @@ cmd_doctor() {
         else
             warn "image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 缺失 → 运行 ops/dev/build_image.sh"
         fi
-        if image_exists "$DB_FULL_IMAGE"; then
-            ok "content-baked db image $DB_FULL_IMAGE 存在"
-            if inspect_db_image_labels; then
-                ok "  db.user = $DB_USER"
-                ok "  db.name = $DB_NAME"
-                ok "  content.version = $DB_VERSION"
-                ok "  content.baked-at = $DB_BAKED_AT"
-                # Version alignment — does the local image reflect the
-                # current db/VERSION? Mirrors the check in setup.sh so
-                # `./dev doctor` catches stale-bake issues that setup
-                # would have rebaked. Drift between label and db/VERSION
-                # means the image was baked against an older db/VERSION
-                # (e.g. after a release bump without re-baking locally).
-                local expected_db_version
-                expected_db_version="$(read_version_file db/VERSION)"
-                if [ "$DB_VERSION" = "$expected_db_version" ]; then
-                    ok "  content.version 跟 db/VERSION 对齐 ($DB_VERSION)"
-                else
-                    warn "  content.version=$DB_VERSION ≠ db/VERSION=$expected_db_version — image 已落后"
-                    info "    → 跑: ./dev setup (会自动 rebake)"
-                fi
-            else
-                warn "  content-baked db image 缺少 type-any-language.* labels — 重新 bake?"
-            fi
-        elif [ -n "$DOCKER_REGISTRY" ]; then
-            warn "content-baked db image $DB_FULL_IMAGE 缺失 → docker pull $DB_FULL_IMAGE"
-        else
-            warn "content-baked db image $DB_FULL_IMAGE 缺失 → db/scripts/build.sh"
-        fi
     fi
 
     warn_port_in_use 3000 "前端开发端口 (宿主机 3000)"
     warn_port_in_use 8000 "后端开发端口 (宿主机 8000)"
-    warn_port_in_use 5432 "postgres 端口 (宿主机 5432)"
 
     echo "--- drift check (running containers vs local VERSION) ---"
     drift_check
