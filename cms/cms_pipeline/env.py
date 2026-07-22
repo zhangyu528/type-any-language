@@ -1,17 +1,13 @@
 """
-cms/cms_pipeline/env.py — shared cms/.env loader for the data pipeline.
+cms/cms_pipeline/env.py — typed Config loader for the data pipeline.
 
-Reads cms/.env from the project root and exposes a typed `Config` object
-to the other pipeline modules. Centralising the env-loading logic here
-means individual scripts (import_vocab, generate_sentences, ...) can just
-do `from cms_pipeline.env import load_config; cfg = load_config()` and
+Reads every value from `os.environ` (populated by
+`scripts/secrets/fetch_secrets.sh eval-cms` on a workstation) and
+exposes a typed `Config` object to the other pipeline modules.
+Centralising the env-reading logic here means individual scripts
+(import_vocab, generate_sentences, ...) can just do
+`from cms_pipeline.env import load_config; cfg = load_config()` and
 get validated settings.
-
-Why a dedicated loader (not os.environ directly):
-  - Fail loudly if cms/.env is missing or required keys are unset.
-  - Single place to do type coercion + default handling.
-  - Other scripts can `from cms_pipeline.env import setup_env` to mirror
-    the cms/.env → os.environ copy that db scripts do via `set -a`.
 
 Validation contract:
   - DATABASE_URL / POSTGRES_PASSWORD are NOT touched here. CMS modules
@@ -23,22 +19,20 @@ Validation contract:
   - AI_API_KEY / AI_BASE_URL / AI_MODEL are OPTIONAL at load time.
     Each is `str | None`. Consumer modules that talk to OpenAI should
     call `cfg.require_ai()` first, which raises with a clear pointer
-    to cms/.env and the specific subcommand that needs them.
+    to the env var name and the specific subcommand that needs it.
   - TENCENT_SECRET_ID / TENCENT_SECRET_KEY / TENCENT_APP_ID are also
-    OPTIONAL. Consumer modules for Tencent TTS call `cfg.require_tencent()`
-    first.
-  - CLOUD_* are OPTIONAL. Required only when CLOUD_PROVIDER is non-default.
-    Consumer modules (cms.storage) call `cfg.require_cloud()` first.
-  - Rationale: a CMS host that only runs `staging.sh sync` doesn't need
-    AI or TENCENT keys at all. Forcing them on every operator is friction;
-    forcing them only on the subcommand that needs them is the right
-    shape. The bash-side `env.sh doctor` and `staging.sh doctor` already
-    treat AI as required and TENCENT as optional — this Python change
-    brings the two sides into agreement.
+    OPTIONAL. Consumer modules for Tencent TTS call
+    `cfg.require_tencent()` first.
+  - CLOUD_* are OPTIONAL. Required only when CLOUD_PROVIDER is
+    non-default. Consumer modules (cms.storage) call
+    `cfg.require_cloud()` first.
+  - Rationale: a CMS host that only runs `staging.sh vocab` doesn't need
+    AI or TENCENT keys at all. Forcing them on every operator is
+    friction; forcing them only on the subcommand that needs them is
+    the right shape.
 
 Usage from a CLI script:
-    from cms_pipeline.env import setup_env, load_config
-    setup_env()                 # copies cms/.env into os.environ (idempotent)
+    from cms_pipeline.env import load_config
     cfg = load_config()         # typed Config (AI / TENCENT fields may be None)
     cfg.require_ai()            # raise if AI_* unset — call this before OpenAI calls
     cfg.require_tencent()       # raise if TENCENT_* unset — call this before TTS calls
@@ -49,83 +43,15 @@ from __future__ import annotations
 import os
 import sys
 from dataclasses import dataclass
-from pathlib import Path
-
-
-# Project root = parent of cms/. Caller passes an absolute path or we
-# fall back to a walk-up from this file (parent of cms/cms_pipeline/).
-def _project_root() -> Path:
-    return Path(__file__).resolve().parent.parent.parent
-
-
-def setup_env(env_file: str | os.PathLike | None = None) -> dict[str, str]:
-    """Load cms/.env into os.environ (idempotent). Returns the loaded dict.
-
-    Path resolution (highest priority first):
-      1. Caller-supplied $env_file argument (absolute or project-root-relative)
-      2. Shell env CONTENT_ENV_FILE (absolute or project-root-relative)
-      3. Default: $PROJECT_ROOT/cms/.env
-
-    Relative paths are resolved against the project root (parent of
-    cms/). Absolute paths are used as-is.
-
-    Why `cms/.env` (not project root): the only consumer of this file
-    is the CMS content-production runtime. Co-locating it with `cms/`
-    pairs with `cms/.local/audio` (audio staging dir) and lets the
-    dev migrate sidecar reuse the existing `-v content:/content:ro`
-    bind mount (no separate env-file mount needed).
-
-    Mirrors what db scripts do in bash:
-        set -a; . ./cms/.env; set +a
-
-    After this call:
-      - os.environ["AI_*"] / "TENCENT_*" / "CLOUD_*" / "AUDIO_DIR" /
-        "CMS_STAGING_DIR" are populated from cms/.env if present.
-      - POSTGRES_PASSWORD / DATABASE_URL are NOT touched here — CMS
-        modules don't connect to the db.
-    """
-    if env_file is not None:
-        path = Path(env_file)
-    else:
-        env_override = os.environ.get("CONTENT_ENV_FILE", "").strip()
-        if env_override:
-            path = Path(env_override)
-            if not path.is_absolute():
-                path = _project_root() / path
-        else:
-            path = _project_root() / "cms" / ".env"
-    if not path.is_file():
-        sys.exit(
-            f"cms/.env 不存在 ({path}) — 跑 ./cms/scripts/env.sh 先引导"
-        )
-
-    loaded: dict[str, str] = {}
-    with path.open("r", encoding="utf-8") as f:
-        for raw in f:
-            line = raw.strip()
-            if not line or line.startswith("#"):
-                continue
-            if "=" not in line:
-                continue
-            key, _, value = line.partition("=")
-            key = key.strip()
-            value = value.strip()
-            # Strip optional surrounding quotes.
-            if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
-                value = value[1:-1]
-            loaded[key] = value
-            os.environ.setdefault(key, value)  # don't clobber pre-set env
-
-    return loaded
 
 
 @dataclass(frozen=True)
 class Config:
-    """Validated cms/.env settings used by the data pipeline.
+    """Validated process-environment settings used by the data pipeline.
 
     AI_* / TENCENT_* / CLOUD_* fields are Optional — each is None if the
-    corresponding cms/.env key was missing or empty. Consumer modules
-    that actually need them should call `cfg.require_ai()` /
+    corresponding env var was missing or empty. Consumer modules that
+    actually need them should call `cfg.require_ai()` /
     `cfg.require_tencent()` / `cfg.require_cloud()` first, which raises
     with a clear pointer to which subcommand needs which keys.
 
@@ -179,16 +105,18 @@ class Config:
         ]
         if missing:
             sys.exit(
-                f"{', '.join(missing)} missing in cms/.env — "
-                f"required for `staging.sh sentences`"
+                f"{', '.join(missing)} missing — required for "
+                f"`staging.sh sentences`. Run "
+                f"`eval \"$(scripts/secrets/fetch_secrets.sh eval-cms)\"` "
+                f"or export the values in the current shell."
             )
 
     def require_tencent(self) -> None:
         """Raise if any TENCENT_* field is unset. Call before Tencent TTS.
 
-        TENCENT_* is all-or-nothing: the .env.example.cms template leaves
-        them empty (audio subcommand is optional), but if you set any,
-        you must set all three.
+        TENCENT_* is all-or-nothing: the GitHub Environment's keys may
+        all be unset (audio subcommand is optional), but if any is set
+        in the process env, all three must be present.
         """
         missing = [
             name for name, val in (
@@ -199,9 +127,10 @@ class Config:
         ]
         if missing:
             sys.exit(
-                f"{', '.join(missing)} missing in cms/.env — "
-                f"required for `staging.sh audio`. "
-                f"Either fill all three TENCENT_* keys, or skip the audio subcommand."
+                f"{', '.join(missing)} missing — required for "
+                f"`staging.sh audio`. Run "
+                f"`eval \"$(scripts/secrets/fetch_secrets.sh eval-cms)\"` "
+                f"or export the values in the current shell."
             )
 
     def require_cloud(self) -> None:
@@ -218,17 +147,17 @@ class Config:
         ]
         if missing:
             sys.exit(
-                f"{', '.join(missing)} missing in cms/.env — "
-                f"required for CLOUD_PROVIDER={self.cloud_provider!r}. "
-                f"Set CLOUD_PROVIDER=local_fs to use the default local storage."
+                f"{', '.join(missing)} missing — required for "
+                f"CLOUD_PROVIDER={self.cloud_provider!r}. "
+                f"Run `eval \"$(scripts/secrets/fetch_secrets.sh eval-cms)\"` "
+                f"or set the CLOUD_* values in the current shell."
             )
 
 
 # Where TTS MP3s land before bake. Lives inside the project so Windows
 # users and sandboxed Linux hosts (no sudo, no write access to /var/lib)
 # can run staging.sh audio without any extra setup. Operators override
-# by setting AUDIO_DIR in cms/.env or the shell — the override wins
-# over this default.
+# by setting AUDIO_DIR in the shell.
 _DEFAULT_AUDIO_DIR = "cms/.local/audio"
 
 # Where the CMS pipeline writes its output JSON/JSONL (vocabulary/*.json,
@@ -257,10 +186,11 @@ def load_config() -> Config:
     No DATABASE_URL / POSTGRES_* — CMS modules don't connect to the db.
     """
     return Config(
-        # AI / Tencent are read raw — None means "operator hasn't set
-        # them in cms/.env". load_config must NOT fail on these, because
-        # sync doesn't need them. require_ai() / require_tencent()
-        # enforce at point of use.
+        # AI / Tencent are read raw — None means the operator hasn't
+        # exported them in the shell (typically because
+        # fetch_secrets.sh eval-cms wasn't run). load_config must NOT
+        # fail on these, because sync doesn't need them. require_ai() /
+        # require_tencent() enforce at point of use.
         ai_api_key=os.environ.get("AI_API_KEY") or None,
         ai_base_url=os.environ.get("AI_BASE_URL") or None,
         ai_model=os.environ.get("AI_MODEL") or None,

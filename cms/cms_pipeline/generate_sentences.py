@@ -316,33 +316,23 @@ def fill_one_bucket(staging: Path, lib_id: str, lib_name: str, lib_level: str,
 
 
 def _read_ai_cfg() -> dict:
-    """Read AI_* from cms/.env (no Config object — keep this module
-    free of cms_pipeline.env / psycopg2 / setup_env)."""
-    # load_cms_env_into_os_environ would be a dbtools concern; here we
-    # do the simple parse inline.
-    env_path = find_project_root() / "cms" / ".env"
-    if not env_path.is_file():
-        sys.exit(f"cms/.env not found at {env_path} — run ./cms/scripts/env.sh init")
-    env: dict[str, str] = {}
-    for raw in env_path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k, _, v = line.partition("=")
-        v = v.strip()
-        if len(v) >= 2 and v[0] == v[-1] and v[0] in ('"', "'"):
-            v = v[1:-1]
-        env.setdefault(k.strip(), v)
-    missing = [k for k in ("AI_API_KEY", "AI_BASE_URL", "AI_MODEL") if not env.get(k)]
-    if missing:
-        sys.exit(
-            f"cms/.env missing required AI keys: {', '.join(missing)} — "
-            f"update cms/.env or run ./cms/scripts/env.sh update KEY=VALUE"
-        )
+    """Read AI configuration from the process environment.
+
+    Values are populated by ``scripts/secrets/fetch_secrets.sh eval-cms``
+    (GitHub Environments secrets). There is no longer a local cms/.env
+    fallback — process env is the only source.
+    """
+    if __package__ in (None, ""):
+        from cms_pipeline.env import load_config
+    else:
+        from .env import load_config
+
+    cfg = load_config()
+    cfg.require_ai()
     return {
-        "api_key": env["AI_API_KEY"],
-        "base_url": env["AI_BASE_URL"],
-        "model": env["AI_MODEL"],
+        "api_key": cfg.ai_api_key,
+        "base_url": cfg.ai_base_url,
+        "model": cfg.ai_model,
     }
 
 

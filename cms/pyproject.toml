@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cms-pipeline"
+version = "0.1.0"
+description = "CMS content production pipeline (vocab CSVs → AI sentences → TTS audio). Writes staging files only — never touches the db."
+requires-python = ">=3.11"
+readme = "README.md"
+
+# Required: every cms host needs these, regardless of which sub-commands
+# are run. Even `cmd_vocab.sh` (no API calls) imports yaml for manifest
+# parsing and openai is needed by the optional `_check_openai_module`...
+# actually no, openai is only used when sentences runs. But the rest of
+# the pipeline (storage.py / env.py) is reachable from vocab too via
+# the same site-packages, so we install both unconditionally. Operators
+# who never run `run.sh sentences` can still pip install -e ./cms and
+# openai just sits unused; cost is negligible.
+dependencies = [
+    "openai>=1.0,<2.0",
+    "PyYAML>=6.0",
+]
+
+# Optional — install via `pip install -e "./cms[audio]"` / `"[cos]"` /
+# `"[audio,cos]"`. `run.sh` does NOT auto-install these; missing
+# optional deps only blow up when the matching sub-command runs.
+[project.optional-dependencies]
+# `cmd_audio.sh` — Tencent TTS for `call_tencent_tts()` in
+# generate_audio.py:80-81 (lazy-imported inside the function, so a
+# missing pkg only surfaces at audio time, not at vocab / sentences).
+audio = [
+    "tencentcloud-sdk-python>=3.0.800",
+]
+# `cms/cms_pipeline/storage.py::TencentCosStorage` — multi-host CMS or
+# production deployments. Local-only CMS hosts can skip this and use
+# the default LocalFsStorage (writes to cms/.local/audio/).
+cos = [
+    "cos-python-sdk-v5>=1.9",
+]
+
+# `bootstrap.sh` always installs the all-in-one extra set on first
+# setup. Operators editing source can `pip install -e ./cms` to skip
+# the optional ones until they actually need them.
+all = [
+    "cms-pipeline[audio,cos]",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cms_pipeline*"]

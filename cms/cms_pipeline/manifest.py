@@ -36,8 +36,8 @@ _SUPPORTED_VERSIONS = (1,)
 # ---------------------------------------------------------------------------
 # Project root + manifest path resolution
 # ---------------------------------------------------------------------------
-# Mirrors the pattern in cms/cms_pipeline/env.py:_project_root(): this file lives
-# at cms/cms_pipeline/manifest.py, so project root is two parents up.
+# Standalone resolver: this file lives at cms/cms_pipeline/manifest.py,
+# so project root is two parents up.
 def _project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent
 

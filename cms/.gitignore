@@ -4,9 +4,13 @@
 # __pycache__, IDE dirs, OS junk, secrets, ...) stay in the root
 # .gitignore so they apply uniformly.
 
-# CMS-host secrets — never commit. Created by env.sh init from
-# cms/.env.example.cms. Resolved by lib.sh::resolve_content_env_file.
-.env
+# CMS-host secrets now live in GitHub Environments. Operators fetch them
+# into the process env via `eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"`
+# before running cms/run.sh or cms/scripts/staging.sh. There is no longer
+# a local cms/.env file to gitignore.
+#
+# (历史: 之前这里是 .env, 由 cms/scripts/env.sh 引导创建并用 gitignored
+#  cms/.env.example.cms 当模板。现在两文件都已删除, env.sh 也退役。)
 
 # .local/ — CMS working dir (per-machine state). Currently only
 # holds audio/ (local MP3 cache for CLOUD_PROVIDER=local_fs fallback);

@@ -22,10 +22,11 @@ cms/
 │
 ├── cms_pipeline/        # Python 包(manifest / import_vocab / generate_sentences / generate_audio / storage / env)
 │
+├── pyproject.toml       # 第三方依赖清单 (openai / PyYAML base, tencent / cos optional)
 ├── run.sh                # CMS driver 主入口(operator 第一个敲的; E+T 不含 L)
-└── scripts/            # CMS 工具(operator 选跑的)
-    ├── env.sh          # cms/.env 生命周期
-    └── staging.sh      # file producer wrapper (sync / sentences / audio / export / doctor)
+└── scripts/              # CMS 工具(operator 选跑的)
+    ├── bootstrap.sh      # 一次性:pip install -e "./cms[audio,cos]"
+    └── staging.sh        # file producer wrapper (vocab / sentences / audio / export)
 ```
 
 仓库根的 `db/` 目录是 db image 的构建上下文:
@@ -62,7 +63,7 @@ db/
 ```
                 CMS 主机 (Python, 不连 DB)
 cms/seed/vocabulary/*.csv                                                  (源)
-        ↓  cms/scripts/staging.sh sync (import_vocab.py)                     (E: Extract)
+        ↓  cms/scripts/staging.sh vocab (import_vocab.py)                     (E: Extract)
 cms/staging/vocabulary/<lib>.json
         ↓  cms/scripts/staging.sh sentences (generate_sentences.py, OpenAI)  (T: Transform)
 cms/staging/sentences/<lib>.jsonl
@@ -95,7 +96,7 @@ frontend 请求 /api/sentences/random
 
 | 你想... | 跑 |
 |---|---|
-| 编辑了 CSV / 改了 manifest / 改了 prompt | `cms/scripts/staging.sh sync\|sentences\|audio` (单步;仅写文件) |
+| 编辑了 CSV / 改了 manifest / 改了 prompt | `cms/scripts/staging.sh vocab\|sentences\|audio` (单步;仅写文件) |
 | 把所有 staging 文件一次性灌到 staging db | `db/scripts/import_staging.sh` (dbtools.importer;幂等,re-run 无害) |
 | 把整条 ETL + 灌 db 跑完 | `cms/run.sh` (E+T) **→** `db/scripts/import_staging.sh` (L) 两段独立跑 |
 | 编辑了 CSV + 想马上出 image | `cms/run.sh` (CMS E+T) + `db/scripts/import_staging.sh` (L) + `db/scripts/build.sh` (bake) 三段独立 |
@@ -109,6 +110,49 @@ frontend 请求 /api/sentences/random
 > - db **L**:dbtools.importer 把 staging 文件 UPSERT 进 staging db
 > - db **bake**:source_db 容器、init_schema / migrate / build / push
 > - **唯一的桥** 是 `cms/staging/` 这个目录。CMS 完全不知道 schema 长啥样;db 完全不知道 TTS / OpenAI 是啥
+
+## CMS host 一次性 bootstrap
+
+第一次跑 `cms/run.sh` 之前先 bootstrap(之后不用再跑,除非改 `cms/pyproject.toml` 或想换 GH Environment tier):
+
+```bash
+# 0. 一次性 bootstrap:装 Python deps + 验 gh/auth/repo + 打印 eval 行
+./cms/scripts/bootstrap.sh                # 默认装 [audio,cos]; --no-extras / --extras audio
+# CI / 离线环境:加 --skip-fetch 跳过 fetch_secrets.sh check
+
+# 1. bootstrap 成功后,把 eval 行复制粘贴到当前 shell(每次新 shell 都做)
+eval "$(./scripts/secrets/fetch_secrets.sh eval-cms)"
+
+# 2. 现在 AI_*/TENCENT_*/CLOUD_* 已在 process env,直接跑
+./cms/run.sh                              # vocab + sentences + audio 三步
+# ./cms/scripts/cmd_vocab.sh              # 只跑 vocab(不需要任何 env)
+```
+
+依赖清单写在 `cms/pyproject.toml`:
+
+- **base** (必有):`openai` (sentences 调 LLM) + `PyYAML` (manifest.yaml)
+- **[audio]** (TTS 子命令用,optional):`tencentcloud-sdk-python`
+- **[cos]** (Tencent COS 存储,optional):`cos-python-sdk-v5`
+
+### run.sh 入口的硬卡闸门
+
+`cms/run.sh` 默认入口(`run` / 无参数)现在只做 1 个硬预检:
+
+- **Python deps 可 import**(`openai` + `PyYAML`):缺就提示跑 `bootstrap.sh`
+
+`fetch_secrets.sh check`(gh / auth / repo)由 `bootstrap.sh` **一次性**做,**`run.sh` 入口不再重复 check** —— 操作员已经跑过 bootstrap 之后,每次跑 run.sh 信任 env 已就位。
+
+### run.sh 缺 env 的行为
+
+| 缺什么 | run.sh 行为 | 修法 |
+|---|---|---|
+| AI_* (`AI_API_KEY` / `AI_BASE_URL` / `AI_MODEL` 任一) | 硬卡 exit 1,提示跑 `eval-cms` | `eval "$(./scripts/secrets/fetch_secrets.sh eval-cms)"` |
+| TENCENT_* (`SECRET_ID` / `SECRET_KEY` / `APP_ID` 任一) | 硬卡 exit 1 | 同上 |
+| 都不缺 | vocab → sentences → audio 三步依次跑 | (无需) |
+
+**设计变更**:旧版本是 `warn 跳过`(操作员看到 "OK" 以为跑完了但其实没),新版本是 **硬卡**(操作员立刻知道 secrets 没注入)。**vocab 不需要 env 仍能跑**;只跑 vocab 用 `./cms/scripts/cmd_vocab.sh`(那个仍无 env 检查)。
+
+**没有 doctor 子命令了** —— 旧 `staging.sh doctor` / `run.sh doctor` 已退役。Python 依赖是"do once"操作,由 `bootstrap.sh` 显式负责;env 注入是"do once per shell",由 `eval` 行负责。两者都不进 `run.sh` 启动预检。
 
 ## Audio 流向(注意:db image 不带 audio)
 
@@ -126,12 +170,18 @@ frontend 请求 /api/sentences/random
 | Label | 来源 | 消费者 |
 |---|---|---|
 | `type-any-language.role` | 写死 | 健全性检查 |
-| `type-any-language.db.user` | `cms/.env` 里的 `$POSTGRES_USER` | `scripts/{dev,prod}-host/lifecycle.sh` → `DB_USER` |
-| `type-any-language.db.name` | `cms/.env` 里的 `$POSTGRES_DB` | `scripts/{dev,prod}-host/lifecycle.sh` → `DB_NAME` |
-| `type-any-language.content.version` | `cms/.env` 里的 `$DB_IMAGE_TAG` | `scripts/{dev,prod}-host/doctor.sh` 的日志行 |
+| `type-any-language.db.user` | 进程环境 `$POSTGRES_USER` (默认 `english_user`) | `scripts/{dev,prod}-host/lifecycle.sh` → `DB_USER` |
+| `type-any-language.db.name` | 进程环境 `$POSTGRES_DB` (默认 `english_learning`) | `scripts/{dev,prod}-host/lifecycle.sh` → `DB_NAME` |
+| `type-any-language.content.version` | `db/VERSION`(由 `ops/lib.sh::read_version_file` 读) | `scripts/{dev,prod}-host/doctor.sh` 的日志行 |
 | `type-any-language.content.baked-at` | 烘焙时的 `date -u` | `scripts/{dev,prod}-host/doctor.sh` 的日志行 |
 
-`db.user` 和 `db.name` 是 **唯一** 权威来源 —— 目标机的 `.env` 里没有这俩。不重新烤 image 就改这俩,启动时会报 `FATAL: role "..." does not exist`。
+`db.user` 和 `db.name` 是 **唯一** 权威来源 —— 目标机不需要这两项。不重新烤 image 就改这俩,启动时会报 `FATAL: role "..." does not exist`。
+
+> **历史变更**: 这些 label 的值以前标注成 "来自 cms/.env"。CMS 在 GitHub
+> Environments 迁移之后已经不再读取 cms/.env —— `POSTGRES_USER` /
+> `POSTGRES_DB` 这两项通过 `eval "$(scripts/secrets/fetch_secrets.sh
+> eval-db)"` 或直接 shell 导出传入,d 端默认值仍是 `english_user` /
+> `english_learning`。
 
 ## 本地验 image
 

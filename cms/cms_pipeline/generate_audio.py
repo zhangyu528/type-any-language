@@ -41,9 +41,11 @@ from pathlib import Path
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+    from cms_pipeline.env import load_config
     from cms_pipeline.storage import get_storage, LocalFsStorage
 else:
-    from .storage import get_storage, LocalFsStorage, TencentCosStorage
+    from .env import load_config
+    from .storage import get_storage, LocalFsStorage
 
 
 DEFAULT_VOICE_TYPE = "1001"          # standard female
@@ -117,24 +119,6 @@ def write_sentences_jsonl_atomic(path: Path, items: list[dict]) -> None:
         for it in items:
             f.write(json.dumps(it, ensure_ascii=False) + "\n")
     tmp.replace(path)
-
-
-def read_cms_env() -> dict:
-    """Parse cms/.env directly. No cms_pipeline.env / Config dependency."""
-    env_path = find_project_root() / "cms" / ".env"
-    if not env_path.is_file():
-        sys.exit(f"cms/.env not found at {env_path} — run ./cms/scripts/env.sh init")
-    env: dict[str, str] = {}
-    for raw in env_path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k, _, v = line.partition("=")
-        v = v.strip()
-        if len(v) >= 2 and v[0] == v[-1] and v[0] in ('"', "'"):
-            v = v[1:-1]
-        env.setdefault(k.strip(), v)
-    return env
 
 
 # --- Main pipeline ---
@@ -279,41 +263,21 @@ def main() -> int:
     args = parser.parse_args()
 
     staging = find_staging_dir()
-    env = read_cms_env()
+    cfg = load_config()
 
-    # Tencent TTS keys — all-or-nothing
-    tencent_keys = ("TENCENT_SECRET_ID", "TENCENT_SECRET_KEY", "TENCENT_APP_ID")
-    if not args.dry_run and not all(env.get(k) for k in tencent_keys):
-        missing = [k for k in tencent_keys if not env.get(k)]
-        sys.exit(
-            f"cms/.env missing TTS keys: {', '.join(missing)} — "
-            f"run ./cms/scripts/env.sh update KEY=VALUE"
-        )
+    # Tencent TTS keys — all-or-nothing. Dry-run only plans work and does not
+    # need provider credentials.
+    if not args.dry_run:
+        cfg.require_tencent()
     tencent_cfg = {
-        "secret_id": env.get("TENCENT_SECRET_ID"),
-        "secret_key": env.get("TENCENT_SECRET_KEY"),
-        "app_id": env.get("TENCENT_APP_ID"),
+        "secret_id": cfg.tencent_secret_id,
+        "secret_key": cfg.tencent_secret_key,
+        "app_id": cfg.tencent_app_id,
     }
 
-    # Build storage — same pattern as cms.storage.get_storage() but
-    # without importing the full Config object.
-    cloud_provider = env.get("CLOUD_PROVIDER", "local_fs").strip() or "local_fs"
-    if cloud_provider == "local_fs":
-        from cms_pipeline.storage import _LOCAL_DEFAULT_ROOT
-        audio_dir = env.get("AUDIO_DIR") or str(
-            find_project_root() / _LOCAL_DEFAULT_ROOT
-        )
-        storage = LocalFsStorage(audio_dir)
-    elif cloud_provider == "tencent_cos":
-        storage = TencentCosStorage(
-            bucket=env.get("CLOUD_BUCKET", ""),
-            region=env.get("CLOUD_REGION", ""),
-            access_key=env.get("CLOUD_ACCESS_KEY", ""),
-            secret_key=env.get("CLOUD_SECRET_KEY", ""),
-            endpoint=env.get("CLOUD_ENDPOINT"),
-        )
-    else:
-        sys.exit(f"unsupported CLOUD_PROVIDER: {cloud_provider!r}")
+    # Use the shared storage factory so env precedence and provider validation
+    # match the rest of the CMS pipeline.
+    storage = get_storage(cfg)
 
     if args.lib:
         targets = [args.lib]

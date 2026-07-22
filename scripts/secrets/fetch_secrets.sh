@@ -10,10 +10,11 @@
 #     eval "$(./scripts/secrets/fetch_secrets.sh eval-all)"
 #
 # and the script dispatches .github/workflows/sync-secrets.yml,
-# downloads the resulting artifact, sources it into a sub-shell env,
-# and prints `export K=V` lines on stdout. The caller `eval`s them,
-# so the secrets live only in the caller's process env — they are
-# never written to disk (no .secrets/, no cms/.env, no /tmp/...).
+# downloads the resulting artifact, sources it into a sub-shell env, and prints
+# shell-safe `export K=V` lines on stdout. The caller `eval`s them, so the
+# secrets live in the caller's process env. The artifact's secrets.env is
+# transiently present in a git-ignored workdir during download and is removed
+# by the EXIT trap.
 #
 # Mechanism (why this is the only viable path):
 #   GitHub's REST `actions/secrets` endpoints are write-only and
@@ -70,7 +71,15 @@ info() { echo "[fetch_secrets][INFO] $*" >&2; }
 # RETURN) — RETURN fires after every `source`/`.` file's implicit
 # return, which would wipe secrets.env mid-source.
 _FETCH_WORKDIR=""
-cleanup_workdir() { [ -n "$_FETCH_WORKDIR" ] && rm -rf "$_FETCH_WORKDIR"; }
+cleanup_workdir() {
+    # `|| true` so a missing workdir (or `rm -rf ""` on Git Bash, which
+    # returns non-zero) doesn't propagate out of the trap. Under
+    # `set -e` + `trap ... EXIT`, the trap's exit code overrides the
+    # script's — and `[ -n "" ]` short-circuits to 1, which would turn
+    # a successful `cmd_check` into an apparent failure.
+    [ -n "$_FETCH_WORKDIR" ] && rm -rf "$_FETCH_WORKDIR" || true
+    return 0
+}
 trap cleanup_workdir EXIT
 
 need_gh() {
@@ -109,6 +118,7 @@ cmd_check() {
         return 1
     fi
     info "all checks passed"
+    return 0
 }
 
 # fetch_segment <segment> <tier>
@@ -121,7 +131,7 @@ cmd_check() {
 fetch_segment() {
     local segment="$1"
     local tier="$2"
-    case "$TIER" in
+    case "$tier" in
         dev|test|prod) ;;
         *) die "fetch_segment: tier must be dev|test|prod (got: $tier)" ;;
     esac
@@ -180,13 +190,16 @@ fetch_segment() {
         sleep 2
         i=$((i + 1))
         run_id="$(
-            gh run list --workflow=sync-secrets.yml --limit=1 \
-                --json databaseId,status \
-                -q '.[0] | select(.status=="completed") | .databaseId' \
-                2>/dev/null || echo ""
+            gh run list --workflow=sync-secrets.yml --limit=30 \
+                --json databaseId,status,displayTitle \
+                -q ".[] | select(.displayTitle | contains(\"${request_id}\")) | .databaseId" \
+                2>/dev/null | head -1 || echo ""
         )"
         if [ -n "$run_id" ]; then
-            break
+            local run_status
+            run_status="$(gh run view "$run_id" --json status -q .status 2>/dev/null || echo "")"
+            [ "$run_status" = "completed" ] && break
+            run_id=""
         fi
     done
     if [ -z "$run_id" ]; then
@@ -243,11 +256,17 @@ fetch_segment() {
         # shellcheck disable=SC1090
         . "$env_file"
         set +a
-        # `env -0` prints all env vars NUL-separated; tr turns NULs into
-        # newlines for grep. Only emit the keys for this segment.
-        # `|| true` because grep returns 1 when no match — the user
-        # simply hasn't pushed that key yet, not a script failure.
-        env -0 | tr '\0' '\n' | grep -E "${prefix}" | sed 's/^/export /' || true
+        # `env -0` prints all env vars NUL-separated; emit only the keys for
+        # this segment as shell-quoted assignments for the caller's eval.
+        # `printf %q` keeps spaces, quotes, dollars, and other shell
+        # metacharacters inside the value instead of executing them.
+        while IFS= read -r -d '' entry; do
+            key="${entry%%=*}"
+            value="${entry#*=}"
+            if [[ "$key" =~ $prefix ]]; then
+                printf 'export %s=%q\n' "$key" "$value"
+            fi
+        done < <(env -0)
     )
 }
 
