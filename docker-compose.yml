@@ -1,53 +1,35 @@
 # ---------------------------------------------------------------------------
 # Production docker-compose for type-any-language.
 #
+# Runtime model: target hosts connect directly to a Tencent Cloud
+# (TencentDB) Postgres instance. There is no `db` service in this
+# compose file — the database is an external dependency the backend
+# dials over the public network (or a VPC peering / SSH tunnel).
+#
 # Key flow:
-#   • DB image:  content-baked by ./db/scripts/build.sh with labels
-#                (type-any-language.db.user, .db.name, .content.version, ...).
-#                lifecycle.sh `docker inspect`s those labels at start time
-#                and exports DB_USER / DB_NAME for compose env.
-#   • Secrets:  POSTGRES_PASSWORD lives on the host (chmod 600 file) and is
-#                passed to the db container via POSTGRES_PASSWORD_FILE.
-#                DATABASE_URL is assembled host-side and passed to the
-#                backend via DATABASE_URL_FILE. Nothing in the .env file
-#                ends up as a container env var for these.
-#   • DB_USER / DB_NAME: NOT in .env. Set by lifecycle.sh from image labels.
-#   • DOCKER_REGISTRY / DB_IMAGE_TAG / BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG:
-#     NOT in .env. Set via the shell env (CI / wrapper / `export ...`).
-#     Defaults are sourced from per-segment VERSION files (db/VERSION,
-#     backend/VERSION, frontend/VERSION) by ops/lib.sh — a single file per
-#     segment gates both the dev and prod image tags.
-#     When DOCKER_REGISTRY is set, lifecycle.sh auto-pulls the latest
-#     baked db image on every start/restart.
+#   • Backend reads its DSN from a host-side file: `.secrets/database_url`,
+#     written by `db/scripts/bootstrap_tencent.sh` (or `ops/prod/setup.sh
+#     bootstrap`, which invokes it with OPS_TIER=prod). Compose mounts
+#     that file into the backend container at /run/secrets/database_url
+#     via the `secrets:` block below; `backend/app/config.py` reads it
+#     through `DATABASE_URL_FILE` indirection.
+#   • `ALLOWED_ORIGINS` is the only CORS knob and is NOT a .env key —
+#     override via shell env at lifecycle start time:
+#       ALLOWED_ORIGINS=https://my.domain ./ops/prod/lifecycle.sh start
+#   • Image tags (`BACKEND_IMAGE_TAG` / `FRONTEND_IMAGE_TAG`) come from
+#     the per-segment VERSION files (backend/VERSION, frontend/VERSION),
+#     resolved by ops/lib.sh. Override at start time:
+#       BACKEND_IMAGE_TAG=v0.2.0 ./ops/prod/lifecycle.sh start
 #   • Audio: NOT a docker volume. MP3s live in Tencent Cloud COS, and
-#     sentences.audio_url (full COS URL) is baked into the db image.
-#     The frontend reads sentence.audio_url and the browser streams
-#     directly from COS. No /audio mount, no shared-audio volume.
+#     sentences.audio_url (full COS URL) is written into the cloud db
+#     at `db/scripts/import_staging.sh` time. The frontend reads
+#     sentence.audio_url and the browser streams directly from COS.
+#     No /audio mount, no shared-audio volume.
 #
 # Run via:  ./ops/prod/lifecycle.sh start
-# BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG default to the per-segment
-# VERSION files (backend/VERSION, frontend/VERSION; resolved by
-# ops/lib.sh — the same file gates english_backend_dev); the run script
-# exports them before invoking compose. Override at start time:
-#   BACKEND_IMAGE_TAG=v0.2.0 ./ops/prod/lifecycle.sh start
-#
-# The shared `db` service block lives in compose-shared.yml (compose v2.20+
-# `include:`). Both prod and dev compose files include it; this file adds
-# the prod-only services on top.
 # ---------------------------------------------------------------------------
 
-# Pull in shared fragments first. The shared file declares the `db`
-# service + the `db-data` named volume — both compose files want those
-# unchanged.
-include:
-  - path: ./compose-shared.yml
-
-# Top-level `secrets:` block — secrets are FILES on the host, mounted
-# into containers at /run/secrets/<name>. The host files are written by
-# prod/lifecycle.sh's write_secrets() (chmod 600).
 secrets:
-  postgres_password:
-    file: ./.secrets/postgres_password
   database_url:
     file: ./.secrets/database_url
 
@@ -72,13 +54,11 @@ services:
       # Falls back to http://localhost so first-boot works out of the box
       # (replace this default with your real domain for production).
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost}
-      # DB connection assembled host-side by run.sh and read from file
+      # Cloud-db DSN assembled host-side by ops/prod/setup.sh bootstrap
+      # (writes .secrets/database_url from .secrets/tencent_db_*).
       DATABASE_URL_FILE: /run/secrets/database_url
     secrets:
       - database_url
-    depends_on:
-      db:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/vocabulary/libs"]
       interval: 15s
@@ -87,7 +67,7 @@ services:
       start_period: 20s
 
   # -------------------------------------------------------------------------
-  # Frontend — React (CRA build), served by nginx
+  # Frontend — Next.js production build, served by next start
   # -------------------------------------------------------------------------
   frontend:
     image: english_frontend:${FRONTEND_IMAGE_TAG:-latest}

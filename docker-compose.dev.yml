@@ -1,51 +1,37 @@
 # ---------------------------------------------------------------------------
 # Development docker-compose for type-any-language.
 #
-# Same secret flow as docker-compose.yml (POSTGRES_PASSWORD_FILE /
-# DATABASE_URL_FILE, identity from image labels), but:
-#   • Source bind-mounts for hot-reload.
+# Runtime model: target hosts connect directly to a Tencent Cloud
+# (TencentDB) Postgres instance. There is no `db` service in this
+# compose file — the database is an external dependency the backend
+# dials over the public network (or a VPC peering / SSH tunnel).
+#
+# Same secret flow as docker-compose.yml (DATABASE_URL_FILE indirection
+# from .secrets/database_url, written by ops/dev/setup.sh bootstrap →
+# db/scripts/bootstrap_tencent.sh with OPS_TIER=dev), but:
+#   • Source bind-mounts for hot-reload (backend) + compose-watch
+#     syncing (frontend).
 #   • No nginx — backend is exposed directly on :8000.
 #   • Different image names (english_backend_dev, english_frontend_dev).
 #   • Dev compose file points at ./backend/Dockerfile.dev etc.
 #   • Audio: NOT a docker volume (same as prod). MP3s live in Tencent
-#     Cloud COS, sentences.audio_url is a full COS URL baked into the
-#     db image. Frontend reads it and the browser streams from COS.
+#     Cloud COS, sentences.audio_url is a full COS URL written into the
+#     cloud db at `db/scripts/import_staging.sh` time. Frontend reads
+#     it and the browser streams from COS.
 #
 # Run via:  ./ops/dev/lifecycle.sh start
 # BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG default to the per-segment
 # VERSION files (backend/VERSION, frontend/VERSION; resolved by
-# ops/lib.sh — the same file gates english_backend); the run script
-# exports them before invoking compose. Override at start time:
+# ops/lib.sh); the run script exports them before invoking compose.
+# Override at start time:
 #   BACKEND_IMAGE_TAG=v0.2.0 ./ops/dev/lifecycle.sh start
-#
-# The shared `db` service block lives in compose-shared.yml (compose v2.20+
-# `include:`). Both prod and dev compose files include it; this file adds
-# the dev-only services (with hot-reload, dev images, compose-watch) on top.
 # ---------------------------------------------------------------------------
 
-include:
-  - path: ./compose-shared.yml
-
 secrets:
-  postgres_password:
-    file: ./.secrets/postgres_password
   database_url:
     file: ./.secrets/database_url
 
 services:
-  # -------------------------------------------------------------------------
-  # db — override of the shared service from compose-shared.yml. Dev mode
-  # uses the locally-baked `english_db_content_dev` image (produced by
-  # `./ops/dev/setup.sh content`) at the per-segment `db/VERSION` tag
-  # (e.g. english_db_content_dev:v0.1.0) instead of the prod-bound
-  # `english_db_content:v0.1.0`. The name suffix carries the
-  # dev/prod distinction; the tag is just the schema/content version
-  # and is shared. The shell can still force a registry tag by exporting
-  # DB_IMAGE / DB_IMAGE_TAG at start time.
-  # -------------------------------------------------------------------------
-  db:
-    image: ${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}english_db_content_dev:${DB_IMAGE_TAG:-latest}
-
   # -------------------------------------------------------------------------
   # Backend — hot-reload via ./backend bind-mount + uvicorn --reload
   # -------------------------------------------------------------------------
@@ -61,7 +47,7 @@ services:
         GIT_SHA: ${GIT_SHA:-unknown}
     restart: unless-stopped
     environment:
-      # CORS allowlist — dev defaults to localhost:3000 (CRA dev server).
+      # CORS allowlist — dev defaults to localhost:3000 (Next.js dev server).
       # Override via shell env if needed:
       #   ALLOWED_ORIGINS=... ./ops/dev/lifecycle.sh start
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost,http://localhost:3000}
@@ -75,9 +61,6 @@ services:
       # Expose backend directly on :8000 (no nginx in dev)
       - "8000:8000"
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-    depends_on:
-      db:
-        condition: service_healthy
 
   # -------------------------------------------------------------------------
   # Frontend — Next.js dev server (HMR) on :3000
@@ -113,7 +96,8 @@ services:
       dockerfile: Dockerfile.dev
       args:
         # Project VERSION (resolved by ops/lib.sh) + best-effort git SHA.
-        # Surfaces in the image as type-any-language.app.{version,git-sha}.
+        # Surfaces in the image as type-any-language.app.{version,git-sha}
+        # labels (see frontend/Dockerfile).
         APP_VERSION: ${FRONTEND_IMAGE_TAG:-latest}
         GIT_SHA: ${GIT_SHA:-unknown}
     restart: unless-stopped
