@@ -469,11 +469,26 @@ resolve_docker_registry() {
 # ---------------------------------------------------------------------------
 # Database URL assembly
 # ---------------------------------------------------------------------------
-# Several db-side scripts (build.sh, migrate.sh, ...) need a DATABASE_URL
-# to talk to the staging db. The url is built from POSTGRES_USER / DB /
-# HOST / PORT / PASSWORD — and the password has its own resolution chain
-# (shell env > .secrets/postgres_password). Centralising it here keeps the
-# three scripts in lockstep so a policy change is one edit, not three.
+# Defensive fallback for db-side scripts (init_schema.sh / migrate.sh /
+# import_staging.sh) that need a DATABASE_URL but haven't been given one
+# in the process env. The primary cloud-db path is:
+#
+#       source db/scripts/lib.sh
+#       resolve_dev_db_url         # or resolve_prod_db_url — writes DATABASE_URL
+#       exec db/scripts/migrate.sh # etc.
+#
+# which renders the DSN from .secrets/tencent_db_{host,user,password} +
+# render_db_name() (see db/scripts/lib.sh for the full chain).
+#
+# db_assemble_url here is the *non-cloud* fallback — it builds a DSN from
+# POSTGRES_USER / DB / HOST / PORT + a password resolved via:
+#   1. POSTGRES_PASSWORD env
+#   2. .secrets/postgres_password (the legacy self-hosted db password file;
+#      orphaned after target hosts move to cloud-db — see migration notes
+#      in CLAUDE.md "Migrating an existing host")
+# It's still useful for ad-hoc CLI use against a self-hosted Postgres
+# (e.g. running import_staging.sh against a local docker postgres before
+# the cloud db is wired up).
 #
 # Resolution order (matches the per-script inline blocks this replaced):
 #   1. Explicit shell env:    DATABASE_URL already set → use as-is

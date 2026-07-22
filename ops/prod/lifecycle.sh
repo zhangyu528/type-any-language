@@ -3,12 +3,12 @@
 # ops/prod/lifecycle.sh — start / stop / restart / reload.
 #
 # Daily driver for the prod host. Reads ops/prod/_common.sh for
-# all shared setup (image refs, db label inspection, secrets write,
-# registry auto-pull).
+# all shared setup (image refs, secrets write).
 #
 # Subcommands:
-#   start             bring up prod containers (auto-pulls db image if
-#                     DOCKER_REGISTRY is set)
+#   start             bring up prod containers (no auto-pull — the
+#                     backend/frontend images were already built or
+#                     pulled by setup/build_image.sh)
 #   stop              stop prod containers
 #   restart|reload    recreate + re-read .secrets
 #
@@ -23,18 +23,13 @@ setup_prod_host_env
 
 cmd_start() {
     gate_preflight
-    if ! inspect_db_image_labels; then
-        err "content-baked db image 缺少 type-any-language.* labels — 用 db/scripts/build.sh 重新烘焙"
-        exit 1
-    fi
     write_secrets
-    auto_pull_from_registry
     info "启动生产容器..."
     $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d
     ok "服务已启动"
     echo -e "  前端:   ${_LIB_BLUE}http://localhost${_LIB_NC}"
     echo -e "  API:    ${_LIB_BLUE}http://localhost/api/docs${_LIB_NC}"
-    echo "  db.user=$DB_USER  db.name=$DB_NAME  content.version=$DB_VERSION"
+    echo "  cloud db: $(awk -F/ '{print $3}' "$DB_URL_FILE" 2>/dev/null || echo '<not configured>')"
 }
 
 cmd_stop() {
@@ -46,12 +41,7 @@ cmd_stop() {
 
 cmd_restart() {
     gate_preflight
-    if ! inspect_db_image_labels; then
-        err "content-baked db image 缺少 type-any-language.* labels — 用 db/scripts/build.sh 重新烘焙"
-        exit 1
-    fi
     write_secrets
-    auto_pull_from_registry
     info "重启容器(重新加载 secrets)..."
 
     local backend_before frontend_before
@@ -83,13 +73,13 @@ usage() {
 用法: ./ops/prod/lifecycle.sh <command>
 
 命令:
-  start            启动生产容器 (DOCKER_REGISTRY 配了会先 pull baked db image)
+  start            启动生产容器 (image 由 setup / build_image.sh 先准备好)
   stop             停止生产容器 (docker compose down)
   restart|reload   recreate + 重读 secrets (≈5s, 不重 build image)
 
 典型工作流:
   ./ops/prod/lifecycle.sh start
-  # ...改 .secrets / docker-compose.yml / 重新 push 了 db image 后...
+  # ...改 .secrets / docker-compose.yml / 重新 build+push 了 image 后...
   ./ops/prod/lifecycle.sh restart
 
 环境覆盖:

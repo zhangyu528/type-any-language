@@ -3,8 +3,7 @@
 # ops/dev/lifecycle.sh — start / stop / restart / reload.
 #
 # Daily driver for the dev host. Reads ops/dev/_common.sh for all
-# shared setup (image refs, db label inspection, secrets write, watch
-# lifecycle).
+# shared setup (image refs, secrets write, watch lifecycle).
 #
 # Subcommands:
 #   start             bring up dev containers + spawn compose watch (hot reload)
@@ -27,18 +26,14 @@ setup_dev_host_env
 
 cmd_start() {
     gate_preflight
-    if ! inspect_db_image_labels; then
-        err "content-baked db image 缺少 type-any-language.* labels — 用 db/scripts/build.sh 重新烘焙"
-        exit 1
-    fi
     write_secrets
     info "启动开发容器..."
     # `--pull=never`: dev never auto-pulls on start. Image lifecycle is
     # local — `setup` does the one-time bootstrap pull when needed,
-    # otherwise build_image.sh / bake_image.sh keep local images
-    # fresh. Without --pull=never, compose up -d defaults to
-    # `--pull=missing` and would re-pull, overwriting a fresh local
-    # build or hitting 429 on registries that don't host the image.
+    # otherwise build_image.sh keeps local images fresh. Without
+    # --pull=never, compose up -d defaults to `--pull=missing` and would
+    # re-pull, overwriting a fresh local build or hitting 429 on
+    # registries that don't host the image.
     $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d --pull=never
 
     start_compose_watch
@@ -47,7 +42,7 @@ cmd_start() {
     echo -e "  前端:   ${_LIB_BLUE}http://localhost:3000${_LIB_NC}"
     echo -e "  后端:   ${_LIB_BLUE}http://localhost:8000${_LIB_NC}"
     echo -e "  API文档: ${_LIB_BLUE}http://localhost:8000/docs${_LIB_NC}"
-    echo "  db.user=$DB_USER  db.name=$DB_NAME  content.version=$DB_VERSION"
+    echo "  cloud db: $(awk -F/ '{print $3}' "$DB_URL_FILE" 2>/dev/null || echo '<not configured>')"
     echo "  compose watch: tail -f $WATCH_LOG_FILE   (前台跑: ./ops/dev/watch.sh)"
 }
 
@@ -58,11 +53,6 @@ cmd_stop() {
     # against file removal).
     stop_compose_watch
 
-    # Compose evaluates the full file at every subcommand (including
-    # `down`), so DB_USER / DB_NAME must be exported first — otherwise
-    # the ${DB_USER:?...} interpolation in the db service's environment
-    # block fails before docker even looks at running containers.
-    export_db_identity_for_compose
     info "停止开发容器..."
     $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" down
     ok "服务已停止"
@@ -70,10 +60,6 @@ cmd_stop() {
 
 cmd_restart() {
     gate_preflight
-    if ! inspect_db_image_labels; then
-        err "content-baked db image 缺少 type-any-language.* labels — 用 db/scripts/build.sh 重新烘焙"
-        exit 1
-    fi
     write_secrets
     info "重启开发容器(重新加载 secrets)..."
 

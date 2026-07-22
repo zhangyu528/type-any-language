@@ -4,14 +4,21 @@
 #
 # Sourced by every script in ops/dev/ — it does the bootstrap that
 # otherwise would have to be copy-pasted into each command. Single source
-# of truth for: image tag resolution, db label inspection, secrets file
-# writes, watch process lifecycle, port warnings.
+# of truth for: image tag resolution, secrets file writes, watch process
+# lifecycle, port warnings.
 #
 # Conventions:
 #   - $COMMON_DIR is set by the caller (every calling script sets it via
 #     `COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"`)
 #   - setup_dev_host_env must be called before any other helper — it sets
 #     all the *_IMAGE / *_FULL_IMAGE / *_IMAGE_TAG globals.
+#
+# The runtime database is Tencent Cloud (TencentDB) Postgres — there is
+# no `db` service in the compose file, and no `english_db_content` image
+# to inspect. The DSN is read by the backend container from a host-side
+# .secrets/database_url file (mounted via compose's `secrets:` block +
+# DATABASE_URL_FILE), written by db/scripts/bootstrap_tencent.sh (called
+# from ops/dev/setup.sh bootstrap with OPS_TIER=dev).
 
 set -e
 
@@ -26,7 +33,6 @@ source "$PROJECT_DIR/ops/lib.sh"
 
 # ─── Globals set by setup_dev_host_env ─────────────────────────────────────
 SECRETS_DIR=".secrets"
-PG_PASSWORD_FILE="${SECRETS_DIR}/postgres_password"
 DB_URL_FILE="${SECRETS_DIR}/database_url"
 COMPOSE_FILE="docker-compose.dev.yml"
 BACKEND_IMAGE="english_backend_dev"
@@ -50,30 +56,20 @@ setup_dev_host_env() {
     resolve_docker_registry
     if [ -n "$DOCKER_REGISTRY" ]; then
         if [ "${_DOCKER_REGISTRY_SOURCE:-}" = "detect" ]; then
-            info "DOCKER_REGISTRY=$DOCKER_REGISTRY (auto-detected — 仅 prod + db 用,dev 不 push)"
+            info "DOCKER_REGISTRY=$DOCKER_REGISTRY (auto-detected — 仅 prod 用,dev 不 push)"
         else
             info "DOCKER_REGISTRY=$DOCKER_REGISTRY (setup 一次性 bootstrap 拉取用,start 不再 auto-pull)"
         fi
     else
         info "DOCKER_REGISTRY 未设置 (local-only mode — 仅本机使用)"
     fi
-    DB_IMAGE="${DB_IMAGE:-english_db_content_dev}"
     # *_IMAGE_TAG resolve to per-segment VERSION files:
-    #   DB_IMAGE_TAG       ← db/VERSION (db is prod-bound content shared by both targets)
     #   BACKEND_IMAGE_TAG  ← backend/VERSION (gates both english_backend_dev + english_backend)
     #   FRONTEND_IMAGE_TAG ← frontend/VERSION (gates both frontend images)
+    # No DB_IMAGE_TAG — the db is no longer a baked image, it's an external
+    # TencentDB instance whose DSN lives in .secrets/database_url. The
+    # schema version is the schema_migrations row count, not a tag.
     # Shell env still overrides. Exported for compose interpolation.
-    #
-    # DB_IMAGE special-case: dev hosts use a separate image name
-    # (`english_db_content_dev`) and bake locally — `english_db_content`
-    # (no suffix) is prod-bound and shared with prod hosts. The dev
-    # image carries the same tag (`db/VERSION`, e.g. v0.1.0) as the prod
-    # image, since the tag is just the schema/content version, not a
-    # runtime-environment marker. The name suffix carries the
-    # dev/prod distinction. Shell env still wins — operators can pull
-    # a release-tagged prod image by exporting DB_IMAGE and DB_IMAGE_TAG
-    # explicitly.
-    resolve_image_tag DB_IMAGE_TAG       db/VERSION
     resolve_image_tag BACKEND_IMAGE_TAG  backend/VERSION
     resolve_image_tag FRONTEND_IMAGE_TAG frontend/VERSION
     warn_if_version_default "$BACKEND_IMAGE_TAG" backend/VERSION
@@ -82,18 +78,16 @@ setup_dev_host_env() {
     # Prepend the registry prefix ONLY when DOCKER_REGISTRY was explicitly
     # configured (shell env or REGISTRY file). Auto-detected registries
     # (docker.io/$USER) are guesses — prepending them makes compose look
-    # for "zhangyu528/english_db_content_dev:v0.2.0-rc.1" locally, which fails
-    # because locally-built images are tagged "english_db_content_dev:v0.2.0-rc.1"
+    # for "zhangyu528/english_backend_dev:v0.2.0" locally, which fails
+    # because locally-built images are tagged "english_backend_dev:v0.2.0"
     # (no prefix). So when the source is "detect", force DOCKER_REGISTRY to
     # empty for the rest of the script — compose's
-    #   image: ${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DB_IMAGE}:${DB_IMAGE_TAG}
+    #   image: ${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}
     # interpolates to the bare local name. Local-only mode effectively.
     if [ "${_DOCKER_REGISTRY_SOURCE:-}" = "shell" ] || [ "${_DOCKER_REGISTRY_SOURCE:-}" = "file" ]; then
-        DB_FULL_IMAGE="${DOCKER_REGISTRY}/${DB_IMAGE}:${DB_IMAGE_TAG}"
         BACKEND_FULL_IMAGE="${DOCKER_REGISTRY}/${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"
         FRONTEND_FULL_IMAGE="${DOCKER_REGISTRY}/${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"
     else
-        DB_FULL_IMAGE="${DB_IMAGE}:${DB_IMAGE_TAG}"
         BACKEND_FULL_IMAGE="${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"
         FRONTEND_FULL_IMAGE="${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"
         # Force compose to use bare names too (its own image: line re-uses
@@ -103,80 +97,33 @@ setup_dev_host_env() {
     export BACKEND_FULL_IMAGE FRONTEND_FULL_IMAGE
 }
 
-# ─── inspect_db_image_labels ────────────────────────────────────────────────
-# Reads DB_USER, DB_NAME, DB_VERSION, DB_BAKED_AT from the db image's OCI
-# labels and exports them. Returns 0 if both required labels are present.
-inspect_db_image_labels() {
-    if ! image_exists "$DB_FULL_IMAGE"; then
-        return 1
-    fi
-    DB_USER="$(image_label "$DB_FULL_IMAGE" "type-any-language.db.user" || echo "")"
-    DB_NAME="$(image_label "$DB_FULL_IMAGE" "type-any-language.db.name" || echo "")"
-    DB_VERSION="$(image_label "$DB_FULL_IMAGE" "type-any-language.content.version" || echo "")"
-    DB_BAKED_AT="$(image_label "$DB_FULL_IMAGE" "type-any-language.content.baked-at" || echo "")"
-    export DB_USER DB_NAME DB_VERSION DB_BAKED_AT
-    [ -n "$DB_USER" ] && [ -n "$DB_NAME" ]
-}
-
-# ─── export_db_identity_for_compose ────────────────────────────────────────
-# Make sure DB_USER / DB_NAME are set so compose interpolation
-# (${DB_USER:?...} / ${DB_NAME:?...} in docker-compose.dev.yml) doesn't
-# fail. Used by read-only subcommands (`status` / `stop` / `logs`) where
-# the *actual* values don't matter for the operation — we just need
-# *some* non-empty value to satisfy compose's strict interpolation.
-#
-# Falls back to the same defaults bake uses (english_user /
-# english_learning) when the content-baked db image isn't around locally.
-export_db_identity_for_compose() {
-    if inspect_db_image_labels; then
-        return 0
-    fi
-    DB_USER="${DB_USER:-english_user}"
-    DB_NAME="${DB_NAME:-english_learning}"
-    export DB_USER DB_NAME
-}
-
 # ─── write_secrets ──────────────────────────────────────────────────────────
-# Materialises host-side secrets on disk so compose can mount them as
-# files into the db and backend containers (via POSTGRES_PASSWORD_FILE
-# and DATABASE_URL_FILE).
+# Ensures .secrets/database_url exists. The cloud-db DSN is written
+# exclusively by db/scripts/bootstrap_tencent.sh (called from
+# ops/dev/setup.sh bootstrap); this function is a *gate* that fails
+# loudly if the file is missing — pointing the operator at the right
+# subcommand. It does NOT generate or rewrite the DSN itself.
 #
-#   .secrets/postgres_password   (chmod 600) — generated on first start,
-#                                              reused across restarts
-#   .secrets/database_url        (chmod 600) — assembled from above +
-#                                              DB_USER / DB_NAME from image
+#   .secrets/database_url        (chmod 600) — cloud-db DSN, consumed
+#                                              by compose's `secrets:`
+#                                              block + backend's
+#                                              DATABASE_URL_FILE.
 #
-# Idempotent: existing .secrets/postgres_password is preserved across
-# restarts so the db volume's password stays stable. To reset the dev
-# db, delete the file (and the db-data volume).
+# Idempotent: an existing .secrets/database_url is preserved (the cloud
+# db's password + role are stable across restarts). To rotate, re-run
+# ops/dev/setup.sh bootstrap.
 write_secrets() {
-    if [ -z "${DB_USER:-}" ] || [ -z "${DB_NAME:-}" ]; then
-        err "DB_USER / DB_NAME 未设置 — content-baked db image 的 label 缺失或不正确"
-        return 1
-    fi
-
     mkdir -p "$SECRETS_DIR"
     chmod 700 "$SECRETS_DIR"
 
-    if [ -f "$PG_PASSWORD_FILE" ]; then
-        POSTGRES_PASSWORD="$(cat "$PG_PASSWORD_FILE")"
-        info "复用现有 $(basename "$PG_PASSWORD_FILE")"
-    else
-        POSTGRES_PASSWORD="$(gen_secret 24)"
-        info "新生成 POSTGRES_PASSWORD → $(basename "$PG_PASSWORD_FILE")"
+    if [ ! -f "$DB_URL_FILE" ]; then
+        err ".secrets/database_url 不存在 — 云 db 未配置"
+        info "  → 运行 ops/dev/setup.sh bootstrap (一次性: 创建 ROLE/DB, 写 .secrets/database_url)"
+        info "  → 或从已 bootstrap 过的同分支 dev 主机拷过来: scp other-dev:.secrets/database_url .secrets/"
+        return 1
     fi
-    printf '%s' "$POSTGRES_PASSWORD" > "$PG_PASSWORD_FILE"
-    chmod 600 "$PG_PASSWORD_FILE"
-
-    # database_url: postgresql://<user>:<password>@db:5432/<name>
-    if command -v python3 &> /dev/null; then
-        encoded_pw="$(DB_USER="$DB_USER" DB_NAME="$DB_NAME" POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-            python3 -c 'import os, urllib.parse; print("postgresql://%s:%s@db:5432/%s" % (urllib.parse.quote(os.environ["DB_USER"]), urllib.parse.quote(os.environ["POSTGRES_PASSWORD"], safe=""), os.environ["DB_NAME"]))')"
-    else
-        encoded_pw="postgresql://${DB_USER}:${POSTGRES_PASSWORD}@db:5432/${DB_NAME}"
-    fi
-    printf '%s' "$encoded_pw" > "$DB_URL_FILE"
     chmod 600 "$DB_URL_FILE"
+    info "复用现有 $(basename "$DB_URL_FILE")"
 }
 
 # ─── start_compose_watch / stop_compose_watch ──────────────────────────────
@@ -229,6 +176,11 @@ cmd_watch_foreground() {
 }
 
 # ─── gate_preflight ────────────────────────────────────────────────────────
+# Verifies dev host readiness before starting the app stack:
+#   1. Docker is installed and the daemon is up.
+#   2. Backend + frontend images exist locally (built or pulled).
+#   3. .secrets/database_url is present (cloud db bootstrap done).
+#   4. Port 3000/8000 not bound on the host.
 gate_preflight() {
     require_docker
     if ! image_exists "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"; then
@@ -241,33 +193,29 @@ gate_preflight() {
         info "  → 运行 ops/dev/build_image.sh"
         exit 1
     fi
-    if ! image_exists "$DB_FULL_IMAGE"; then
-        err "content-baked db image $DB_FULL_IMAGE 未构建或未拉取"
-        if [ -n "$DOCKER_REGISTRY" ]; then
-            info "  → 设置 DB_IMAGE_TAG 后由脚本拉取,或: docker pull $DB_FULL_IMAGE"
-        else
-            info "  → 运行 db/scripts/build.sh(可用 --tag dev 标记)"
-            info "  → 之后再次运行 ops/dev/start.sh"
-        fi
+    if [ ! -f "$DB_URL_FILE" ]; then
+        err ".secrets/database_url 不存在 — 云 db 未配置"
+        info "  → 运行 ops/dev/setup.sh bootstrap"
         exit 1
     fi
     warn_port_in_use 3000 "前端开发端口 (宿主机 3000)"
     warn_port_in_use 8000 "后端开发端口 (宿主机 8000)"
-    warn_port_in_use 5432 "postgres 端口 (宿主机 5432)"
 }
 
 # ─── drift_check ──────────────────────────────────────────────────────────
 # Compare running containers' type-any-language.app.version LABEL against
 # the locally-resolved *_IMAGE_TAG. Warns on mismatch. Skipped silently
 # if no containers are running.
+#
+# The db service is gone — backend is the lowest-running service in the
+# new layout, so the "any container running?" gate keys off backend.
 drift_check() {
-    if ! $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" ps -q db >/dev/null 2>&1; then
+    if ! $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" ps -q backend >/dev/null 2>&1; then
         return 0
     fi
     local svc cid expected actual
-    for svc in db backend frontend; do
+    for svc in backend frontend; do
         case "$svc" in
-            db)      expected="$DB_IMAGE_TAG" ;;
             backend) expected="$BACKEND_IMAGE_TAG" ;;
             frontend) expected="$FRONTEND_IMAGE_TAG" ;;
         esac
