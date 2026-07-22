@@ -41,7 +41,7 @@
 #
 #   IMAGE_TAG=v1.2.3 ./ops/build.sh all
 #
-# Requires: shell + docker (+ python + cms/.env for the db bake).
+# Requires: shell + docker (+ python for the db bake).
 
 set -e
 
@@ -91,7 +91,9 @@ Image tag 解析(每个 inner build 自己 resolve, 见 lib.sh → resolve_image
 架构前提:
   - dev / prod 的 build_image.sh 需要 content-baked db image 的 OCI label (DB_USER / DB_NAME),
     所以 all / dev / prod 都假设 content-baked db image 已经在本地(或先跑过 db)。
-  - db bake 需要 cms/.env + 跑着 cms-source-db 容器(或用本地 postgres / CI db;legacy english_db / english_db_dev 名仍探测到)。
+  - db bake 需要 db 凭据 (DATABASE_URL / POSTGRES_PASSWORD via `eval $(fetch_secrets.sh eval-db)`
+    或 .secrets/postgres_password) + 跑着 cms-source-db 容器(或用本地 postgres / CI db;
+    legacy english_db / english_db_dev 名仍探测到)。cms/.env 已退役。
   - 多机部署: 各自机器跑各自的 inner build 脚本即可,build.sh 主要方便
     单机 CMS+dev+prod 一把梭。
 EOF

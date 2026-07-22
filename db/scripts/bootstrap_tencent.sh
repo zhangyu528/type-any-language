@@ -46,9 +46,16 @@
 #   ./ops/dev/setup.sh bootstrap   # typical entry — does all of:
 #                                   #   1. ask for admin URL,
 #                                   #   2. write .secrets/tencent_db_admin_url,
-#                                   #   3. invoke this script,
+#                                   #   3. invoke this script with OPS_TIER=dev,
 #                                   #   4. lock down admin URL.
-#   ./db/scripts/bootstrap_tencent.sh   # direct invocation (rare)
+#   ./ops/prod/setup.sh bootstrap  # same as above but with OPS_TIER=prod.
+#                                   #   ROLE_NAME=english_prod_user,
+#                                   #   DB_NAME=english_prod (no per-branch
+#                                   #   derivation), password file =
+#                                   #   .secrets/tencent_db_prod_password.
+#   ./db/scripts/bootstrap_tencent.sh   # direct invocation (rare).
+#                                       # Defaults to OPS_TIER=dev; pass
+#                                       # OPS_TIER=prod to switch.
 
 set -e
 
@@ -91,10 +98,38 @@ if [ -z "$USER_NAME" ]; then
     USER_NAME="runner"
 fi
 
-ROLE_NAME="english_dev_${USER_NAME}"
-PASSWORD_FILE="$PROJECT_DIR/.secrets/tencent_db_password"
-USER_FILE="$PROJECT_DIR/.secrets/tencent_db_user"
-HOST_FILE="$PROJECT_DIR/.secrets/tencent_db_host"
+# Tier dispatch — set by the caller (ops/{dev,prod}/setup.sh bootstrap).
+# Default: dev (the common case). Prod skips the per-user / per-branch
+# db-name derivation; db name is fixed at "english_prod" and role at
+# "english_prod_user". All file paths under .secrets/ stay the same;
+# the only thing that changes is which resolve_*_db_url helper the
+# script calls, and which ROLE_NAME / DB_NAME constants it uses.
+OPS_TIER="${OPS_TIER:-dev}"
+case "$OPS_TIER" in
+    dev)
+        ROLE_NAME="english_dev_${USER_NAME}"
+        DB_NAME_DEFAULT="(rendered from git state)"
+        PASSWORD_FILE="$PROJECT_DIR/.secrets/tencent_db_password"
+        USER_FILE="$PROJECT_DIR/.secrets/tencent_db_user"
+        HOST_FILE="$PROJECT_DIR/.secrets/tencent_db_host"
+        RESOLVE_DB_URL_FN="resolve_dev_db_url"
+        PERSIST_DB_NAME=1
+        ;;
+    prod)
+        ROLE_NAME="english_prod_user"
+        DB_NAME_DEFAULT="english_prod"
+        PASSWORD_FILE="$PROJECT_DIR/.secrets/tencent_db_prod_password"
+        USER_FILE="$PROJECT_DIR/.secrets/tencent_db_prod_user"
+        HOST_FILE="$PROJECT_DIR/.secrets/tencent_db_host"  # shared infra
+        RESOLVE_DB_URL_FN="resolve_prod_db_url"
+        PERSIST_DB_NAME=0  # english_prod is fixed; no .dev/dev-db-name write
+        ;;
+    *)
+        err "OPS_TIER must be 'dev' or 'prod' (got: $OPS_TIER)"
+        exit 1
+        ;;
+esac
+info "tier=$OPS_TIER  role=$ROLE_NAME  db name=$DB_NAME_DEFAULT"
 
 mkdir -p "$PROJECT_DIR/.secrets"
 chmod 700 "$PROJECT_DIR/.secrets"
@@ -183,10 +218,15 @@ print(sys.argv[1].replace(chr(39), chr(39)+chr(39)))
 fi
 
 # ---------------------------------------------------------------------------
-# Step 4: db name (render based on git state)
+# Step 4: db name (render based on git state, or fixed for prod)
 # ---------------------------------------------------------------------------
-DB_NAME="$(render_db_name)"
-info "db name = $DB_NAME"
+if [ "$OPS_TIER" = "prod" ]; then
+    DB_NAME="english_prod"
+    info "db name = $DB_NAME (prod tier fixed; no per-branch derivation)"
+else
+    DB_NAME="$(render_db_name)"
+    info "db name = $DB_NAME (from render_db_name)"
+fi
 
 # ---------------------------------------------------------------------------
 # Step 5: CREATE DATABASE (idempotent)
@@ -221,7 +261,7 @@ ok "schema public ownership granted"
 # ---------------------------------------------------------------------------
 # Step 7: render .secrets/database_url (consumed by docker-compose *_FILE)
 # ---------------------------------------------------------------------------
-DATABASE_URL="$(resolve_dev_db_url)"
+DATABASE_URL="$($RESOLVE_DB_URL_FN)"
 DATABASE_URL_FILE="$PROJECT_DIR/.secrets/database_url"
 printf '%s\n' "$DATABASE_URL" > "$DATABASE_URL_FILE"
 chmod 600 "$DATABASE_URL_FILE"
@@ -229,10 +269,14 @@ ok "wrote $DATABASE_URL_FILE"
 info "  $(echo "$DATABASE_URL" | sed -E 's|://[^:]+:[^@]+@|://***:***@|')"
 
 # ---------------------------------------------------------------------------
-# Step 8: persist db name for branch-switch reuse
+# Step 8: persist db name for branch-switch reuse (dev only)
 # ---------------------------------------------------------------------------
-persist_db_name "$DB_NAME"
-ok "persisted $PROJECT_DIR/.dev/dev-db-name"
+if [ "$PERSIST_DB_NAME" = "1" ]; then
+    persist_db_name "$DB_NAME"
+    ok "persisted $PROJECT_DIR/.dev/dev-db-name"
+else
+    info "  skip persist_db_name (prod tier — db name is fixed at $DB_NAME)"
+fi
 
 # ---------------------------------------------------------------------------
 # Summary

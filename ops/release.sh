@@ -49,12 +49,14 @@
 #     (backend/VERSION + frontend/VERSION). The content-baked db
 #     image is prod-bound and reads db/VERSION; if you want dev to see new
 #     content, run `prod` first (or just push a new db with db/VERSION).
-#   - `prod` includes the db bake. That step needs cms/.env, so `prod`
-#     must run on the CMS host (or a single-machine CMS+prod setup).
-#     On a dedicated prod target host without cms/.env, run
-#     db/scripts/build.sh on the CMS host first, then run
-#     ops/prod/build_image.sh + push_image.sh on the prod
-#     host.
+#   - `prod` includes the db bake. The bake step needs the CMS secrets
+#     (AI_*, TENCENT_*, CLOUD_*), which now come from GitHub Environments
+#     via `scripts/secrets/fetch_secrets.sh eval-cms` — `prod` therefore
+#     must run on a host that has access to the upstream repo's secrets
+#     (CMS host, or a single-machine CMS+prod setup). On a dedicated
+#     prod target host without secrets access, run db/scripts/build.sh
+#     on the CMS host first, then run ops/prod/build_image.sh +
+#     push_image.sh on the prod host.
 #   - For multi-machine deployments, run each subcommand on its
 #     respective host. The script is self-contained per host.
 #
@@ -132,7 +134,10 @@ Flags:
 
 架构前提:
   - dev  不动 content-baked db image (db 用 db/VERSION)
-  - prod 含 db bake — 需要 cms/.env,必须在 CMS 主机跑(或单机的 CMS+prod)
+  - prod 含 db bake — 需要 CMS 密钥(AI_*/TENCENT_*/CLOUD_*),现从 GH Environments
+    拉取: eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"。必须能在有 secrets
+    权限的机器上跑 (CMS 主机,或单机的 CMS+prod)。无 secrets 权限的 prod target 主机
+    请先在 CMS 主机上跑 db/scripts/build.sh,再到 prod 主机跑 push_image.sh。
   - 多机部署: 在各自主机上跑对应的 subcommand
 EOF
 }

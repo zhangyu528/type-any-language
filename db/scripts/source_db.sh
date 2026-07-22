@@ -233,7 +233,7 @@ usage() {
   stop     Stop a running cms-source-db (no-op if not running).
   status   Print current state.
 
-环境(shell env 或 cms/.env):
+环境(shell env 或 .secrets/postgres_password):
   POSTGRES_USER     db user (default: english_user)
   POSTGRES_DB       db name (default: english_learning)
   POSTGRES_PASSWORD db password (REQUIRED — env or .secrets/postgres_password)

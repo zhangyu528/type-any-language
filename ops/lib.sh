@@ -26,7 +26,6 @@
 #   - resolve_image_tag VAR [path] (per-image env > IMAGE_TAG > version file > "v0.0.0")
 #   - warn_if_version_default    (one-shot warn when VERSION file is missing/empty)
 #   - resolve_docker_registry    (shell env > REGISTRY file > detect_default_registry())
-#   - resolve_content_env_file   (shell env CONTENT_ENV_FILE > default cms/.env)
 #   - sed_inplace                (portable sed -i; GNU vs BSD/macOS)
 #
 
@@ -378,8 +377,9 @@ warn_if_version_default() {
 # Unlike POSTGRES_PASSWORD or AI_API_KEY, it is NOT a personal secret — it
 # is project config that the whole team shares. It therefore lives in a
 # committed REGISTRY file at the repo root (symmetric with the per-segment
-# VERSION files like db/VERSION / backend/VERSION), not in the
-# gitignored cms/.env.
+# VERSION files like db/VERSION / backend/VERSION), not in a gitignored
+# .env (the historical cms/.env is gone; secrets now live in GH Environments
+# and are fetched via scripts/secrets/fetch_secrets.sh eval-cms).
 #
 # Resolution order (highest priority first):
 #   1. Shell env:    export DOCKER_REGISTRY=docker.io/youruser
@@ -464,47 +464,6 @@ resolve_docker_registry() {
     export DOCKER_REGISTRY
     _DOCKER_REGISTRY_SOURCE="detect"
     export _DOCKER_REGISTRY_SOURCE
-}
-
-# ---------------------------------------------------------------------------
-# Content-env-file resolution
-# ---------------------------------------------------------------------------
-# CONTENT_ENV_FILE is the path to the CMS-host secrets file (default
-# cms/.env). It holds AI / TTS provider keys + optional POSTGRES_USER
-# / POSTGRES_DB overrides. Resolved once at script start; consumers read
-# the returned path and source it.
-#
-# Why `cms/.env` (not project root): the only consumer of this file
-# is the CMS content-production runtime. Co-locating it with `cms/`
-# keeps the runtime self-contained — it pairs with `cms/.local/audio`
-# (audio staging dir) and lets the migrate sidecar reuse the existing
-# `-v content:/content:ro` bind mount instead of a separate `-v $env:/$env`
-# (less Docker plumbing, fewer Windows path-rewrite edge cases).
-#
-# Resolution order:
-#   1. Shell env:    export CONTENT_ENV_FILE=staging.env
-#   2. Default:      cms/.env under $PROJECT_ROOT
-#
-# Relative paths are project-root-relative (computed from $PROJECT_DIR if
-# the caller has set it, otherwise from find_repo_root). Absolute paths
-# are returned as-is.
-
-# resolve_content_env_file  → echoes the absolute path to the CMS-host
-# secrets file. Always succeeds — defaults to $PROJECT_ROOT/cms/.env.
-#
-# Callers should use this exactly once at the top of a script and store
-# the result in a local var:
-#   local env_file; env_file="$(resolve_content_env_file)"
-#   [ -f "$env_file" ] || err "$env_file 不存在 — 跑 ./cms/scripts/env.sh init"
-#   set -a; . "$env_file"; set +a
-resolve_content_env_file() {
-    local root="${PROJECT_DIR:-$(find_repo_root)}"
-    local f="${CONTENT_ENV_FILE:-cms/.env}"
-    if [[ "$f" = /* ]]; then
-        echo "$f"
-    else
-        echo "$root/$f"
-    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -593,7 +552,9 @@ db_assemble_url() {
 # ---------------------------------------------------------------------------
 # sed_inplace PATTERN FILE — in-place edit, compatible with GNU sed (Linux)
 # and BSD sed (macOS). BSD requires an explicit empty argument after -i.
-# Used by cms/scripts/env.sh to inject smart defaults into cms/.env.
+# (Previously used by cms/scripts/env.sh to inject smart defaults into
+# cms/.env — that script is gone, but sed_inplace is kept as a generic
+# helper since other in-place file edits still benefit from it.)
 sed_inplace() {
     if sed --version >/dev/null 2>&1; then
         sed -i "$1" "$2"

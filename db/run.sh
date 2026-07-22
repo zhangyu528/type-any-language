@@ -35,7 +35,7 @@
 # `ops/{dev,prod}/lifecycle.sh restart` on each target to pull the
 # new image.
 #
-# Configuration (all shell env; cms/.env NOT loaded here):
+# Configuration (all shell env; no .env file is loaded here):
 #   DB_IMAGE_TAG     image tag (default: db/VERSION; shell env wins)
 #   DOCKER_REGISTRY  registry namespace; empty = local-only mode
 #                     (resolution: shell env > ./REGISTRY > detect).

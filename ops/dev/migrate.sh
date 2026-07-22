@@ -3,9 +3,10 @@
 # ops/dev/migrate.sh — apply pending schema migrations to running db.
 #
 # Lightweight dev iteration path. Equivalent to running
-# `cms/scripts/env.sh` then running the migration runner, but targets the
-# runtime db directly via a one-shot sidecar container on the compose
-# network — so no image bake, no registry, no volume drop.
+# `cms/scripts/bootstrap.sh` (the GH-Secrets eval-cms + pip install
+# flow) then running the migration runner, but targets the runtime
+# db directly via a one-shot sidecar container on the compose network
+# — so no image bake, no registry, no volume drop.
 #
 # Why a sidecar: the runtime db container is postgres:15-alpine, which
 # has psql but no python. The migration runner is Python. We use the

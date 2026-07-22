@@ -21,7 +21,7 @@
 # Image labels baked in (read by prod/dev run.sh via `docker inspect`):
 #   type-any-language.db.user           POSTGRES_USER (default: english_user; shell env override)
 #   type-any-language.db.name           POSTGRES_DB   (default: english_learning; shell env override)
-#   type-any-language.content.version   DB_IMAGE_TAG  (default: db/VERSION; cms/.env / shell env override)
+#   type-any-language.content.version   DB_IMAGE_TAG  (default: db/VERSION; shell env override)
 #   type-any-language.content.baked-at  <UTC timestamp>
 #
 # Subcommands:
@@ -37,9 +37,9 @@
 # are CMS concerns and are intentionally not read by the db bake.
 #
 # This script does NOT modify content. It only packages whatever is
-# currently in the DB. To update content, run
-# `cms/scripts/staging.sh {sync,sentences,audio,publish}` first.
-# Audio lives in Tencent Cloud COS (uploaded by staging.sh audio), not
+# currently in the DB. To update content, run `cms/run.sh` first
+# (which drives vocab → sentences → audio and writes cms/staging/).
+# Audio lives in Tencent Cloud COS (uploaded by the audio step), not
 # in this image — see CLAUDE.md for the full architecture.
 #
 # This script does NOT push. Pushing is a separate, intentional step:
@@ -118,11 +118,11 @@ cmd_doctor() {
         # doesn't read it directly — export_bundle.py reads the
         # staging db, not the CSVs. But we still warn here because
         # an empty cms/seed often means the operator forgot to
-        # run `cms/scripts/env.sh init` (which scaffolds the
-        # example CSVs into cms/seed/).
+        # run the CMS pipeline (./cms/run.sh) after editing CSVs.
         warn "cms/seed directory missing — CMS pipeline output (staging db) may be empty"
         info "  (db bake reads from staging db, not cms/seed — but if you're"
-        info "   seeing empty data, run ./cms/scripts/env.sh init to scaffold the example CSVs)"
+        info "   seeing empty data, run ./cms/scripts/bootstrap.sh to install"
+        info "   deps, then ./cms/run.sh to produce staging files)"
     fi
 
     if [ ! -f "$EXPORT_BUNDLE" ]; then

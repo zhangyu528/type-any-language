@@ -130,8 +130,9 @@ def get_database_url(cli_url: str | None) -> str:
     assembled from POSTGRES_* env vars (host/user/password/db).
 
     The assembler path keeps the script runnable in the common CMS
-    case where the operator only sets POSTGRES_PASSWORD (cms/.env
-    default — see lib.sh's resolve_content_env_file).
+    case where the operator only sets POSTGRES_PASSWORD (the
+    .secrets/postgres_password fallback written by ops/<host>/lifecycle.sh
+    first start, or a one-shot export POSTGRES_PASSWORD=... in shell).
     """
     if cli_url:
         return cli_url

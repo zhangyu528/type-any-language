@@ -53,9 +53,9 @@ from pathlib import Path
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from dbtools.db_url import load_cms_env_into_os_environ, resolve_database_url  # noqa: E402
+    from dbtools.db_url import resolve_database_url  # noqa: E402
 else:
-    from .db_url import load_cms_env_into_os_environ, resolve_database_url  # noqa: E402
+    from .db_url import resolve_database_url  # noqa: E402
 
 
 def find_project_root() -> Path:
@@ -325,7 +325,11 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    load_cms_env_into_os_environ()
+    # Resolve DATABASE_URL straight from the process env. Caller is
+    # expected to have either run `eval "$(scripts/secrets/fetch_secrets.sh
+    # eval-db)"` (CMS host) or have .secrets/postgres_password written
+    # by ops/<host>/lifecycle.sh first start (target host). See
+    # db/dbtools/db_url.py for the full resolution chain.
     database_url = resolve_database_url()
 
     staging = find_staging_dir()

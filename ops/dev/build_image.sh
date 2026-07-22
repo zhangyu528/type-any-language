@@ -64,7 +64,7 @@ DB_IMAGE="${DB_IMAGE:-english_db_content}"
 DB_FULL_IMAGE="${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}${DB_IMAGE}:${DB_IMAGE_TAG:-latest}"
 if ! image_exists "$DB_FULL_IMAGE"; then
     err "content-baked db image $DB_FULL_IMAGE 不在本地 — build 必须知道 DB_USER / DB_NAME"
-    info "  解决: 跑 db/scripts/build.sh 烤一个(本机有 cms/.env 的情况下)"
+    info "  解决: 跑 db/scripts/build.sh 烤一个(本机需有 DATABASE_URL 或 .secrets/postgres_password)"
     info "  或:   docker pull $DB_FULL_IMAGE  (DOCKER_REGISTRY 配了的话)"
     info "  或:   shell 覆盖 DB_IMAGE / DB_IMAGE_TAG 指向已有的 image"
     exit 1

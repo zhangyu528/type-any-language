@@ -22,7 +22,7 @@ Two public entry points:
         dependency surface.
 
 The db/scripts/build.sh shell script is now a thin wrapper that calls both
-(doctors the env, loads cms/.env, picks a python, invokes this file).
+(doctors the env, picks a python, invokes this file).
 
 Public API:
     assemble(bundle_dir, target) -> Path

@@ -8,9 +8,10 @@
 #
 # Symmetric with ops/{dev,prod}-host/db/scripts/push.sh: all three
 # push scripts read every config value (DOCKER_REGISTRY, DB_IMAGE,
-# DB_IMAGE_TAG) from the shell env, NOT from cms/.env. cms/.env is the
-# bake-time secret store (OpenAI/Tencent keys, postgres connection,
-# etc.) and shouldn't bleed into push.
+# DB_IMAGE_TAG) from the shell env, NOT from a .env file. The historical
+# cms/.env is gone; even before the GH Environments migration,
+# push deliberately did not source it — bake-time secrets
+# (OpenAI/Tencent keys, postgres connection) shouldn't bleed into push.
 #
 # Subcommands:
 #   (no args)    Push with interactive confirmation prompt.
@@ -52,9 +53,9 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR"
 source "$SCRIPT_DIR/../../ops/lib.sh"
 
-# NOTE: we deliberately do NOT load cms/.env here. Push is a separate
-# concern from bake: cms/.env is the bake-time secret/config store
-# (OpenAI/Tencent keys, postgres connection, etc.) and shouldn't bleed
+# NOTE: we deliberately do NOT load any .env file here. Push is a
+# separate concern from bake: bake-time secrets (OpenAI/Tencent keys,
+# postgres connection) shouldn't bleed into push. The values that push
 # into push. The values that push DOES care about are all shell-env:
 #   DB_IMAGE         image name (default: english_db_content)
 #   DB_IMAGE_TAG     image tag  (default: db/VERSION)

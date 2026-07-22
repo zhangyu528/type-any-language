@@ -30,9 +30,16 @@
 #               git pull brings fresh cms/staging/ content. Does NOT call
 #               the CMS pipeline — dev hosts treat cms/staging/ as
 #               git-tracked read-only input.
+#   bootstrap   one-time: first-time setup of per-host credentials in
+#               the shared TencentDB instance (cloud-db path). Prompts
+#               for the admin DSN, writes .secrets/tencent_db_admin_url
+#               (chmod 600), then invokes db/scripts/bootstrap_tencent.sh.
+#               Self-hosted postgres users don't need this — skip.
+#               the CMS pipeline — dev hosts treat cms/staging/ as
+#               git-tracked read-only input.
 #
 # Does NOT create .secrets/ (the legacy default), start any containers,
-# push to a registry, or invoke the CMS pipeline (sync / sentences /
+# push to a registry, or invoke the CMS pipeline (vocab / sentences /
 # audio). Re-run `setup` as many times as you want — nothing destructive.
 #
 # Counterpart to ops/dev/{lifecycle,doctor,logs,migrate,watch}.sh.
@@ -118,16 +125,8 @@ cmd_setup() {
             info "    2. 或 rsync cms-host:cms/staging/ cms/staging/"
             return 1
         fi
-        # cms/.env — db/scripts/build.sh checks for it. dev hosts don't
-        # need real keys (we're not running the CMS pipeline), so scaffold
-        # an empty file just to pass build.sh's existence check. The
-        # POSTGRES_PASSWORD used at db-init time comes from .secrets/,
-        # not cms/.env, so leaving AI/TENCENT keys empty is fine.
-        CONTENT_ENV_FILE_PATH="$(resolve_content_env_file)"
-        if [ ! -f "$CONTENT_ENV_FILE_PATH" ]; then
-            info "  scaffold 一份空 $CONTENT_ENV_FILE_PATH(只过存在性检查,key 留空)"
-            touch "$CONTENT_ENV_FILE_PATH"
-        fi
+        # db/scripts/build.sh now uses db-side shell defaults and .secrets;
+        # no CMS env file is needed on a dev target host.
         info "  跑 db/scripts/import_staging.sh all (UPSERT staging → staging db)..."
         echo ""
         if "$PROJECT_DIR/db/scripts/import_staging.sh" all; then
@@ -201,7 +200,7 @@ cmd_setup() {
 # and restarts the dev containers so the new image is picked up
 # immediately.
 #
-# Does NOT call the CMS pipeline (sync/sentences/audio). Dev hosts treat
+# Does NOT call the CMS pipeline (vocab/sentences/audio). Dev hosts treat
 # cms/staging/ as git-tracked read-only input — re-running CMS stages
 # there would require a CMS host.
 # ---------------------------------------------------------------------------
@@ -212,17 +211,18 @@ cmd_setup() {
 # libs as part of a reset). The import + bake sub-scripts do their own
 # hard checks.
 cmd_content_preflight() {
-    local env_file
-    env_file="$(resolve_content_env_file)"
-    if [ ! -f "$env_file" ]; then
-        # build.sh hard-fails if cms/.env is missing. Touch an empty file
-        # so the existence check passes — same convention as the legacy
-        # fallback in cmd_setup. AI/TENCENT keys are irrelevant here
-        # because we never call cms/run.sh.
-        info "  $env_file 不存在 — touch 一个空文件让 build.sh 存在性检查通过"
-        : > "$env_file"
+    # Dev hosts do NOT run the CMS pipeline — they read cms/staging/
+    # (git-tracked) and hand the files to db/scripts/build.sh's importer.
+    # All required credentials come from the process env (typically
+    # `eval "$(scripts/secrets/fetch_secrets.sh eval-db)"`) or from
+    # .secrets/postgres_password written by ops/dev/lifecycle.sh first start.
+    if [ -n "${DATABASE_URL:-}" ] || [ -n "${POSTGRES_PASSWORD:-}" ] || \
+       [ -f "$PROJECT_DIR/.secrets/postgres_password" ]; then
+        ok "  db 凭据已就绪 (env 或 .secrets/postgres_password)"
     else
-        ok "  $env_file 存在"
+        info "  没看到 DATABASE_URL / POSTGRES_PASSWORD / .secrets/postgres_password"
+        info "    → eval \"\$(scripts/secrets/fetch_secrets.sh eval-db)\""
+        info "    → 或先跑 ./ops/dev/lifecycle.sh start 生成 .secrets/postgres_password"
     fi
 
     if [ -d "$PROJECT_DIR/cms/staging" ]; then
@@ -248,8 +248,9 @@ cmd_content() {
 
     # Step 0b: ensure DB_USER / DB_NAME are populated for write_secrets.
     # Reuse the code defaults (english_user / english_learning) if no
-    # content-baked db image is present yet — matches the defaults
-    # build.sh applies when cms/.env has no DB_USER / DB_NAME keys.
+    # content-baked db image is present yet — matches the shell-side
+    # defaults build.sh uses when no POSTGRES_USER / POSTGRES_DB is in
+    # env (cms/.env is gone; defaults are in code).
     if ! inspect_db_image_labels; then
         warn "  本地尚无 content-baked db image — 假定 DB_USER/DB_NAME 用代码默认值"
         DB_USER="${DB_USER:-english_user}"
@@ -316,6 +317,147 @@ cmd_content() {
 }
 
 # ---------------------------------------------------------------------------
+# cmd_bootstrap — first-time cloud-db (TencentDB) setup.
+#
+# Only meaningful for hosts that point at the shared TencentDB
+# instance. Self-hosted postgres users (the `setup` / `content`
+# subcommands) do NOT need this.
+#
+# Steps:
+#   1. Resolve admin DSN — either from --admin-url=, TENCENT_DB_ADMIN_URL
+#      env (typical GH Secrets path), or interactive prompt.
+#   2. Persist it to .secrets/tencent_db_admin_url (chmod 600, gitignored).
+#      bootstrap_tencent.sh reads it via resolve_admin_url() and uses
+#      it to CREATE ROLE / DATABASE / GRANT on the shared instance.
+#   3. Invoke db/scripts/bootstrap_tencent.sh, which:
+#      - resolves role password (env TENCENT_DB_PASSWORD > .secrets/
+#        tencent_db_password, generated if missing)
+#      - computes db name from git state (master → no suffix;
+#        feature branch → ...__<sanitized branch or short SHA>)
+#      - renders .secrets/database_url (consumed by docker-compose
+#        *_FILE indirection)
+#
+# After cmd_bootstrap, ops/{dev,prod}/lifecycle.sh start can use
+# .secrets/database_url (or DATABASE_URL env / .secrets/postgres_password)
+# to talk to the cloud db.
+#
+# Idempotency: re-running with an existing .secrets/tencent_db_admin_url
+# is safe (the file is read but not overwritten). bootstrap_tencent.sh
+# itself is idempotent end-to-end (CREATE ROLE / DATABASE have IF NOT
+# EXISTS guards, GRANT is idempotent).
+# ---------------------------------------------------------------------------
+cmd_bootstrap() {
+    info "=== dev host: cloud-db (TencentDB) bootstrap ==="
+    echo ""
+
+    # Pre-flight: psql + python3 are required by bootstrap_tencent.sh
+    # (psql for DDL, python3 for url-encoding + db-name sanitization).
+    if ! command -v psql &> /dev/null; then
+        err "psql 未安装 — TencentDB bootstrap 需要 postgresql-client"
+        info "  → Ubuntu/Debian:  sudo apt install postgresql-client"
+        info "  → macOS:          brew install postgresql-client"
+        info "  → Windows:        使用 stack-postgres 或 WSL"
+        return 1
+    fi
+    if ! command -v python3 &> /dev/null; then
+        err "python3 未安装 — bootstrap_tencent.sh 需要它做 url-encode"
+        return 1
+    fi
+    ok "  psql:    $(psql --version 2>&1 | head -1)"
+    ok "  python3: $(python3 --version 2>&1 | head -1)"
+    echo ""
+
+    # Step 1: resolve admin DSN.
+    local admin_url=""
+    # CLI flag (rare — for non-interactive testing) or env (GH Secrets path).
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --admin-url=*) admin_url="${1#*=}"; shift ;;
+            *)             err "未知参数: $1"; return 1 ;;
+        esac
+    done
+    if [ -z "$admin_url" ] && [ -n "${TENCENT_DB_ADMIN_URL:-}" ]; then
+        admin_url="$TENCENT_DB_ADMIN_URL"
+        info "  admin URL from TENCENT_DB_ADMIN_URL env (GH Secrets path)"
+    fi
+
+    # Persisted file wins only when no fresh input — if the operator
+    # explicitly provided a new URL via flag/env, overwrite.
+    local admin_url_file="$PROJECT_DIR/.secrets/tencent_db_admin_url"
+    if [ -z "$admin_url" ] && [ -f "$admin_url_file" ] && \
+       [ -n "$(awk 'NR==1' "$admin_url_file" 2>/dev/null)" ]; then
+        admin_url="$(awk 'NR==1' "$admin_url_file")"
+        info "  admin URL from existing $admin_url_file (rerun safe)"
+    fi
+
+    if [ -z "$admin_url" ]; then
+        echo ""
+        info "  Need the postgres:// admin DSN for the shared TencentDB."
+        info "  Get it once from the TencentDB console (database > manage"
+        info "  > account management), then paste here. After this run"
+        info "  it's stored in $admin_url_file (chmod 600) and bootstrap_tencent.sh"
+        info "  uses it to CREATE ROLE / DATABASE / GRANT."
+        info ""
+        info "  快捷通道(GH Secrets): export TENCENT_DB_ADMIN_URL=postgres://... 再重跑本命令"
+        echo ""
+        read -rs -p "  admin DSN (postgres://...; 不会回显): " admin_url
+        echo ""
+        if [ -z "$admin_url" ]; then
+            err "  admin DSN 为空 — 退出"
+            return 1
+        fi
+        # Sanity check — must look like a postgres DSN.
+        if ! [[ "$admin_url" =~ ^postgres(ql)?:// ]]; then
+            err "  DSN 格式不像 postgres:// — 退出"
+            return 1
+        fi
+    fi
+    echo ""
+
+    # Step 2: persist admin URL.
+    mkdir -p "$PROJECT_DIR/.secrets"
+    chmod 700 "$PROJECT_DIR/.secrets"
+    # Write atomically — write to temp, then move. Avoids half-written
+    # file if interrupted (the file is chmod 600 by post-condition).
+    local tmp_admin
+    tmp_admin="$(mktemp "$PROJECT_DIR/.secrets/.tencent_db_admin_url.XXXXXX")"
+    chmod 600 "$tmp_admin"
+    printf '%s\n' "$admin_url" > "$tmp_admin"
+    mv "$tmp_admin" "$admin_url_file"
+    chmod 600 "$admin_url_file"
+    ok "  wrote $admin_url_file (chmod 600)"
+    echo ""
+
+    # Step 3: hand off to bootstrap_tencent.sh. That script:
+    #   - parses the admin DSN to extract host:port (TENCENT_DB_HOST)
+    #   - resolves role password (env > file > abort with hint)
+    #   - CREATE ROLE english_dev_${USER} LOGIN PASSWORD '...' (idempotent)
+    #   - renders db name from render_db_name() (master → no suffix;
+    #     feature branch → ...__<sanitized branch or short SHA>)
+    #   - CREATE DATABASE (idempotent)
+    #   - GRANT ALL on db + schema public (idempotent)
+    #   - writes .secrets/database_url (chmod 600) for compose *_FILE
+    #   - persists db name to .dev/dev-db-name for cross-restart reuse
+    #
+    # We pass tier=dev explicitly so the script picks the dev helpers
+    # (english_dev_${USER}); prod setup.sh passes tier=prod.
+    info "  invoke db/scripts/bootstrap_tencent.sh (tier=dev)..."
+    echo ""
+    if ! OPS_TIER=dev "$PROJECT_DIR/db/scripts/bootstrap_tencent.sh"; then
+        err "  bootstrap_tencent.sh 失败 — 看上方错误"
+        info "  注:admin URL 已在 $admin_url_file,直接重跑可复用"
+        return 1
+    fi
+    echo ""
+
+    ok "=== cloud-db bootstrap 完成 ==="
+    info "  接下来:"
+    info "    eval \"\$(./scripts/secrets/fetch_secrets.sh eval-db)\"   # 注入 DATABASE_URL 到当前 shell"
+    info "    ./ops/dev/lifecycle.sh start                            # 起容器,会自动用 .secrets/database_url"
+    return 0
+}
+
+# ---------------------------------------------------------------------------
 # usage + dispatcher
 # ---------------------------------------------------------------------------
 
@@ -332,10 +474,19 @@ usage() {
                         restart dev containers. Use after 'git pull'
                         brings fresh cms/staging/ content. Does NOT
                         call cms/run.sh.
+  bootstrap            One-time cloud-db (TencentDB) setup. Prompts
+                        for the admin DSN, writes
+                        .secrets/tencent_db_admin_url (chmod 600),
+                        invokes db/scripts/bootstrap_tencent.sh to
+                        CREATE ROLE / DATABASE / GRANT. Only needed
+                        for hosts using cloud-db — self-hosted
+                        postgres users skip this.
   -h|--help|help       Show this help.
 
 典型工作流:
-  ./ops/dev/setup.sh                    # 首次 bootstrap
+  ./ops/dev/setup.sh                    # 首次 bootstrap (self-host)
+  # 或 cloud-db 主机:
+  ./ops/dev/setup.sh bootstrap          # 一次性 cloud-db setup
   # ...改 CSVs 后 commit,git pull 到 dev 主机...
   ./ops/dev/setup.sh content            # on-demand: rebake + restart
   ./ops/dev/lifecycle.sh start         # 日常起容器
@@ -345,6 +496,7 @@ EOF
 case "${1:-}" in
     ""|setup)               cmd_setup ;;
     content)                cmd_content ;;
+    bootstrap)              shift; cmd_bootstrap "$@" ;;
     -h|--help|help)         usage ;;
     *)                      { err "未知命令: $1"; usage; } >&2; exit 1 ;;
 esac
