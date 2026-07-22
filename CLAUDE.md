@@ -521,6 +521,67 @@ When the operator merges new schema changes:
 3. Target hosts: `./ops/<host>/lifecycle.sh restart` — pulls the latest `english_backend{,_dev}` + `english_frontend{,_dev}` from the registry (backend picks up the schema change on next request)
 4. Fresh cloud dbs (created by `bootstrap_tencent.sh`): the base schema in `db/dbtools/init_schema.py` runs via `./db/scripts/init_schema.sh`. Existing cloud dbs keep their data; migrations are additive.
 
+### Migration naming + merge rules
+
+To avoid the "two branches both add `0011_*.py` and merge produces N files with the same prefix" problem, this project uses a **two-tier naming convention**:
+
+| Tier | Filename form | Lives where | Purpose |
+|---|---|---|---|
+| **Shared** (canonical) | `<NNNN>_<short>.py` where `NNNN` is a strictly-increasing 4-digit integer | master, all branches | Production migration — every dev's `english_dev_<user>` db eventually needs it. Merged into master and stays there forever |
+| **Branch-local** (experimental) | `<9NNN>_<branch-slug>-<short>.py` where `9NNN` is `9000`+ and `<branch-slug>` is the sanitized branch name | the branch only | Lives only on the branch that needs it. Delete before merging to master, or never merge it. Avoids polluting master with experimental migrations |
+
+**Why two tiers?**:
+- Shared migrations (0001-8999) follow the natural-int numbering — one per "everyone needs this" schema change. Runner applies them in `version` lexical order.
+- Branch-local migrations (9000-9999) live on a single feature branch. Multiple branches can each have their own `9xxx_*.py` without colliding on the prefix, because the prefix is `9xxx_<branch-slug>` and the slug is unique per branch.
+- Lexical sort means shared (`0011`) is always applied before branch-local (`9001`), even if both are present on the same branch.
+
+**Workflow when adding a migration**:
+
+```bash
+# 1. Find the current max shared prefix on origin/master
+git fetch origin
+MAX=$(git ls-tree -r origin/master --name-only \
+    -- db/dbtools/migrations/versions/ \
+    | grep -oE '^[0-9]{4}_' | sort -u | tail -1 | tr -d '_')
+echo "max shared prefix on origin/master = $MAX"
+# Pick $((MAX + 1)) for your shared migration.
+
+# 2a. Shared migration — everyone needs it
+git checkout -b feature/xyz
+$EDITOR db/dbtools/migrations/versions/0011_add_target_words.py
+git add db/dbtools/migrations/versions/0011_add_target_words.py
+git commit -m "schema: add target_words column on sentences"
+
+# 2b. Branch-local — experimental, only on this branch
+git checkout -b experiment/phonetic-lookup
+$EDITOR db/dbtools/migrations/versions/9001_experiment-phonetic-lookup-btree.sql
+git add ...
+git commit -m "experiment: phonetic-lookup btree (branch-local, will not merge)"
+```
+
+**Merge rules**:
+- Shared migrations (`0001`-`8999`) merge into master and stay. They are applied to every dev's db on next `./ops/dev/migrate.sh` (or equivalent).
+- Branch-local migrations (`9000`-`9999`):
+  - If the experiment succeeds, **promote it to shared**: rename to the next shared prefix, drop the `<branch-slug>` slug, merge.
+  - If the experiment is abandoned, do **not** merge the branch at all, or `git rm` the migration file in the merge commit.
+  - Never merge two branches that both added the same shared prefix (e.g. both adding `0011_*.py`) without first resolving one of them to a different number — git won't conflict on the filename, but the runner will silently apply both, and the resulting master will have two files with the same `version = "..."` string (cosmetic noise, no functional bug, but confusing).
+
+**Helper**: to list migrations sorted by version (useful for "what's the next number?"), run:
+
+```bash
+ls db/dbtools/migrations/versions/*.py \
+    | grep -v __init__.py \
+    | xargs -n1 basename \
+    | sort
+# Or, automated:
+./db/scripts/next_migration_prefix.sh           # next shared prefix on origin/master
+./db/scripts/next_migration_prefix.sh --local   # next prefix in working tree
+# Make wrapper:
+make db-next-migration-prefix
+```
+
+The runner (`db/dbtools/migrations/runner.py::_discover_versions`) sorts by the `version` string attribute of each module (not the filename), so renames are safe as long as `version = "..."` stays consistent.
+
 ## Environment variables
 
 ### CMS host — secrets come from GitHub Environments

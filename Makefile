@@ -151,6 +151,10 @@ db-init-schema:
 db-migrate:
 	@bash db/scripts/migrate.sh
 
+## db-next-migration-prefix: print next available 4-digit prefix for a shared migration on origin/master
+db-next-migration-prefix:
+	@bash db/scripts/next_migration_prefix.sh
+
 ## db-bootstrap-dev: one-time ROLE/DB/GRANT for a dev host (writes .secrets/database_url)
 db-bootstrap-dev:
 	@bash ops/dev/setup.sh bootstrap
