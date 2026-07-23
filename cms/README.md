@@ -18,7 +18,7 @@ cms/
 │   ├── vocabulary/     # 每个 lib 的 CSV
 │   └── prompts/        # LLM prompt 模板(sentences.yaml 等)
 │
-├── cms_pipeline/        # Python 包(manifest / import_vocab / generate_sentences / generate_audio / storage / env)
+├── pipeline/        # Python 包(manifest / import_vocab / generate_sentences / generate_audio / storage / env)
 │
 ├── pyproject.toml       # 第三方依赖清单 (openai / PyYAML base, tencent / cos optional)
 ├── run.sh                # CMS driver 主入口(operator 第一个敲的; E+T 不含 L)
@@ -46,7 +46,7 @@ db/
 | 段 | 装什么 | 谁维护 | git 跟踪 | 进了 image 吗 |
 |---|---|---|---|---|
 | `cms/source/` | 业务内容描述 | 运维(人工) | ✓ | 否(只是输入) |
-| `cms/cms_pipeline/` | CMS 端 Python 工具集 | 开发者 | ✓ | 否(只在 CMS 主机跑) |
+| `cms/pipeline/` | CMS 端 Python 工具集 | 开发者 | ✓ | 否(只在 CMS 主机跑) |
 | `cms/scripts/` | 操作员对 cms 跑的 shell 工具 | 开发者 | ✓ | 否 |
 | `db/`       | schema + importer + cloud-db bootstrap | 半自动(operator 跑 `bootstrap_tencent.sh`) | ✓ scripts + db_url/importer | 否(没有 db image 了 —— runtime db 是 TencentDB) |
 

@@ -22,7 +22,7 @@
 #
 # CMS-side modules do NOT connect to the database — they only write
 # files. DATABASE_URL is therefore NOT needed by this script (or any
-# cms_pipeline.* Python module). The db side (db/scripts/bootstrap_tencent.sh
+# pipeline.* Python module). The db side (db/scripts/bootstrap_tencent.sh
 # / import_staging.sh / migrate.sh) resolves DATABASE_URL itself from shell
 # env or .secrets/database_url.
 #

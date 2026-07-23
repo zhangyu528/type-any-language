@@ -60,7 +60,7 @@ from pathlib import Path
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-    from cms_pipeline.manifest import load_manifest
+    from pipeline.manifest import load_manifest
 else:
     from .manifest import load_manifest
 
@@ -71,7 +71,7 @@ STAGING_SENTENCES_DIRNAME = "sentences"
 
 
 def find_project_root() -> Path:
-    """Project root = 4 hops up from cms/cms_pipeline/generate_sentences.py."""
+    """Project root = 4 hops up from cms/pipeline/generate_sentences.py."""
     return Path(__file__).resolve().parent.parent.parent
 
 
@@ -323,7 +323,7 @@ def _read_ai_cfg() -> dict:
     fallback — process env is the only source.
     """
     if __package__ in (None, ""):
-        from cms_pipeline.env import load_config
+        from pipeline.env import load_config
     else:
         from .env import load_config
 

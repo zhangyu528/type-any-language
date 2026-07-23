@@ -2,7 +2,7 @@
 #
 # cmd_sentences.sh — sentences: 调 OpenAI 追加句子到 JSONL  (T: Transform)
 #
-# 薄壳 over python -m cms_pipeline.generate_sentences。flags 全透传。
+# 薄壳 over python -m pipeline.generate_sentences。flags 全透传。
 # 读取 cms/content/vocabulary/<lib>.json 后,调 OpenAI 填到 bucket 大小
 # (默认 DEFAULT_BUCKET_TARGET_SIZE=200),追加到
 # cms/content/sentences/<lib>.jsonl。
@@ -30,7 +30,7 @@ usage() {
 
 OpenAI 调 → cms/content/sentences/<lib>.jsonl  (T: Transform)
 
-薄壳 over python -m cms_pipeline.generate_sentences。flags 全透传。
+薄壳 over python -m pipeline.generate_sentences。flags 全透传。
 
 前置 (来自 fetch_secrets.sh eval-cms 或 shell export):
   AI_API_KEY / AI_BASE_URL / AI_MODEL
@@ -44,7 +44,7 @@ case "${1:-}" in
     -h|--help|help|"") usage; exit 0 ;;
 esac
 
-# AI_* 凭据校验由 cms_pipeline.generate_sentences._read_ai_cfg()
+# AI_* 凭据校验由 pipeline.generate_sentences._read_ai_cfg()
 # 在 load_config() + cfg.require_ai() 处做,失败时 sys.exit(1) + 中文 hint。
 
-exec "$SCRIPT_DIR/py-run.sh" cms_pipeline.generate_sentences "$@"
+exec "$SCRIPT_DIR/py-run.sh" pipeline.generate_sentences "$@"

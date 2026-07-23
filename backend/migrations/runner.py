@@ -261,7 +261,7 @@ def main() -> None:
 
     # DATABASE_URL is assembled by the calling db-side script
     # (db/scripts/migrate.sh / build.sh) from POSTGRES_PASSWORD + code
-    # defaults. cms_pipeline.env no longer touches it.
+    # defaults. pipeline.env no longer touches it.
     database_url = os.environ.get("DATABASE_URL", "").strip()
     if not database_url:
         sys.exit(

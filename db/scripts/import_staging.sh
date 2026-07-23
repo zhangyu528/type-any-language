@@ -33,7 +33,7 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../../ops/lib.sh"
 
 # Assemble DATABASE_URL — see ops/lib.sh::db_assemble_url. The importer
-# no longer imports cms_pipeline.env, which used to do this in Python.
+# no longer imports pipeline.env, which used to do this in Python.
 if [ -z "${DATABASE_URL:-}" ]; then
     if ! db_assemble_url; then
         exit 1

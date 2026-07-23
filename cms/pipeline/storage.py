@@ -31,8 +31,8 @@ Provider contract (all methods raise on transport error):
       (https://{bucket}.cos.{region}.myqcloud.com/{key}).
 
 Usage from CMS code:
-    from cms_pipeline.env import load_config
-    from cms_pipeline.storage import get_storage
+    from pipeline.env import load_config
+    from pipeline.storage import get_storage
     cfg = load_config()
     storage = get_storage(cfg)
     storage.put("audio/abc.mp3", mp3_bytes)

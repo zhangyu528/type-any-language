@@ -138,7 +138,7 @@ require_docker    # 脚本用到 docker 时
   - 0 = 成功或用户取消
   - 1 = 前置条件缺失
   - 2 = docker / push 失败
-- **`ops/` 下的脚本不要用 Python。** CMS 流水线用 Python(`cms/cms_pipeline/*.py`),但 `ops/` 全 shell。目标机需要 python3 仅用于 `ops/dev/migrate.sh` 跑 migration runner(同一台 dev 机器通常已有 python3)。
+- **`ops/` 下的脚本不要用 Python。** CMS 流水线用 Python(`cms/pipeline/*.py`),但 `ops/` 全 shell。目标机需要 python3 仅用于 `ops/dev/migrate.sh` 跑 migration runner(同一台 dev 机器通常已有 python3)。
 - **`source "$PROJECT_DIR/ops/lib.sh"`** 是引入方式。不要 `source ./lib.sh` —— 操作员切了目录就找不到。
 
 ## 版本模型

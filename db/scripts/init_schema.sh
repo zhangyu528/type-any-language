@@ -37,7 +37,7 @@ source "$SCRIPT_DIR/../../ops/lib.sh"
 
 # Assemble DATABASE_URL — see ops/lib.sh::db_assemble_url. The Python
 # modules (init_schema, importer, migrations.runner) no longer import
-# cms_pipeline.env, which used to do this in Python.
+# pipeline.env, which used to do this in Python.
 if [ -z "${DATABASE_URL:-}" ]; then
     if ! db_assemble_url; then
         exit 1

@@ -1,12 +1,12 @@
 """
-cms/cms_pipeline/env.py — typed Config loader for the data pipeline.
+cms/pipeline/env.py — typed Config loader for the data pipeline.
 
 Reads every value from `os.environ` (populated by
 `scripts/secrets/fetch_secrets.sh eval-cms` on a workstation) and
 exposes a typed `Config` object to the other pipeline modules.
 Centralising the env-reading logic here means individual scripts
 (import_vocab, generate_sentences, ...) can just do
-`from cms_pipeline.env import load_config; cfg = load_config()` and
+`from pipeline.env import load_config; cfg = load_config()` and
 get validated settings.
 
 Validation contract:
@@ -32,7 +32,7 @@ Validation contract:
     the right shape.
 
 Usage from a CLI script:
-    from cms_pipeline.env import load_config
+    from pipeline.env import load_config
     cfg = load_config()         # typed Config (AI / TENCENT fields may be None)
     cfg.require_ai()            # raise if AI_* unset — call this before OpenAI calls
     cfg.require_tencent()       # raise if TENCENT_* unset — call this before TTS calls

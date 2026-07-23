@@ -141,7 +141,7 @@ block + `DATABASE_URL_FILE`.
 │   │   └── prompts/      # LLM prompts (sentences.yaml)
 │   ├── scripts/          # CMS shell tools (staging.sh; not entry)
 │   │   └── staging.sh    # E+T file producer wrapper
-│   ├── cms_pipeline/     # Python package (manifest / import_vocab / generate_sentences / generate_audio / storage / env)
+│   ├── pipeline/     # Python package (manifest / import_vocab / generate_sentences / generate_audio / storage / env)
 │   │   └── README.md
 ├── db/                # Schema + importer + migrations + cloud-db bootstrap
 │   ├── scripts/        # shell entry points
@@ -200,7 +200,7 @@ The backend reads it opaquely; nothing in the image depends on the DSN host.
 > or `scripts/secrets/fetch_secrets.sh eval-db` (db segment). Operators
 > only need a `gh auth login`-authenticated workstation and access to the
 > upstream repo's secrets — there is no longer a local cms/.env file to
-> bootstrap. The CMS pipeline modules (`cms/cms_pipeline/*.py`) read
+> bootstrap. The CMS pipeline modules (`cms/pipeline/*.py`) read
 > everything from `os.environ` with `setdefault` semantics, so process
 > env values injected by `fetch_secrets.sh` always win.
 
@@ -233,15 +233,15 @@ eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"
 ./db/scripts/import_staging.sh all                 # db: L (UPSERT staging files -> cloud db)
 ```
 
-`cms/scripts/staging.sh` is a thin wrapper over the `cms/cms_pipeline/*.py` modules. Each subcommand has its own `--help`. For module-by-module usage details, run `python -m cms_pipeline.<module> --help` (e.g. `python -m cms_pipeline.import_vocab --help`).
+`cms/scripts/staging.sh` is a thin wrapper over the `cms/pipeline/*.py` modules. Each subcommand has its own `--help`. For module-by-module usage details, run `python -m pipeline.<module> --help` (e.g. `python -m pipeline.import_vocab --help`).
 
 ### 责任划分 (responsibility split)
 
 | Step | Tool | What it writes |
 |---|---|---|
-| vocab (CSV → JSON) | `cms/cms_pipeline/import_vocab.py` | `cms/content/vocabulary/<lib>.json` |
-| sentences (AI → JSONL) | `cms/cms_pipeline/generate_sentences.py` | appends to `cms/content/sentences/<lib>.jsonl` |
-| audio (TTS → URL) | `cms/cms_pipeline/generate_audio.py` | updates `audio_url` field in sentences JSONL |
+| vocab (CSV → JSON) | `cms/pipeline/import_vocab.py` | `cms/content/vocabulary/<lib>.json` |
+| sentences (AI → JSONL) | `cms/pipeline/generate_sentences.py` | appends to `cms/content/sentences/<lib>.jsonl` |
+| audio (TTS → URL) | `cms/pipeline/generate_audio.py` | updates `audio_url` field in sentences JSONL |
 | import (files → db) | **`db/importer.py`** | UPSERT into `vocabulary_libs` / `vocabulary_words` / `sentences` |
 | bake (db -> image) | *(retired)* | runtime db is TencentDB - no image bake |
 
@@ -535,7 +535,7 @@ Answer validation is **client-side**: the frontend normalizes (lowercase, strip 
 - `sentences.audio_url` is the full COS URL, written by the CMS audio step into the staging JSONL and then UPSERTed into the cloud db via `importer`.
 - The frontend reads `sentences[i].audio_url` and the browser streams audio from COS directly — no proxy through backend, no nginx `/audio` location, no `shared-audio` docker volume.
 - This keeps the runtime db small (schema + sentences table only, no binary blobs) and lets audio be updated without a db migration.
-- Provider is selected via `CLOUD_PROVIDER` in the process env (typically supplied by `eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"`). Default `local_fs` writes to `cms/.local/audio/` (single-host CMS, no cloud account needed). `tencent_cos` uploads to a COS bucket (multi-host CMS or production). See `cms/cms_pipeline/storage.py` for the abstraction.
+- Provider is selected via `CLOUD_PROVIDER` in the process env (typically supplied by `eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"`). Default `local_fs` writes to `cms/.local/audio/` (single-host CMS, no cloud account needed). `tencent_cos` uploads to a COS bucket (multi-host CMS or production). See `cms/pipeline/storage.py` for the abstraction.
 
 ## Schema migrations
 
@@ -544,7 +544,7 @@ Schema lives in three places that must stay in sync:
 - **`backend/init_schema.py`** — base `CREATE TABLE IF NOT EXISTS` (the *initial* truth for fresh dbs)
 - **`backend/migrations/versions/*.py`** — ordered DDL applied to existing dbs when schema evolves
 
-Migrations use a tiny hand-written runner (`cms/cms_pipeline/migrations/runner.py`, ~60 lines, no Alembic). Each version is a Python module exposing `upgrade(conn)` / `downgrade(conn)`. Idempotent via `ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` etc.
+Migrations use a tiny hand-written runner (`cms/pipeline/migrations/runner.py`, ~60 lines, no Alembic). Each version is a Python module exposing `upgrade(conn)` / `downgrade(conn)`. Idempotent via `ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` etc.
 
 ### Dev iteration (light-touch)
 
@@ -663,7 +663,7 @@ Required keys when running `./cms/scripts/staging.sh audio`
 
 **`DATABASE_URL` is NOT a CMS secret and not read by CMS code.** CMS modules (vocab / sentences / audio) do not connect to the database — they only write files to `cms/content/`. The db side (`db/scripts/bootstrap_tencent.sh` / `init_schema.sh` / `migrate.sh` / `import_staging.sh`) resolves `DATABASE_URL` from `.secrets/database_url` (written by `bootstrap_tencent.sh` once per host) or from `DATABASE_URL` shell env before invoking db-side Python. See [Where the database URL comes from](#where-the-database-url-comes-from) below.
 
-For multi-host CMS or production, set `CLOUD_PROVIDER=tencent_cos` (plus `CLOUD_BUCKET` / `CLOUD_REGION` / `CLOUD_ACCESS_KEY` / `CLOUD_SECRET_KEY`) in the GH Environment. MP3s upload to the COS bucket instead of the local directory; `sentences.audio_url` becomes the full COS URL. See `cms/cms_pipeline/storage.py` for the abstraction.
+For multi-host CMS or production, set `CLOUD_PROVIDER=tencent_cos` (plus `CLOUD_BUCKET` / `CLOUD_REGION` / `CLOUD_ACCESS_KEY` / `CLOUD_SECRET_KEY`) in the GH Environment. MP3s upload to the COS bucket instead of the local directory; `sentences.audio_url` becomes the full COS URL. See `cms/pipeline/storage.py` for the abstraction.
 
 `DOCKER_REGISTRY` is shared project config that lives in the committed `REGISTRY` file at the repo root (see [Image registry namespace](#image-registry-namespace) above). Override at push time via shell env if you need a one-off namespace:
 ```bash
@@ -684,11 +684,11 @@ export DOCKER_REGISTRY=ccr.ccs.tencentyun.com/your-tcr-id/type-any-language   # 
 3. **Computed** — `db/scripts/lib.sh::resolve_*_db_url` reads `TENCENT_DB_HOST` / `TENCENT_DB_{DEV,PROD}_USER` / `TENCENT_DB_{DEV,PROD}_PASSWORD` from env or `.secrets/tencent_db_*` files, and `render_db_name` for the per-user / per-branch db name. Assembles the full DSN.
 4. **Error** — fails loudly with a hint pointing at the bootstrap entry point.
 
-The CMS side (`cms/cms_pipeline/*.py`, `cms/scripts/*.sh`, `cms/run.sh`) **does not need or read this DSN** — it has no db connection to make. `db/scripts/import_staging.sh` needs it (it's the L step), and the CMS host runs that script directly via `PYTHONPATH=db python3 -m importer ...` with `DATABASE_URL` exported by `db/scripts/lib.sh::resolve_dev_db_url` (or shell env).
+The CMS side (`cms/pipeline/*.py`, `cms/scripts/*.sh`, `cms/run.sh`) **does not need or read this DSN** — it has no db connection to make. `db/scripts/import_staging.sh` needs it (it's the L step), and the CMS host runs that script directly via `PYTHONPATH=db python3 -m importer ...` with `DATABASE_URL` exported by `db/scripts/lib.sh::resolve_dev_db_url` (or shell env).
 
 ### CMS host config knobs (read from env or shell, not from a file)
 
-These have code-level defaults in `db/db_url.py` (db-side `POSTGRES_*` knobs) and `cms/cms_pipeline/env.py` (CMS-side knobs: `AUDIO_DIR` / `CLOUD_*` / `DEFAULT_BUCKET_TARGET_SIZE`). Override via shell env when you need a different value:
+These have code-level defaults in `db/db_url.py` (db-side `POSTGRES_*` knobs) and `cms/pipeline/env.py` (CMS-side knobs: `AUDIO_DIR` / `CLOUD_*` / `DEFAULT_BUCKET_TARGET_SIZE`). Override via shell env when you need a different value:
 
 | Knob | Code default | Override example |
 |---|---|---|

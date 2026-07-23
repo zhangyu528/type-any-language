@@ -53,9 +53,9 @@ Output JSON format (one file per lib):
     }
 
 Usage:
-    python -m cms_pipeline.import_vocab                # all libs in manifest
-    python -m cms_pipeline.import_vocab cet4           # one lib only (by manifest id)
-    python -m cms_pipeline.import_vocab --dry-run      # show plan, no file writes
+    python -m pipeline.import_vocab                # all libs in manifest
+    python -m pipeline.import_vocab cet4           # one lib only (by manifest id)
+    python -m pipeline.import_vocab --dry-run      # show plan, no file writes
 """
 import argparse
 import csv
@@ -65,20 +65,20 @@ import sys
 from pathlib import Path
 
 # Allow running this file directly (python import_vocab.py) AND as
-# `python -m cms_pipeline.import_vocab` from the project root.
+# `python -m pipeline.import_vocab` from the project root.
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-    from cms_pipeline.manifest import LibDef, load_manifest
+    from pipeline.manifest import LibDef, load_manifest
 else:
     from .manifest import LibDef, load_manifest
 
 
 def find_project_root() -> Path:
-    """Project root = 4 hops up from cms/cms_pipeline/import_vocab.py.
+    """Project root = 4 hops up from cms/pipeline/import_vocab.py.
 
     Walk: import_vocab.py → cms/ → tools/ → cms/ → project_root.
 
-    This module lives at cms/cms_pipeline/ (NOT db/), so the
+    This module lives at cms/pipeline/ (NOT db/), so the
     walk depth differs from the dbtools modules. Don't relocate this
     file without updating the count.
     """

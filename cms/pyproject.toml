@@ -32,7 +32,7 @@ dependencies = [
 audio = [
     "tencentcloud-sdk-python>=3.0.800",
 ]
-# `cms/cms_pipeline/storage.py::TencentCosStorage` — multi-host CMS or
+# `cms/pipeline/storage.py::TencentCosStorage` — multi-host CMS or
 # production deployments. Local-only CMS hosts can skip this and use
 # the default LocalFsStorage (writes to cms/.local/audio/).
 cos = [
@@ -48,4 +48,4 @@ all = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["cms_pipeline*"]
+include = ["pipeline*"]

@@ -1,7 +1,7 @@
 """
 0006_sentence_natural_key — add UNIQUE constraint on (lib_id, text, difficulty).
 
-Pre-existing latent bug: cms/cms_pipeline/generate_sentences.py's
+Pre-existing latent bug: cms/pipeline/generate_sentences.py's
 INSERT ... ON CONFLICT DO NOTHING assumed a unique constraint on this
 natural key, but the original schema only had `id` as PK. So every rerun
 silently created duplicate sentence rows for the same (lib, text,

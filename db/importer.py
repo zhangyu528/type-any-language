@@ -4,7 +4,7 @@ importer — read CMS staging files → write to db.
 
 This module is the **only** place that knows both "what CMS produced
 in cms/content/" and "what the db schema looks like". The
-CMS pipeline (cms/cms_pipeline/{import_vocab,generate_sentences,
+CMS pipeline (cms/pipeline/{import_vocab,generate_sentences,
 generate_audio}.py) produces JSON / JSONL files in staging/. This
 importer reads them and applies the changes to the db.
 

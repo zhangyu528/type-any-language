@@ -2,7 +2,7 @@
 #
 # cmd_audio.sh — audio: 调 Tencent TTS 烤 MP3,更新 sentences.audio_url (T: Transform)
 #
-# 薄壳 over python -m cms_pipeline.generate_audio。flags 全透传。
+# 薄壳 over python -m pipeline.generate_audio。flags 全透传。
 # 读 cms/content/sentences/<lib>.jsonl,对 audio_url 为空的行调 Tencent TTS,
 # 上传到 Storage(默认 CLOUD_PROVIDER=local_fs 写 cms/.local/audio/;
 # tencent_cos 走 CLOUD_* 凭据上传到 COS bucket)。
@@ -32,7 +32,7 @@ usage() {
 
 Tencent TTS 调 → 写 audio_url 到 cms/content/sentences/<lib>.jsonl  (T: Transform)
 
-薄壳 over python -m cms_pipeline.generate_audio。flags 全透传。
+薄壳 over python -m pipeline.generate_audio。flags 全透传。
 
 前置 (来自 fetch_secrets.sh eval-cms 或 shell export):
   TENCENT_SECRET_ID / TENCENT_SECRET_KEY / TENCENT_APP_ID  (all-or-nothing)
@@ -47,4 +47,4 @@ case "${1:-}" in
     -h|--help|help|"") usage; exit 0 ;;
 esac
 
-exec "$SCRIPT_DIR/py-run.sh" cms_pipeline.generate_audio "$@"
+exec "$SCRIPT_DIR/py-run.sh" pipeline.generate_audio "$@"

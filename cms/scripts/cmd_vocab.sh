@@ -2,7 +2,7 @@
 #
 # cmd_vocab.sh — vocab sync: CSVs → cms/content/vocabulary/<lib>.json  (E: Extract)
 #
-# 薄壳 over python -m cms_pipeline.import_vocab。flags 全透传。
+# 薄壳 over python -m pipeline.import_vocab。flags 全透传。
 # 这是 cms/run.sh 里唯一一个"硬依赖"步骤:sentences / audio 是 best-effort,
 # vocabulary 必须先生成才能 feed sentences / audio。
 #
@@ -28,7 +28,7 @@ usage() {
 
 CSVs → cms/content/vocabulary/<lib>.json  (E: Extract)
 
-薄壳 over python -m cms_pipeline.import_vocab。flags 全透传。
+薄壳 over python -m pipeline.import_vocab。flags 全透传。
 被 cms/run.sh 与 cms/scripts/staging.sh 调用;可单独跑。
 
 EOF
@@ -43,7 +43,7 @@ esac
 # 落到 get_lib("") 然后报 lib 不存在。所以无 args 时不传 positional,
 # 让 import_vocab 走 default=None 的"全 lib"分支(看 import_vocab.py:209-212)。
 if [ $# -eq 0 ]; then
-    exec "$SCRIPT_DIR/py-run.sh" cms_pipeline.import_vocab
+    exec "$SCRIPT_DIR/py-run.sh" pipeline.import_vocab
 else
-    exec "$SCRIPT_DIR/py-run.sh" cms_pipeline.import_vocab "$@"
+    exec "$SCRIPT_DIR/py-run.sh" pipeline.import_vocab "$@"
 fi

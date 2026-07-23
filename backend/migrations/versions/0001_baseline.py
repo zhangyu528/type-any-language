@@ -49,7 +49,7 @@ def upgrade(conn) -> None:
     from app.models import vocabulary, sentence  # noqa: E402,F401
 
     # Read DATABASE_URL directly — db/scripts/migrate.sh assembles it
-    # before invoking the runner (no longer via cms_pipeline.env).
+    # before invoking the runner (no longer via pipeline.env).
     # This migration is called with a psycopg2 conn (from the runner),
     # but the schema metadata is created via SQLAlchemy's create_all()
     # which needs its own engine. Both end up talking to the same DB.
