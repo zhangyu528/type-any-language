@@ -1,18 +1,25 @@
 #!/bin/bash
 #
-# ops/release.sh — bump + build + push a project version.
+# ops/release.sh — build (and optionally push) the project images.
 #
 # Each segment owns one VERSION file (no dev/prod split — single file
-# gates both the dev and prod image tags for that segment):
+# gates the **prod** image tag for that segment):
 #
 #   cms/VERSION           ← placeholder (cms has no docker image today;
 #                            reserved for a future CMS pipeline version
 #                            stamp — no reader wired to this file today)
-#   backend/VERSION       ← english_backend_dev + english_backend
-#   frontend/VERSION      ← english_frontend_dev + english_frontend
+#   backend/VERSION       ← english_backend (prod only)
+#   frontend/VERSION      ← english_frontend (prod only)
 #
-# Bumping backend/VERSION releases a new english_backend_dev AND a new
-# english_backend at the same tag; same for frontend/VERSION.
+# Bumping backend/VERSION releases a new english_backend at the
+# chosen tag; same for frontend/VERSION.
+#
+# **Dev image tags are NOT in VERSION files.** Dev tags are derived
+# from current git state (`ops/lib.sh::compute_dev_image_tag`):
+# <sanitized-branch>-<short-sha>[-dirty]. This is automatic — two
+# builds at different commits produce different dev tags without any
+# operator action. VERSION-file edits are reserved for prod release
+# markers.
 #
 # The runtime database is TencentDB — there is no db image in the
 # release pipeline. Content goes straight from cms/content/ into the
@@ -21,10 +28,14 @@
 # backend + frontend images.
 #
 # Subcommands:
-#   show                  Print all 3 per-segment VERSION files.
-#   dev  [X.Y.Z]          Bump backend/VERSION + frontend/VERSION
-#                         (if X.Y.Z given) + build the dev app images.
-#                         dev never pushes — image lifecycle is local.
+#   show                  Print per-segment VERSION files + current
+#                         computed dev tag (from git state).
+#   dev  [TAG_OVERRIDE]   Compute dev tag from git state (or use the
+#                         override if given) and build dev images.
+#                         Dev never pushes; VERSION files are NOT
+#                         touched. If TAG_OVERRIDE is set, it's used
+#                         verbatim (rare; mostly for CI / test
+#                         fixtures).
 #   prod [X.Y.Z]          Bump backend/VERSION + frontend/VERSION
 #                         (if X.Y.Z given) + build + push the prod
 #                         app images.
@@ -73,13 +84,13 @@ cd "$PROJECT_DIR"
 source "$SCRIPT_DIR/lib.sh"
 
 # Each release stream touches its own set of per-segment VERSION files.
-# One file per segment (no dev/prod split): backend/VERSION gates both
-# english_backend_dev + english_backend, frontend/VERSION gates both
-# english_frontend_dev + english_frontend. dev and prod both bump just
-# the app segments (no db image in the pipeline anymore).
+# One file per segment, gating prod image tags only:
+#   backend/VERSION, frontend/VERSION gate the prod images.
+# Dev tags are git-state-based (computed by build_image.sh) and are
+# NOT touched by this script. `cmd_show` lists all three VERSION
+# files + the computed dev tag.
 #
-# ops/release.sh show prints all 3 per-segment files.
-DEV_VERSION_PATHS=(backend/VERSION frontend/VERSION)
+# ops/release.sh show prints all 3 per-segment VERSION files.
 PROD_VERSION_PATHS=(backend/VERSION frontend/VERSION)
 ALL_VERSION_PATHS=(cms/VERSION backend/VERSION frontend/VERSION)
 YES=0
@@ -195,9 +206,12 @@ git_commit_touched() {
 # ---------------------------------------------------------------------------
 
 cmd_show() {
-    info "cms/VERSION      = $(read_version_file cms/VERSION)"
-    info "backend/VERSION  = $(read_version_file backend/VERSION)"
-    info "frontend/VERSION = $(read_version_file frontend/VERSION)"
+    info "cms/VERSION      = $(read_version_file cms/VERSION)  (placeholder — no image)"
+    info "backend/VERSION  = $(read_version_file backend/VERSION)  (gates prod image tag)"
+    info "frontend/VERSION = $(read_version_file frontend/VERSION) (gates prod image tag)"
+    info ""
+    info "Dev image tag (git-state-based, computed by build_image.sh):"
+    info "  $(compute_dev_image_tag)"
 }
 
 # prepare_version <label> <path> <requested> → echoes the resolved tag.
@@ -297,20 +311,30 @@ cmd_dev() {
     info "=== release dev ==="
     echo ""
 
+    # Dev image tags come from current git state (branch + short SHA,
+    # with -dirty if the working tree is dirty). They are NOT versioned
+    # in any file — VERSION files are prod-only. `release.sh dev` exists
+    # primarily as a uniform CLI surface ("build my dev images now");
+    # the actual tag derivation happens inside build_image.sh via
+    # compute_dev_image_tag. To override (e.g. CI test fixtures), pass
+    # an explicit argument: `release.sh dev my-vX.Y.Z-rc1`.
     local tag
-    tag="$(bump_stream_paths "dev" "$requested" "${DEV_VERSION_PATHS[@]}")"
-    local touched_dev=0
-    [ "${RELEASEd_BUMP:-0}" = "1" ] && touched_dev=1
+    if [ -n "$requested" ]; then
+        tag="$requested"
+        info "Using explicit dev tag override: $tag"
+    else
+        tag="$(compute_dev_image_tag)"
+        info "Dev tag (from git state): $tag"
+    fi
 
     echo ""
-    publish_one "dev app images (backend + frontend, local-only — dev never pushes)" \
+    publish_one "dev app images (backend + frontend, dev-only — never pushed)" \
         "./ops/dev/build_image.sh" \
         "" \
         "$tag"
 
-    if [ "$touched_dev" = "1" ]; then
-        git_commit_touched "dev" "$tag" "${DEV_VERSION_PATHS[@]}"
-    fi
+    # NO git_commit_touched — dev never modifies VERSION files. Those
+    # stay at whatever the previous prod bump left them at.
 
     echo ""
     ok "release dev done: tag=$tag"

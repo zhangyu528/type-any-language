@@ -350,53 +350,66 @@ The `REGISTRY` file's inline comment block has more detail on this path. The sam
 
 ## Image version tags
 
-The 4 app images (`english_backend{,_dev}`, `english_frontend{,_dev}`) carry an explicit tag. VERSION files are **per-segment** (one file per segment, co-located with the segment's build scripts) — no dev/prod split. There is no db image — the runtime database is TencentDB (external Postgres service).
+The 4 app images (`english_backend{,_dev}`, `english_frontend{,_dev}`) carry an explicit tag. **Dev and prod use DIFFERENT tag sources by design** — see the table.
 
-| Image | Default tag source |
-|---|---|
-| `english_backend_dev`        | `backend/VERSION`        |
-| `english_frontend_dev`       | `frontend/VERSION`       |
-| `english_backend`            | `backend/VERSION`        |
-| `english_frontend`           | `frontend/VERSION`       |
+| Image | Default tag source | Who bumps it |
+|---|---|---|
+| `english_backend_dev`        | **git state** (`<branch>-<short-sha>[-dirty]`) | every commit / branch switch (auto) |
+| `english_frontend_dev`       | **git state** (same as backend_dev)            | every commit / branch switch (auto) |
+| `english_backend`            | `backend/VERSION` (semver, e.g. `v0.4.0`)      | `release.sh prod X.Y.Z` (manual) |
+| `english_frontend`           | `frontend/VERSION` (semver, e.g. `v1.2.3`)     | `release.sh prod X.Y.Z` (manual) |
 
-(The backend / frontend VERSION files each gate BOTH the dev and prod image tags for that segment — there's no separate dev stream file. Bumping `backend/VERSION` releases a new `english_backend_dev` and a new `english_backend` at the same tag. `cms/VERSION` exists as a placeholder for a future CMS pipeline version stamp but has no image tied to it today. Schema version lives in `schema_migrations` row count; content version = the timestamp of the most recent successful `db/scripts/import_staging.sh` run.)
+### Why dev tags are git-state, prod tags are semver
 
-Each file: first non-empty, non-comment line, trimmed.
+Dev iteration is fluid: every `git commit`, `git checkout` to another branch, or even uncommitted changes produce a new image tag. This is intentional — `docker image ls` shows the dev tag history at a glance, and `release.sh dev X.Y.Z` builds without bumping any VERSION file. The dev tag is **`ops/lib.sh::compute_dev_image_tag`**, format `<sanitized-branch>-<short-sha>[-dirty]` (the `-dirty` suffix is added when working tree has unstaged / staged / untracked changes).
 
-Resolution chain (`ops/lib.sh` → `resolve_image_tag`):
+Prod releases are deliberate, dated points in the project's life: each prod image carries an explicit semver (`v0.4.0`, not auto-bumped from git). VERSION-file edits are reserved for prod release markers; they happen via `release.sh prod X.Y.Z -y` which writes the new value, commits it, then builds + tags + pushes the prod image.
+
+### Prod tag resolution chain (`ops/lib.sh` → `resolve_image_tag`)
+
 1. Per-image env var, e.g. `BACKEND_IMAGE_TAG=v1.2.3`
 2. Generic `IMAGE_TAG` (CI convenience — bumps all images at once)
-3. The VERSION file path passed to the helper (e.g. `backend/VERSION`)
-4. Literal `v0.0.0` (won't break a build, but warns once)
+3. The VERSION file path passed to the helper (e.g. `backend/VERSION`) — first non-empty, non-comment line
+4. Literal `v0.0.0` (won't break a build, but warns once via `warn_if_version_default`)
 
-Examples:
+### Dev tag override
+
+For CI / test fixtures, set `IMAGE_DEV_TAG=my-branch-X` (the value is used verbatim, including any `-dirty` suffix the caller appends). Otherwise leave it unset and let `compute_dev_image_tag` derive it.
+
+### Examples
+
 ```bash
-# Use whatever each segment's VERSION file says (default):
-./ops/dev/build_image.sh         # → backend/VERSION, frontend/VERSION
-./ops/prod/build_image.sh        # → backend/VERSION, frontend/VERSION
+# Dev — tag is auto-derived from your current branch + commit:
+./ops/dev/build_image.sh
+# → english_backend_dev:feat_x-abc1234[-dirty]
 
-# Bump all images to v1.2.3 for a one-off (CI use):
-IMAGE_TAG=v1.2.3 ./ops/dev/build_image.sh
-IMAGE_TAG=v1.2.3 ./ops/prod/build_image.sh
+# Dev with explicit override:
+IMAGE_DEV_TAG=ci-test-123 ./ops/dev/build_image.sh
+
+# Prod — bump version, build, push:
+./ops/release.sh prod v0.4.0 -y
+# → english_backend:v0.4.0  (and pushed to ${DOCKER_REGISTRY} if set)
 ```
 
-For a full release (bump + build + push), use `ops/release.sh dev|prod X.Y.Z` instead of running these individually — see "Release flow" below.
+For a full release (bump + build + push), use `ops/release.sh prod X.Y.Z` instead of running the build scripts individually — see "Release flow" below.
 
 The dev/prod `lifecycle.sh` reads the same tags at start time, so what gets pulled from the registry matches what was built.
 
 ### Drift detection
 
-Every image carries the `type-any-language.app.version` LABEL (sourced from `APP_VERSION` build-arg, which the build scripts set to the resolved `*_IMAGE_TAG`). `doctor.sh` (both dev and prod) iterates the running containers and compares each LABEL against the locally-resolved expected tag — mismatches print a `drift` warning, suggesting `lifecycle.sh restart` to pick up the new image. This catches the case where a VERSION file was bumped on the workstation but the target host hasn't pulled/restarted yet.
+Every prod image carries the `type-any-language.app.version` LABEL (sourced from `APP_VERSION` build-arg, which the build scripts set to the resolved `*_IMAGE_TAG`). `doctor.sh` (both dev and prod) iterates the running containers and compares each LABEL against the locally-resolved expected tag — mismatches print a `drift` warning, suggesting `lifecycle.sh restart` to pick up the new image.
+
+Dev images also carry a `type-any-language.app.dev-git-sha` LABEL for informational purposes; their canonical tag is the resolved `BACKEND_IMAGE_TAG` / `FRONTEND_IMAGE_TAG` from git state.
 
 ### Release flow
 
-`ops/release.sh` is the single point of release orchestration. It updates the right VERSION file, commits, then **builds and pushes** the relevant images — local-only when `DOCKER_REGISTRY` is unset, registry-push when it's set.
+`ops/release.sh` is the single point of release orchestration. `cmd_dev` builds dev images from git state without touching VERSION files. `cmd_prod` bumps VERSION, commits, then builds + tags + pushes prod images.
 
-| Subcommand | Bumps | Builds + pushes |
+| Subcommand | Touches VERSION files | Builds + pushes |
 |---|---|---|
-| `show`              | — | — (print all 3 per-segment VERSION files) |
-| `dev  [X.Y.Z]`      | `backend/VERSION` + `frontend/VERSION` (same tag; single file gates both backend images) | `english_{backend,frontend}_dev` |
-| `prod [X.Y.Z]`      | `backend/VERSION` + `frontend/VERSION` | `english_{backend,frontend}` |
+| `show`              | — | — (print all 3 per-segment VERSION files + computed dev tag) |
+| `dev  [TAG]`        | — (dev tags are git-state-based) | `english_{backend,frontend}_dev` (no push) |
+| `prod [X.Y.Z]`      | bumps `backend/VERSION` + `frontend/VERSION` to the new value | `english_{backend,frontend}` (no push if `DOCKER_REGISTRY` unset) |
 
 `X.Y.Z` is optional: omit it to publish the current VERSION without bumping. Add `-y` to skip the bump-confirmation prompt.
 

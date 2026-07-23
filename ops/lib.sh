@@ -228,15 +228,26 @@ detect_default_registry() {
 # ---------------------------------------------------------------------------
 # Version resolution
 # ---------------------------------------------------------------------------
-# Each segment owns its own VERSION file, co-located with the segment's
-# build scripts (no db image — runtime data lives in TencentDB):
+# Each segment owns its own VERSION file for **prod** tags (semver,
+# manually bumped via `release.sh prod X.Y.Z`):
 #
-#   backend/VERSION                  ← english_backend_dev + english_backend
-#   frontend/VERSION                 ← english_frontend_dev + english_frontend
+#   backend/VERSION                  ← english_backend (prod only)
+#   frontend/VERSION                 ← english_frontend (prod only)
 #   cms/VERSION                      ← placeholder (cms has no docker image
 #                                       today; reserved for a future CMS pipeline
 #                                       version stamp)
-#   frontend/VERSION                 ← english_frontend_dev + english_frontend
+#
+# **Dev** tags are NOT versioned. They are derived from current git
+# state via `compute_dev_image_tag` below — every commit, branch, or
+# even working-tree-uncommitted-state produces a unique dev tag. This
+# is by design:
+#
+#   - dev tag is automatic → no VERSION-file edits during dev iteration
+#   - dev tag is local-only → never pushed to any registry
+#   - prod tag is explicit → semver, bumped only by `release.sh prod`
+#
+# The two paths are intentionally different: dev is fluid, prod is
+# frozen at release points.
 #
 # One file per segment (no dev/prod split): backend/VERSION gates both the
 # dev and prod backend image tags, frontend/VERSION gates both frontend
@@ -349,6 +360,72 @@ resolve_image_tag() {
     resolved="$(read_version_file "$path")"
     printf -v "$var" '%s' "$resolved"
     export "$var"
+}
+
+# compute_dev_image_tag — echo the dev image tag derived from current
+# git state. NOT an exported variable; the caller pipes the output
+# wherever it needs to go (docker build --tag, an `info` log line,
+# a CI matrix entry, etc.).
+#
+# Format: <sanitized-branch>-<short-sha>[-dirty]
+#   master                 → master-abc1234
+#   feat/sentence-links    → feat_sentence-links-abc1234   ('/' sanitized to '_')
+#   detached HEAD @ sha    → detached-abc1234               (branch name unknown)
+#   working tree dirty     → master-abc1234-dirty          (uncommitted / staged)
+#
+# Why branch + short SHA (instead of "vX.Y.Z"):
+#   The dev image is rebuilt on every `make dev-restart` after edits.
+#   Tying its tag to git state means: two builds at different commits
+#   produce different tags → `docker image ls` shows them side by side
+#   → easy to verify which version is running.
+#
+# Why no VERSION-file commit during dev:
+#   We don't want to touch VERSION files during daily iteration —
+#   that file is for **prod release markers**, not dev snapshots.
+#   The git-state tag is the dev equivalent.
+#
+# Errors: returns 1 if not in a git repo or HEAD sha unresolvable.
+# The caller (build_image.sh) sets IMAGE_TAG_FROM_GIT and aborts.
+compute_dev_image_tag() {
+    if ! git rev-parse --git-dir >/dev/null 2>&1; then
+        echo "[ERR] compute_dev_image_tag: not in a git repo" >&2
+        return 1
+    fi
+
+    local branch short_sha safe_branch dirty
+
+    branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
+    short_sha="$(git rev-parse --short HEAD 2>/dev/null || echo "")"
+
+    if [ -z "$branch" ] || [ "$branch" = "HEAD" ]; then
+        # Detached HEAD — no symbolic branch name. Use a placeholder.
+        safe_branch="detached"
+    else
+        # Docker tags forbid '/'. Sanitize aggressively.
+        safe_branch="$(printf '%s' "$branch" \
+            | sed -E 's|[^A-Za-z0-9_.-]|_|g' \
+            | cut -c1-40)"
+    fi
+
+    if [ -z "$short_sha" ]; then
+        echo "[ERR] compute_dev_image_tag: cannot resolve HEAD sha" >&2
+        return 1
+    fi
+
+    # Detect any local-state divergence from HEAD. The three checks cover:
+    #   1. unstaged changes in tracked files
+    #   2. staged changes (about to commit)
+    #   3. untracked files (new files not yet staged)
+    # Any of these → `-dirty` suffix. Without this, a build at "sha=abc1234"
+    # could actually carry local edits that aren't reflected in the tag.
+    dirty=""
+    if ! git diff --quiet 2>/dev/null \
+       || ! git diff --cached --quiet 2>/dev/null \
+       || [ -n "$(git status --porcelain 2>/dev/null | head -1)" ]; then
+        dirty="-dirty"
+    fi
+
+    printf '%s-%s%s' "$safe_branch" "$short_sha" "$dirty"
 }
 
 # warn_if_version_default <tag> [path]  — prints a single warn line if the
