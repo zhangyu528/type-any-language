@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-init_schema.py — schema bootstrap for the dev / prod cloud db.
+init_schema.py — schema bootstrap for the dev / prod docker postgres.
 
 Two-track bootstrap:
 
@@ -32,7 +32,7 @@ Why this lives at backend/init_schema.py and not db/init_schema.py:
    Migrations and schema bootstrap are tightly coupled to the SQLAlchemy
    ORM models in backend/app/models/. Co-locating all schema code under
    backend/ keeps the "model + migration + bootstrap" trio together. db/
-   now only holds importer (CMS staging → cloud db UPSERT) and bootstrap
+   now only holds importer (CMS staging → docker postgres UPSERT) and bootstrap
    shell scripts (ROLE/DB/GRANT, DSN file writing). See CLAUDE.md
    "Repository structure" for the rationale.
 
@@ -40,7 +40,7 @@ Env handling — minimal:
   This module resolves DATABASE_URL via db_url (a 60-line helper
   in db/db_url.py, kept for self-hosted / CI / ad-hoc CLI use).
   The shell-side entry points (`db/scripts/lib.sh::resolve_*_db_url`)
-  export DATABASE_URL via `.secrets/database_url` (written once per host
+  export DATABASE_URL via `DATABASE_URL` (written once per host
   by `bootstrap_tencent.sh`) before Python starts — the python fallback
   chain never runs in the normal flow.
 
@@ -91,7 +91,7 @@ def _ensure_app_on_path() -> None:
 
 def main() -> int:
     # 1. DATABASE_URL from process env (typically supplied by db/scripts/
-    #    lib.sh::resolve_*_db_url on the cloud-db path).
+    #    lib.sh::resolve_*_db_url on the docker postgres path).
     database_url = _resolve_database_url()
 
     # 2. Make backend/app importable so models + engine resolve.

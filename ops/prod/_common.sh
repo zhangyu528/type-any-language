@@ -2,23 +2,28 @@
 #
 # ops/prod/_common.sh — shared setup for prod scripts.
 #
-# Sourced by every script in ops/prod/ — it does the bootstrap
-# that otherwise would have to be copy-pasted into each command. Single
-# source of truth for: image tag resolution, secrets file writes,
-# port warnings.
+# Sourced by every script in ops/prod/ — does the bootstrap that
+# otherwise would have to be copy-pasted into each command. Single
+# source of truth for: image tag resolution, port warnings, drift check.
 #
 # Conventions:
 #   - $COMMON_DIR is set by the caller (every calling script sets it via
 #     `COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"`)
 #   - setup_prod_host_env must be called before any other helper.
 #
-# The runtime database is Tencent Cloud (TencentDB) Postgres — there is
-# no `db` service in the compose file, and no `english_db_content` image
-# to inspect or auto-pull. The DSN is read by the backend container from
-# a host-side .secrets/database_url file (mounted via compose's
-# `secrets:` block + DATABASE_URL_FILE), written by
-# db/scripts/bootstrap_tencent.sh (called from ops/prod/setup.sh bootstrap
-# with OPS_TIER=prod).
+# Runtime model:
+#   Three services in prod compose, all on a single CVM:
+#     db         — postgres:15-alpine, data bind-mounted to
+#                  /var/lib/type-any-language/postgres. Password comes
+#                  from .secrets/db_password (compose secrets: block).
+#     backend    — FastAPI / uvicorn, no reload. Receives DATABASE_URL
+#                  via compose environment.
+#     nginx      — reverse proxy on :80.
+#
+#   DATABASE_URL is injected by compose via the `environment:` block
+#   (no DATABASE_URL indirection — that's a docker postgres-era
+#   artifact that's been retired). The backend's entrypoint.sh runs
+#   migrations against the db service on every container start.
 
 set -e
 
@@ -29,10 +34,11 @@ source "$PROJECT_DIR/ops/lib.sh"
 
 # ─── Globals set by setup_prod_host_env ─────────────────────────────────────
 SECRETS_DIR=".secrets"
-DB_URL_FILE="${SECRETS_DIR}/database_url"
+DB_PASSWORD_FILE="${SECRETS_DIR}/db_password"
 COMPOSE_FILE="docker-compose.yml"
 BACKEND_IMAGE="english_backend"
 FRONTEND_IMAGE="english_frontend"
+DB_IMAGE="postgres:15-alpine"
 
 # ─── setup_prod_host_env ───────────────────────────────────────────────────
 setup_prod_host_env() {
@@ -48,11 +54,10 @@ setup_prod_host_env() {
     else
         info "DOCKER_REGISTRY 未设置 (auto-pull off, local-only mode)"
     fi
-    # *_IMAGE_TAG resolve to per-segment VERSION files:
-    #   BACKEND_IMAGE_TAG  ← backend/VERSION (gates both english_backend_dev + english_backend)
-    #   FRONTEND_IMAGE_TAG ← frontend/VERSION (gates both frontend images)
-    # No DB_IMAGE_TAG — the db is no longer a baked image, it's an external
-    # TencentDB instance whose DSN lives in .secrets/database_url.
+    # Prod image tags come from per-segment VERSION files:
+    #   BACKEND_IMAGE_TAG  ← backend/VERSION  (semver)
+    #   FRONTEND_IMAGE_TAG ← frontend/VERSION (semver)
+    # Dev tags are git-state-based and don't apply here.
     resolve_image_tag BACKEND_IMAGE_TAG  backend/VERSION
     resolve_image_tag FRONTEND_IMAGE_TAG frontend/VERSION
     warn_if_version_default "$BACKEND_IMAGE_TAG" backend/VERSION
@@ -68,68 +73,42 @@ setup_prod_host_env() {
     export BACKEND_FULL_IMAGE FRONTEND_FULL_IMAGE
 }
 
-# ─── write_secrets ──────────────────────────────────────────────────────────
-# Ensures .secrets/database_url exists. The cloud-db DSN is written
-# exclusively by db/scripts/bootstrap_tencent.sh (called from
-# ops/prod/setup.sh bootstrap with OPS_TIER=prod); this function is a
-# *gate* that fails loudly if the file is missing — pointing the operator
-# at the right subcommand. It does NOT generate or rewrite the DSN.
-#
-#   .secrets/database_url        (chmod 600) — cloud-db DSN, consumed
-#                                              by compose's `secrets:`
-#                                              block + backend's
-#                                              DATABASE_URL_FILE.
-#
-# Idempotent: an existing .secrets/database_url is preserved (the cloud
-# db's password + role are stable across restarts). To rotate, re-run
-# ops/prod/setup.sh bootstrap.
-write_secrets() {
-    mkdir -p "$SECRETS_DIR"
-    chmod 700 "$SECRETS_DIR"
-
-    if [ ! -f "$DB_URL_FILE" ]; then
-        err ".secrets/database_url 不存在 — 云 db 未配置"
-        info "  → 运行 ops/prod/setup.sh bootstrap (一次性: 创建 ROLE/DB, 写 .secrets/database_url)"
-        info "  → 或从已 bootstrap 过的同分支 prod 主机拷过来: scp other-prod:.secrets/database_url .secrets/"
-        return 1
-    fi
-    chmod 600 "$DB_URL_FILE"
-    info "复用现有 $(basename "$DB_URL_FILE")"
-}
-
 # ─── gate_preflight ────────────────────────────────────────────────────────
 # Verifies prod host readiness before starting the app stack:
 #   1. Docker is installed and the daemon is up.
 #   2. Backend + frontend images exist locally (built or pulled).
-#   3. .secrets/database_url is present (cloud db bootstrap done).
-#   4. Port 80 not bound on the host.
+#   3. .secrets/db_password exists (db service needs it on first up).
+#   4. /var/lib/type-any-language/postgres dir exists (created with
+#      correct ownership on first deploy — see CLAUDE.md "Migrating
+#      an existing host").
+#   5. Port 80 not bound on the host.
 gate_preflight() {
     require_docker
     if ! image_exists "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"; then
-        err "image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 未构建"
-        info "  → 运行 ops/prod/build_image.sh"
+        err "image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 未构建/拉取"
+        info "  → 运行 ops/prod/build_image.sh(或确认 registry 已推到该 tag)"
         exit 1
     fi
     if ! image_exists "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"; then
-        err "image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 未构建"
+        err "image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 未构建/拉取"
         info "  → 运行 ops/prod/build_image.sh"
         exit 1
     fi
-    if [ ! -f "$DB_URL_FILE" ]; then
-        err ".secrets/database_url 不存在 — 云 db 未配置"
-        info "  → 运行 ops/prod/setup.sh bootstrap"
+    if [ ! -f "$DB_PASSWORD_FILE" ]; then
+        err ".secrets/db_password 不存在 — db 数据目录密码"
+        info "  → 跑一次: openssl rand -hex 32 > .secrets/db_password && chmod 600 .secrets/db_password"
         exit 1
+    fi
+    chmod 600 "$DB_PASSWORD_FILE"
+    if [ ! -d "/var/lib/type-any-language/postgres" ]; then
+        warn "  注意: /var/lib/type-any-language/postgres 不存在 (第一次启动会创建,uid 999 = postgres)"
+        info "  → sudo mkdir -p /var/lib/type-any-language/postgres"
+        info "  → sudo chown 999:999 /var/lib/type-any-language/postgres"
     fi
     warn_port_in_use 80 "nginx 端口 (宿主机 80)"
 }
 
 # ─── drift_check ───────────────────────────────────────────────────────────
-# Compare running containers' type-any-language.app.version LABEL against
-# the locally-resolved *_IMAGE_TAG. Warns on mismatch. Skipped silently
-# if no containers are running.
-#
-# The db service is gone — backend is the lowest-running service in the
-# new layout, so the "any container running?" gate keys off backend.
 drift_check() {
     if ! $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" ps -q backend >/dev/null 2>&1; then
         return 0
@@ -137,7 +116,7 @@ drift_check() {
     local svc cid expected actual
     for svc in backend frontend; do
         case "$svc" in
-            backend) expected="$BACKEND_IMAGE_TAG" ;;
+            backend)  expected="$BACKEND_IMAGE_TAG" ;;
             frontend) expected="$FRONTEND_IMAGE_TAG" ;;
         esac
         cid="$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" ps -q "$svc" 2>/dev/null | head -1)"

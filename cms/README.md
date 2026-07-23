@@ -3,9 +3,9 @@
 这个目录是 **CMS 内容生产** 的根 —— CMS 主机上跑 Python 工具链、调用 OpenAI / 腾讯 TTS、把内容写到 **staging 文件** (`cms/content/`)。**db 写入** 在仓库根的 [`../db/`](../db/) —— 拆分后,这是两个并列的子项目,职责清楚分开:
 
 - `cms/` 写文件 (E + T,只产出 staging 文件)
-- `db/` 把 staging 文件灌进云 db (L: `db/scripts/import_staging.sh` 直接 UPSERT 进 TencentDB)
+- `db/` 把 staging 文件灌进云 db (L: `db/scripts/import_staging.sh` 直接 UPSERT 进 docker postgres)
 
-CMS 这边的 Python 模块不再直接连 db。db 侧 `importer` 把 staging 文件 UPSERT 进 Postgres(云 db 或自管 db)。目标主机(prod / dev)通过 compose 跑 backend + frontend,运行时**不**感知 `cms/` 目录,也不感知 `db/` 目录 —— 它们读的是 `.secrets/database_url` 指向的 TencentDB。
+CMS 这边的 Python 模块不再直接连 db。db 侧 `importer` 把 staging 文件 UPSERT 进 Postgres(云 db 或自管 db)。目标主机(prod / dev)通过 compose 跑 backend + frontend,运行时**不**感知 `cms/` 目录,也不感知 `db/` 目录 —— 它们读的是 `DATABASE_URL` 指向的 docker postgres。
 
 ## 设计
 
@@ -27,18 +27,18 @@ cms/
     └── staging.sh        # file producer wrapper (vocab / sentences / audio)
 ```
 
-仓库根的 `db/` 目录是 schema + importer + migration runner + cloud-db bootstrap:
+仓库根的 `db/` 目录是 schema + importer + migration runner + docker postgres bootstrap:
 
 ```
 db/
 ├── scripts/            # db 的 own entry points(独立于 CMS)
-│   ├── lib.sh                # cloud-db helpers (resolve_dev/prod_db_url, render_db_name, ...)
-│   ├── bootstrap_tencent.sh  # one-time ROLE/DB/GRANT + write .secrets/database_url
+│   ├── lib.sh                # docker postgres helpers (resolve_dev/prod_db_url, render_db_name, ...)
+│   ├── bootstrap_tencent.sh  # one-time ROLE/DB/GRANT + write DATABASE_URL
 │   ├── init_schema.sh        # CREATE TABLE IF NOT EXISTS(基础 DDL,幂等)
 │   ├── migrate.sh            # migrations.runner(apply pending migrations)
 │   └── import_staging.sh     # importer —— staging 文件 UPSERT 进 db
 ├── db_url.py           # POSTGRES_* / DATABASE_URL env assembler(防御性 fallback)
-├── importer.py         # CMS staging → cloud db UPSERT
+├── importer.py         # CMS staging → docker postgres UPSERT
 ```
 
 ## 段对照
@@ -48,7 +48,7 @@ db/
 | `cms/source/` | 业务内容描述 | 运维(人工) | ✓ | 否(只是输入) |
 | `cms/pipeline/` | CMS 端 Python 工具集 | 开发者 | ✓ | 否(只在 CMS 主机跑) |
 | `cms/scripts/` | 操作员对 cms 跑的 shell 工具 | 开发者 | ✓ | 否 |
-| `db/`       | schema + importer + cloud-db bootstrap | 半自动(operator 跑 `bootstrap_tencent.sh`) | ✓ scripts + db_url/importer | 否(没有 db image 了 —— runtime db 是 TencentDB) |
+| `db/`       | schema + importer + docker postgres bootstrap | 半自动(operator 跑 `bootstrap_tencent.sh`) | ✓ scripts + db_url/importer | 否(没有 db image 了 —— runtime db 是 docker postgres) |
 
 ## ETL 流向
 
@@ -66,14 +66,14 @@ cms/content/sentences/<lib>.jsonl
                 db 主机(任意能 reach 云 db 的机器,通常是 CMS 主机)
 ==========================================================================  边界
         ↓  db/scripts/import_staging.sh (importer all)              (L: Load)
-TencentDB(vocabulary_libs + vocabulary_words + sentences)
+docker postgres(vocabulary_libs + vocabulary_words + sentences)
                                                                             
         ↓  目标主机的 ops/{dev,prod}/lifecycle.sh start
 docker compose up -d
         ↓
 frontend 请求 /api/sentences/random
         ↓
-后端从 TencentDB 读 sentence + audio_url(完整 COS URL)
+后端从 docker postgres 读 sentence + audio_url(完整 COS URL)
         ↓
 浏览器直接拉 COS,后端不参与音频服务
 ```
@@ -86,7 +86,7 @@ frontend 请求 /api/sentences/random
 | 把所有 staging 文件一次性灌到云 db | `db/scripts/import_staging.sh` (importer;幂等,re-run 无害) |
 | 把整条 ETL 跑完 | `cms/run.sh` (E+T) **→** `db/scripts/import_staging.sh all` (L) 两段独立跑 |
 | 在云 db 上建表 / 跑迁移 | `db/scripts/init_schema.sh` + `db/scripts/migrate.sh` |
-| 一次性给某 target host 创建 ROLE / DATABASE | `ops/{dev,prod}/setup.sh bootstrap` (调 `db/scripts/bootstrap_tencent.sh`) |
+| 一次性给某 target host 创建 ROLE / DATABASE | `ops/{dev,prod}/setup.sh bootstrap` (调 `db/scripts/migrate.sh`) |
 
 > **CMS 写的 vs db 管的 (ETL 拆分版)**:
 > - CMS **E + T**:import_vocab / generate_sentences / generate_audio,只产文件

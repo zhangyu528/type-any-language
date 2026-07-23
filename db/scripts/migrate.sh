@@ -5,21 +5,20 @@
 # schema_migrations; re-runs are no-ops).
 #
 # Where the migration Python code lives:
-#   The runner + versions/ live at backend/migrations/ (moved from
-#   db/migrations/ in this refactor — schema is owned by the
-#   backend segment, see CLAUDE.md). db/scripts/ keeps the entry-point
-#   shell wrapper so the existing operator workflow (./db/scripts/migrate.sh
-#   from any host) doesn't change.
+#   The runner + versions/ live at backend/migrations/. db/scripts/
+#   keeps this entry-point shell wrapper so the operator workflow
+#   (`./db/scripts/migrate.sh` from any host) doesn't change.
 #
-# Usage:
-#   # Default: requires DATABASE_URL in env (cloud-db path: the
-#   # caller — CMS db-import driver or ops/dev/migrate.sh — has
-#   # already exported it).
-#   ./db/scripts/migrate.sh
+# Default usage:
+#   DATABASE_URL is expected in env. Two ways to set it:
+#   - container: compose sets DATABASE_URL via the environment: block,
+#     runs this script (or its caller) — typically via the backend
+#     image's entrypoint.sh.
+#   - host shell: `export DATABASE_URL=postgresql://user:pw@host:5432/db`
+#     before running. For self-hosted / CI / ad-hoc CLI use.
+#
 #   # Self-hosted postgres without DATABASE_URL pre-set:
 #   POSTGRES_PASSWORD=... ./db/scripts/migrate.sh
-#   # On subsequent runs (after editing backend/migrations/versions/):
-#   ./db/scripts/migrate.sh
 #
 # Idempotent: re-runs are no-ops.
 

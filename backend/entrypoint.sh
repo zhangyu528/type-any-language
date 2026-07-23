@@ -6,7 +6,7 @@
 #   1. Install Python deps if needed (hash-aware; matches frontend/entrypoint.sh
 #      pattern, see backend/Dockerfile.dev "No `RUN pip install`" comment for
 #      the full rationale).
-#   2. Apply pending schema migrations to the connected cloud db BEFORE
+#   2. Apply pending schema migrations to the connected docker postgres BEFORE
 #      serving traffic. Idempotent — re-runs are no-ops (runner skips
 #      already-applied versions in schema_migrations). On every container
 #      start, the migrations from the baked-in working tree are applied.
@@ -73,13 +73,15 @@ if [ -n "${DATABASE_URL:-}" ] || [ -n "${DATABASE_URL_FILE:-}" ]; then
   echo "[entrypoint] applying pending schema migrations..."
   # migrations/ package lives at /app/migrations (copied by Dockerfile /
   # mounted by docker-compose.dev.yml). backend/init_schema.py imports
-  # migrations + db_url — backend/ is on PYTHONPATH via WORKDIR
-  # /app, db/ would need to be added for the defensive db_url fallback.
+  # migrations + db_url — backend/ is on PYTHONPATH via WORKDIR /app,
+  # db/ would need to be added for the defensive db_url fallback.
   # In normal operation DATABASE_URL is already exported by the
-  # container's env block (compose) or by the secrets mount path
-  # (DATABASE_URL_FILE → /run/secrets/database_url → backend reads it
-  # via config.py's _apply_file_indirection, but here we need a
-  # plain env var for the migration runner to read).
+  # container's environment: block (compose). The legacy
+  # DATABASE_URL_FILE indirection (formerly passed by compose's `secrets:`
+  # block on the docker postgres era) is still honored as a fallback — if
+  # DATABASE_URL isn't set but DATABASE_URL_FILE points at a readable
+  # file, read it. New deployments should just set DATABASE_URL
+  # directly in the compose env.
   if [ -n "${DATABASE_URL_FILE:-}" ] && [ -z "${DATABASE_URL:-}" ]; then
     if [ -f "${DATABASE_URL_FILE}" ]; then
       export DATABASE_URL="$(cat "${DATABASE_URL_FILE}")"

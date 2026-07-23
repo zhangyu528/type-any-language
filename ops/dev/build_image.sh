@@ -22,7 +22,7 @@
 #   dev image is local-only. `release.sh dev` (if called) builds + tags
 #   but skips the registry push. Only `release.sh prod` pushes.
 #
-# The runtime database is either TencentDB (today, see CLAUDE.md) or
+# The runtime database is either docker postgres (today, see CLAUDE.md) or
 # a docker-compose-managed local postgres (after the docker-db refactor).
 # No db image is built by this script either way. Backend's
 # DATABASE_URL / DATABASE_URL_FILE is set by ops/dev/setup.sh bootstrap

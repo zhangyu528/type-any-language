@@ -321,7 +321,7 @@
        ▼
 
 
-5. db/scripts/import_staging.sh (dbtools.importer) → UPSERT staging 文件 → staging db
+5. db/scripts/import_staging.sh (importer) → UPSERT staging 文件 → staging db
 
 
        │
@@ -597,7 +597,7 @@
 
 
 
-CSV 文件位于 `cms/seed/vocabulary/*.csv`（已提交到仓库，运维同学维护）。通过 `cms/scripts/staging.sh vocab`（底层 `cms/cms_pipeline/import_vocab.py`）写入 `cms/content/vocabulary/<lib>.json`（**ETL 的 E 步骤，CMS 端只产文件,不连 DB**）。db 端通过 `db/scripts/import_staging.sh`（`dbtools.importer`）把 JSONL 文件 UPSERT 进 staging db。
+CSV 文件位于 `cms/seed/vocabulary/*.csv`（已提交到仓库，运维同学维护）。通过 `cms/scripts/staging.sh vocab`（底层 `cms/cms_pipeline/import_vocab.py`）写入 `cms/content/vocabulary/<lib>.json`（**ETL 的 E 步骤，CMS 端只产文件,不连 DB**）。db 端通过 `db/scripts/import_staging.sh`（`importer`）把 JSONL 文件 UPSERT 进 staging db。
 
 
 

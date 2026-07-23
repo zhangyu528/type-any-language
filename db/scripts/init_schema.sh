@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # db/scripts/init_schema.sh — apply the base schema + run pending
-# migrations to a fresh / existing cloud db. Idempotent
+# migrations to the connected db. Idempotent
 # (CREATE TABLE IF NOT EXISTS + migration runner skip-on-already-applied).
 #
 # Why this lives in db/scripts/ instead of cms/scripts/:
@@ -10,18 +10,19 @@
 #   doesn't change. The actual Python implementation moved to
 #   backend/init_schema.py — co-located with backend/app/models/*.py
 #   since "model + migration + bootstrap" are a coupled trio. db/
-#   only holds importer (CMS staging → cloud db UPSERT) and bootstrap
-#   shell scripts (ROLE/DB/GRANT, DSN file writing).
+#   holds importer (CMS staging → docker postgres UPSERT) and db shell
+#   entry points.
 #
-#   This shell script wraps `python -m init_schema` (run with
-#   PYTHONPATH=backend:db so it can find both backend/init_schema.py
-#   itself AND db/db_url.py for the defensive DATABASE_URL
-#   fallback).
+# This shell script wraps `python -m init_schema` (run with
+# PYTHONPATH=backend:db so it can find both backend/init_schema.py
+# itself AND db/db_url.py for the defensive DATABASE_URL fallback).
 #
 # Usage:
-#   # 1. Make sure DATABASE_URL points at the cloud db (or self-hosted db).
-#   #    cloud-db: ./ops/{dev,prod}/setup.sh bootstrap writes .secrets/database_url;
-#   #              db/scripts/lib.sh::resolve_*_db_url exports DATABASE_URL before this runs.
+#   # 1. Make sure DATABASE_URL points at the docker-compose db.
+#   #    container: compose sets DATABASE_URL — backend entrypoint.sh
+#   #              runs this automatically on container start.
+#   #    host shell: docker compose exec backend python -m init_schema
+#   #                (or `export DATABASE_URL=postgresql://... && ./db/scripts/init_schema.sh`)
 #   #    self-host / CI: `eval "$(scripts/secrets/fetch_secrets.sh eval-db)"`
 #   #                    or export DATABASE_URL directly.
 #   # 2. Apply the base schema + migrations.

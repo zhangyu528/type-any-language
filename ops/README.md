@@ -12,11 +12,11 @@ ops/
 ├── release.sh          发版编排器(bump + build + push)
 ├── build_ielts_csv.py  一次性数据准备工具(IELTS 词表 → cms CSV 格式)
 ├── dev/                dev 目标机(热重载,compose-watch)
-│   ├── _common.sh      共享 bootstrap(image refs、cloud-db contract、watch lifecycle、preflight gates)
+│   ├── _common.sh      共享 bootstrap(image refs、docker postgres contract、watch lifecycle、preflight gates)
 │   ├── lifecycle.sh    start / stop / restart | reload
-│   ├── doctor.sh       只读 preflight env check(docker、compose、images、cloud-db 可达性、ports)+ drift check
-│   ├── setup.sh        首次 bootstrap:verify cloud-db + build dev apps
-│   │                   (含 `setup.sh bootstrap` 子命令 — 一次性 cloud-db setup)
+│   ├── doctor.sh       只读 preflight env check(docker、compose、images、docker postgres 可达性、ports)+ drift check
+│   ├── setup.sh        首次 bootstrap:verify docker postgres + build dev apps
+│   │                   (含 `setup.sh bootstrap` 子命令 — 一次性 docker postgres setup)
 │   ├── logs.sh         docker compose logs -f wrapper
 │   ├── migrate.sh      把 pending schema migrations 应用到云 db(host-side runner)
 │   ├── watch.sh        前台 docker compose watch(Ctrl+C 停;后台版由 lifecycle.sh start 自动 spawn)
@@ -24,7 +24,7 @@ ops/
 └── prod/               prod 目标机(预编译,no watch)
     ├── _common.sh      共享 bootstrap
     ├── lifecycle.sh    start / stop / restart | reload(auto-pull from registry)
-    ├── doctor.sh       只读 preflight env check for prod(含 cloud-db 可达性)
+    ├── doctor.sh       只读 preflight env check for prod(含 docker postgres 可达性)
     ├── setup.sh        首次 bootstrap for fresh prod host(含 `setup.sh bootstrap` 子命令)
     ├── logs.sh         docker compose logs -f wrapper
     ├── build_image.sh  本地 build english_backend + english_frontend
@@ -32,7 +32,7 @@ ops/
     └── nginx.conf      prod-only 反向代理配置(无 /audio location —— audio 由 COS 直出)
 ```
 
-双主机架构(CMS 主机生产内容,dev/prod 目标机消费)+ TencentDB 外部依赖在仓库根 `CLAUDE.md` 有完整说明。本 README 聚焦在脚本本身。
+双主机架构(CMS 主机生产内容,dev/prod 目标机消费)+ docker postgres 外部依赖在仓库根 `CLAUDE.md` 有完整说明。本 README 聚焦在脚本本身。
 
 ## 常用入口
 
@@ -41,10 +41,10 @@ ops/
 | 发版 | `./ops/release.sh dev\|prod [X.Y.Z] [-y]` |
 | 查看当前版本 | `./ops/release.sh show` |
 | 本地 build 多镜像(不 push) | `./ops/build.sh all\|dev\|prod` |
-| 首次 verify cloud-db + build dev apps | `./ops/dev/setup.sh` |
-| 一次性 cloud-db setup(dev) | `./ops/dev/setup.sh bootstrap` |
-| 首次 verify cloud-db + build prod apps | `./ops/prod/setup.sh` |
-| 一次性 cloud-db setup(prod) | `./ops/prod/setup.sh bootstrap` |
+| 首次 verify docker postgres + build dev apps | `./ops/dev/setup.sh` |
+| 一次性 docker postgres setup(dev) | `./ops/dev/setup.sh bootstrap` |
+| 首次 verify docker postgres + build prod apps | `./ops/prod/setup.sh` |
+| 一次性 docker postgres setup(prod) | `./ops/prod/setup.sh bootstrap` |
 | 检查主机就绪状态 | `./ops/<host>/doctor.sh` |
 | 启动 / 停止 / 重启容器 | `./ops/<host>/lifecycle.sh start\|stop\|restart` |
 | 滚动重载(同容器、不重建) | `./ops/<host>/lifecycle.sh reload` |
@@ -82,7 +82,7 @@ source "$PROJECT_DIR/ops/lib.sh"
 | `resolve_image_tag VAR [path]` | per-image env > `IMAGE_TAG` > version file > `v0.0.0`。 |
 | `warn_if_version_default <tag> [path]` | VERSION 缺失时的一次性 warn。 |
 | `resolve_docker_registry`    | shell env > REGISTRY 文件 > auto-detect > 空。 |
-| `db_assemble_url`            | 自管 db 兜底(从 `POSTGRES_*` + `.secrets/postgres_password` 拼 DSN)。cloud-db 路径优先用 `db/scripts/lib.sh::resolve_*_db_url`。 |
+| `db_assemble_url`            | 自管 db 兜底(从 `POSTGRES_*` + `.secrets/postgres_password` 拼 DSN)。docker postgres 路径优先用 `db/scripts/lib.sh::resolve_*_db_url`。 |
 | `sed_inplace PAT FILE`       | 跨平台原地编辑(GNU vs BSD/macOS sed)。 |
 | `check_docker_installed`     | 静默布尔。 |
 | `check_docker_daemon_running`| 静默布尔(5s 超时,Docker Desktop 启动时不会假死)。 |
@@ -151,7 +151,7 @@ require_docker    # 脚本用到 docker 时
 | `frontend/VERSION`          | `english_frontend_dev` + `english_frontend` (同一文件管两个 tag) |
 | `cms/VERSION`               | 占位文件 (cms 段当前没有 image) |
 
-没有 db image —— runtime db 是 TencentDB(外部服务),schema 跟内容都不进 image。Schema 版本 = `schema_migrations` 表行数,内容版本 = 最近一次 `db/scripts/import_staging.sh` 跑的时间。完整的解析链和覆盖优先级见仓库根 `CLAUDE.md` 的 "Image version tags" 段。
+没有 db image —— runtime db 是 docker postgres(外部服务),schema 跟内容都不进 image。Schema 版本 = `schema_migrations` 表行数,内容版本 = 最近一次 `db/scripts/import_staging.sh` 跑的时间。完整的解析链和覆盖优先级见仓库根 `CLAUDE.md` 的 "Image version tags" 段。
 
 `ops/release.sh` 是版本管理的唯一入口 —— 优先用它,别手改 VERSION 文件。
 
@@ -162,7 +162,7 @@ require_docker    # 脚本用到 docker 时
      `doctor.sh` / `setup.sh` / `logs.sh` / `migrate.sh`(只 dev)/ `watch.sh`(只 dev)
    - 跨切面编排(build all / release) → `ops/` 根(`build.sh` / `release.sh`)
    - 操作某 service 的 image / config → 那个 service 自己的目录
-     (如 `cms/scripts/staging.sh`、`db/scripts/bootstrap_tencent.sh`)
+     (如 `cms/scripts/staging.sh`、`db/scripts/migrate.sh`)
 2. 复制一个相同形状的现有脚本作模板(`lifecycle.sh` / `build_image.sh`
    是最规范的例子)。多 subcommand 的脚本共享一个 `_common.sh` 做
    setup bootstrap。
@@ -174,4 +174,4 @@ require_docker    # 脚本用到 docker 时
 
 ## 参见
 
-- `../CLAUDE.md` —— 项目总览、TencentDB + 双主机架构、完整命令参考
+- `../CLAUDE.md` —— 项目总览、docker postgres + 双主机架构、完整命令参考

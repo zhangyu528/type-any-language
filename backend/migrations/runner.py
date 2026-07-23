@@ -43,7 +43,7 @@ Invoked by:
   - db/scripts/migrate.sh  — any host with DATABASE_URL (typically the
                              CMS host, runs migrations against the cloud db)
   - ops/dev/migrate.sh     — dev target host, host-side runner that
-                             sources db/scripts/lib.sh::resolve_dev_db_url
+                             sources db/scripts/lib.sh::db_assemble_url
                              and re-execs db/scripts/migrate.sh
 
 Both callers set PYTHONPATH=/backend and run `python -m migrations.runner`.

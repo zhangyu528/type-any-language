@@ -2,11 +2,11 @@
 type-any-language backend — pure read-layer.
 
 The runtime is intentionally minimal: serve cached vocabulary, words, and
-pre-generated sentences that the CMS host wrote into the cloud db. No AI,
+pre-generated sentences that the CMS host wrote into the docker postgres. No AI,
 no TTS, no scheduler — those run on the CMS host.
 
 Why this is so thin:
-  - Content (vocab_libs, vocab_words, sentences) lives in TencentDB.
+  - Content (vocab_libs, vocab_words, sentences) lives in docker postgres.
   - Schema is owned by backend/init_schema.py + migrations.
   - Audio is served directly from Tencent Cloud COS via the
     sentences.audio_url column (full URL stored when the CMS audio step

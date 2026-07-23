@@ -550,13 +550,15 @@ resolve_docker_registry() {
 # in the process env. The primary cloud-db path is:
 #
 #       source db/scripts/lib.sh
-#       resolve_dev_db_url         # or resolve_prod_db_url — writes DATABASE_URL
+#       db_assemble_url         # or db_assemble_url — writes DATABASE_URL
 #       exec db/scripts/migrate.sh # etc.
 #
-# which renders the DSN from .secrets/tencent_db_{host,user,password} +
-# render_db_name() (see db/scripts/lib.sh for the full chain).
+# which assembles the DSN from POSTGRES_* env vars (or accepts a
+# pre-set DATABASE_URL). The runtime is now docker-compose-managed
+# postgres, so the DSN just needs to point at localhost; no role/db
+# bootstrap dance. See db/scripts/lib.sh for the helper.
 #
-# db_assemble_url here is the *non-cloud* fallback — it builds a DSN from
+# db_assemble_url here is the *ad-hoc CLI* fallback — it builds a DSN from
 # POSTGRES_USER / DB / HOST / PORT + a password resolved via:
 #   1. POSTGRES_PASSWORD env
 #   2. .secrets/postgres_password (the legacy self-hosted db password file;

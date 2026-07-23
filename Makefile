@@ -54,17 +54,9 @@ dev-watch:
 dev-migrate:
 	@bash ops/dev/migrate.sh
 
-## dev-import-content: import cms/content/ into dev cloud db (host-side runner)
+## dev-import-content: import cms/content/ into dev db (host-side runner)
 dev-import-content:
 	@bash ops/dev/import_content.sh
-
-## dev-db-list: list user's dev dbs on the shared cloud db (read-only)
-dev-db-list:
-	@bash ops/dev/db_list.sh
-
-## dev-db-drop <name>: drop a per-user dev db from the cloud db (irreversible)
-dev-db-drop:
-	@bash ops/dev/db_drop.sh
 
 ## dev-build: build english_backend_dev + english_frontend_dev images
 dev-build:
@@ -166,14 +158,6 @@ db-migrate:
 ## db-next-migration-prefix: print next available 4-digit prefix for a shared migration on origin/master
 db-next-migration-prefix:
 	@bash db/scripts/next_migration_prefix.sh
-
-## db-bootstrap-dev: one-time ROLE/DB/GRANT for a dev host (writes .secrets/database_url)
-db-bootstrap-dev:
-	@bash ops/dev/setup.sh bootstrap
-
-## db-bootstrap-prod: one-time ROLE/DB/GRANT for a prod host (writes .secrets/database_url)
-db-bootstrap-prod:
-	@bash ops/prod/setup.sh bootstrap
 
 # ---------------------------------------------------------------------------
 # release orchestration + multi-image local builds

@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
 #
-# ops/prod/lifecycle.sh — start / stop / restart / reload.
+# ops/prod/lifecycle.sh — start / stop / restart.
 #
-# Daily driver for the prod host. Reads ops/prod/_common.sh for
-# all shared setup (image refs, secrets write).
+# Daily driver for the prod host. Reads ops/prod/_common.sh for shared
+# setup (image refs, drift check).
+#
+# Runtime model: db + backend + nginx are all in this same compose file.
+# No external docker postgres, no DATABASE_URL — DATABASE_URL comes
+# from compose env, db password comes from .secrets/db_password (compose
+# secrets: block).
 #
 # Subcommands:
-#   start             bring up prod containers (no auto-pull — the
-#                     backend/frontend images were already built or
-#                     pulled by setup/build_image.sh)
+#   start             bring up prod containers (db + backend + nginx)
+#                     compose auto-pulls on first start. Subsequent
+#                     restarts reuse the local images.
 #   stop              stop prod containers
-#   restart|reload    recreate + re-read .secrets
+#   restart|reload    recreate + re-read env
 #
 # Counterpart to ops/prod/{setup,doctor,logs}.sh.
 
@@ -23,13 +28,12 @@ setup_prod_host_env
 
 cmd_start() {
     gate_preflight
-    write_secrets
-    info "启动生产容器..."
+    info "启动生产容器 (db + backend + nginx)..."
     $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d
     ok "服务已启动"
     echo -e "  前端:   ${_LIB_BLUE}http://localhost${_LIB_NC}"
     echo -e "  API:    ${_LIB_BLUE}http://localhost/api/docs${_LIB_NC}"
-    echo "  cloud db: $(awk -F/ '{print $3}' "$DB_URL_FILE" 2>/dev/null || echo '<not configured>')"
+    echo "  db:     postgres:15-alpine on internal compose network (data: /var/lib/type-any-language/postgres)"
 }
 
 cmd_stop() {
@@ -41,15 +45,14 @@ cmd_stop() {
 
 cmd_restart() {
     gate_preflight
-    write_secrets
-    info "重启容器(重新加载 secrets)..."
+    info "重启容器(重新加载 image + env)..."
 
     local backend_before frontend_before
     local backend_after frontend_after
     backend_before=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}" 2>/dev/null || true)
     frontend_before=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}" 2>/dev/null || true)
 
-    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d --no-deps --force-recreate backend frontend
+    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d --no-deps --force-recreate backend nginx
 
     backend_after=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}" 2>/dev/null || true)
     frontend_after=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}" 2>/dev/null || true)
@@ -63,7 +66,7 @@ cmd_restart() {
         warn "  这种情况请用 ops/prod/build_image.sh 重 build 后再 restart"
     fi
 
-    ok "服务已重启(secrets 已重读)"
+    ok "服务已重启"
 }
 
 cmd_reload() { cmd_restart "$@"; }
@@ -73,18 +76,18 @@ usage() {
 用法: ./ops/prod/lifecycle.sh <command>
 
 命令:
-  start            启动生产容器 (image 由 setup / build_image.sh 先准备好)
-  stop             停止生产容器 (docker compose down)
-  restart|reload   recreate + 重读 secrets (≈5s, 不重 build image)
+  start            启动生产容器(db + backend + nginx)
+  stop             停止生产容器
+  restart|reload   recreate + 重读 env (≈5s, 不重 build image)
 
 典型工作流:
-  ./ops/prod/lifecycle.sh start
-  # ...改 .secrets / docker-compose.yml / 重新 build+push 了 image 后...
-  ./ops/prod/lifecycle.sh restart
+  ALLOWED_ORIGINS=https://my.domain ./ops/prod/lifecycle.sh start
+  # ...改完代码后 push 新 image,改 VERSION...
+  ALLOWED_ORIGINS=https://my.domain ./ops/prod/lifecycle.sh restart
 
 环境覆盖:
   ALLOWED_ORIGINS=https://my.domain ./ops/prod/lifecycle.sh start
-  IMAGE_TAG=v1.2 ./ops/prod/lifecycle.sh start
+  IMAGE_TAG=v0.5.0 ./ops/prod/lifecycle.sh start
 EOF
 }
 

@@ -6,10 +6,10 @@
 #
 # Why this lives in db/scripts/:
 #   This is the canonical Load step of the ETL — CMS produces files
-#   in cms/content/, this script (via importer) writes them
-#   to the db. The importer is the one place that knows both file
-#   format and schema, so it lives with the schema (db/).
-#   This shell is its entry point.
+#   in cms/content/, this script (via importer) writes them to the db.
+#   The importer is the one place that knows both file format and
+#   schema, so it lives with the schema (db/). This shell is its entry
+#   point.
 #
 # Idempotent: re-running only inserts new rows; existing rows are
 # skipped (vocab) or updated in place (sentences, audio_url).
@@ -22,9 +22,10 @@
 #   ./db/scripts/import_staging.sh sentences   # just sentences (incl. audio_url)
 #   ./db/scripts/import_staging.sh --dry-run    # show what would happen
 #
-# Requires DATABASE_URL in env (cloud-db path: bootstrap_tencent.sh
-# writes .secrets/database_url, and the caller exports it via
-# db/scripts/lib.sh::resolve_*_db_url before this script starts).
+# Requires DATABASE_URL in env. Two ways to set it:
+#   - container: `docker compose exec backend ./db/scripts/import_staging.sh`
+#     (DATABASE_URL injected by compose from the environment: block)
+#   - host:      `export DATABASE_URL=postgresql://... && ./db/scripts/import_staging.sh`
 
 set -e
 

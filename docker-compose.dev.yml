@@ -1,37 +1,64 @@
 # ---------------------------------------------------------------------------
 # Development docker-compose for type-any-language.
 #
-# Runtime model: target hosts connect directly to a Tencent Cloud
-# (TencentDB) Postgres instance. There is no `db` service in this
-# compose file — the database is an external dependency the backend
-# dials over the public network (or a VPC peering / SSH tunnel).
+# Runtime model: each dev host has its own postgres running in a
+# container. Three services:
 #
-# Same secret flow as docker-compose.yml (DATABASE_URL_FILE indirection
-# from .secrets/database_url, written by ops/dev/setup.sh bootstrap →
-# db/scripts/bootstrap_tencent.sh with OPS_TIER=dev), but:
-#   • Source bind-mounts for hot-reload (backend) + compose-watch
-#     syncing (frontend).
-#   • No nginx — backend is exposed directly on :8000.
-#   • Different image names (english_backend_dev, english_frontend_dev).
-#   • Dev compose file points at ./backend/Dockerfile.dev etc.
-#   • Audio: NOT a docker volume (same as prod). MP3s live in Tencent
-#     Cloud COS, sentences.audio_url is a full COS URL written into the
-#     cloud db at `db/scripts/import_staging.sh` time. Frontend reads
-#     it and the browser streams from COS.
+#   db         — postgres:15-alpine, bind-mounted to ./.dev/data/postgres/
+#                for data persistence across container restarts. Each dev
+#                host gets one db (per-user, single instance) — not per-
+#                branch (the early mode-2 per-branch design was reverted
+#                when db moved back to local docker from TencentDB).
+#
+#   backend    — FastAPI / uvicorn --reload, ./backend bind-mounted for
+#                hot-reload. Connects to db via DATABASE_URL env (compose
+#                network, no secret-file indirection — simpler than the
+#                old TencentDB-mode setup).
+#
+#   frontend   — Next.js dev server with HMR via compose watch. Bakes
+#                base source into image; syncs hot paths at runtime.
+#
+# Migration flow:
+#   - db service comes up with empty schema.
+#   - backend container's entrypoint.sh runs `python -m migrations.runner`
+#     on start → applies all pending migrations idempotently.
+#   - first-time data: run `make dev-import-content` on the host (or
+#     `python -m importer all` directly) — the importer will pre-populate
+#     vocab + sentences from cms/content/.
 #
 # Run via:  ./ops/dev/lifecycle.sh start
-# BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG default to the per-segment
-# VERSION files (backend/VERSION, frontend/VERSION; resolved by
-# ops/lib.sh); the run script exports them before invoking compose.
-# Override at start time:
-#   BACKEND_IMAGE_TAG=v0.2.0 ./ops/dev/lifecycle.sh start
+# BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG are git-state tags (computed by
+# ops/dev/build_image.sh from current branch + sha). Override for CI /
+# test fixtures via shell env.
 # ---------------------------------------------------------------------------
 
-secrets:
-  database_url:
-    file: ./.secrets/database_url
-
 services:
+  # -------------------------------------------------------------------------
+  # db — local postgres for dev
+  # -------------------------------------------------------------------------
+  db:
+    image: postgres:15-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-type-any-language}-db
+    environment:
+      POSTGRES_USER: english_dev
+      POSTGRES_PASSWORD: devpw
+      POSTGRES_DB: english_dev
+    ports:
+      # Expose to host for tooling (psql, python3 -m importer).
+      # Backend talks to it via the compose network's `db` hostname.
+      - "5432:5432"
+    volumes:
+      # Persistent data — bind-mounted to ./.dev/data/postgres/ (gitignored)
+      # so container recreate preserves state, and the data is visible
+      # on the host for backup / inspection.
+      - ./.dev/data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U english_dev -d english_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   # -------------------------------------------------------------------------
   # Backend — hot-reload via ./backend bind-mount + uvicorn --reload
   # -------------------------------------------------------------------------
@@ -41,53 +68,35 @@ services:
       context: ./backend
       dockerfile: Dockerfile.dev
       args:
-        # Project VERSION (resolved by ops/lib.sh) + best-effort git SHA.
-        # Surfaces in the image as type-any-language.app.{version,git-sha}.
+        # Dev image tag = git state (see ops/lib.sh::compute_dev_image_tag).
+        # GIT_SHA is informational (surfaces as an image LABEL).
         APP_VERSION: ${BACKEND_IMAGE_TAG:-latest}
         GIT_SHA: ${GIT_SHA:-unknown}
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
       # CORS allowlist — dev defaults to localhost:3000 (Next.js dev server).
-      # Override via shell env if needed:
+      # Override via shell env:
       #   ALLOWED_ORIGINS=... ./ops/dev/lifecycle.sh start
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost,http://localhost:3000}
-      DATABASE_URL_FILE: /run/secrets/database_url
-    secrets:
-      - database_url
+      # db is reachable as `db` on the compose network (port 5432 internal).
+      DATABASE_URL: postgresql://english_dev:devpw@db:5432/english_dev
     volumes:
       # Hot-reload source mount
       - ./backend:/app
     ports:
       # Expose backend directly on :8000 (no nginx in dev)
       - "8000:8000"
+    # entrypoint.sh (set by Dockerfile.dev's ENTRYPOINT) runs migrations
+    # before exec. If migrations fail, container exits so dev sees the
+    # error immediately instead of 5xx-ing on first request.
+    entrypoint: /app/entrypoint.sh
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
   # -------------------------------------------------------------------------
   # Frontend — Next.js dev server (HMR) on :3000
-  #
-  # Hot-reload layout (compose-watch based, no source bind mount):
-  #   • Dockerfile.dev bakes the source tree + `npm ci` deps into the
-  #     image as a baseline. .dockerignore keeps node_modules / .next /
-  #     .git out of the image.
-  #   • `develop.watch` (consumed by `docker compose watch`) syncs the
-  #     hot paths into /app at runtime:
-  #       - src/ + public/        → live HMR via next dev's watcher
-  #       - package*.json         → entrypoint detects hash change on
-  #                                 next start and runs `npm install`
-  #                                 (no image rebuild required)
-  #       - next.config.js / tsconfig.json / next-env.d.ts
-  #                               → sync overlay; restart picks up
-  #       - entrypoint.sh         → sync overlay; restart picks up
-  #   • node_modules is in the container filesystem (NOT a named volume):
-  #     container recreate wipes it, but entrypoint.sh reinstalls on
-  #     cold start and skips on warm start (hash + .package-lock.json
-  #     double-check). Trade-off vs the previous named-volume layout:
-  #     lose the "warm start with deps preserved across `compose down`"
-  #     property, gain "no bind mount needed, no race between bind and
-  #     volume mount, no host frontend/.next pollution".
-  #
-  # Run via:  docker compose watch   (or ./ops/dev/lifecycle.sh
-  #           start, which auto-spawns `compose watch` in background).
   # -------------------------------------------------------------------------
   frontend:
     image: english_frontend_dev:${FRONTEND_IMAGE_TAG:-latest}
@@ -95,9 +104,6 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.dev
       args:
-        # Project VERSION (resolved by ops/lib.sh) + best-effort git SHA.
-        # Surfaces in the image as type-any-language.app.{version,git-sha}
-        # labels (see frontend/Dockerfile).
         APP_VERSION: ${FRONTEND_IMAGE_TAG:-latest}
         GIT_SHA: ${GIT_SHA:-unknown}
     restart: unless-stopped
@@ -105,8 +111,6 @@ services:
       # In dev, the React app talks to the backend on the host directly
       # (no nginx in the path). NEXT_PUBLIC_API_URL is build-time.
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
-    # No `volumes:` block — source is baked into the image, hot paths
-    # are synced by compose watch at runtime (see develop.watch below).
     develop:
       watch:
         # --- Source code (live HMR) ---
@@ -137,22 +141,11 @@ services:
           target: /app/next-env.d.ts
 
         # --- Dev-only scripts ---
-        # entrypoint.sh sync: the running shell already has the old
-        # version mapped (sh re-reads line by line but doesn't re-parse
-        # the file mid-run). New containers / restarts pick up the
-        # synced version. `sh ./entrypoint.sh` doesn't need +x, so the
-        # mode bit isn't an issue.
         - action: sync
           path: ./frontend/entrypoint.sh
           target: /app/entrypoint.sh
-
     ports:
       - "3000:3000"
-    # Dev mode: Next.js dev server with HMR. The Dockerfile's CMD also
-    # sets `npm run dev`, but compose's `command:` overrides that — so we
-    # mirror it here. (If we used `npm start`, it'd run `next start` which
-    # needs a pre-built .next/ — the entrypoint only does `npm install`,
-    # not `npm run build`, so production start would crash.)
     command: ["npm", "run", "dev"]
     depends_on:
       - backend

@@ -3,12 +3,16 @@ Backend runtime configuration.
 
 The runtime is a pure read-layer:
   - No AI, no TTS, no scheduler.
-  - Content (vocab libs/words/sentences) lives in the db image.
+  - Content (vocab libs/words/sentences) lives in the db (postgres
+    container in dev / on the CVM host in prod).
   - The backend just opens a SQLAlchemy session and serves GET endpoints.
 
-Secrets come via file indirection (POSTGRES_PASSWORD_FILE / DATABASE_URL_FILE)
-so they never appear in `docker inspect container` output. Mirrors the
-postgres image's own POSTGRES_PASSWORD_FILE convention.
+Secrets come via environment:
+  - DATABASE_URL is set by docker-compose's `environment:` block
+    (the canonical path).
+  - DATABASE_URL_FILE (legacy indirection) is still honored as a
+    fallback — self-hosted deployments can mount a secrets file and
+    point at it. New deployments should just set DATABASE_URL directly.
 """
 
 from __future__ import annotations
@@ -43,16 +47,21 @@ class Settings(BaseSettings):
     )
 
     # --- Database -----------------------------------------------------------
-    # DATABASE_URL or DATABASE_URL_FILE (preferred for secret delivery).
-    # _apply_file_indirection() resolves the _FILE variant before pydantic
-    # reads the env, so resolved_database_url() always sees a real URL.
+    # Canonical path: DATABASE_URL set by docker-compose environment.
+    # Legacy fallback: DATABASE_URL_FILE — read the file, use its contents.
+    # _apply_file_indirection() (below) runs before pydantic reads env, so
+    # resolved_database_url() always sees a real URL.
     DATABASE_URL: Optional[str] = Field(
         default=None,
         description="postgresql:// connection URL. If unset, DATABASE_URL_FILE is consulted.",
     )
     DATABASE_URL_FILE: Optional[str] = Field(
         default=None,
-        description="Path to a file containing DATABASE_URL. Read once, then discarded from env.",
+        description=(
+            "Path to a file containing DATABASE_URL (legacy indirection). "
+            "Read once, then discarded from env. New deployments should "
+            "just set DATABASE_URL directly via docker-compose env."
+        ),
     )
 
     # -----------------------------------------------------------------------
@@ -104,16 +113,11 @@ def _read_secret_file(path: str) -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
-# Settings bootstrap with *_FILE indirection applied at construction time
-# (so all downstream code can rely on self.DATABASE_URL being a real URL,
-# never the name of a file).
+# _apply_file_indirection — if DATABASE_URL_FILE is set, read the file
+# and inject DATABASE_URL into the process env before pydantic-settings
+# reads it. Done once on first get_settings() (with lru_cache below).
 # ---------------------------------------------------------------------------
 def _apply_file_indirection() -> None:
-    """If *_FILE is set, read the file and inject the value into the
-    matching setting's env var. Done before pydantic-settings reads the
-    environment, so the resulting Settings instance has the resolved
-    value in the normal field.
-    """
     file_path = os.environ.get("DATABASE_URL_FILE")
     if not file_path:
         return
@@ -129,13 +133,12 @@ def _apply_file_indirection() -> None:
 # _require_secrets — runtime invariants. Called once on first get_settings().
 # ---------------------------------------------------------------------------
 def _require_secrets(settings: "Settings") -> None:
-    # Touch resolved_database_url() so we fail fast if DB is unconfigured.
     try:
         settings.resolved_database_url()
     except RuntimeError as exc:
         raise RuntimeError(
             f"Database is not configured: {exc}. "
-            "Mount DATABASE_URL_FILE (compose secret) or set DATABASE_URL."
+            "Set DATABASE_URL in docker-compose env or self-host env."
         ) from exc
 
 

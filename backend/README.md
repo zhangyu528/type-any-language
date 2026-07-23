@@ -51,7 +51,7 @@ backend/
 | `DATABASE_URL` | compose secret(`DATABASE_URL_FILE`) | `postgresql://...` 连接串 |
 | `ALLOWED_ORIGINS` | shell env | 逗号分隔的 CORS 白名单,例如 `https://my.domain`。Dev 默认 `http://localhost,http://localhost:3000` |
 
-`DATABASE_URL` 优先用 `*_FILE` 间接方式(compose 的 `secrets:` 块),这样密码不会出现在 `docker inspect` 输出里。解析顺序见 `config.py:resolved_database_url()`。目标机不需要 `.env` 文件 —— `ops/{dev,prod}/setup.sh bootstrap` 一次性写 `.secrets/database_url`(chmod 600),compose 把它作为 secret 文件挂进容器(读取路径 `DATABASE_URL_FILE=/run/secrets/database_url`)。
+`DATABASE_URL` 优先用 `*_FILE` 间接方式(compose 的 `secrets:` 块),这样密码不会出现在 `docker inspect` 输出里。解析顺序见 `config.py:resolved_database_url()`。目标机不需要 `.env` 文件 —— `ops/{dev,prod}/setup.sh bootstrap` 一次性写 `DATABASE_URL`(chmod 600),compose 把它作为 secret 文件挂进容器(读取路径 `DATABASE_URL_FILE=/run/secrets/database_url`)。
 
 ## 本地开发(不用 docker)
 

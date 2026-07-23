@@ -41,15 +41,15 @@ cmd_doctor() {
 
     # Cloud-db contract.
     if [ -f "$DB_URL_FILE" ]; then
-        ok ".secrets/database_url 存在 — backend 会通过 secrets: 挂载进容器"
+        ok "DATABASE_URL 存在 — backend 会通过 secrets: 挂载进容器"
         if command -v psql &> /dev/null; then
             local db_url
             db_url="$(awk 'NR==1' "$DB_URL_FILE" 2>/dev/null)"
             if [ -n "$db_url" ]; then
                 if PGPASSWORD= psql "$db_url" -c 'select 1' &>/dev/null; then
-                    ok "  cloud db 可达 ($(awk -F/ '{print $3}' <<<"$db_url"))"
+                    ok "  docker postgres 可达 ($(awk -F/ '{print $3}' <<<"$db_url"))"
                 else
-                    warn "  cloud db 不可达 — 检查 .secrets/database_url + 网络/凭据"
+                    warn "  docker postgres 不可达 — 检查 DATABASE_URL + 网络/凭据"
                 fi
             fi
         else
@@ -58,9 +58,9 @@ cmd_doctor() {
     elif [ -n "${DATABASE_URL:-}" ]; then
         ok "DATABASE_URL 在 shell env(自管 db / CI)"
     else
-        err ".secrets/database_url 不存在 且 DATABASE_URL 未设 — 云 db 未配置"
-        info "  → ./ops/prod/setup.sh bootstrap    # 一次性: cloud-db ROLE/DB + .secrets/database_url"
-        info "  → 或从 peer prod 主机拷过来: scp peer-prod:.secrets/database_url .secrets/"
+        err "DATABASE_URL 不存在 且 DATABASE_URL 未设 — 云 db 未配置"
+        info "  → ./ops/prod/setup.sh bootstrap    # 一次性: docker postgres ROLE/DB + DATABASE_URL"
+        info "  → 或从 peer prod 主机拷过来: scp peer-prod:DATABASE_URL .secrets/"
         info "  → 或 export DATABASE_URL=postgres://... (自管 / CI)"
         failed=1
     fi
