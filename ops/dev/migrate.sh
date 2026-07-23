@@ -16,7 +16,7 @@
 # The script sources db/scripts/lib.sh to resolve the cloud DSN, then
 # delegates to db/scripts/migrate.sh (the same script the CMS host
 # uses to migrate its source db). The Python implementation lives at
-# db/dbtools/migrations/runner.py and is idempotent (IF NOT EXISTS
+# backend/migrations/runner.py and is idempotent (IF NOT EXISTS
 # guards + schema_migrations stamping).
 #
 # Usage:
@@ -36,7 +36,7 @@ cmd_migrate() {
     echo ""
 
     if ! command -v python3 &> /dev/null; then
-        err "python3 未安装 — dbtools.migrations.runner 需要它"
+        err "python3 未安装 — migrations.runner 需要它"
         info "  → Ubuntu/Debian:  sudo apt install python3"
         info "  → macOS:          brew install python3"
         info "  → Windows:        winget install Python.Python.3.11"

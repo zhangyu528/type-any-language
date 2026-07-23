@@ -1,48 +1,41 @@
 #!/bin/sh
 #
-# backend/entrypoint.sh — hash-aware pip install + exec CMD.
+# backend/entrypoint.sh — hash-aware pip install + apply migrations + exec CMD.
 #
-# Pattern mirrors frontend/entrypoint.sh (the dev image for the
-# frontend dropped `RUN npm ci` and moved dep install to runtime;
-# this script does the same for Python). See backend/Dockerfile.dev
-# top-of-file comment for the full design rationale ("No `RUN pip
-# install`").
+# Two responsibilities, in order:
+#   1. Install Python deps if needed (hash-aware; matches frontend/entrypoint.sh
+#      pattern, see backend/Dockerfile.dev "No `RUN pip install`" comment for
+#      the full rationale).
+#   2. Apply pending schema migrations to the connected cloud db BEFORE
+#      serving traffic. Idempotent — re-runs are no-ops (runner skips
+#      already-applied versions in schema_migrations). On every container
+#      start, the migrations from the baked-in working tree are applied.
 #
-# Why install at runtime, not at image build time:
+# Why migrate at entrypoint time (not via a separate CI step):
+#   The migrations/ directory is in the same image as the backend code,
+#   so the "what migrations exist" view is identical to "what backend
+#   code is running". Running migrations on every container start
+#   eliminates the "code ≠ db" drift window: any new migration in the
+#   image is applied before the first request, regardless of who pulled
+#   the image, when, or what order.
 #
-#   - image size: site-packages for fastapi/uvicorn/sqlalchemy/
-#     psycopg2-binary/pydantic/pydantic-settings/cmudict is ~50 MB.
-#     Baking it in doubles the dev image and forces a re-download on
-#     every rebuild even when only .py code changed.
-#   - build speed: skipping pip install at build saves ~30-90s.
-#   - The frontend dev image already proved this pattern works (npm
-#     install runs in entrypoint.sh, with cold-start overhead traded
-#     for image-size + build-speed wins). Backend follows the same
-#     pattern for consistency.
+# Note on bind mounts (dev mode):
+#   docker-compose.dev.yml mounts ./backend → /app, so the working tree
+#   in the container is the host's checkout. When the host's
+#   backend/migrations/versions/ gets a new file, the next uvicorn
+#   hot-reload restart does NOT re-run entrypoint (uvicorn reload ≠
+#   container restart). To apply a fresh migration, restart the
+#   container: ./ops/dev/lifecycle.sh restart. This is the same
+#   pattern as requirements.txt changes.
 #
-# Gates (double-check, like the frontend):
-#
-#   - gate 1 (requirements changed): SHA256 of requirements.txt
-#     doesn't match the stored hash → reinstall. Hash file lives in
-#     /tmp (NOT /app) so the bind mount (./backend → /app) doesn't
-#     either pollute the host working tree or get clobbered by host
-#     source edits. /tmp survives `docker restart` (skip pip on warm
-#     start) but is wiped by `docker compose down` / recreate (force
-#     reinstall on cold start) — exactly the semantics we want.
-#   - gate 2 (deps wiped): site-packages marker (the importable
-#     `fastapi` module) absent → reinstall regardless of hash.
-#     Catches the case where the hash file got carried over from a
-#     prior install but the actual wheel store is gone (e.g. manual
-#     cleanup, partial volume mount failure).
-#
-# Hot-reload note: uvicorn --reload (set in Dockerfile.dev's CMD
-# and docker-compose.dev.yml's command:) auto-restarts on .py
-# changes. requirements.txt changes still need a manual restart
-# (uvicorn doesn't watch requirements) — that's intended; a fresh
-# pip install needs a fresh process anyway.
+# Idempotency: migration 0001 (the baseline) creates tables via
+# `Base.metadata.create_all()` indirectly — it imports backend models.
+# create_all() uses CREATE TABLE IF NOT EXISTS, so it's safe to call
+# repeatedly.
 
 set -e
 
+# --- 1. pip install (hash-aware) -------------------------------------------
 HASH_FILE="/tmp/.requirements.sha256"
 CUR_HASH="$(
   {
@@ -71,4 +64,36 @@ if [ "$NEEDS_INSTALL" = "1" ]; then
   fi
 fi
 
+# --- 2. Apply pending schema migrations ------------------------------------
+# Idempotent: runner reads schema_migrations table and skips already-applied
+# versions. If DATABASE_URL is unset (e.g. local test run), skip with a
+# warning rather than failing the container — uvicorn can still serve and
+# tests can still import; only DB-touching requests would 500.
+if [ -n "${DATABASE_URL:-}" ] || [ -n "${DATABASE_URL_FILE:-}" ]; then
+  echo "[entrypoint] applying pending schema migrations..."
+  # migrations/ package lives at /app/migrations (copied by Dockerfile /
+  # mounted by docker-compose.dev.yml). backend/init_schema.py imports
+  # migrations + dbtools.db_url — backend/ is on PYTHONPATH via WORKDIR
+  # /app, db/ would need to be added for the defensive db_url fallback.
+  # In normal operation DATABASE_URL is already exported by the
+  # container's env block (compose) or by the secrets mount path
+  # (DATABASE_URL_FILE → /run/secrets/database_url → backend reads it
+  # via config.py's _apply_file_indirection, but here we need a
+  # plain env var for the migration runner to read).
+  if [ -n "${DATABASE_URL_FILE:-}" ] && [ -z "${DATABASE_URL:-}" ]; then
+    if [ -f "${DATABASE_URL_FILE}" ]; then
+      export DATABASE_URL="$(cat "${DATABASE_URL_FILE}")"
+      echo "[entrypoint] DATABASE_URL loaded from ${DATABASE_URL_FILE}"
+    fi
+  fi
+  python -m migrations.runner && echo "[entrypoint] migrations applied" || {
+    echo "[entrypoint] MIGRATION FAILED — refusing to start uvicorn" >&2
+    echo "[entrypoint] Fix the failing migration and re-deploy." >&2
+    exit 1
+  }
+else
+  echo "[entrypoint] DATABASE_URL unset — skipping migrations (local/test mode)"
+fi
+
+# --- 3. exec CMD -----------------------------------------------------------
 exec "$@"

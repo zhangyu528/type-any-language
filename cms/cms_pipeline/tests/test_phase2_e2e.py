@@ -16,7 +16,7 @@ localhost:55432 from this session) and exercises:
 Run with DATABASE_URL set:
 
     DATABASE_URL=postgresql://english_user:testpw@localhost:55432/english_learning \
-        PYTHONPATH=cms:db python cms/cms_pipeline/tests/test_phase2_e2e.py
+        PYTHONPATH=cms:backend:db python cms/cms_pipeline/tests/test_phase2_e2e.py
 """
 import os
 import sys
@@ -77,7 +77,7 @@ def test_1_fresh_db():
     print("\n=== Test 1: fresh DB, all migrations apply ===")
     conn = fresh_db()
     try:
-        from dbtools.migrations import upgrade_head, get_current_version
+        from migrations import upgrade_head, get_current_version
 
         v0 = get_current_version(conn)
         assert v0 is None, f"expected None, got {v0!r}"
@@ -221,7 +221,7 @@ def test_2_pre_phase2_baseline():
         # Run the migration runner. 0001 uses SQLAlchemy create_all --
         # idempotent against existing 3 tables. 0002-0005 add new columns
         # + sentence_word_links + drop dead columns.
-        from dbtools.migrations import upgrade_head, get_current_version
+        from migrations import upgrade_head, get_current_version
 
         v0 = get_current_version(conn)
         print(f"  pre-migration version: {v0!r}")
@@ -261,7 +261,7 @@ def test_3_import_vocab():
     print("\n=== Test 3: import_vocab handles old 4-col + new 9-col CSV ===")
     conn = fresh_db()
     try:
-        from dbtools.migrations import upgrade_head
+        from migrations import upgrade_head
         upgrade_head(conn)
         conn.commit()
 
@@ -347,7 +347,7 @@ def test_4_sentence_word_links():
     print("\n=== Test 4: insert_sentences populates sentence_word_links ===")
     conn = fresh_db()
     try:
-        from dbtools.migrations import upgrade_head
+        from migrations import upgrade_head
         upgrade_head(conn)
         conn.commit()
 
@@ -472,7 +472,7 @@ def test_5_lesson_index():
     print("\n=== Test 5: lesson_index backfill + import_vocab re-bucketing ===")
     conn = fresh_db()
     try:
-        from dbtools.migrations import upgrade_head
+        from migrations import upgrade_head
         upgrade_head(conn)
         conn.commit()
 
@@ -484,7 +484,7 @@ def test_5_lesson_index():
         conn.close()
         conn = fresh_db()
         # Only apply baseline (no metadata columns yet). Insert 7 words.
-        from dbtools.migrations.runner import (
+        from migrations.runner import (
             ensure_schema_migrations_table,
             get_current_version,
         )

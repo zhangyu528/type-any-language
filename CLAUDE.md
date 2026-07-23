@@ -36,7 +36,7 @@ The "target hosts are a pure read-layer" rule above has two dev-only opt-ins:
 
 - **`ops/dev/migrate.sh`** — apply pending schema migrations to the live cloud
   db (host-side runner, no sidecar container). Use after editing
-  `db/dbtools/migrations/versions/*.py`.
+  `backend/migrations/versions/*.py`.
 - **`db/scripts/import_staging.sh`** — UPSERT `cms/staging/` into the cloud db.
   Operators typically run this on the CMS host, but a dev host with
   `DATABASE_URL` in env can run it too.
@@ -97,8 +97,8 @@ block + `DATABASE_URL_FILE`.
 │   ├── scripts/        # shell entry points
 │   │   ├── lib.sh              # cloud-db helpers (resolve_dev/prod_db_url, render_db_name)
 │   │   ├── bootstrap_tencent.sh  # one-time ROLE/DB/GRANT + write .secrets/database_url
-│   │   ├── init_schema.sh      # python -m dbtools.init_schema (base DDL)
-│   │   ├── migrate.sh          # python -m dbtools.migrations.runner (apply pending migrations)
+│   │   ├── init_schema.sh      # python -m init_schema (base DDL)
+│   │   ├── migrate.sh          # python -m migrations.runner (apply pending migrations)
 │   │   └── import_staging.sh   # python -m dbtools.importer (staging files -> db UPSERT)
 │   └── dbtools/                # Python package dbtools/ - schema + importer
 │       └── (init_schema / migrations / importer / db_url)
@@ -491,14 +491,14 @@ Answer validation is **client-side**: the frontend normalizes (lowercase, strip 
 
 Schema lives in three places that must stay in sync:
 - **`backend/app/models/*.py`** — SQLAlchemy declarative schema (the runtime truth the read-layer queries against)
-- **`db/dbtools/init_schema.py`** — base `CREATE TABLE IF NOT EXISTS` (the *initial* truth for fresh dbs)
-- **`db/dbtools/migrations/versions/*.py`** — ordered DDL applied to existing dbs when schema evolves
+- **`backend/init_schema.py`** — base `CREATE TABLE IF NOT EXISTS` (the *initial* truth for fresh dbs)
+- **`backend/migrations/versions/*.py`** — ordered DDL applied to existing dbs when schema evolves
 
 Migrations use a tiny hand-written runner (`cms/cms_pipeline/migrations/runner.py`, ~60 lines, no Alembic). Each version is a Python module exposing `upgrade(conn)` / `downgrade(conn)`. Idempotent via `ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` etc.
 
 ### Dev iteration (light-touch)
 
-When you add or change a migration in `db/dbtools/migrations/versions/`:
+When you add or change a migration in `backend/migrations/versions/`:
 
 ```bash
 # Live cloud db (the one your backend is actually querying): in-place
@@ -516,10 +516,10 @@ hot-reload handles Python changes).
 ### Production rollout
 
 When the operator merges new schema changes:
-1. CMS host (or any host with `DATABASE_URL`): `./db/scripts/migrate.sh` — runs `dbtools.migrations.runner` against the cloud db
+1. CMS host (or any host with `DATABASE_URL`): `./db/scripts/migrate.sh` — runs `migrations.runner` against the cloud db
 2. Operator also runs `./db/scripts/import_staging.sh all` if content needs to be refreshed (CMS pipeline ran first)
 3. Target hosts: `./ops/<host>/lifecycle.sh restart` — pulls the latest `english_backend{,_dev}` + `english_frontend{,_dev}` from the registry (backend picks up the schema change on next request)
-4. Fresh cloud dbs (created by `bootstrap_tencent.sh`): the base schema in `db/dbtools/init_schema.py` runs via `./db/scripts/init_schema.sh`. Existing cloud dbs keep their data; migrations are additive.
+4. Fresh cloud dbs (created by `bootstrap_tencent.sh`): the base schema in `backend/init_schema.py` runs via `./db/scripts/init_schema.sh`. Existing cloud dbs keep their data; migrations are additive.
 
 ### Migration naming + merge rules
 
@@ -541,20 +541,20 @@ To avoid the "two branches both add `0011_*.py` and merge produces N files with 
 # 1. Find the current max shared prefix on origin/master
 git fetch origin
 MAX=$(git ls-tree -r origin/master --name-only \
-    -- db/dbtools/migrations/versions/ \
+    -- backend/migrations/versions/ \
     | grep -oE '^[0-9]{4}_' | sort -u | tail -1 | tr -d '_')
 echo "max shared prefix on origin/master = $MAX"
 # Pick $((MAX + 1)) for your shared migration.
 
 # 2a. Shared migration — everyone needs it
 git checkout -b feature/xyz
-$EDITOR db/dbtools/migrations/versions/0011_add_target_words.py
-git add db/dbtools/migrations/versions/0011_add_target_words.py
+$EDITOR backend/migrations/versions/0011_add_target_words.py
+git add backend/migrations/versions/0011_add_target_words.py
 git commit -m "schema: add target_words column on sentences"
 
 # 2b. Branch-local — experimental, only on this branch
 git checkout -b experiment/phonetic-lookup
-$EDITOR db/dbtools/migrations/versions/9001_experiment-phonetic-lookup-btree.sql
+$EDITOR backend/migrations/versions/9001_experiment-phonetic-lookup-btree.sql
 git add ...
 git commit -m "experiment: phonetic-lookup btree (branch-local, will not merge)"
 ```
@@ -569,7 +569,7 @@ git commit -m "experiment: phonetic-lookup btree (branch-local, will not merge)"
 **Helper**: to list migrations sorted by version (useful for "what's the next number?"), run:
 
 ```bash
-ls db/dbtools/migrations/versions/*.py \
+ls backend/migrations/versions/*.py \
     | grep -v __init__.py \
     | xargs -n1 basename \
     | sort
@@ -580,7 +580,7 @@ ls db/dbtools/migrations/versions/*.py \
 make db-next-migration-prefix
 ```
 
-The runner (`db/dbtools/migrations/runner.py::_discover_versions`) sorts by the `version` string attribute of each module (not the filename), so renames are safe as long as `version = "..."` stays consistent.
+The runner (`backend/migrations/runner.py::_discover_versions`) sorts by the `version` string attribute of each module (not the filename), so renames are safe as long as `version = "..."` stays consistent.
 
 ## Environment variables
 

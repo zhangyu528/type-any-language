@@ -35,7 +35,7 @@ db/
 │   ├── lib.sh                # cloud-db helpers (resolve_dev/prod_db_url, render_db_name, ...)
 │   ├── bootstrap_tencent.sh  # one-time ROLE/DB/GRANT + write .secrets/database_url
 │   ├── init_schema.sh        # CREATE TABLE IF NOT EXISTS(基础 DDL,幂等)
-│   ├── migrate.sh            # dbtools.migrations.runner(apply pending migrations)
+│   ├── migrate.sh            # migrations.runner(apply pending migrations)
 │   └── import_staging.sh     # dbtools.importer —— staging 文件 UPSERT 进 db
 ├── dbtools/             # Python 包 dbtools/(init_schema / migrations / importer / db_url)
 ```

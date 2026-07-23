@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-init_schema.py — schema bootstrap for the CMS host's DB.
+init_schema.py — schema bootstrap for the dev / prod cloud db.
 
 Two-track bootstrap:
 
-1. Migration runner (PRIMARY) — calls `cms.migrations.upgrade_head(conn)`
-   which discovers every module under `cms.migrations.versions/` and
+1. Migration runner (PRIMARY) — calls `migrations.upgrade_head(conn)`
+   which discovers every module under `migrations.versions/` and
    applies any whose version is greater than the one recorded in
    `schema_migrations`. This is the supported path for both fresh DBs
    (all migrations apply) and existing DBs (already-applied versions are
@@ -28,61 +28,73 @@ list of `upgrade(conn)` calls. This project's migration count is small
 (3-5 versions total over the life of the app) and a 60-line runner is
 easier to read, audit, and modify than a generated Alembic env.py.
 
-Env handling — minimal:
-  This module resolves DATABASE_URL via db_url.py (a 60-line helper)
-  which reads only POSTGRES_* + DATABASE_URL from the process env (or
-  the .secrets/postgres_password defensive fallback). It does NOT depend
-  on cms/cms_pipeline/env.py (the data-pipeline's full Config loader that
-  also pulls in TENCENT_*, AI_*, AUDIO_DIR — none of which are db
-  concerns) and it no longer reads any local cms/.env. Keeps the db
-  schema code free of data-pipeline deps.
+Why this lives at backend/init_schema.py and not db/dbtools/init_schema.py:
+   Migrations and schema bootstrap are tightly coupled to the SQLAlchemy
+   ORM models in backend/app/models/. Co-locating all schema code under
+   backend/ keeps the "model + migration + bootstrap" trio together. db/
+   now only holds importer (CMS staging → cloud db UPSERT) and bootstrap
+   shell scripts (ROLE/DB/GRANT, DSN file writing). See CLAUDE.md
+   "Repository structure" for the rationale.
 
-  On the cloud-db path, `db/scripts/lib.sh::resolve_*_db_url` exports
-  DATABASE_URL via `.secrets/database_url` (written once per host by
-  `bootstrap_tencent.sh`) before Python starts — the python fallback
+Env handling — minimal:
+  This module resolves DATABASE_URL via dbtools.db_url (a 60-line helper
+  in db/dbtools/db_url.py, kept for self-hosted / CI / ad-hoc CLI use).
+  The shell-side entry points (`db/scripts/lib.sh::resolve_*_db_url`)
+  export DATABASE_URL via `.secrets/database_url` (written once per host
+  by `bootstrap_tencent.sh`) before Python starts — the python fallback
   chain never runs in the normal flow.
 
 Usage
 -----
-    python -m dbtools.init_schema                        # from project root, PYTHONPATH=db
-    PYTHONPATH=db python3 db/dbtools/init_schema.py
-    ./db/scripts/init_schema.sh              # wrapper
+    # From project root, with PYTHONPATH containing both backend and db:
+    PYTHONPATH=backend:db python3 -m init_schema           # via the package name
+    PYTHONPATH=backend:db python3 backend/init_schema.py   # direct invocation
+    ./db/scripts/init_schema.sh              # wrapper (sets PYTHONPATH for you)
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
-# Allow running this file directly (python init_schema.py) AND as
-# `python -m dbtools.init_schema` from the project root. Same pattern as
-# the data-pipeline modules, but the bootstrap here points at db/
-# not cms/.
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from db_url import resolve_database_url  # noqa: E402
-else:
-    from .db_url import resolve_database_url  # noqa: E402
 
+def _resolve_database_url():
+    """Resolve DATABASE_URL with the canonical cloud path preferred.
 
-def _ensure_backend_on_path() -> None:
-    """The schema definitions live in backend/app/models/*.py. We need
-    them importable, but the CMS host's PYTHONPATH is `db/`
-    (not `backend/`). Add backend/ once.
+    Order: explicit env DATABASE_URL > dbtools.db_url.resolve_database_url().
+    db_url is in db/dbtools/ — we import it via the `dbtools` package; the
+    caller is expected to have `db` on PYTHONPATH (db/scripts/init_schema.sh
+    sets it for the operator).
     """
-    backend_path = Path(__file__).resolve().parent.parent.parent / "backend"
-    backend_path_str = str(backend_path)
-    if backend_path_str not in sys.path:
-        sys.path.insert(0, backend_path_str)
+    explicit = os.environ.get("DATABASE_URL", "").strip()
+    if explicit:
+        return explicit
+    from dbtools.db_url import resolve_database_url  # noqa: E402
+    return resolve_database_url()
+
+
+def _ensure_app_on_path() -> None:
+    """Make backend/app/ importable so app.database + app.models resolve.
+
+    This file lives at backend/init_schema.py — when run as a module via
+    `python -m init_schema`, the cwd is project_root and backend/ may not
+    be on sys.path. Add it once.
+    """
+    if "" not in sys.path and "." not in sys.path:
+        # Add the directory containing `init_schema.py` so `app.*` imports
+        # resolve (app/ lives next to init_schema.py inside backend/).
+        backend_path = str(Path(__file__).resolve().parent)
+        if backend_path not in sys.path:
+            sys.path.insert(0, backend_path)
 
 
 def main() -> int:
-    # 1. Assemble DATABASE_URL from POSTGRES_* / DATABASE_URL already in
-    #    the process env (typically supplied by fetch_secrets.sh eval-db,
-    #    or by db_assemble_url on the shell side). No local file lookup.
-    database_url = resolve_database_url()
+    # 1. DATABASE_URL from process env (typically supplied by db/scripts/
+    #    lib.sh::resolve_*_db_url on the cloud-db path).
+    database_url = _resolve_database_url()
 
-    # 2. Make backend/app importable so the models + database engine resolve.
-    _ensure_backend_on_path()
+    # 2. Make backend/app importable so models + engine resolve.
+    _ensure_app_on_path()
 
     # 3. Import models so SQLAlchemy metadata is populated for the safety
     #    net step below. (The migration runner doesn't need models — it
@@ -102,7 +114,7 @@ def main() -> int:
     # 4. PRIMARY: run the migration runner. This handles ordering, the
     #    schema_migrations bookkeeping table, and idempotent re-runs.
     import psycopg2  # noqa: E402
-    from dbtools.migrations import upgrade_head, get_current_version  # noqa: E402
+    from migrations import upgrade_head, get_current_version  # noqa: E402
 
     with psycopg2.connect(database_url) as conn:
         before = get_current_version(conn)

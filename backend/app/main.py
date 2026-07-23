@@ -7,7 +7,7 @@ no TTS, no scheduler — those run on the CMS host.
 
 Why this is so thin:
   - Content (vocab_libs, vocab_words, sentences) lives in TencentDB.
-  - Schema is owned by db/dbtools/init_schema.py + migrations.
+  - Schema is owned by backend/init_schema.py + migrations.
   - Audio is served directly from Tencent Cloud COS via the
     sentences.audio_url column (full URL stored when the CMS audio step
     ran). The backend exposes no /audio endpoint — the frontend reads
@@ -22,7 +22,7 @@ from app.routers import content, lessons, sentences, vocabulary, auth
 
 settings = get_settings()
 
-# Schema is owned by db/dbtools/init_schema.py + migrations/. create_all()
+# Schema is owned by backend/init_schema.py + migrations/. create_all()
 # is a safety net for tests / when running against an empty DB — it never
 # alters an existing table.
 Base.metadata.create_all(bind=engine)

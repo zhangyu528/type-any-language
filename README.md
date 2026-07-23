@@ -71,7 +71,7 @@ make dev-start                   # 起来 — 自动用 .secrets/database_url
 make dev-logs                    # 看日志
 make dev-stop                    # 停
 make dev-restart                 # 硬重启(≈5s,重新加载 secrets)
-make dev-migrate                 # 改了 db/dbtools/migrations/versions/*.py 后:把新 schema 应用到云 db
+make dev-migrate                 # 改了 backend/migrations/versions/*.py 后:把新 schema 应用到云 db
 ```
 
 > 没装 docker / daemon 没起,`make dev-doctor` 会直接报错,先装 docker。
@@ -94,7 +94,7 @@ make dev-migrate                 # 改了 db/dbtools/migrations/versions/*.py �
 
 ### schema 改了之后
 
-dev 改了 `db/dbtools/migrations/versions/*.py` 的话:
+dev 改了 `backend/migrations/versions/*.py` 的话:
 
 ```bash
 make dev-migrate                 # 把新 schema 应用到云 db(host-side runner)

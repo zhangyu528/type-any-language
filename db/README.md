@@ -2,7 +2,7 @@
 
 The `db/` segment owns the **schema**, the **importer** (CMS staging files → db UPSERT), the **migration runner** (in-place schema upgrades), and the **cloud-db bootstrap** (one-time TencentDB ROLE / DATABASE / GRANT + DSN file write for each target host).
 
-It does NOT produce a docker image. The runtime database is **TencentDB** — an external Postgres service shared by all target hosts. Schema is owned in `db/dbtools/` (Python) and is mirrored in `backend/app/models/` (SQLAlchemy); the importer and migrations both run on the host against `DATABASE_URL` and target the cloud db directly.
+It does NOT produce a docker image. The runtime database is **TencentDB** — an external Postgres service shared by all target hosts. Schema is owned in `backend/` (init_schema.py + migrations/) and mirrored in `backend/app/models/` (SQLAlchemy); the importer and migrations both run on the host against `DATABASE_URL` and target the cloud db directly.
 
 This directory has nothing to do with the application backend (FastAPI / SQLAlchemy in `backend/`), which is a pure read-layer that opens `DATABASE_URL` at startup and never generates content. Audio is NOT in the db — it lives in Tencent Cloud COS and is referenced by URL in the `sentences.audio_url` column.
 
@@ -20,22 +20,22 @@ db/
 ├── scripts/                  shell entry points (the user-facing surface)
 │   ├── lib.sh                cloud-db helpers (resolve_dev/prod_db_url, render_db_name, ...)
 │   ├── bootstrap_tencent.sh  one-time ROLE/DB/GRANT + write .secrets/database_url
-│   ├── init_schema.sh        apply base schema (CREATE TABLE IF NOT EXISTS)
-│   ├── migrate.sh            apply pending schema migrations (runner.py)
-│   └── import_staging.sh     staging files → db UPSERT  (L 步)
+│   ├── init_schema.sh        apply base schema (wraps backend/init_schema.py)
+│   ├── migrate.sh            apply pending migrations (wraps backend/migrations/runner.py)
+│   ├── import_staging.sh     staging files → db UPSERT  (L 步)
+│   └── next_migration_prefix.sh  print next available 4-digit shared prefix
 │
-└── dbtools/                  Python implementation
+└── dbtools/                  Python implementation: importer + DSN helper
     ├── db_url.py             minimal env-loader (POSTGRES_* → DATABASE_URL)
-    ├── init_schema.py        base schema (idempotent)
-    ├── importer.py           staging files → db (UPSERT)
-    └── migrations/
-        ├── runner.py         60-line hand-written migration runner
-        └── versions/0001..0010_*.py   # ordered DDL
+    └── importer.py           staging files → db (UPSERT)
 ```
 
-The `dbtools` Python package is **distinct** from `cms_pipeline` so both can
-coexist on `PYTHONPATH` without import shadowing. Only `db/scripts/*.sh`
-references it (via `PYTHONPATH=db`).
+Schema-related Python code (init_schema + migrations) lives under
+`backend/` next to the SQLAlchemy models — see
+[Schema ownership](#schema-ownership) below. db/ holds only the
+**importer** (staging → db UPSERT) and the **defensive `db_url.py`**
+for self-hosted / ad-hoc CLI use; both are db-side concerns that don't
+depend on the backend's web framework or models.
 
 ## End-to-end flow
 
@@ -72,15 +72,15 @@ After bootstrap, lifecycle.sh start picks up the DSN automatically.
 Schema is owned in two places that must stay in sync:
 
 - **`backend/app/models/*.py`** — SQLAlchemy declarative schema (the runtime truth the read-layer queries against)
-- **`db/dbtools/init_schema.py`** — base `CREATE TABLE IF NOT EXISTS` (the *initial* truth for fresh dbs)
-- **`db/dbtools/migrations/versions/0001..0010_*.py`** — ordered DDL applied to existing dbs when schema evolves
+- **`backend/init_schema.py`** — base `CREATE TABLE IF NOT EXISTS` (the *initial* truth for fresh dbs)
+- **`backend/migrations/versions/0001..0010_*.py`** — ordered DDL applied to existing dbs when schema evolves
 
-Migrations use a tiny hand-written runner (`db/dbtools/migrations/runner.py`, ~60 lines, no Alembic). Each version is a Python module exposing `upgrade(conn)` / `downgrade(conn)`. Idempotent via `ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` etc.
+Migrations use a tiny hand-written runner (`backend/migrations/runner.py`, ~60 lines, no Alembic). Each version is a Python module exposing `upgrade(conn)` / `downgrade(conn)`. Idempotent via `ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` etc.
 
 ### Adding a new migration
 
 ```bash
-# 1. Write db/dbtools/migrations/versions/0011_<name>.py
+# 1. Write backend/migrations/versions/0011_<name>.py
 #    - version = "0011_<name>"
 #    - def upgrade(conn): conn.execute("ALTER TABLE ...")
 #    - def downgrade(conn): conn.execute("ALTER TABLE ...")

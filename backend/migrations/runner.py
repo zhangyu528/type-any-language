@@ -1,5 +1,5 @@
 """
-db/dbtools/migrations/runner.py — minimal migration runner.
+backend/migrations/runner.py — minimal migration runner.
 
 Why not Alembic: Alembic is a great tool for projects with many migrations
 and large teams. For this project the migration count is small (currently
@@ -46,7 +46,7 @@ Invoked by:
                              sources db/scripts/lib.sh::resolve_dev_db_url
                              and re-execs db/scripts/migrate.sh
 
-Both callers set PYTHONPATH=/db and run `python -m dbtools.migrations.runner`.
+Both callers set PYTHONPATH=/backend and run `python -m migrations.runner`.
 """
 from __future__ import annotations
 
@@ -61,7 +61,7 @@ import psycopg2
 import psycopg2.extensions
 
 
-VERSIONS_PACKAGE = "dbtools.migrations.versions"
+VERSIONS_PACKAGE = "migrations.versions"
 _BOOKKEEPING_TABLE = "schema_migrations"
 
 

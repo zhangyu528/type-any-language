@@ -1,44 +1,41 @@
 """
-dbtools — db-side Python package (schema bootstrap + migrations).
+dbtools — db-side Python package (importer + DSN helper).
 
 Lives at db/dbtools/ (separate from the data-pipeline's
-`cms_pipeline` package at cms/cms_pipeline/). The two packages coexist on
-PYTHONPATH because the data-pipeline still needs to invoke
-`dbtools.init_schema` as a one-shot pre-flight step before the
-data pipeline starts writing to a freshly-bootstrapped db.
+`cms_pipeline` package at cms/cms_pipeline/). The two packages coexist
+on `PYTHONPATH` because both are imported by host-side entry points
+(db/scripts/*.sh) that may also be used in a CMS-host context where
+the data-pipeline is loaded.
 
 Modules in this package:
-    init_schema   — bootstrap base DDL (CREATE TABLE IF NOT EXISTS)
-                   + run all pending migrations. Resolves DATABASE_URL
-                   via db_url.py (the package does NOT import the
-                   data-pipeline's cms_pipeline.env to keep the db side
-                   independent of TENCENT_*, AI_*, etc.).
-    db_url        — minimal env assembler for db-only modules. Reads
-                   POSTGRES_* / DATABASE_URL from the process env
-                   (typically injected by `scripts/secrets/fetch_secrets.sh
-                   eval-db` on the CMS host, or supplied by .secrets/
-                   database_url written once per host by
-                   `ops/{dev,prod}/setup.sh bootstrap` →
-                   `db/scripts/bootstrap_tencent.sh`). No deps on the
-                   data-pipeline.
-    migrations    — schema migration runner + version files. Each
-                   version is a Python module exposing upgrade(conn) /
-                   optional downgrade(conn).
+    importer    — CMS staging files (cms/staging/*) → cloud db UPSERT.
+                  Called by db/scripts/import_staging.sh; never
+                  reaches into the web framework.
+    db_url      — minimal env assembler for db-only modules. Reads
+                  POSTGRES_* / DATABASE_URL from the process env
+                  (typically injected by `scripts/secrets/fetch_secrets.sh
+                  eval-db` on the CMS host, or supplied by
+                  .secrets/database_url written once per host by
+                  `ops/{dev,prod}/setup.sh bootstrap` →
+                  `db/scripts/bootstrap_tencent.sh`). Defensive
+                  fallback to .secrets/postgres_password retained
+                  for ad-hoc self-hosted CLI use.
 
 Why this package isn't named "cms":
-   The data-pipeline also has a `cms` package at cms/cms_pipeline/.
-   Keeping the same name in both directories would cause import
-   shadowing on the operator's PYTHONPATH — only one of them would
-   be importable at a time. Distinct names ("cms" vs "dbtools") make
-   both packages importable simultaneously.
+   The data-pipeline also has a `cms_pipeline` package at
+   cms/cms_pipeline/. Keeping the same name in both directories would
+   cause import shadowing on the operator's PYTHONPATH — only one of
+   them would be importable at a time. Distinct names ("cms_pipeline"
+   vs "dbtools") make both packages importable simultaneously.
 
-This package is only loaded by db-side scripts:
-   db/scripts/init_schema.sh
-   db/scripts/migrate.sh
-   (and by db/dbtools/importer.py's import_staging.sh wrapper)
+This package is loaded by:
+   db/scripts/import_staging.sh
+   db/dbtools/importer.py (when run via -m dbtools.importer)
+   backend/init_schema.py (for the defensive DATABASE_URL fallback
+                            when DATABASE_URL is not in process env)
 
-The data-pipeline (cms/run.sh → cmd_vocab / cmd_sentences / cmd_audio)
-does NOT import from this package — it only invokes dbtools.init_schema
-as a one-shot pre-flight step before the data pipeline starts writing
-to a freshly-bootstrapped db.
+Note: schema bootstrap (init_schema.py) and migrations now live at
+backend/ — co-located with the SQLAlchemy ORM models. The remaining
+db-side concerns here are: importer (CMS staging → db UPSERT) and
+db_url (env assembler).
 """

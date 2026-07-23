@@ -16,7 +16,7 @@
 #           (exit still 0 — caller decides what to do)
 #
 # Why this exists:
-#   Adding a migration under db/dbtools/migrations/versions/ requires
+#   Adding a migration under backend/migrations/versions/ requires
 #   picking the next free integer prefix. Doing this by hand invites
 #   "two branches both picked 0011" collisions. This script reads the
 #   current state from git and tells you the next safe prefix.
@@ -82,7 +82,7 @@ esac
 if [ "$SCOPE" = "origin" ]; then
     # Files in versions/ at origin/master HEAD (read-only git tree).
     PREFIXES="$(git ls-tree -r --name-only origin/master -- \
-        db/dbtools/migrations/versions/ 2>/dev/null \
+        backend/migrations/versions/ 2>/dev/null \
         | xargs -n1 basename 2>/dev/null \
         | grep -E '^[0-9]{4}_.*\.py$' || true)"
     MAX="$(printf '%s\n' "$PREFIXES" | collect_prefixes)"
@@ -95,7 +95,7 @@ if [ "$SCOPE" = "origin" ]; then
     fi
 else
     # Files in the working tree.
-    PREFIXES="$(ls db/dbtools/migrations/versions/*.py 2>/dev/null \
+    PREFIXES="$(ls backend/migrations/versions/*.py 2>/dev/null \
         | xargs -n1 basename \
         | grep -E '^[0-9]{4}_.*\.py$' || true)"
     MAX="$(printf '%s\n' "$PREFIXES" | collect_prefixes)"

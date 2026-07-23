@@ -1,19 +1,22 @@
 #!/bin/bash
 #
-# db/scripts/init_schema.sh — apply the base schema to a fresh source
-# db. Idempotent (CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT
-# EXISTS).
+# db/scripts/init_schema.sh — apply the base schema + run pending
+# migrations to a fresh / existing cloud db. Idempotent
+# (CREATE TABLE IF NOT EXISTS + migration runner skip-on-already-applied).
 #
 # Why this lives in db/scripts/ instead of cms/scripts/:
-#   Schema definition is a db concern. The Python implementation
-#   (init_schema.py + migrations/) now lives at db/dbtools/ —
-#   the schema and migration versions are owned by the db side.
-#   cms/cms_pipeline/ remains for the data-pipeline code only
-#   (import_vocab, generate_sentences, generate_audio, ...).
+#   The shell entry point stays in db/scripts/ so the operator workflow
+#   (`./db/scripts/init_schema.sh` from any host with DATABASE_URL)
+#   doesn't change. The actual Python implementation moved to
+#   backend/init_schema.py — co-located with backend/app/models/*.py
+#   since "model + migration + bootstrap" are a coupled trio. db/
+#   only holds importer (CMS staging → cloud db UPSERT) and bootstrap
+#   shell scripts (ROLE/DB/GRANT, DSN file writing).
 #
-#   This shell script is the db-side entry point. It shells out
-#   to `python -m dbtools.init_schema` (the "dbtools" package,
-#   resolved via PYTHONPATH=db).
+#   This shell script wraps `python -m init_schema` (run with
+#   PYTHONPATH=backend:db so it can find both backend/init_schema.py
+#   itself AND db/dbtools/db_url.py for the defensive DATABASE_URL
+#   fallback).
 #
 # Usage:
 #   # 1. Make sure DATABASE_URL points at the cloud db (or self-hosted db).
@@ -21,7 +24,7 @@
 #   #              db/scripts/lib.sh::resolve_*_db_url exports DATABASE_URL before this runs.
 #   #    self-host / CI: `eval "$(scripts/secrets/fetch_secrets.sh eval-db)"`
 #   #                    or export DATABASE_URL directly.
-#   # 2. Apply the base schema.
+#   # 2. Apply the base schema + migrations.
 #   ./db/scripts/init_schema.sh
 #
 # Idempotent: safe to re-run on a db that already has the tables.
@@ -45,9 +48,9 @@ fi
 # don't blow up on Windows GBK consoles.
 export PYTHONIOENCODING="${PYTHONIOENCODING:-utf-8}"
 
-# PYTHONPATH=db — the init_schema + migrations Python package
-# lives at db/dbtools/. The package name is "dbtools" (distinct
-# from the data-pipeline's "cms" package so the two can coexist on
-# PYTHONPATH without import shadowing).
-PYTHONPATH="${PROJECT_DIR}/db${PYTHONPATH:+:$PYTHONPATH}" \
-    python3 -m dbtools.init_schema "$@"
+# PYTHONPATH=backend:db — the init_schema + migrations Python packages
+# live at backend/ (init_schema.py and migrations/); the dbtools.db_url
+# defensive fallback lives at db/dbtools/db_url.py. Both directories
+# must be on PYTHONPATH so init_schema can import either.
+PYTHONPATH="${PROJECT_DIR}/backend${PYTHONPATH:+:$PYTHONPATH}" \
+    python3 -m init_schema "$@"

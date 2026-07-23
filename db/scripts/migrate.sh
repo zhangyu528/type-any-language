@@ -4,9 +4,12 @@
 # connected db. Idempotent (runner.py stamps applied versions in
 # schema_migrations; re-runs are no-ops).
 #
-# Why this lives in db/scripts/:
-#   Schema migration is a db concern. The Python implementation
-#   (dbtools.migrations.runner) lives at db/dbtools/migrations/.
+# Where the migration Python code lives:
+#   The runner + versions/ live at backend/migrations/ (moved from
+#   db/dbtools/migrations/ in this refactor — schema is owned by the
+#   backend segment, see CLAUDE.md). db/scripts/ keeps the entry-point
+#   shell wrapper so the existing operator workflow (./db/scripts/migrate.sh
+#   from any host) doesn't change.
 #
 # Usage:
 #   # Default: requires DATABASE_URL in env (cloud-db path: the
@@ -15,7 +18,7 @@
 #   ./db/scripts/migrate.sh
 #   # Self-hosted postgres without DATABASE_URL pre-set:
 #   POSTGRES_PASSWORD=... ./db/scripts/migrate.sh
-#   # On subsequent runs (after editing db/dbtools/migrations/versions/):
+#   # On subsequent runs (after editing backend/migrations/versions/):
 #   ./db/scripts/migrate.sh
 #
 # Idempotent: re-runs are no-ops.
@@ -38,7 +41,9 @@ fi
 # don't blow up on Windows GBK consoles.
 export PYTHONIOENCODING="${PYTHONIOENCODING:-utf-8}"
 
-# PYTHONPATH=db — the migrations Python package lives at
-# db/dbtools/migrations/.
-PYTHONPATH="${PROJECT_DIR}/db${PYTHONPATH:+:$PYTHONPATH}" \
-    python3 -m dbtools.migrations.runner "$@"
+# PYTHONPATH=backend — the migrations Python package lives at
+# backend/migrations/. The runner needs backend/ on the path to find
+# both `migrations.versions` (its own package) and the
+# `dbtools.db_url` defensive fallback (still at db/dbtools/db_url.py).
+PYTHONPATH="${PROJECT_DIR}/backend${PYTHONPATH:+:$PYTHONPATH}" \
+    python3 -m migrations.runner "$@"
