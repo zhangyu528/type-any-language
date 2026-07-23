@@ -6,7 +6,7 @@
 #
 # Where the migration Python code lives:
 #   The runner + versions/ live at backend/migrations/ (moved from
-#   db/dbtools/migrations/ in this refactor — schema is owned by the
+#   db/migrations/ in this refactor — schema is owned by the
 #   backend segment, see CLAUDE.md). db/scripts/ keeps the entry-point
 #   shell wrapper so the existing operator workflow (./db/scripts/migrate.sh
 #   from any host) doesn't change.
@@ -44,6 +44,6 @@ export PYTHONIOENCODING="${PYTHONIOENCODING:-utf-8}"
 # PYTHONPATH=backend — the migrations Python package lives at
 # backend/migrations/. The runner needs backend/ on the path to find
 # both `migrations.versions` (its own package) and the
-# `dbtools.db_url` defensive fallback (still at db/dbtools/db_url.py).
+# `db_url` defensive fallback (still at db/db_url.py).
 PYTHONPATH="${PROJECT_DIR}/backend${PYTHONPATH:+:$PYTHONPATH}" \
     python3 -m migrations.runner "$@"

@@ -8,7 +8,7 @@
 #   "$SCRIPT_DIR/py-run.sh" cms_pipeline.generate_sentences ...
 #
 # PYTHONPATH 必须包含 cms/ 和 db/ — 数据管线在 cms/cms_pipeline/,
-# schema / migrations 在 db/dbtools/,两份 package 共存。
+# schema / migrations 在 db/,两份 package 共存。
 #
 # PYTHONIOENCODING=utf-8 防止 Windows 控制台 GBK 解码 Unicode 符号
 # (✓ / ✗ / box-drawing) 崩溃。Linux / macOS 上是 no-op。

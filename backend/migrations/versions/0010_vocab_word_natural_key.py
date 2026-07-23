@@ -3,7 +3,7 @@
 
 Pre-existing latent inconsistency: vocabulary_words had no natural-key
 constraint, so two CSVs with the same (lib, word) would create two rows
-on a naive re-import. dbtools.importer worked around this with a
+on a naive re-import. importer worked around this with a
 SELECT-then-INSERT check, but the check is silent on field changes:
 CSV edits to phonetic / translation / tags after a row exists were
 ignored (the SELECT saw the row and skipped the UPDATE).

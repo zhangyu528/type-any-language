@@ -73,7 +73,7 @@ if [ -n "${DATABASE_URL:-}" ] || [ -n "${DATABASE_URL_FILE:-}" ]; then
   echo "[entrypoint] applying pending schema migrations..."
   # migrations/ package lives at /app/migrations (copied by Dockerfile /
   # mounted by docker-compose.dev.yml). backend/init_schema.py imports
-  # migrations + dbtools.db_url — backend/ is on PYTHONPATH via WORKDIR
+  # migrations + db_url — backend/ is on PYTHONPATH via WORKDIR
   # /app, db/ would need to be added for the defensive db_url fallback.
   # In normal operation DATABASE_URL is already exported by the
   # container's env block (compose) or by the secrets mount path

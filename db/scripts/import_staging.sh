@@ -6,9 +6,9 @@
 #
 # Why this lives in db/scripts/:
 #   This is the canonical Load step of the ETL — CMS produces files
-#   in cms/content/, this script (via dbtools.importer) writes them
+#   in cms/content/, this script (via importer) writes them
 #   to the db. The importer is the one place that knows both file
-#   format and schema, so it lives with the schema (db/dbtools/).
+#   format and schema, so it lives with the schema (db/).
 #   This shell is its entry point.
 #
 # Idempotent: re-running only inserts new rows; existing rows are
@@ -44,6 +44,6 @@ fi
 # per-lib summaries) don't blow up on Windows GBK consoles.
 export PYTHONIOENCODING="${PYTHONIOENCODING:-utf-8}"
 
-# PYTHONPATH=db — the importer lives at db/dbtools/.
+# PYTHONPATH=db — the importer lives at db/.
 PYTHONPATH="${PROJECT_DIR}/db${PYTHONPATH:+:$PYTHONPATH}" \
-    python3 -m dbtools.importer "$@"
+    python3 -m importer "$@"

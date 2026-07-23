@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-dbtools.importer — read CMS staging files → write to db.
+importer — read CMS staging files → write to db.
 
 This module is the **only** place that knows both "what CMS produced
 in cms/content/" and "what the db schema looks like". The
@@ -25,21 +25,26 @@ Staging layout produced by the CMS pipeline:
     │   └── <lib>.jsonl           # one sentence per line
     └── manifest.json              # {libs: [{id, level, display, ...}]}
 
-Why this is in dbtools/ (not cms/):
-  - Same reasoning as dbtools/{init_schema,migrations,db_url}: it
-    imports data into the db schema, which is db's concern
+Why this lives at db/importer.py (not cms/):
+  - It imports data into the db schema, which is db's concern.
   - The CMS pipeline doesn't import from this module — it only
     produces files. The db/scripts/import_staging.sh wrapper is
     the only caller.
+  - Note: this file was previously at db/importer.py
+    under a dbtools/ package (dbtools/{init_schema,migrations,importer,db_url}).
+    The schema-related modules moved out in the migrations-relocation
+    refactor; the package itself was flattened later (dbtools/ was a
+    holdover from the bake-pipeline era when init_schema + migrations
+    also lived here — no longer needed once those moved to backend/).
 
 Usage:
     # All in one go
-    python -m dbtools.importer all
+    python -m importer all
 
     # One stage at a time (for re-runs)
-    python -m dbtools.importer vocab
-    python -m dbtools.importer sentences
-    python -m dbtools.importer audio   # no-op for now: audio updates
+    python -m importer vocab
+    python -m importer sentences
+    python -m importer audio   # no-op for now: audio updates
                                        # are embedded in sentences.jsonl
 """
 from __future__ import annotations
@@ -51,29 +56,32 @@ import sys
 import uuid
 from pathlib import Path
 
+# db_url is a sibling module in the same db/ directory. When running as
+# `python -m importer` from the project root with PYTHONPATH=db, this
+# imports normally. When running as `python db/importer.py` (__package__
+# is None) we add db/'s parent (= project root) to sys.path so the
+# absolute `from db_url import` works regardless of how it's invoked.
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from dbtools.db_url import resolve_database_url  # noqa: E402
-else:
-    from .db_url import resolve_database_url  # noqa: E402
+from db_url import resolve_database_url  # noqa: E402
 
 
 def find_project_root() -> Path:
     """Project root = the dir containing `cms/` and `db/`.
 
-    This file lives at db/dbtools/importer.py. The walk up the
-    parents is: importer.py → dbtools/ → db/ → project_root.
-    So `parent.parent.parent` (3 hops) lands on the project root.
+    This file lives at db/importer.py. The walk up the
+    parents is: importer.py → db/ → project_root.
+    So `parent.parent` (2 hops) lands on the project root.
 
-    Note: when the module is run as `python -m dbtools.importer` from
+    Note: when the module is run as `python -m importer` from
     the project root (the common case), `__file__` is the full path
     to this .py file, so the walk works regardless of CWD.
 
     CAVEAT: this resolution only works if the script is at
-    db/dbtools/importer.py relative to the project root. Do NOT
+    db/importer.py relative to the project root. Do NOT
     relocate this file without updating this function.
     """
-    return Path(__file__).resolve().parent.parent.parent
+    return Path(__file__).resolve().parent.parent
 
 
 def find_content_dir() -> Path:
@@ -234,7 +242,7 @@ def _resolve_lib_id_by_filename(cur, sent_file: Path) -> str:
     if not row:
         sys.exit(
             f"sentence file {sent_file.name}: no vocabulary_libs row with level={level!r}. "
-            f"Run `python -m dbtools.importer vocab` first."
+            f"Run `python -m importer vocab` first."
         )
     return str(row[0])
 
@@ -328,7 +336,7 @@ def main() -> int:
     # Resolve DATABASE_URL straight from the process env. Caller is
     # expected to have either run `eval "$(scripts/secrets/fetch_secrets.sh
     # eval-db)"` (CMS host) or `ops/<host>/setup.sh bootstrap` (target host,
-    # writes .secrets/database_url). See db/dbtools/db_url.py for the full
+    # writes .secrets/database_url). See db/db_url.py for the full
     # resolution chain.
     database_url = resolve_database_url()
 

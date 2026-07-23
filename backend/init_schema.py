@@ -28,7 +28,7 @@ list of `upgrade(conn)` calls. This project's migration count is small
 (3-5 versions total over the life of the app) and a 60-line runner is
 easier to read, audit, and modify than a generated Alembic env.py.
 
-Why this lives at backend/init_schema.py and not db/dbtools/init_schema.py:
+Why this lives at backend/init_schema.py and not db/init_schema.py:
    Migrations and schema bootstrap are tightly coupled to the SQLAlchemy
    ORM models in backend/app/models/. Co-locating all schema code under
    backend/ keeps the "model + migration + bootstrap" trio together. db/
@@ -37,8 +37,8 @@ Why this lives at backend/init_schema.py and not db/dbtools/init_schema.py:
    "Repository structure" for the rationale.
 
 Env handling — minimal:
-  This module resolves DATABASE_URL via dbtools.db_url (a 60-line helper
-  in db/dbtools/db_url.py, kept for self-hosted / CI / ad-hoc CLI use).
+  This module resolves DATABASE_URL via db_url (a 60-line helper
+  in db/db_url.py, kept for self-hosted / CI / ad-hoc CLI use).
   The shell-side entry points (`db/scripts/lib.sh::resolve_*_db_url`)
   export DATABASE_URL via `.secrets/database_url` (written once per host
   by `bootstrap_tencent.sh`) before Python starts — the python fallback
@@ -61,15 +61,16 @@ from pathlib import Path
 def _resolve_database_url():
     """Resolve DATABASE_URL with the canonical cloud path preferred.
 
-    Order: explicit env DATABASE_URL > dbtools.db_url.resolve_database_url().
-    db_url is in db/dbtools/ — we import it via the `dbtools` package; the
-    caller is expected to have `db` on PYTHONPATH (db/scripts/init_schema.sh
-    sets it for the operator).
+    Order: explicit env DATABASE_URL > db_url.resolve_database_url().
+    db_url lives directly at db/db_url.py (was previously at db/dbtools/
+    db_url.py — the dbtools package was flattened in the same refactor that
+    moved init_schema + migrations to backend/). The caller is expected to have
+    `db` on PYTHONPATH (db/scripts/init_schema.sh sets it for the operator).
     """
     explicit = os.environ.get("DATABASE_URL", "").strip()
     if explicit:
         return explicit
-    from dbtools.db_url import resolve_database_url  # noqa: E402
+    from db_url import resolve_database_url  # noqa: E402
     return resolve_database_url()
 
 

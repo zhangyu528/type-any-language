@@ -36,7 +36,7 @@ cmd_import() {
     echo ""
 
     if ! command -v python3 &> /dev/null; then
-        err "python3 未安装 — dbtools.importer 需要它"
+        err "python3 未安装 — importer 需要它"
         return 1
     fi
 

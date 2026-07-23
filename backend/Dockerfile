@@ -18,6 +18,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # 复制应用代码 + migrations
 # Migrations live at backend/migrations/ (moved from db/dbtools/migrations/
+# in the migrations-relocation refactor; db/dbtools/ was itself flattened
+# later — modules are now directly under db/ root).
 # so the model + migration + bootstrap trio stays co-located). The
 # migrations/ subdirectory is a Python package, so it must be in the
 # build context — COPY . . above already includes it.

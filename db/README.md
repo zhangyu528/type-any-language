@@ -25,9 +25,8 @@ db/
 │   ├── import_staging.sh     staging files → db UPSERT  (L 步)
 │   └── next_migration_prefix.sh  print next available 4-digit shared prefix
 │
-└── dbtools/                  Python implementation: importer + DSN helper
-    ├── db_url.py             minimal env-loader (POSTGRES_* → DATABASE_URL)
-    └── importer.py           staging files → db (UPSERT)
+├── db_url.py                  minimal env-loader (POSTGRES_* → DATABASE_URL)
+└── importer.py                staging files → db (UPSERT)
 ```
 
 Schema-related Python code (init_schema + migrations) lives under

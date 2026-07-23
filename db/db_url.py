@@ -1,12 +1,13 @@
 """
-db/dbtools/db_url.py — minimal env-loader for db-only modules.
+db/db_url.py — minimal env-loader for db-only modules.
 
-Lives next to init_schema.py + migrations/ because the schema code
-needs DATABASE_URL but should NOT depend on the data-pipeline's
-full Config object (cms/cms_pipeline/env.py loads TENCENT_*, AI_*,
-AUDIO_DIR — none of which are db concerns).
+Lives directly under db/ (was previously at db/db_url.py —
+the db/ package was a holdover from the bake-pipeline era
+when init_schema + migrations also lived here). Coexists with
+db/importer.py and db/scripts/* as db-side modules that have no
+dependency on the web framework or data-pipeline.
 
-This module assembles DATABASE_URL using only db-relevant variables
+Assembles DATABASE_URL using only db-relevant variables
 (POSTGRES_USER, POSTGRES_DB, POSTGRES_HOST, POSTGRES_PORT,
 POSTGRES_PASSWORD). It does NOT call any external dependencies
 (no psycopg2, no openai, no tencentcloud SDKs) and it does NOT
@@ -24,7 +25,9 @@ environment, typically:
 
 The legacy fallback to .secrets/postgres_password is retained as a
 defensive last-resort for direct invocations of
-`PYTHONPATH=db python3 -m dbtools.init_schema` / `dbtools.importer`
+`PYTHONPATH=db python3 -m init_schema` / `importer` (run from
+the project root; db/ itself becomes the package root after
+init_schema + migrations moved to backend/).
 without prior bootstrap (e.g. legacy ad-hoc CLI use where the operator
 composes POSTGRES_* env vars by hand). Cloud-db path exports
 DATABASE_URL via resolve_dev_db_url / resolve_prod_db_url before Python
@@ -50,12 +53,11 @@ _DEFAULT_POSTGRES_PORT = "5432"
 
 
 def find_project_root() -> Path:
-    """Project root = parent of this file's package's parent.
-    This file lives at db/dbtools/db_url.py → 3 hops up
-    (dbtools/ → db/ → project_root) gives the project
-    root.
+    """Project root = parent of this file's parent.
+    This file lives at db/db_url.py → 2 hops up
+    (db_url.py → db/ → project root).
     """
-    return Path(__file__).resolve().parent.parent.parent
+    return Path(__file__).resolve().parent.parent
 
 
 def resolve_database_url() -> str:

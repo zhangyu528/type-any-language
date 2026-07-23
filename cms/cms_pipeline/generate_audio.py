@@ -10,7 +10,7 @@ and update the sentence in the JSONL with the public URL.
 Pure file producer:
   - Reads sentences from JSONL files
   - Writes back to the same JSONL
-  - Does NOT touch the db (db side imports via dbtools.importer)
+  - Does NOT touch the db (db side imports via importer)
 
 The import order is: import_vocab → generate_sentences → generate_audio
 → import_staging. The importer reads each sentence's audio_url field

@@ -15,7 +15,7 @@
 #
 #   This shell script wraps `python -m init_schema` (run with
 #   PYTHONPATH=backend:db so it can find both backend/init_schema.py
-#   itself AND db/dbtools/db_url.py for the defensive DATABASE_URL
+#   itself AND db/db_url.py for the defensive DATABASE_URL
 #   fallback).
 #
 # Usage:
@@ -49,8 +49,8 @@ fi
 export PYTHONIOENCODING="${PYTHONIOENCODING:-utf-8}"
 
 # PYTHONPATH=backend:db — the init_schema + migrations Python packages
-# live at backend/ (init_schema.py and migrations/); the dbtools.db_url
-# defensive fallback lives at db/dbtools/db_url.py. Both directories
+# live at backend/ (init_schema.py and migrations/); the db_url
+# defensive fallback lives at db/db_url.py. Both directories
 # must be on PYTHONPATH so init_schema can import either.
 PYTHONPATH="${PROJECT_DIR}/backend${PYTHONPATH:+:$PYTHONPATH}" \
     python3 -m init_schema "$@"

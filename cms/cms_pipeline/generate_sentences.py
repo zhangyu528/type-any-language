@@ -10,7 +10,7 @@ Data flow:
         ↓
     cms/content/sentences/<lib>.jsonl   ← one sentence per line
         ↓
-    [db/scripts/import_staging.sh + dbtools.importer]
+    [db/scripts/import_staging.sh + importer]
         ↓
     sentences table (audio_url is empty; generate_audio.py fills it in)
 
@@ -31,7 +31,7 @@ Why this is a file producer (not a db writer):
     that the db side imports separately.
   - Failed re-runs of import_staging.sh don't need to re-run the
     expensive AI step (the JSONL is already on disk).
-  - The matching `dbtools.importer` reads the JSONL and UPSERTs
+  - The matching `importer` reads the JSONL and UPSERTs
     into the sentences table.
 
 How "which words need sentences" is decided:

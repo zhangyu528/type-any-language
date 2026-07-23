@@ -15,7 +15,7 @@ The data flow now is:
         ↓
     cms/content/vocabulary/<lib>.json
         ↓
-    [db/scripts/import_staging.sh + dbtools.importer]
+    [db/scripts/import_staging.sh + importer]
         ↓
     db (vocabulary_libs, vocabulary_words)
 
@@ -78,7 +78,7 @@ def find_project_root() -> Path:
 
     Walk: import_vocab.py → cms/ → tools/ → cms/ → project_root.
 
-    This module lives at cms/cms_pipeline/ (NOT db/dbtools/), so the
+    This module lives at cms/cms_pipeline/ (NOT db/), so the
     walk depth differs from the dbtools modules. Don't relocate this
     file without updating the count.
     """

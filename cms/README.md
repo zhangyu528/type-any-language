@@ -5,7 +5,7 @@
 - `cms/` 写文件 (E + T,只产出 staging 文件)
 - `db/` 把 staging 文件灌进云 db (L: `db/scripts/import_staging.sh` 直接 UPSERT 进 TencentDB)
 
-CMS 这边的 Python 模块不再直接连 db。db 侧 `dbtools.importer` 把 staging 文件 UPSERT 进 Postgres(云 db 或自管 db)。目标主机(prod / dev)通过 compose 跑 backend + frontend,运行时**不**感知 `cms/` 目录,也不感知 `db/` 目录 —— 它们读的是 `.secrets/database_url` 指向的 TencentDB。
+CMS 这边的 Python 模块不再直接连 db。db 侧 `importer` 把 staging 文件 UPSERT 进 Postgres(云 db 或自管 db)。目标主机(prod / dev)通过 compose 跑 backend + frontend,运行时**不**感知 `cms/` 目录,也不感知 `db/` 目录 —— 它们读的是 `.secrets/database_url` 指向的 TencentDB。
 
 ## 设计
 
@@ -36,8 +36,9 @@ db/
 │   ├── bootstrap_tencent.sh  # one-time ROLE/DB/GRANT + write .secrets/database_url
 │   ├── init_schema.sh        # CREATE TABLE IF NOT EXISTS(基础 DDL,幂等)
 │   ├── migrate.sh            # migrations.runner(apply pending migrations)
-│   └── import_staging.sh     # dbtools.importer —— staging 文件 UPSERT 进 db
-├── dbtools/             # Python 包 dbtools/(init_schema / migrations / importer / db_url)
+│   └── import_staging.sh     # importer —— staging 文件 UPSERT 进 db
+├── db_url.py           # POSTGRES_* / DATABASE_URL env assembler(防御性 fallback)
+├── importer.py         # CMS staging → cloud db UPSERT
 ```
 
 ## 段对照
@@ -47,7 +48,7 @@ db/
 | `cms/source/` | 业务内容描述 | 运维(人工) | ✓ | 否(只是输入) |
 | `cms/cms_pipeline/` | CMS 端 Python 工具集 | 开发者 | ✓ | 否(只在 CMS 主机跑) |
 | `cms/scripts/` | 操作员对 cms 跑的 shell 工具 | 开发者 | ✓ | 否 |
-| `db/`       | schema + importer + cloud-db bootstrap | 半自动(operator 跑 `bootstrap_tencent.sh`) | ✓ scripts + dbtools | 否(没有 db image 了 —— runtime db 是 TencentDB) |
+| `db/`       | schema + importer + cloud-db bootstrap | 半自动(operator 跑 `bootstrap_tencent.sh`) | ✓ scripts + db_url/importer | 否(没有 db image 了 —— runtime db 是 TencentDB) |
 
 ## ETL 流向
 
@@ -64,7 +65,7 @@ cms/content/sentences/<lib>.jsonl
                                                                             
                 db 主机(任意能 reach 云 db 的机器,通常是 CMS 主机)
 ==========================================================================  边界
-        ↓  db/scripts/import_staging.sh (dbtools.importer all)              (L: Load)
+        ↓  db/scripts/import_staging.sh (importer all)              (L: Load)
 TencentDB(vocabulary_libs + vocabulary_words + sentences)
                                                                             
         ↓  目标主机的 ops/{dev,prod}/lifecycle.sh start
@@ -82,14 +83,14 @@ frontend 请求 /api/sentences/random
 | 你想... | 跑 |
 |---|---|
 | 编辑了 CSV / 改了 manifest / 改了 prompt | `cms/scripts/staging.sh vocab\|sentences\|audio` (单步;仅写文件) |
-| 把所有 staging 文件一次性灌到云 db | `db/scripts/import_staging.sh` (dbtools.importer;幂等,re-run 无害) |
+| 把所有 staging 文件一次性灌到云 db | `db/scripts/import_staging.sh` (importer;幂等,re-run 无害) |
 | 把整条 ETL 跑完 | `cms/run.sh` (E+T) **→** `db/scripts/import_staging.sh all` (L) 两段独立跑 |
 | 在云 db 上建表 / 跑迁移 | `db/scripts/init_schema.sh` + `db/scripts/migrate.sh` |
 | 一次性给某 target host 创建 ROLE / DATABASE | `ops/{dev,prod}/setup.sh bootstrap` (调 `db/scripts/bootstrap_tencent.sh`) |
 
 > **CMS 写的 vs db 管的 (ETL 拆分版)**:
 > - CMS **E + T**:import_vocab / generate_sentences / generate_audio,只产文件
-> - db **L**:dbtools.importer 把 staging 文件 UPSERT 进云 db
+> - db **L**:importer 把 staging 文件 UPSERT 进云 db
 > - **唯一的桥** 是 `cms/content/` 这个目录。CMS 完全不知道 schema 长啥样;db 完全不知道 TTS / OpenAI 是啥
 
 ## CMS host 一次性 bootstrap

@@ -2,7 +2,7 @@
 #
 # cms/run.sh — drive the CMS side of ETL end-to-end (without
 # the Load step). Equivalent to the old "pipeline.sh": runs every
-# CMS-side step (E + T) and exits. The Load step (dbtools.importer)
+# CMS-side step (E + T) and exits. The Load step (importer)
 # is db's job and runs as a separate command:
 #
 #   ./db/scripts/import_staging.sh all    ← this script does NOT call it
