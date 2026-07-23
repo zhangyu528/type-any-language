@@ -113,7 +113,7 @@ case "$OPS_TIER" in
         USER_FILE="$PROJECT_DIR/.secrets/tencent_db_user"
         HOST_FILE="$PROJECT_DIR/.secrets/tencent_db_host"
         RESOLVE_DB_URL_FN="resolve_dev_db_url"
-        PERSIST_DB_NAME=1
+        # Per-branch dbs (mode 2): no .dev/dev-db-name write needed.
         ;;
     prod)
         ROLE_NAME="english_prod_user"
@@ -122,7 +122,7 @@ case "$OPS_TIER" in
         USER_FILE="$PROJECT_DIR/.secrets/tencent_db_prod_user"
         HOST_FILE="$PROJECT_DIR/.secrets/tencent_db_host"  # shared infra
         RESOLVE_DB_URL_FN="resolve_prod_db_url"
-        PERSIST_DB_NAME=0  # english_prod is fixed; no .dev/dev-db-name write
+        # prod db name is fixed (english_prod); also no persistence needed.
         ;;
     *)
         err "OPS_TIER must be 'dev' or 'prod' (got: $OPS_TIER)"
@@ -269,14 +269,16 @@ ok "wrote $DATABASE_URL_FILE"
 info "  $(echo "$DATABASE_URL" | sed -E 's|://[^:]+:[^@]+@|://***:***@|')"
 
 # ---------------------------------------------------------------------------
-# Step 8: persist db name for branch-switch reuse (dev only)
+# Step 8: NO-OP in mode 2 (per-branch db).
+#
+# Historically this script wrote `$DB_NAME` to `.dev/dev-db-name` so
+# that subsequent renders could read it back. With per-branch dbs,
+# the db name is derived from the current git branch on every render,
+# so there is nothing to persist. We keep `persist_db_name` defined
+# in db/scripts/lib.sh for callers that still want it (e.g. an
+# explicit override pinning), but bootstrap itself no longer writes.
 # ---------------------------------------------------------------------------
-if [ "$PERSIST_DB_NAME" = "1" ]; then
-    persist_db_name "$DB_NAME"
-    ok "persisted $PROJECT_DIR/.dev/dev-db-name"
-else
-    info "  skip persist_db_name (prod tier — db name is fixed at $DB_NAME)"
-fi
+# (intentionally no-op)
 
 # ---------------------------------------------------------------------------
 # Summary

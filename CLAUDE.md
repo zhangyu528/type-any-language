@@ -30,6 +30,57 @@ from a host-side `.secrets/database_url` file written by `db/scripts/bootstrap_t
 `ALLOWED_ORIGINS`) is passed via shell env, and the DSN is the `.secrets/database_url`
 file. The cloud db's password is provisioned once per host by `setup.sh bootstrap`.
 
+### Dev db lifecycle (per-branch)
+
+The dev db on TencentDB is **per-branch** (mode 2): each git branch maps
+to its own logical database, derived live from `git rev-parse --abbrev-ref HEAD`.
+
+Naming rules (`db/scripts/lib.sh::render_db_name`):
+
+| Current git state | Database name |
+|---|---|
+| `master` / `main` (any user `$USER`)         | `english_dev_${USER}` |
+| Other branch (e.g. `feat/sentence-links`)    | `english_dev_${USER}__feat_sentence_links` |
+| Detached HEAD                                  | `english_dev_${USER}__<short SHA>` |
+| Detached + `$USER` empty                       | `english_dev_runner__<short SHA>` |
+| Override env `DEV_DB_NAME=foo`                 | `foo` (no derivation) |
+
+Lifecycle:
+
+1. **Created lazily** by `db/scripts/bootstrap_tencent.sh` on a host's first
+   `setup.sh bootstrap` (CREATE DATABASE IF NOT EXISTS — re-running is idempotent).
+2. **Persisted on the cloud db server**, not locally. Deleting the working tree
+   or `git branch -d` does NOT delete the db. Use `make dev-db-list` to see
+   what's accumulated and `make dev-db-drop <name>` (or `--all-untouched`) to
+   clean up after merged feature branches.
+3. **Schema + content are reconstructed from git on demand**: dropping a dev
+   db and re-bootstrapping re-applies migrations (via `make dev-migrate` or
+   `./ops/dev/setup.sh bootstrap`) and re-imports content from
+   `cms/content/` (via `make dev-import-content`). Git is the source of
+   truth; the cloud db is a derived state.
+4. **Switching git branches switches dbs implicitly**: `git checkout master`
+   on `alice`'s host lands on `english_dev_alice`; `git checkout feat/x`
+   lands on `english_dev_alice__feat_x`. Each one's schema and content
+   state is preserved across that branch's `make dev-restart` cycles.
+
+Operators who don't want per-branch isolation can still pin a single db
+via `DEV_DB_NAME=foo make dev-start` (bypasses derivation entirely).
+
+Why per-branch (not "one fixed dev db"): the per-user `_${USER}` suffix
+already isolates between teammates, but the same user working on
+multiple features simultaneously (e.g. `master` + `feat/x` + `feat/y`
+in three vscode windows) needs each feature's schema and content
+independent of the others — otherwise migration `0012` on `feat/x`
+would bleed into the `feat/y` workflow.
+
+Tools:
+
+```bash
+make dev-db-list              # list user's dev dbs + sizes
+make dev-db-drop NAME=...    # drop one (refuses non-user dbs)
+./ops/dev/db_drop.sh --all-untouched  # drop dbs whose branch no longer exists locally
+```
+
 ### Dev host can also import + migrate on demand
 
 The "target hosts are a pure read-layer" rule above has two dev-only opt-ins:

@@ -13,10 +13,11 @@
 # ignore entry is belt-and-suspenders against a crash mid-fetch.
 /.fetch-*
 
-# Dev-only per-branch state (cloud-db era).
-# .dev/dev-db-name  — persists the db name chosen for the current
-#                     git branch / SHA so the same db is reused across
-#                     restarts. Written by ops/dev/setup.sh.
+# Dev-only per-branch state (cloud-db era, mode 2 per-branch dbs).
+# .dev/ is gitignored wholesale even though it's currently mostly
+# empty — `.dev/dev-db-name` is no longer written by bootstrap_tencent.sh
+# (render_db_name derives from git branch every time). Kept as a
+# directory gitignore in case future per-host state lands here again.
 .dev/
 
 # OS

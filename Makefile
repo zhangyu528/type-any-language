@@ -58,6 +58,14 @@ dev-migrate:
 dev-import-content:
 	@bash ops/dev/import_content.sh
 
+## dev-db-list: list user's dev dbs on the shared cloud db (read-only)
+dev-db-list:
+	@bash ops/dev/db_list.sh
+
+## dev-db-drop <name>: drop a per-user dev db from the cloud db (irreversible)
+dev-db-drop:
+	@bash ops/dev/db_drop.sh
+
 ## dev-build: build english_backend_dev + english_frontend_dev images
 dev-build:
 	@bash ops/dev/build_image.sh

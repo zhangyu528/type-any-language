@@ -188,13 +188,25 @@ resolve_tencent_db_password() {
 #
 # Override chain:
 #   1. DEV_DB_NAME env             (CI / tests / explicit override)
-#   2. .dev/dev-db-name            (persisted by ops/dev/setup.sh after first render)
-#   3. Derived from git
+#   2. Derived from current git branch / SHA
 #
-# The persisted file lets the same db be reused across restarts on the
-# same branch — without it, switching git branches and back would mint
-# a new db name every time, defeating the "preserve state across
-# lifecycle.sh restart" goal.
+# Per-branch db (mode 2): each git branch maps to its own db name. Cutting
+# branches no longer "stays on the old db" — each checkout derives a
+# fresh db name. The previous design persisted a single name in
+# `.dev/dev-db-name` so any branch would silently use the master db;
+# that caused drift (migrations on a feature branch would write to a
+# db built from the master schema). The persisted file is no longer
+# read by render_db_name. Operators who want to use a specific db name
+# across branches can still set DEV_DB_NAME env (e.g. shared CI db).
+#
+# Lifecycle of per-branch dbs:
+#   - Created lazily by bootstrap_tencent.sh (CREATE DATABASE IF NOT EXISTS)
+#   - Persisted on the cloud db server; deleting the working tree or
+#     git branch does NOT delete the db. Use ops/dev/db_drop.sh to
+#     remove no-longer-needed dbs.
+#   - master branch has no suffix, so its db name is stable across
+#     users (alice on master → english_dev_alice; bob on master →
+#     english_dev_bob). Each user's master db is independent.
 #
 # Sanitization: branch names can contain '/' and other URL-unsafe chars.
 # We allow [A-Za-z0-9_-] only, collapse others to '_', and cap at 40
@@ -211,12 +223,7 @@ render_db_name() {
         echo "$DEV_DB_NAME"
         return 0
     fi
-    # 2. Persisted.
-    if [ -f "$start/.dev/dev-db-name" ]; then
-        _read_secret "$start/.dev/dev-db-name"
-        return 0
-    fi
-    # 3. Derived.
+    # 2. Derived from current git state.
     local branch short_sha user prefix suffix
     branch="$(cd "$start" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
     short_sha="$(cd "$start" && git rev-parse --short HEAD 2>/dev/null || echo "")"
@@ -249,8 +256,15 @@ render_db_name() {
     echo "${prefix}__${suffix}"
 }
 
-# persist_db_name <name> — writes <name> to .dev/dev-db-name for future
-# calls. Caller has already decided what name to use; this just records it.
+# persist_db_name <name> — writes <name> to .dev/dev-db-name.
+#
+# DEPRECATED. With per-branch dbs (mode 2) the render_db_name always
+# derives from the current git branch, so persisting a name is no
+# longer needed. This function is kept for the rare case where an
+# operator wants to pin a single db name across branches via the
+# `DEV_DB_NAME` env var — in that case they can also write the file
+# manually if a tool wants to keep that as fallback input. No caller
+# in this repo invokes persist_db_name at the time of writing.
 persist_db_name() {
     local name="$1"
     local root="$(_db_lib_find_repo_root)"
@@ -262,6 +276,8 @@ persist_db_name() {
     chmod 700 "$root/.dev"
     printf '%s\n' "$name" > "$root/.dev/dev-db-name"
     chmod 600 "$root/.dev/dev-db-name"
+    warn "persist_db_name is deprecated — render_db_name no longer reads .dev/dev-db-name"
+    warn "  delete .dev/dev-db-name if you want per-branch resolution"
 }
 
 # ---------------------------------------------------------------------------
