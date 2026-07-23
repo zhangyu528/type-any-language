@@ -8,9 +8,9 @@
 #   ./db/scripts/import_staging.sh all    ← this script does NOT call it
 #
 # What it does (in order):
-#   (b) cms/scripts/cmd_vocab.sh         — CSVs → cms/staging/vocabulary/<lib>.json
+#   (b) cms/scripts/cmd_vocab.sh         — CSVs → cms/content/vocabulary/<lib>.json
 #       (硬依赖 — 失败则整个 driver 退出 1)
-#   (c) cms/scripts/cmd_sentences.sh    — AI-fill → cms/staging/sentences/<lib>.jsonl
+#   (c) cms/scripts/cmd_sentences.sh    — AI-fill → cms/content/sentences/<lib>.jsonl
 #       (best-effort — 缺 AI_* 则 skip; API 失败 → warn 但继续)
 #   (d) cms/scripts/cmd_audio.sh        — TTS-fill → 更新 audio_url
 #       (best-effort — 缺 TENCENT_* 则 skip; TTS 失败 → warn 但继续)
@@ -159,11 +159,11 @@ cmd_run() {
 
     # (b) vocab CSVs → staging JSON files (idempotent — skip-existing).
     #     The CMS pipeline no longer writes db directly. Output files
-    #     land in cms/staging/vocabulary/<lib>.json.
+    #     land in cms/content/vocabulary/<lib>.json.
     run_step "vocab (CSVs → staging JSON)" \
         "$SCRIPT_DIR/scripts/cmd_vocab.sh" || return 1
 
-    # (c) AI-fill sentences. Writes to cms/staging/sentences/<lib>.jsonl.
+    # (c) AI-fill sentences. Writes to cms/content/sentences/<lib>.jsonl.
     #     Hard fail if AI_* env is missing — see cmd_run() header for
     #     why. Best-effort is only for the *API call* (network errors
     #     warn but continue so partial work isn't lost), not for env.
@@ -195,7 +195,7 @@ cmd_run() {
 
     # NOTE: Load (db/scripts/import_staging.sh) is NOT here on purpose —
     # it's db's responsibility and runs separately. See header doc.
-    ok "  CMS driver 完成 — staging 文件已写到 cms/staging/"
+    ok "  CMS driver 完成 — staging 文件已写到 cms/content/"
     info "  下一步 (db 端独立步骤):"
     info "    ./db/scripts/import_staging.sh all    # UPSERT staging 文件 → 云 db"
     return 0
@@ -212,7 +212,7 @@ usage() {
 典型工作流 (CMS 主机,两段独立步骤):
   ./cms/scripts/bootstrap.sh                       # 一次性:装 deps + 验 gh/auth + 打印 eval 行
   eval "\$(./scripts/secrets/fetch_secrets.sh eval-cms)"   # 注入 AI/TENCENT/CLOUD 密钥
-  ./cms/run.sh                                     # E+T → cms/staging/
+  ./cms/run.sh                                     # E+T → cms/content/
   ./db/scripts/import_staging.sh all               # db: UPSERT staging 文件 → 云 db (L)
 
 注意:

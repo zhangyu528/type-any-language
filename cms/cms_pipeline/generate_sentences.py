@@ -4,11 +4,11 @@ generate_sentences.py — bulk-generate sentence JSONL files from vocab
 JSON files. Pure file producer: does NOT touch the db.
 
 Data flow:
-    cms/staging/vocabulary/<lib>.json    ← import_vocab output
+    cms/content/vocabulary/<lib>.json    ← import_vocab output
         ↓
     [generate_sentences.py]                    ← THIS MODULE
         ↓
-    cms/staging/sentences/<lib>.jsonl   ← one sentence per line
+    cms/content/sentences/<lib>.jsonl   ← one sentence per line
         ↓
     [db/scripts/import_staging.sh + dbtools.importer]
         ↓
@@ -75,12 +75,12 @@ def find_project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent
 
 
-def find_staging_dir() -> Path:
-    """Where vocab/sentences files go. Default: cms/staging/.
+def find_content_dir() -> Path:
+    """Where vocab/sentences files go. Default: cms/content/.
 
-    Override via CMS_STAGING_DIR (rare; for tests).
+    Override via CMS_CONTENT_DIR (rare; for tests).
     """
-    env = os.environ.get("CMS_STAGING_DIR", "").strip()
+    env = os.environ.get("CMS_CONTENT_DIR", "").strip()
     if env:
         return Path(env)
     return find_project_root() / "cms" / "staging"
@@ -366,7 +366,7 @@ def main() -> int:
     target_lib_ids = (args.lib,) if args.lib else all_lib_ids
     manifest_libs_by_id = {lib.id: lib for lib in manifest.all_libs()}
 
-    staging = find_staging_dir()
+    content = find_content_dir()
     if not args.dry_run:
         (staging / STAGING_SENTENCES_DIRNAME).mkdir(parents=True, exist_ok=True)
 

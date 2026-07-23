@@ -1,6 +1,6 @@
 # cms —— 内容生产
 
-这个目录是 **CMS 内容生产** 的根 —— CMS 主机上跑 Python 工具链、调用 OpenAI / 腾讯 TTS、把内容写到 **staging 文件** (`cms/staging/`)。**db 写入** 在仓库根的 [`../db/`](../db/) —— 拆分后,这是两个并列的子项目,职责清楚分开:
+这个目录是 **CMS 内容生产** 的根 —— CMS 主机上跑 Python 工具链、调用 OpenAI / 腾讯 TTS、把内容写到 **staging 文件** (`cms/content/`)。**db 写入** 在仓库根的 [`../db/`](../db/) —— 拆分后,这是两个并列的子项目,职责清楚分开:
 
 - `cms/` 写文件 (E + T,只产出 staging 文件)
 - `db/` 把 staging 文件灌进云 db (L: `db/scripts/import_staging.sh` 直接 UPSERT 进 TencentDB)
@@ -55,12 +55,12 @@ db/
                 CMS 主机 (Python, 不连 DB)
 cms/source/vocabulary/*.csv                                                  (源)
         ↓  cms/scripts/staging.sh vocab (import_vocab.py)                     (E: Extract)
-cms/staging/vocabulary/<lib>.json
+cms/content/vocabulary/<lib>.json
         ↓  cms/scripts/staging.sh sentences (generate_sentences.py, OpenAI)  (T: Transform)
-cms/staging/sentences/<lib>.jsonl
+cms/content/sentences/<lib>.jsonl
         ↓  cms/scripts/staging.sh audio     (generate_audio.py, TTS → Storage)
         ↓      (audio_url 字段被填入; mp3 落到 COS 或 cms/.local/audio/)
-cms/staging/sentences/<lib>.jsonl
+cms/content/sentences/<lib>.jsonl
                                                                             
                 db 主机(任意能 reach 云 db 的机器,通常是 CMS 主机)
 ==========================================================================  边界
@@ -90,7 +90,7 @@ frontend 请求 /api/sentences/random
 > **CMS 写的 vs db 管的 (ETL 拆分版)**:
 > - CMS **E + T**:import_vocab / generate_sentences / generate_audio,只产文件
 > - db **L**:dbtools.importer 把 staging 文件 UPSERT 进云 db
-> - **唯一的桥** 是 `cms/staging/` 这个目录。CMS 完全不知道 schema 长啥样;db 完全不知道 TTS / OpenAI 是啥
+> - **唯一的桥** 是 `cms/content/` 这个目录。CMS 完全不知道 schema 长啥样;db 完全不知道 TTS / OpenAI 是啥
 
 ## CMS host 一次性 bootstrap
 

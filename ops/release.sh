@@ -15,7 +15,7 @@
 # english_backend at the same tag; same for frontend/VERSION.
 #
 # The runtime database is TencentDB — there is no db image in the
-# release pipeline. Content goes straight from cms/staging/ into the
+# release pipeline. Content goes straight from cms/content/ into the
 # cloud db via db/scripts/import_staging.sh (run on the CMS host,
 # separately from this release script). Dev / prod hosts only need the
 # backend + frontend images.

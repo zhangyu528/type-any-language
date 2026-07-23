@@ -3,7 +3,7 @@
 dbtools.importer — read CMS staging files → write to db.
 
 This module is the **only** place that knows both "what CMS produced
-in cms/staging/" and "what the db schema looks like". The
+in cms/content/" and "what the db schema looks like". The
 CMS pipeline (cms/cms_pipeline/{import_vocab,generate_sentences,
 generate_audio}.py) produces JSON / JSONL files in staging/. This
 importer reads them and applies the changes to the db.
@@ -18,7 +18,7 @@ Why a separate module:
     AI/TTS steps
 
 Staging layout produced by the CMS pipeline:
-    cms/staging/
+    cms/content/
     ├── vocabulary/
     │   └── <lib>.json            # list of {word, phonetic, ...}
     ├── sentences/
@@ -76,26 +76,26 @@ def find_project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent
 
 
-def find_staging_dir() -> Path:
-    """The CMS pipeline writes here. Default: cms/staging/.
-    Override via CMS_STAGING_DIR env var (rare — for tests)."""
-    env = os.environ.get("CMS_STAGING_DIR", "").strip()
+def find_content_dir() -> Path:
+    """The CMS pipeline writes here. Default: cms/content/.
+    Override via CMS_CONTENT_DIR env var (rare — for tests)."""
+    env = os.environ.get("CMS_CONTENT_DIR", "").strip()
     if env:
         return Path(env)
-    return find_project_root() / "cms" / "staging"
+    return find_project_root() / "cms" / "content"
 
 
 # ---------------------------------------------------------------------------
 # Vocab importer
 # ---------------------------------------------------------------------------
-def import_vocab(staging: Path, conn) -> dict:
+def import_vocab(content: Path, conn) -> dict:
     """Read vocabulary/<lib>.json files and UPSERT lib + word rows.
 
     Returns stats: {lib_id: word_count_inserted}
     """
     import psycopg2.extras
 
-    vocab_dir = staging / "vocabulary"
+    vocab_dir = content / "vocabulary"
     if not vocab_dir.is_dir():
         return {}
 
@@ -193,7 +193,7 @@ def _upsert_words(cur, lib_id: str, words: list) -> int:
 # ---------------------------------------------------------------------------
 # Sentence importer
 # ---------------------------------------------------------------------------
-def import_sentences(staging: Path, conn) -> dict:
+def import_sentences(content: Path, conn) -> dict:
     """Read sentences/<lib>.jsonl files and UPSERT sentence rows.
 
     Each line is a JSON object: {text, difficulty, audio_url?, ...}.
@@ -203,7 +203,7 @@ def import_sentences(staging: Path, conn) -> dict:
     """
     import psycopg2.extras
 
-    sent_dir = staging / "sentences"
+    sent_dir = content / "sentences"
     if not sent_dir.is_dir():
         return {}
 
@@ -295,7 +295,7 @@ def _upsert_sentence(cur, lib_id: str, s: dict) -> bool:
 # ---------------------------------------------------------------------------
 # Audio importer (no-op for now — audio updates ride along with sentences)
 # ---------------------------------------------------------------------------
-def import_audio(staging: Path, conn) -> dict:
+def import_audio(content: Path, conn) -> dict:
     """Audio URLs are updated in-place by the sentences importer
     (audio_url field in the sentences.jsonl is re-read on every
     import_sentences call). This stub exists for ETL symmetry: the
@@ -332,9 +332,9 @@ def main() -> int:
     # resolution chain.
     database_url = resolve_database_url()
 
-    staging = find_staging_dir()
-    if not staging.is_dir():
-        print(f"[ERR] staging dir not found: {staging}", file=sys.stderr)
+    content = find_content_dir()
+    if not content.is_dir():
+        print(f"[ERR] content dir not found: {content}", file=sys.stderr)
         print(f"      (run the CMS pipeline first: cms/run.sh)", file=sys.stderr)
         return 1
 
@@ -352,23 +352,43 @@ def main() -> int:
     }
 
     if args.dry_run:
-        print(f"[dry-run] staging dir: {staging}")
-        for f in (staging / "vocabulary").glob("*.json") if (staging / "vocabulary").is_dir() else []:
+        print(f"[dry-run] content dir: {content}")
+        for f in (content / "vocabulary").glob("*.json") if (content / "vocabulary").is_dir() else []:
             data = json.loads(f.read_text(encoding="utf-8"))
             print(f"[dry-run]   vocabulary/{f.name}: {len(data.get('words', []))} words")
-        for f in (staging / "sentences").glob("*.jsonl") if (staging / "sentences").is_dir() else []:
+        for f in (content / "sentences").glob("*.jsonl") if (content / "sentences").is_dir() else []:
             n = sum(1 for line in f.read_text(encoding="utf-8").splitlines() if line.strip())
             print(f"[dry-run]   sentences/{f.name}: {n} lines")
         return 0
 
     import psycopg2
+    summary = {"vocab": 0, "sentences_inserted": 0, "sentences_updated": 0, "audio": 0}
     with psycopg2.connect(database_url) as conn:
         for stage in stages:
-            stats = stage_funcs[stage](staging, conn)
+            stats = stage_funcs[stage](content, conn)
             if stats:
                 print(f"[importer] {stage}: {stats}")
+                if stage == "vocab":
+                    summary["vocab"] = sum(int(v) for v in stats.values())
+                elif stage == "sentences":
+                    for v in stats.values():
+                        summary["sentences_inserted"] += int(v.get("inserted", 0))
+                        summary["sentences_updated"] += int(v.get("updated", 0))
+                elif stage == "audio":
+                    summary["audio"] = sum(int(v.get("upserted", v.get("updated", 0))) for v in stats.values()) if stats else 0
         conn.commit()
-    print("[importer] done")
+
+    parts = []
+    if "vocab" in stages:
+        parts.append(f"{summary['vocab']} words")
+    if "sentences" in stages:
+        parts.append(f"{summary['sentences_inserted']} sentences inserted, {summary['sentences_updated']} updated")
+    if "audio" in stages:
+        parts.append(f"{summary['audio']} audio URLs upserted")
+    if parts:
+        print(f"[importer] done — {', '.join(parts)}")
+    else:
+        print("[importer] done")
     return 0
 
 

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-English learning web app — plays a sentence's audio and the user types the complete sentence. **The runtime database lives in Tencent Cloud (TencentDB) Postgres, not in a baked Docker image.** Target hosts (dev / prod) are a pure read-layer: no AI calls, no TTS calls, no scheduler, no db container — just `backend` + `frontend` (and `nginx` on prod). The CMS host produces staging files (`cms/staging/`); `db/scripts/import_staging.sh` UPSERTs them straight into the live cloud db.
+English learning web app — plays a sentence's audio and the user types the complete sentence. **The runtime database lives in Tencent Cloud (TencentDB) Postgres, not in a baked Docker image.** Target hosts (dev / prod) are a pure read-layer: no AI calls, no TTS calls, no scheduler, no db container — just `backend` + `frontend` (and `nginx` on prod). The CMS host produces staging files (`cms/content/`); `db/scripts/import_staging.sh` UPSERTs them straight into the live cloud db.
 
 ## Three-segment architecture
 
@@ -37,7 +37,7 @@ The "target hosts are a pure read-layer" rule above has two dev-only opt-ins:
 - **`ops/dev/migrate.sh`** — apply pending schema migrations to the live cloud
   db (host-side runner, no sidecar container). Use after editing
   `backend/migrations/versions/*.py`.
-- **`db/scripts/import_staging.sh`** — UPSERT `cms/staging/` into the cloud db.
+- **`db/scripts/import_staging.sh`** — UPSERT `cms/content/` into the cloud db.
   Operators typically run this on the CMS host, but a dev host with
   `DATABASE_URL` in env can run it too.
 
@@ -45,7 +45,7 @@ The "target hosts are a pure read-layer" rule above has two dev-only opt-ins:
 
 The CMS/db split follows an ETL pattern: **E**xtract (CSVs) and
 **T**ransform (AI / TTS) live entirely on the CMS side as files in
-`cms/staging/`; the **L**oad (UPSERT into TencentDB) is a separate
+`cms/content/`; the **L**oad (UPSERT into TencentDB) is a separate
 step (`db/scripts/import_staging.sh`) run on any host with
 `DATABASE_URL` exported — typically the CMS host, but a dev host
 with `DATABASE_URL` can do it too. There is no db image — the cloud
@@ -89,7 +89,6 @@ block + `DATABASE_URL_FILE`.
 │   │   ├── vocabulary/   # CSVs per lib
 │   │   └── prompts/      # LLM prompts (sentences.yaml)
 │   ├── scripts/          # CMS shell tools (staging.sh; not entry)
-│   │   └── staging.sh    # E+T file producer wrapper
 │   │   └── staging.sh    # E+T file producer wrapper
 │   ├── cms_pipeline/     # Python package (manifest / import_vocab / generate_sentences / generate_audio / storage / env)
 │   │   └── README.md
@@ -189,8 +188,8 @@ eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"
 
 | Step | Tool | What it writes |
 |---|---|---|
-| vocab (CSV → JSON) | `cms/cms_pipeline/import_vocab.py` | `cms/staging/vocabulary/<lib>.json` |
-| sentences (AI → JSONL) | `cms/cms_pipeline/generate_sentences.py` | appends to `cms/staging/sentences/<lib>.jsonl` |
+| vocab (CSV → JSON) | `cms/cms_pipeline/import_vocab.py` | `cms/content/vocabulary/<lib>.json` |
+| sentences (AI → JSONL) | `cms/cms_pipeline/generate_sentences.py` | appends to `cms/content/sentences/<lib>.jsonl` |
 | audio (TTS → URL) | `cms/cms_pipeline/generate_audio.py` | updates `audio_url` field in sentences JSONL |
 | import (files → db) | **`db/dbtools/importer.py`** | UPSERT into `vocabulary_libs` / `vocabulary_words` / `sentences` |
 | bake (db -> image) | *(retired)* | runtime db is TencentDB - no image bake |
@@ -198,7 +197,7 @@ eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"
 The CMS pipeline (steps vocab/sentences/audio) **never** opens a db connection.
 Only `dbtools.importer` touches Postgres. To re-run a single CMS step
 (e.g. you edited a CSV and only need to re-run the vocab step), there is no
-need to touch the database at all; the files in `cms/staging/` are the stable
+need to touch the database at all; the files in `cms/content/` are the stable
 artifact until you decide to import.
 
 ### Dev target host
@@ -218,7 +217,7 @@ artifact until you decide to import.
                                           # dev host does NOT push (stay local)
 ./ops/prod/build_image.sh       # build english_backend + english_frontend
 ./ops/prod/push_image.sh -y     # push prod backend+frontend to DOCKER_REGISTRY
-./db/scripts/import_staging.sh all   # UPSERT latest cms/staging/ content into cloud db
+./db/scripts/import_staging.sh all   # UPSERT latest cms/content/ content into cloud db
 ```
 
 No `.env.dev` is needed. The dev compose file defaults `ALLOWED_ORIGINS` to `http://localhost,http://localhost:3000`; override via shell env. The cloud-db DSN comes from `.secrets/database_url` (written by `setup.sh bootstrap`) or `DATABASE_URL` in env.
@@ -381,7 +380,7 @@ Content (staging files → cloud db UPSERT) is a separate workflow:
 
 ```bash
 # On the CMS host (or any host with DATABASE_URL):
-./cms/run.sh                                # produce cms/staging/* (vocab + sentences + audio)
+./cms/run.sh                                # produce cms/content/* (vocab + sentences + audio)
 ./db/scripts/import_staging.sh all          # UPSERT into TencentDB
 ```
 
@@ -469,8 +468,8 @@ Answer validation is **client-side**: the frontend normalizes (lowercase, strip 
 
 **Content production (CMS host, ETL file-based):**
 1. Operator commits new CSVs to `cms/source/vocabulary/`.
-2. `staging.sh vocab` writes them to `cms/staging/vocabulary/<lib>.json` (no db write).
-3. `staging.sh sentences` calls OpenAI and appends to `cms/staging/sentences/<lib>.jsonl` up to `DEFAULT_BUCKET_TARGET_SIZE` per (lib, difficulty).
+2. `staging.sh vocab` writes them to `cms/content/vocabulary/<lib>.json` (no db write).
+3. `staging.sh sentences` calls OpenAI and appends to `cms/content/sentences/<lib>.jsonl` up to `DEFAULT_BUCKET_TARGET_SIZE` per (lib, difficulty).
 4. `staging.sh audio` calls Tencent TTS; MP3s land in the configured `Storage` (local `cms/.local/audio/` by default, or Tencent Cloud COS when `CLOUD_PROVIDER=tencent_cos`), and each sentence's `audio_url` field in the JSONL is set to the storage's `public_url(key)`.
 5. `db/scripts/import_staging.sh` reads the staging files and UPSERTs them into `vocabulary_libs` / `vocabulary_words` / `sentences` on the cloud db (`dbtools.importer`). Cloud DSN comes from `.secrets/database_url` (written by `db/scripts/bootstrap_tencent.sh` via `ops/{dev,prod}/setup.sh bootstrap`).
 
@@ -611,7 +610,7 @@ Required keys when running `./cms/scripts/staging.sh audio`
 
 - `TENCENT_SECRET_ID`, `TENCENT_SECRET_KEY`, `TENCENT_APP_ID` — Tencent Cloud TTS
 
-**`DATABASE_URL` is NOT a CMS secret and not read by CMS code.** CMS modules (vocab / sentences / audio) do not connect to the database — they only write files to `cms/staging/`. The db side (`db/scripts/bootstrap_tencent.sh` / `init_schema.sh` / `migrate.sh` / `import_staging.sh`) resolves `DATABASE_URL` from `.secrets/database_url` (written by `bootstrap_tencent.sh` once per host) or from `DATABASE_URL` shell env before invoking db-side Python. See [Where the database URL comes from](#where-the-database-url-comes-from) below.
+**`DATABASE_URL` is NOT a CMS secret and not read by CMS code.** CMS modules (vocab / sentences / audio) do not connect to the database — they only write files to `cms/content/`. The db side (`db/scripts/bootstrap_tencent.sh` / `init_schema.sh` / `migrate.sh` / `import_staging.sh`) resolves `DATABASE_URL` from `.secrets/database_url` (written by `bootstrap_tencent.sh` once per host) or from `DATABASE_URL` shell env before invoking db-side Python. See [Where the database URL comes from](#where-the-database-url-comes-from) below.
 
 For multi-host CMS or production, set `CLOUD_PROVIDER=tencent_cos` (plus `CLOUD_BUCKET` / `CLOUD_REGION` / `CLOUD_ACCESS_KEY` / `CLOUD_SECRET_KEY`) in the GH Environment. MP3s upload to the COS bucket instead of the local directory; `sentences.audio_url` becomes the full COS URL. See `cms/cms_pipeline/storage.py` for the abstraction.
 

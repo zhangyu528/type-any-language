@@ -6,7 +6,7 @@
 #
 # Why this lives in db/scripts/:
 #   This is the canonical Load step of the ETL — CMS produces files
-#   in cms/staging/, this script (via dbtools.importer) writes them
+#   in cms/content/, this script (via dbtools.importer) writes them
 #   to the db. The importer is the one place that knows both file
 #   format and schema, so it lives with the schema (db/dbtools/).
 #   This shell is its entry point.

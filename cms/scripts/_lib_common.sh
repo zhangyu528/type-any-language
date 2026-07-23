@@ -88,8 +88,8 @@ staging_usage_body() {
 用法: $0 <command>
 
 命令:
-  vocab         csv → cms/staging/vocabulary/<lib>.json (E: Extract)
-  sentences  调 OpenAI 追加句子到 cms/staging/sentences/<lib>.jsonl (T: Transform)
+  vocab         csv → cms/content/vocabulary/<lib>.json (E: Extract)
+  sentences  调 OpenAI 追加句子到 cms/content/sentences/<lib>.jsonl (T: Transform)
   audio      调 Tencent TTS 烤 MP3,更新 audio_url 字段 (T: Transform; 跳过已设的)
   -h|--help    显示本帮助
 

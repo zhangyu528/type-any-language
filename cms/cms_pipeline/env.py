@@ -12,7 +12,7 @@ get validated settings.
 Validation contract:
   - DATABASE_URL / POSTGRES_PASSWORD are NOT touched here. CMS modules
     do not connect to the database — they only write files to
-    cms/staging/. The db side (db/scripts/bootstrap_tencent.sh /
+    cms/content/. The db side (db/scripts/bootstrap_tencent.sh /
     init_schema.sh / migrate.sh / import_staging.sh) resolves DATABASE_URL
     itself from shell env or .secrets/database_url before invoking
     db-side Python.
@@ -75,7 +75,7 @@ class Config:
     # Staging output dir — where CMS writes vocabulary/sentences JSON+JSONL
     # files. git-tracked; consumed by db/scripts/import_staging.sh on
     # any host with DATABASE_URL (typically the CMS host).
-    staging_dir: str
+    content_dir: str
 
     # Cloud storage — Optional. Required only when CLOUD_PROVIDER is
     # anything other than "local_fs" (the default). Consumer modules
@@ -167,8 +167,8 @@ _DEFAULT_AUDIO_DIR = "cms/.local/audio"
 # the db's L step. CMS writes here; db/scripts/import_staging.sh reads
 # from here and UPSERTs into the cloud db.
 #
-# Override via CMS_STAGING_DIR in the shell (rare; mostly for tests).
-_DEFAULT_STAGING_DIR = "cms/staging"
+# Override via CMS_CONTENT_DIR in the shell (rare; mostly for tests).
+_DEFAULT_CONTENT_DIR = "cms/content"
 
 
 def load_config() -> Config:
@@ -181,7 +181,7 @@ def load_config() -> Config:
     clear error pointing at the specific subcommand that needs the
     missing keys.
 
-    Defaults provided for AUDIO_DIR, CMS_STAGING_DIR,
+    Defaults provided for AUDIO_DIR, CMS_CONTENT_DIR,
     DEFAULT_BUCKET_TARGET_SIZE.
 
     No DATABASE_URL / POSTGRES_* — CMS modules don't connect to the db.
@@ -199,7 +199,7 @@ def load_config() -> Config:
         tencent_secret_key=os.environ.get("TENCENT_SECRET_KEY") or None,
         tencent_app_id=os.environ.get("TENCENT_APP_ID") or None,
         audio_dir=os.environ.get("AUDIO_DIR", _DEFAULT_AUDIO_DIR),
-        staging_dir=os.environ.get("CMS_STAGING_DIR", _DEFAULT_STAGING_DIR),
+        content_dir=os.environ.get("CMS_CONTENT_DIR", _DEFAULT_CONTENT_DIR),
         # Cloud storage — default "local_fs" preserves the previous
         # "write to AUDIO_DIR" behavior. Other providers (tencent_cos)
         # require the operator to fill CLOUD_BUCKET / CLOUD_REGION /

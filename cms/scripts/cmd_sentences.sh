@@ -3,9 +3,9 @@
 # cmd_sentences.sh — sentences: 调 OpenAI 追加句子到 JSONL  (T: Transform)
 #
 # 薄壳 over python -m cms_pipeline.generate_sentences。flags 全透传。
-# 读取 cms/staging/vocabulary/<lib>.json 后,调 OpenAI 填到 bucket 大小
+# 读取 cms/content/vocabulary/<lib>.json 后,调 OpenAI 填到 bucket 大小
 # (默认 DEFAULT_BUCKET_TARGET_SIZE=200),追加到
-# cms/staging/sentences/<lib>.jsonl。
+# cms/content/sentences/<lib>.jsonl。
 #
 # 前置:AI_API_KEY / AI_BASE_URL / AI_MODEL 三个 env var 必须存在。
 # 失败时 doctor 会打印这条;
@@ -28,7 +28,7 @@ usage() {
     cat <<EOF
 用法: cmd_sentences.sh [--lib <name>...] [--target-size N] [--incremental] [--help]
 
-OpenAI 调 → cms/staging/sentences/<lib>.jsonl  (T: Transform)
+OpenAI 调 → cms/content/sentences/<lib>.jsonl  (T: Transform)
 
 薄壳 over python -m cms_pipeline.generate_sentences。flags 全透传。
 

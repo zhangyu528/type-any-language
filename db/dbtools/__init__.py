@@ -8,7 +8,7 @@ on `PYTHONPATH` because both are imported by host-side entry points
 the data-pipeline is loaded.
 
 Modules in this package:
-    importer    — CMS staging files (cms/staging/*) → cloud db UPSERT.
+    importer    — CMS staging files (cms/content/*) → cloud db UPSERT.
                   Called by db/scripts/import_staging.sh; never
                   reaches into the web framework.
     db_url      — minimal env assembler for db-only modules. Reads

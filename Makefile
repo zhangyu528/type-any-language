@@ -54,6 +54,10 @@ dev-watch:
 dev-migrate:
 	@bash ops/dev/migrate.sh
 
+## dev-import-content: import cms/content/ into dev cloud db (host-side runner)
+dev-import-content:
+	@bash ops/dev/import_content.sh
+
 ## dev-build: build english_backend_dev + english_frontend_dev images
 dev-build:
 	@bash ops/dev/build_image.sh
@@ -115,15 +119,15 @@ prod-push:
 ## cms-env-update KEY=VALUE: update one key, keep others unchanged
 # retired — see cms-env-init above.
 
-## cms-vocab: CSVs → cms/staging/vocabulary/<lib>.json (Extract)
+## cms-vocab: CSVs → cms/content/vocabulary/<lib>.json (Extract)
 cms-vocab:
 	@bash cms/scripts/staging.sh vocab
 
-## cms-sentences: OpenAI → cms/staging/sentences/<lib>.jsonl
+## cms-sentences: OpenAI → cms/content/sentences/<lib>.jsonl
 cms-sentences:
 	@bash cms/scripts/staging.sh sentences
 
-## cms-audio: Tencent TTS → fill audio_url in cms/staging/sentences/*
+## cms-audio: Tencent TTS → fill audio_url in cms/content/sentences/*
 cms-audio:
 	@bash cms/scripts/staging.sh audio
 
@@ -139,7 +143,7 @@ cms-run:
 # db — cloud-db (TencentDB) side: bootstrap + import + migrate
 # ---------------------------------------------------------------------------
 
-## db-import: import cms/staging/* into cloud db (UPSERT)
+## db-import: import cms/content/* into cloud db (UPSERT)
 db-import:
 	@bash db/scripts/import_staging.sh all
 

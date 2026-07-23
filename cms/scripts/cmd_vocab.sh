@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# cmd_vocab.sh — vocab sync: CSVs → cms/staging/vocabulary/<lib>.json  (E: Extract)
+# cmd_vocab.sh — vocab sync: CSVs → cms/content/vocabulary/<lib>.json  (E: Extract)
 #
 # 薄壳 over python -m cms_pipeline.import_vocab。flags 全透传。
 # 这是 cms/run.sh 里唯一一个"硬依赖"步骤:sentences / audio 是 best-effort,
@@ -26,7 +26,7 @@ usage() {
     cat <<EOF
 用法: cmd_vocab.sh [--lib <name>...] [--help]
 
-CSVs → cms/staging/vocabulary/<lib>.json  (E: Extract)
+CSVs → cms/content/vocabulary/<lib>.json  (E: Extract)
 
 薄壳 over python -m cms_pipeline.import_vocab。flags 全透传。
 被 cms/run.sh 与 cms/scripts/staging.sh 调用;可单独跑。

@@ -10,7 +10,7 @@
 #   - prod app images  (english_backend + english_frontend)
 #
 # The runtime database is TencentDB — there is no db image in the
-# build pipeline. Content goes straight from cms/staging/ into the
+# build pipeline. Content goes straight from cms/content/ into the
 # cloud db via db/scripts/import_staging.sh on the CMS host (a
 # separate step from this build script).
 #

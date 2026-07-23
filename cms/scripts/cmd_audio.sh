@@ -3,7 +3,7 @@
 # cmd_audio.sh — audio: 调 Tencent TTS 烤 MP3,更新 sentences.audio_url (T: Transform)
 #
 # 薄壳 over python -m cms_pipeline.generate_audio。flags 全透传。
-# 读 cms/staging/sentences/<lib>.jsonl,对 audio_url 为空的行调 Tencent TTS,
+# 读 cms/content/sentences/<lib>.jsonl,对 audio_url 为空的行调 Tencent TTS,
 # 上传到 Storage(默认 CLOUD_PROVIDER=local_fs 写 cms/.local/audio/;
 # tencent_cos 走 CLOUD_* 凭据上传到 COS bucket)。
 #
@@ -30,7 +30,7 @@ usage() {
     cat <<EOF
 用法: cmd_audio.sh [--lib <name>...] [--force] [--help]
 
-Tencent TTS 调 → 写 audio_url 到 cms/staging/sentences/<lib>.jsonl  (T: Transform)
+Tencent TTS 调 → 写 audio_url 到 cms/content/sentences/<lib>.jsonl  (T: Transform)
 
 薄壳 over python -m cms_pipeline.generate_audio。flags 全透传。
 

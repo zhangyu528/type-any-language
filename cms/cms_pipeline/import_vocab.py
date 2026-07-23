@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 import_vocab.py — read vocabulary CSVs (from cms/seed/manifest.yaml)
-→ write per-lib JSON files to cms/staging/vocabulary/<lib>.json.
+→ write per-lib JSON files to cms/content/vocabulary/<lib>.json.
 
 This module is a **pure producer** in the CMS pipeline:
   - Reads CSVs (declarative, manifest-driven)
@@ -13,7 +13,7 @@ The data flow now is:
         ↓
     [import_vocab.py]              ← THIS MODULE
         ↓
-    cms/staging/vocabulary/<lib>.json
+    cms/content/vocabulary/<lib>.json
         ↓
     [db/scripts/import_staging.sh + dbtools.importer]
         ↓
@@ -85,12 +85,12 @@ def find_project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent
 
 
-def find_staging_dir() -> Path:
-    """Where vocab/sentences files go. Default: cms/staging/.
+def find_content_dir() -> Path:
+    """Where vocab/sentences files go. Default: cms/content/.
 
-    Override via CMS_STAGING_DIR (rare; for tests).
+    Override via CMS_CONTENT_DIR (rare; for tests).
     """
-    env = os.environ.get("CMS_STAGING_DIR", "").strip()
+    env = os.environ.get("CMS_CONTENT_DIR", "").strip()
     if env:
         return Path(env)
     return find_project_root() / "cms" / "staging"
@@ -154,15 +154,15 @@ def read_csv_rows(csv_path: Path) -> list:
     return rows
 
 
-def write_staging_file(staging_dir: Path, lib: LibDef, rows: list, dry_run: bool) -> dict:
-    """Write one <lib>.json to staging_dir/vocabulary/.
+def write_content_file(content_dir: Path, lib: LibDef, rows: list, dry_run: bool) -> dict:
+    """Write one <lib>.json to content_dir/vocabulary/.
 
     Returns a status dict suitable for the per-lib summary line.
     """
     if not lib.csv_exists:
         return {"name": lib.id, "status": "missing", "csv": str(lib.csv_path)}
 
-    out_dir = staging_dir / "vocabulary"
+    out_dir = content_dir / "vocabulary"
     out_path = out_dir / f"{lib.level}.json"
 
     if dry_run:
@@ -229,7 +229,7 @@ def main() -> int:
     else:
         targets = list(manifest.all_libs())
 
-    staging = find_staging_dir()
+    content = find_content_dir()
     if not args.dry_run:
         staging.mkdir(parents=True, exist_ok=True)
 
@@ -242,10 +242,10 @@ def main() -> int:
     results = []
     for lib in targets:
         if not lib.csv_exists:
-            results.append(write_staging_file(staging, lib, [], dry_run=True))
+            results.append(write_content_file(staging, lib, [], dry_run=True))
             continue
         rows = read_csv_rows(lib.csv_path)
-        results.append(write_staging_file(staging, lib, rows, args.dry_run))
+        results.append(write_content_file(staging, lib, rows, args.dry_run))
 
     for r in results:
         if r["status"] == "missing":

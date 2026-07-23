@@ -9,7 +9,7 @@ This directory has nothing to do with the application backend (FastAPI / SQLAlch
 ## Responsibilities
 
 1. **Schema bootstrap** — `CREATE TABLE IF NOT EXISTS` for fresh dbs, plus ordered versioned `upgrade()` modules for in-place upgrades.
-2. **CMS staging import (L 步)** — read `cms/staging/` and UPSERT into the connected db (typically TencentDB on the CMS host). Idempotent; safe to re-run.
+2. **CMS staging import (L 步)** — read `cms/content/` and UPSERT into the connected db (typically TencentDB on the CMS host). Idempotent; safe to re-run.
 3. **Schema migrations** — apply pending versioned DDL to the connected db. Idempotent (runner.py stamps `schema_migrations`).
 4. **Cloud-db bootstrap** — one-time per host. `db/scripts/bootstrap_tencent.sh` (called from `ops/{dev,prod}/setup.sh bootstrap`) creates the host's ROLE + DATABASE on the shared TencentDB instance and writes `.secrets/database_url` for compose's `secrets:` block.
 
