@@ -29,6 +29,22 @@ from __future__ import annotations
 
 version = "0007_lesson_index"
 description = "vocabulary_words: +lesson_index (positional, per-lib, size=5)"
+# Marked rerunnable so the runner re-invokes upgrade() even when this
+# version is already stamped. upgrade() is idempotent:
+#   - ALTER TABLE ... ADD COLUMN IF NOT EXISTS  — no-op on re-run
+#   - The UPDATE re-derives lesson_index from row_number() on every call
+#     (overwrites any prior NULLs and existing values alike; this is
+#     the same UPDATE the fresh-apply path runs, so behaviour matches)
+#   - CREATE INDEX IF NOT EXISTS — no-op on re-run
+#
+# Why rerunnable: when first applied on a fresh db (vocabulary_words
+# empty), the UPDATE matches 0 rows. Later, import_content.sh UPSERTs
+# vocabulary_words — lesson_index stays NULL because the migration is
+# already stamped. Re-running on every backend start self-heals this
+# empty-db-first-apply race without requiring any per-host migration
+# re-invocation. The cost is one no-op-ish UPDATE on every container
+# start (negligible at <15k rows).
+rerunnable = True
 
 import psycopg2
 

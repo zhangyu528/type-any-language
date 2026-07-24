@@ -20,7 +20,8 @@
 #   # Self-hosted postgres without DATABASE_URL pre-set:
 #   POSTGRES_PASSWORD=... ./db/scripts/migrate.sh
 #
-# Idempotent: re-runs are no-ops.
+# Idempotent: stamped schema migrations are skipped; migrations that explicitly
+# declare `rerunnable = True` re-run their idempotent data backfills.
 
 set -e
 
@@ -45,4 +46,4 @@ export PYTHONIOENCODING="${PYTHONIOENCODING:-utf-8}"
 # both `migrations.versions` (its own package) and the
 # `db_url` defensive fallback (still at db/db_url.py).
 PYTHONPATH="${PROJECT_DIR}/backend${PYTHONPATH:+:$PYTHONPATH}" \
-    python3 -m migrations.runner "$@"
+    python3 -c 'from migrations.runner import main; main()' "$@"

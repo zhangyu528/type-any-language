@@ -113,9 +113,21 @@ def import_vocab(content: Path, conn) -> dict:
             lib = json.loads(vocab_file.read_text(encoding="utf-8"))
             lib_id = _upsert_lib(cur, lib)
             n_inserted = _upsert_words(cur, lib_id, lib["words"])
+            # `_upsert_words` returns this run's insert count for CLI stats.
+            # The cached library count must instead reflect all persisted rows:
+            # on an idempotent re-import n_inserted is 0, but the library still
+            # contains its previously imported words.
             cur.execute(
-                "UPDATE vocabulary_libs SET word_count = %s WHERE id = %s",
-                (n_inserted, lib_id),
+                """
+                UPDATE vocabulary_libs
+                SET word_count = (
+                    SELECT COUNT(*)
+                    FROM vocabulary_words
+                    WHERE lib_id = %s
+                )
+                WHERE id = %s
+                """,
+                (lib_id, lib_id),
             )
             stats[lib["level"]] = n_inserted
     return stats

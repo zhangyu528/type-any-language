@@ -30,9 +30,25 @@ description = "auth: create users + sessions tables"
 
 def upgrade(conn) -> None:
     with conn.cursor() as cur:
-        # sessions first child (FK into users), so users drop last on
-        # downgrade. Order doesn't matter for create (no inter-table
-        # FK in create) but we keep sessions first by convention.
+        # users first parent (sessions.user_id FKs into it). For downgrade,
+        # drop order is sessions then users (FK child first). Create order
+        # is the opposite of drop order — parent before child.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id              UUID         PRIMARY KEY,
+                email           VARCHAR(255) NOT NULL UNIQUE,
+                password_hash   VARCHAR(255) NOT NULL,
+                display_name    VARCHAR(100) NOT NULL DEFAULT '',
+                is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
+                created_at      TIMESTAMP    NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+                last_login_at   TIMESTAMP    NULL
+            )
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS ix_users_email "
+            "ON users(email)"
+        )
+
         cur.execute("""
             CREATE TABLE IF NOT EXISTS sessions (
                 token_hash    VARCHAR(64)  PRIMARY KEY,
@@ -50,22 +66,6 @@ def upgrade(conn) -> None:
         cur.execute(
             "CREATE INDEX IF NOT EXISTS ix_sessions_expires_at "
             "ON sessions(expires_at)"
-        )
-
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id              UUID         PRIMARY KEY,
-                email           VARCHAR(255) NOT NULL UNIQUE,
-                password_hash   VARCHAR(255) NOT NULL,
-                display_name    VARCHAR(100) NOT NULL DEFAULT '',
-                is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
-                created_at      TIMESTAMP    NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
-                last_login_at   TIMESTAMP    NULL
-            )
-        """)
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS ix_users_email "
-            "ON users(email)"
         )
 
 

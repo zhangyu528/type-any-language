@@ -22,7 +22,7 @@ SHELL := /usr/bin/env bash
 # dev target host — daily driver (containers + compose watch)
 # ---------------------------------------------------------------------------
 
-## dev-setup: first-time bootstrap (verify cloud-db + build dev apps)
+## dev-setup: first-time bootstrap (build dev app images; db is docker postgres, auto-started by lifecycle.sh)
 dev-setup:
 	@bash ops/dev/setup.sh
 
@@ -34,11 +34,11 @@ dev-start:
 dev-stop:
 	@bash ops/dev/lifecycle.sh stop
 
-## dev-restart: recreate containers + re-read .secrets
+## dev-restart: recreate containers + re-read env (≈5s, no rebuild)
 dev-restart:
 	@bash ops/dev/lifecycle.sh restart
 
-## dev-doctor: preflight check (images / drift / ports / cloud-db)
+## dev-doctor: preflight check (images / drift / ports / docker postgres)
 dev-doctor:
 	@bash ops/dev/doctor.sh
 
@@ -50,11 +50,11 @@ dev-logs:
 dev-watch:
 	@bash ops/dev/watch.sh
 
-## dev-migrate: apply pending schema migrations to live cloud db (host-side runner)
+## dev-migrate: apply pending schema migrations to docker postgres (host-side runner)
 dev-migrate:
 	@bash ops/dev/migrate.sh
 
-## dev-import-content: import cms/content/ into dev db (host-side runner)
+## dev-import-content: start db if needed, UPSERT cms/content/, then run rerunnable backfills
 dev-import-content:
 	@bash ops/dev/import_content.sh
 
@@ -66,7 +66,7 @@ dev-build:
 # prod target host — pre-built, no watch, registry-pulled
 # ---------------------------------------------------------------------------
 
-## prod-setup: first-time bootstrap (verify cloud-db + build prod apps)
+## prod-setup: first-time bootstrap (build prod app images; for prod docker postgres ROLE/DB bootstrap, use `make prod-db-bootstrap`)
 prod-setup:
 	@bash ops/prod/setup.sh
 

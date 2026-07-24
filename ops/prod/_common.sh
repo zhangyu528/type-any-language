@@ -42,6 +42,16 @@ DB_IMAGE="postgres:15-alpine"
 
 # ─── setup_prod_host_env ───────────────────────────────────────────────────
 setup_prod_host_env() {
+    # Detect compose command FIRST (populates $DOCKER_COMPOSE_CMD). Same
+    # bug fix as ops/dev/_common.sh — without this, scripts that don't
+    # go through gate_preflight (which transitively calls
+    # detect_compose_cmd via require_docker) would have an empty
+    # DOCKER_COMPOSE_CMD and silently fail.
+    if ! detect_compose_cmd; then
+        err "未找到 docker-compose / docker compose — 安装 Docker Desktop 或 docker-compose"
+        exit 1
+    fi
+
     # DOCKER_REGISTRY: shell env > ./REGISTRY file > detect_default_registry().
     # Empty means local-only mode (no auto-pull).
     resolve_docker_registry
@@ -57,7 +67,7 @@ setup_prod_host_env() {
     # Prod image tags come from per-segment VERSION files:
     #   BACKEND_IMAGE_TAG  ← backend/VERSION  (semver)
     #   FRONTEND_IMAGE_TAG ← frontend/VERSION (semver)
-    # Dev tags are git-state-based and don't apply here.
+    # Dev tags are content-hash-based and don't apply here.
     resolve_image_tag BACKEND_IMAGE_TAG  backend/VERSION
     resolve_image_tag FRONTEND_IMAGE_TAG frontend/VERSION
     warn_if_version_default "$BACKEND_IMAGE_TAG" backend/VERSION

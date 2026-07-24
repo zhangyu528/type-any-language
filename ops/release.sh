@@ -15,11 +15,12 @@
 # chosen tag; same for frontend/VERSION.
 #
 # **Dev image tags are NOT in VERSION files.** Dev tags are derived
-# from current git state (`ops/lib.sh::compute_dev_image_tag`):
-# <sanitized-branch>-<short-sha>[-dirty]. This is automatic — two
-# builds at different commits produce different dev tags without any
-# operator action. VERSION-file edits are reserved for prod release
-# markers.
+# from current image CONTENT (`ops/lib.sh::compute_dev_image_tag`):
+# `c<content-hash7>[-dirty]` — each segment (backend/frontend) gets
+# its own hash from the inputs that actually affect its image layers.
+# This is automatic — two builds with the same content produce the
+# same tag, even across branches. VERSION-file edits are reserved for
+# prod release markers.
 #
 # The runtime database is TencentDB — there is no db image in the
 # release pipeline. Content goes straight from cms/content/ into the
@@ -29,13 +30,18 @@
 #
 # Subcommands:
 #   show                  Print per-segment VERSION files + current
-#                         computed dev tag (from git state).
-#   dev  [TAG_OVERRIDE]   Compute dev tag from git state (or use the
-#                         override if given) and build dev images.
+#                         computed dev tags (per-image content hash).
+#   dev  [TAG_OVERRIDE]   Compute dev tags from current content (or use
+#                         the override if given) and build dev images.
 #                         Dev never pushes; VERSION files are NOT
 #                         touched. If TAG_OVERRIDE is set, it's used
 #                         verbatim (rare; mostly for CI / test
-#                         fixtures).
+#                         fixtures). Note that dev normally tags backend
+#                         and frontend INDEPENDENTLY — passing one
+#                         override applies it to both via the IMAGE_DEV_TAG
+#                         knob (see build_image.sh for the full override
+#                         precedence: BACKEND_DEV_TAG / FRONTEND_DEV_TAG /
+#                         IMAGE_DEV_TAG).
 #   prod [X.Y.Z]          Bump backend/VERSION + frontend/VERSION
 #                         (if X.Y.Z given) + build + push the prod
 #                         app images.
@@ -68,10 +74,10 @@
 #
 # Examples:
 #   ops/release.sh show
-#   ops/release.sh dev v0.3.0                    # bump backend+frontend dev files + build
-#   ops/release.sh dev v0.3.0 -y                 # skip bump prompt
-#   ops/release.sh prod                          # re-publish current prod versions
-#   IMAGE_TAG=v0.3.0 ./ops/release.sh dev        # env override (belt-and-braces)
+#   ops/release.sh dev                            # build dev images (tags from content)
+#   ops/release.sh dev v0.3.0                     # build dev images (both tagged v0.3.0)
+#   ops/release.sh prod                           # re-publish current prod versions
+#   ops/release.sh prod v0.3.0 -y                 # bump + build + push prod
 #
 # Requires: shell + git + docker. NO python.
 
@@ -86,9 +92,10 @@ source "$SCRIPT_DIR/lib.sh"
 # Each release stream touches its own set of per-segment VERSION files.
 # One file per segment, gating prod image tags only:
 #   backend/VERSION, frontend/VERSION gate the prod images.
-# Dev tags are git-state-based (computed by build_image.sh) and are
-# NOT touched by this script. `cmd_show` lists all three VERSION
-# files + the computed dev tag.
+# Dev tags are content-hash-based (computed by build_image.sh via
+# ops/lib.sh::compute_backend_content_hash / compute_frontend_content_hash)
+# and are NOT touched by this script. `cmd_show` lists all three VERSION
+# files + the computed dev tags (backend + frontend independently).
 #
 # ops/release.sh show prints all 3 per-segment VERSION files.
 PROD_VERSION_PATHS=(backend/VERSION frontend/VERSION)
@@ -113,9 +120,9 @@ usage() {
 用法: $0 <command> [X.Y.Z] [-y]
 
 命令:
-  show                打印 3 个 per-segment VERSION 文件
-  dev  [X.Y.Z]        bump backend/VERSION + frontend/VERSION (如指定)
-                      + build dev 应用镜像
+  show                打印 3 个 per-segment VERSION 文件 + 当前 dev tag
+  dev  [X.Y.Z]        build dev 应用镜像(可选 tag 同时覆盖两个 image)
+                      VERSION 文件不会被改动(那是 prod 的)
   prod [X.Y.Z]        bump backend/VERSION + frontend/VERSION (如指定)
                       + build + push prod 应用镜像
   -h | help           显示帮助
@@ -132,13 +139,13 @@ Flags:
 
 示例:
   $0 show
-  $0 dev  v0.3.0                    # dev 流: bump + build
-  $0 prod v0.3.0 -y                 # prod 流: bump + build + push
-  $0 dev                            # 不 bump, 只 publish 当前 dev VERSION 文件
+  $0 dev      v0.3.0            # dev 流: 同时给两个 image 打 v0.3.0 tag
+  $0 prod     v0.3.0 -y         # prod 流: bump + build + push
+  $0 dev                        # 不指定 tag, 用 image 内容 hash
 
 架构前提:
-  - 不动 db — runtime db 是 TencentDB,没有 image 要 release。Content 用
-    db/scripts/import_staging.sh 直接 UPSERT 到云 db(在 CMS 主机上,跟
+  - 不动 db — runtime db 是 docker postgres,没有 image 要 release。Content 用
+    db/scripts/import_staging.sh 直接 UPSERT 到 db(在 CMS 主机上,跟
     release 脚本独立)。
   - 多机部署: 在各自主机上跑对应的 subcommand
 EOF
@@ -210,8 +217,9 @@ cmd_show() {
     info "backend/VERSION  = $(read_version_file backend/VERSION)  (gates prod image tag)"
     info "frontend/VERSION = $(read_version_file frontend/VERSION) (gates prod image tag)"
     info ""
-    info "Dev image tag (git-state-based, computed by build_image.sh):"
-    info "  $(compute_dev_image_tag)"
+    info "Dev image tags (content-hash-based, computed by build_image.sh):"
+    info "  backend:  $(compute_dev_image_tag backend)"
+    info "  frontend: $(compute_dev_image_tag frontend)"
 }
 
 # prepare_version <label> <path> <requested> → echoes the resolved tag.
@@ -311,33 +319,46 @@ cmd_dev() {
     info "=== release dev ==="
     echo ""
 
-    # Dev image tags come from current git state (branch + short SHA,
-    # with -dirty if the working tree is dirty). They are NOT versioned
-    # in any file — VERSION files are prod-only. `release.sh dev` exists
-    # primarily as a uniform CLI surface ("build my dev images now");
-    # the actual tag derivation happens inside build_image.sh via
-    # compute_dev_image_tag. To override (e.g. CI test fixtures), pass
-    # an explicit argument: `release.sh dev my-vX.Y.Z-rc1`.
-    local tag
+    # Dev image tags are content-hash-based (see ops/lib.sh::
+    # compute_dev_image_tag). Each segment (backend/frontend) gets its
+    # own hash from the inputs that actually affect its image layers.
+    # `release.sh dev` is primarily a uniform CLI surface ("build my
+    # dev images now"); the actual tag derivation happens inside
+    # build_image.sh, which honors:
+    #   BACKEND_DEV_TAG  / FRONTEND_DEV_TAG  — per-image override
+    #   IMAGE_DEV_TAG                        — covers both
+    # For a `release.sh dev my-tag` override, we export IMAGE_DEV_TAG
+    # here so build_image.sh picks it up. (Per-image overrides via
+    # BACKEND_DEV_TAG / FRONTEND_DEV_TAG take precedence inside
+    # build_image.sh if the caller wants finer control.)
+    #
+    # Display the resolved tags here for operator confirmation. We do
+    # NOT pass the tag through publish_one (which would clobber
+    # build_image.sh's own computation with a single shared tag) —
+    # we just show what build_image.sh will produce.
+    local backend_tag frontend_tag
+    backend_tag="$(compute_dev_image_tag backend)"
+    frontend_tag="$(compute_dev_image_tag frontend)"
     if [ -n "$requested" ]; then
-        tag="$requested"
-        info "Using explicit dev tag override: $tag"
+        info "Dev tag override (applies to both): $requested"
+        info "  backend  will tag as:  $requested"
+        info "  frontend will tag as:  $requested"
+        export IMAGE_DEV_TAG="$requested"
     else
-        tag="$(compute_dev_image_tag)"
-        info "Dev tag (from git state): $tag"
+        info "Dev tags (from image content):"
+        info "  backend:  $backend_tag"
+        info "  frontend: $frontend_tag"
     fi
 
     echo ""
-    publish_one "dev app images (backend + frontend, dev-only — never pushed)" \
-        "./ops/dev/build_image.sh" \
-        "" \
-        "$tag"
+    run_step "build dev app images (backend + frontend, dev-only — never pushed)" \
+        "./ops/dev/build_image.sh"
 
     # NO git_commit_touched — dev never modifies VERSION files. Those
     # stay at whatever the previous prod bump left them at.
 
     echo ""
-    ok "release dev done: tag=$tag"
+    ok "release dev done: backend=$backend_tag frontend=$frontend_tag"
 }
 
 cmd_prod() {

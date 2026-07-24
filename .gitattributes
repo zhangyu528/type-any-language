@@ -1,0 +1,55 @@
+# .gitattributes — enforce line-ending policy per file type.
+#
+# Without this, Git's core.autocrlf setting can quietly rewrite line
+# endings on checkout/commit, which has bitten this project twice:
+#   1. backend/entrypoint.sh was committed with CRLF line terminators.
+#      The Dockerfile.dev's `COPY . .` baked those CRLFs into the
+#      image, then the entrypoint invoked `sh ./entrypoint.sh` and
+#      dash barfed on `set -e\r` ("Illegal option -") — backend
+#      container ended up in a restart loop on every `./dev start`.
+#   2. Same pathology applies to any *.sh file edited in an editor
+#      that writes CRLF on Windows. We want shell scripts to always
+#      be LF, regardless of host OS or editor.
+#
+# Rule: all shell scripts MUST be LF in the repo. .gitattributes
+# re-normalizes them on next checkout (text eol=lf), but existing
+# files need a one-time `git add --renormalize` to flip them.
+
+*.sh        text eol=lf
+*.bash      text eol=lf
+*.env       text eol=lf eol=lf
+
+# Python source: LF by convention. No `eol=lf` here because we want
+# it to stay portable (the existing files are already LF in repo).
+*.py        text eol=lf
+
+# JS / TS / JSON / YAML / TOML: LF (Windows editors sometimes
+# introduce CRLF; this prevents it).
+*.js        text eol=lf
+*.ts        text eol=lf
+*.tsx       text eol=lf
+*.jsx       text eol=lf
+*.json      text eol=lf
+*.yaml      text eol=lf
+*.yml       text eol=lf
+*.toml      text eol=lf
+
+# Dockerfile / compose: LF (docker tooling doesn't tolerate CRLF in
+# RUN / COPY paths reliably).
+Dockerfile*       text eol=lf
+*.dockerfile      text eol=lf
+docker-compose*.yml text eol=lf
+docker-compose*.yaml text eol=lf
+
+# Markdown: LF (lets GitHub render correctly). LF on render-side
+# is fine; CRLF in .md just makes the diff noisy.
+*.md         text eol=lf
+
+# Plain text / log / gitignore / gitattributes: LF.
+*.txt        text eol=lf
+*.gitignore  text eol=lf
+.gitattributes    text eol=lf
+
+# Don't touch binary files explicitly — Git's default heuristic
+# handles them correctly, and an explicit `-binary` rule here would
+# prevent future binary additions from being tracked properly.

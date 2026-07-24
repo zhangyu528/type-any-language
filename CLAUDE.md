@@ -352,14 +352,20 @@ The 4 app images (`english_backend{,_dev}`, `english_frontend{,_dev}`) carry an 
 
 | Image | Default tag source | Who bumps it |
 |---|---|---|
-| `english_backend_dev`        | **git state** (`<branch>-<short-sha>[-dirty]`) | every commit / branch switch (auto) |
-| `english_frontend_dev`       | **git state** (same as backend_dev)            | every commit / branch switch (auto) |
-| `english_backend`            | `backend/VERSION` (semver, e.g. `v0.4.0`)      | `release.sh prod X.Y.Z` (manual) |
-| `english_frontend`           | `frontend/VERSION` (semver, e.g. `v1.2.3`)     | `release.sh prod X.Y.Z` (manual) |
+| `english_backend_dev`        | **image content hash** (`c<hash7>[-dirty]`)  | every change to a backend content input (auto) |
+| `english_frontend_dev`       | **image content hash** (`c<hash7>[-dirty]`)  | every change to a frontend content input (auto) |
+| `english_backend`            | `backend/VERSION` (semver, e.g. `v0.4.0`)    | `release.sh prod X.Y.Z` (manual) |
+| `english_frontend`           | `frontend/VERSION` (semver, e.g. `v1.2.3`)   | `release.sh prod X.Y.Z` (manual) |
 
-### Why dev tags are git-state, prod tags are semver
+### Why dev tags are content-hash, prod tags are semver
 
-Dev iteration is fluid: every `git commit`, `git checkout` to another branch, or even uncommitted changes produce a new image tag. This is intentional — `docker image ls` shows the dev tag history at a glance, and `release.sh dev X.Y.Z` builds without bumping any VERSION file. The dev tag is **`ops/lib.sh::compute_dev_image_tag`**, format `<sanitized-branch>-<short-sha>[-dirty]` (the `-dirty` suffix is added when working tree has unstaged / staged / untracked changes).
+Dev iteration is fluid: the dev tag should change **when image content changes**, not when git state changes. A docs-only commit produces no image churn, so the tag stays put — no phantom tags accumulating in `docker image ls`. `release.sh dev [X.Y.Z]` builds without bumping any VERSION file (the `[X.Y.Z]` arg, if given, is an override applied to both images).
+
+The dev tag is **`ops/lib.sh::compute_dev_image_tag [backend|frontend]`**, format `c<content-hash7>[-dirty]`:
+- **backend** hash inputs: `backend/Dockerfile.dev`, `backend/entrypoint.sh`, `backend/requirements.txt`
+- **frontend** hash inputs: `frontend/Dockerfile.dev`, `frontend/entrypoint.sh`, `frontend/package.json`, `frontend/package-lock.json`
+- `-dirty` suffix added when **any input file for that segment** differs from HEAD in the working tree (unstaged or staged). Editing CLAUDE.md or any other non-input file does NOT add `-dirty`.
+- Same content on different branches (master / feat_x / detached HEAD) → same hash. Branch is intentionally NOT part of the tag — it's a git workflow concept, not an image-content concept.
 
 Prod releases are deliberate, dated points in the project's life: each prod image carries an explicit semver (`v0.4.0`, not auto-bumped from git). VERSION-file edits are reserved for prod release markers; they happen via `release.sh prod X.Y.Z -y` which writes the new value, commits it, then builds + tags + pushes the prod image.
 
@@ -370,19 +376,31 @@ Prod releases are deliberate, dated points in the project's life: each prod imag
 3. The VERSION file path passed to the helper (e.g. `backend/VERSION`) — first non-empty, non-comment line
 4. Literal `v0.0.0` (won't break a build, but warns once via `warn_if_version_default`)
 
-### Dev tag override
+### Dev tag override (per-image and shared)
 
-For CI / test fixtures, set `IMAGE_DEV_TAG=my-branch-X` (the value is used verbatim, including any `-dirty` suffix the caller appends). Otherwise leave it unset and let `compute_dev_image_tag` derive it.
+Dev tags normally auto-derive from image content. For CI / test fixtures, three knobs in decreasing precedence:
+
+| Env var | Effect |
+|---|---|
+| `BACKEND_DEV_TAG=...`  | Override backend image tag only |
+| `FRONTEND_DEV_TAG=...` | Override frontend image tag only |
+| `IMAGE_DEV_TAG=...`    | Override both backend + frontend (applied via the build script) |
+
+Otherwise leave them unset and let `compute_dev_image_tag` derive each image's tag from its own content inputs.
 
 ### Examples
 
 ```bash
-# Dev — tag is auto-derived from your current branch + commit:
+# Dev — tags auto-derived from each image's content:
 ./ops/dev/build_image.sh
-# → english_backend_dev:feat_x-abc1234[-dirty]
+# → english_backend_dev:cafefb1e
+# → english_frontend_dev:cd8c1af0          (independent hash; may differ)
 
-# Dev with explicit override:
+# Dev with explicit override (both images):
 IMAGE_DEV_TAG=ci-test-123 ./ops/dev/build_image.sh
+
+# Dev with per-image override:
+BACKEND_DEV_TAG=be-only FRONTEND_DEV_TAG=fe-only ./ops/dev/build_image.sh
 
 # Prod — bump version, build, push:
 ./ops/release.sh prod v0.4.0 -y
@@ -397,16 +415,16 @@ The dev/prod `lifecycle.sh` reads the same tags at start time, so what gets pull
 
 Every prod image carries the `type-any-language.app.version` LABEL (sourced from `APP_VERSION` build-arg, which the build scripts set to the resolved `*_IMAGE_TAG`). `doctor.sh` (both dev and prod) iterates the running containers and compares each LABEL against the locally-resolved expected tag — mismatches print a `drift` warning, suggesting `lifecycle.sh restart` to pick up the new image.
 
-Dev images also carry a `type-any-language.app.dev-git-sha` LABEL for informational purposes; their canonical tag is the resolved `BACKEND_IMAGE_TAG` / `FRONTEND_IMAGE_TAG` from git state.
+Dev images also carry a `type-any-language.app.version` LABEL (now content-hash-based, not git-sha) and a `type-any-language.app.git-sha` LABEL for informational purposes; their canonical tag is the resolved `BACKEND_IMAGE_TAG` / `FRONTEND_IMAGE_TAG` from content hash.
 
 ### Release flow
 
-`ops/release.sh` is the single point of release orchestration. `cmd_dev` builds dev images from git state without touching VERSION files. `cmd_prod` bumps VERSION, commits, then builds + tags + pushes prod images.
+`ops/release.sh` is the single point of release orchestration. `cmd_dev` builds dev images from each image's content hash without touching VERSION files. `cmd_prod` bumps VERSION, commits, then builds + tags + pushes prod images.
 
 | Subcommand | Touches VERSION files | Builds + pushes |
 |---|---|---|
-| `show`              | — | — (print all 3 per-segment VERSION files + computed dev tag) |
-| `dev  [TAG]`        | — (dev tags are git-state-based) | `english_{backend,frontend}_dev` (no push) |
+| `show`              | — | — (print all 3 per-segment VERSION files + each dev tag from content hash) |
+| `dev  [TAG]`        | — (dev tags are content-hash-based, computed independently per image) | `english_{backend,frontend}_dev` (no push) |
 | `prod [X.Y.Z]`      | bumps `backend/VERSION` + `frontend/VERSION` to the new value | `english_{backend,frontend}` (no push if `DOCKER_REGISTRY` unset) |
 
 `X.Y.Z` is optional: omit it to publish the current VERSION without bumping. Add `-y` to skip the bump-confirmation prompt.

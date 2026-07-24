@@ -43,6 +43,10 @@ cmd_migrate() {
         return 1
     fi
 
+    if ! require_dev_db_up; then
+        return 1
+    fi
+
     # Try to assemble DATABASE_URL. Order of preference:
     #   1. already in env
     #   2. POSTGRES_HOST=localhost + assemble (suitable if you have

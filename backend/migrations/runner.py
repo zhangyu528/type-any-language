@@ -71,7 +71,7 @@ _BOOKKEEPING_TABLE = "schema_migrations"
 class Migration:
     """One loaded migration module."""
 
-    __slots__ = ("version", "description", "upgrade", "downgrade", "module")
+    __slots__ = ("version", "description", "upgrade", "downgrade", "rerunnable", "module")
 
     def __init__(self, module) -> None:
         self.module = module
@@ -83,13 +83,24 @@ class Migration:
         self.downgrade: Callable[[psycopg2.extensions.connection], None] = getattr(
             module, "downgrade", None
         )
+        # `rerunnable=True` means upgrade() is safe to call again even
+        # when the version is already in schema_migrations. Used for
+        # idempotent backfills (e.g. 0007 lesson_index, 0008
+        # sentence_word_links_backfill) that need to re-run after data
+        # has been imported — see upgrade_head() for the contract.
+        # Default False — a migration must OPT IN by declaring
+        # `rerunnable = True` at module scope. This protects non-
+        # idempotent migrations (any that creates tables, adds columns
+        # with non-IF-NOT-EXISTS, etc.) from accidental re-execution.
+        self.rerunnable: bool = bool(getattr(module, "rerunnable", False))
         if not self.version or not callable(self.upgrade):
             raise ValueError(
                 f"migration {module.__name__!r} missing 'version' or 'upgrade(conn)'"
             )
 
     def __repr__(self) -> str:
-        return f"<Migration {self.version}: {self.description}>"
+        suffix = " (rerunnable)" if self.rerunnable else ""
+        return f"<Migration {self.version}: {self.description}{suffix}>"
 
 
 def _discover_versions() -> list[Migration]:
@@ -170,7 +181,7 @@ def _delete_version(conn, version: str) -> None:
 def upgrade_head(
     conn, target_version: Optional[str] = None
 ) -> list[str]:
-    """Apply pending migrations in order.
+    """Apply pending migrations in order, plus any rerunnable ones.
 
     Args:
         conn: psycopg2 connection.
@@ -180,6 +191,27 @@ def upgrade_head(
     Returns:
         List of versions that were applied during this call (in order).
         Empty list if everything was already up to date.
+
+    Rerunnable migrations:
+        A migration that declares `rerunnable = True` at module scope
+        is invoked every call, even if its version is already in
+        schema_migrations. The migration's `upgrade()` MUST be idempotent
+        (safe to call repeatedly on the same db state).
+
+        This is the escape hatch for backfill-style migrations that
+        needed to populate derived columns from data that didn't exist
+        at first apply time. The canonical example is 0007_lesson_index:
+        it backfills vocabulary_words.lesson_index from row_number()
+        partitioned by lib_id, ordered by (created_at, id). If the
+        migration was first applied on an empty db (the normal flow on
+        a fresh docker postgres), the backfill updated 0 rows. Once
+        import_content.sh later UPSERTs vocabulary_words, lesson_index
+        stays NULL — the migration is already stamped, so the runner
+        wouldn't normally re-invoke it. Marking it rerunnable means the
+        runner re-invokes upgrade() on every backend start, and the
+        idempotent UPDATE re-fills lesson_index for the now-present rows.
+
+        Same pattern for 0008_sentence_word_links_backfill.
     """
     ensure_schema_migrations_table(conn)
     current = get_current_version(conn)
@@ -187,11 +219,17 @@ def upgrade_head(
 
     applied: list[str] = []
     for m in pending:
-        if current is not None and m.version <= current:
+        is_applied = current is not None and m.version <= current
+        if is_applied and not m.rerunnable:
             continue
         if target_version and m.version > target_version:
             break
-        print(f"[migrations] applying {m.version}: {m.description}")
+        # Tag the log line so reruns are visible. Without this, an
+        # operator reading `[migrations] applying 0007_lesson_index`
+        # on every backend start would suspect the bookkeeping is
+        # broken (it isn't — rerunnable migrations print this by design).
+        rerun_marker = " (rerun, idempotent)" if is_applied else ""
+        print(f"[migrations] applying {m.version}: {m.description}{rerun_marker}")
         try:
             m.upgrade(conn)
         except Exception as exc:
@@ -199,7 +237,10 @@ def upgrade_head(
             raise RuntimeError(
                 f"migration {m.version} ({_module_path_for_diagnostics(m)}) failed: {exc}"
             ) from exc
-        _record_version(conn, m.version)
+        if not is_applied:
+            # Rerunnable migrations are already stamped — re-recording
+            # would just hit a PK conflict on schema_migrations.
+            _record_version(conn, m.version)
         conn.commit()
         applied.append(m.version)
     return applied
@@ -281,8 +322,12 @@ def main() -> None:
             print(f"[migrations] current version: {current or '(none)'}")
             print(f"[migrations] {len(pending)} known versions, {len(pending_after)} pending:")
             for m in pending:
-                marker = "  " if (current is None or m.version > current) else "ok"
-                print(f"  [{marker}] {m.version}  {m.description}")
+                if current is not None and m.version <= current:
+                    marker = "rerun" if m.rerunnable else "ok  "
+                else:
+                    marker = "  + "
+                rerun_tag = "  [rerunnable]" if m.rerunnable else ""
+                print(f"  [{marker}] {m.version}  {m.description}{rerun_tag}")
             return
 
         if args.downgrade:

@@ -37,6 +37,22 @@ from __future__ import annotations
 
 version = "0008_sentence_word_links_backfill"
 description = "Backfill sentence_word_links from sentences.target_words (idempotent)"
+# Marked rerunnable so the runner re-invokes upgrade() even when this
+# version is already stamped. upgrade() is fully idempotent:
+#   - INSERT ... ON CONFLICT DO NOTHING — re-running is a no-op for
+#     already-linked rows, and inserts any new (sentence, target_word)
+#     pairs that have appeared since the last apply (e.g. fresh
+#     sentences imported via import_content.sh after the migration
+#     was first applied on an empty db).
+#
+# Why rerunnable: the original first-apply path on a fresh docker
+# postgres sees an empty sentences table, so the backfill inserts 0
+# rows. Later, import_content.sh UPSERTs sentences via the legacy
+# importer (no FK-population logic) — sentence_word_links stays empty
+# because this migration is already stamped. Re-running on every
+# backend start self-heals this empty-db-first-apply race without
+# requiring any per-host migration re-invocation.
+rerunnable = True
 
 
 def upgrade(conn) -> None:
