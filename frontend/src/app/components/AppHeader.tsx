@@ -37,26 +37,37 @@
  * conditionally based on useAuth().
  */
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useAuth } from '../lib/auth';
+import { safeRedirectPath } from '../lib/safeRedirect';
 
 const HIDE_CHROME_PATHS = ['/login', '/signup'];
 
+/** Build a same-origin `?from=<current>` query for the auth pages.
+ *  Used so a successful login/signup returns the user to where they
+ *  came from. Caller must pass the resulting path through
+ *  safeRedirectPath() before using it as a redirect target. */
+function currentPathWithQuery(pathname: string | null, search: string | null): string {
+  const path = pathname || '/';
+  return search ? `${path}${search}` : path;
+}
+
 export default function AppHeader() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user, loading, logout } = useAuth();
 
   if (HIDE_CHROME_PATHS.some((p) => pathname === p || pathname?.startsWith(p + '/'))) {
     return null;
   }
 
-  // While the initial /api/auth/me is in flight, render a chrome
-  // shell with the login pill in place — the moment /me resolves,
-  // we either keep the pill (anonymous) or swap to avatar+logout
-  // (signed in). The swap is a React state update; the layout
-  // doesn't shift because both pills share the same 28px height.
-  // We intentionally don't show a spinner here — the chrome is a
-  // chrome, not a status indicator.
+  // The login pill is only rendered on /login + /signup (see HIDE_CHROME_PATHS),
+  // so by the time we get here we're on a public route (/, /?lib=X, /history,
+  // etc.). Append ?from=<current> so a successful login returns the user
+  // to where they clicked from. Skip appending when there's no real path
+  // (the homepage can be implied by the auth page's default fallback).
+  const here = currentPathWithQuery(pathname, searchParams?.toString() ?? null);
+  const loginHref = here === '/' ? '/login' : `/login?from=${encodeURIComponent(here)}`;
 
   return (
     <header className="app-header" role="banner">
@@ -88,7 +99,7 @@ export default function AppHeader() {
             </button>
           </>
         ) : (
-          <Link href="/login" className="app-header__login" aria-label="登录">
+          <Link href={loginHref} className="app-header__login" aria-label="登录">
             登录
           </Link>
         )}

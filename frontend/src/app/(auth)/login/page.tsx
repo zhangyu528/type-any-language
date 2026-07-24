@@ -20,6 +20,8 @@
  */
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import {
   FormEvent,
   useCallback,
@@ -29,15 +31,43 @@ import {
 } from 'react';
 import { apiLogin, ApiError } from '../../api';
 import { useAuth } from '../../lib/auth';
+import { safeRedirectPath } from '../../lib/safeRedirect';
 
 interface FieldErrors {
   email?: string;
   password?: string;
 }
 
+/**
+ * Suspense shell — required by Next.js 14 for any page that calls
+ * useSearchParams(). Without this, the page bails to the not-found
+ * boundary during the initial render. The fallback is a thin
+ * placeholder with the same card-rise animation so there's no flash
+ * between hydration and the form appearing.
+ */
 export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="auth-card">
+          <p className="auth-form__loader">Loading…</p>
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { refresh } = useAuth();
+  // Read ?from= once on mount. safeRedirectPath() defends against
+  // open-redirect attacks (e.g. /login?from=https://evil.com). When
+  // absent or invalid, the fallback '/' kicks in.
+  const fromParam = searchParams?.get('from') ?? null;
+  const redirectTo = safeRedirectPath(fromParam, '/');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -104,7 +134,9 @@ export default function LoginPage() {
       // anonymous → signed-in. Without this, the avatar would only
       // appear after the next page's mount fires /me.
       await refresh();
-      router.replace('/history');
+      // Land on the page the user came from (/?lib=X if they were
+      // practicing), or `/` if no `?from=` was supplied.
+      router.replace(redirectTo);
     } catch (err) {
       const apiErr = err as ApiError;
       if (apiErr.fieldErrors) {
@@ -278,7 +310,16 @@ export default function LoginPage() {
         </button>
 
         <p className="auth-form__alt">
-          还没有账号？<Link href="/signup">注册</Link>
+          还没有账号？
+          <Link
+            href={
+              fromParam
+                ? `/signup?from=${encodeURIComponent(fromParam)}`
+                : '/signup'
+            }
+          >
+            注册
+          </Link>
         </p>
 
         {/* CSS lives here (not in globals.css) so it ships only on

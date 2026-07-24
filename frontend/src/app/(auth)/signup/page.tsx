@@ -20,9 +20,10 @@
  *   so the top chrome swaps login pill → avatar before the route
  *   changes.
  */
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
+  Suspense,
   FormEvent,
   useEffect,
   useMemo,
@@ -31,6 +32,7 @@ import {
 } from 'react';
 import { apiSignup, ApiError } from '../../api';
 import { useAuth } from '../../lib/auth';
+import { safeRedirectPath } from '../../lib/safeRedirect';
 
 interface FieldErrors {
   email?: string;
@@ -70,9 +72,35 @@ function getRequirements(pw: string): Requirement[] {
   ];
 }
 
+/**
+ * Suspense shell — required by Next.js 14 for any page that calls
+ * useSearchParams(). Without this, the page bails to the not-found
+ * boundary during the initial render. The fallback is a thin
+ * placeholder card so there's no flash between hydration and the
+ * signup form appearing.
+ */
 export default function SignupPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="auth-card">
+          <p className="auth-form__loader">Loading…</p>
+        </div>
+      }
+    >
+      <SignupForm />
+    </Suspense>
+  );
+}
+
+function SignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { refresh } = useAuth();
+  // Read ?from= once on mount. safeRedirectPath() defends against
+  // open-redirect attacks. Fallback to '/' when absent or invalid.
+  const fromParam = searchParams?.get('from') ?? null;
+  const redirectTo = safeRedirectPath(fromParam, '/');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');

@@ -28,14 +28,20 @@ import { useAuth } from '../lib/auth';
 
 export default function HistoryPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, loading } = useAuth();
 
   useEffect(() => {
     if (loading) return;
     if (!user) {
-      router.replace('/login');
+      // Preserve the intended destination across the auth bounce:
+      // sending ?from=<current path> lets the auth page's
+      // safeRedirectPath() resolve back to /history after a
+      // successful login, instead of dumping the user on `/`.
+      const here = pathname || '/history';
+      router.replace(`/login?from=${encodeURIComponent(here)}`);
     }
-  }, [loading, user, router]);
+  }, [loading, user, router, pathname]);
 
   if (loading || !user) {
     return (
