@@ -88,7 +88,7 @@ cmd_import() {
 
     info "  target: $(awk -F/ '{print $3}' <<<"$DATABASE_URL")"
     echo ""
-    if ! "$PROJECT_DIR/db/scripts/import_staging.sh" all; then
+    if ! bash "$PROJECT_DIR/db/scripts/import_staging.sh" all; then
         err "import 失败 — 见上面错误"
         return 1
     fi
@@ -115,7 +115,7 @@ cmd_import() {
     # schema_migrations stamps the rest. Same DATABASE_URL as the
     # import above.
     info "  re-applying schema migrations (rerunnable backfills)..."
-    if ! "$PROJECT_DIR/db/scripts/migrate.sh"; then
+    if ! bash "$PROJECT_DIR/db/scripts/migrate.sh"; then
         err "migrate 失败 — 见上面错误"
         return 1
     fi
