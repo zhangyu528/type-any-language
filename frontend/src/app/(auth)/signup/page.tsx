@@ -57,21 +57,6 @@ function calcPasswordStrength(pw: string): 0 | 1 | 2 | 3 | 4 | 5 {
   return Math.min(score, 5) as 0 | 1 | 2 | 3 | 4 | 5;
 }
 
-interface Requirement {
-  id: string;
-  label: string;
-  met: boolean;
-}
-
-function getRequirements(pw: string): Requirement[] {
-  return [
-    { id: 'len8', label: '至少 8 个字符', met: pw.length >= 8 },
-    { id: 'letter', label: '包含字母', met: /[A-Za-z]/.test(pw) },
-    { id: 'digit', label: '包含数字', met: /\d/.test(pw) },
-    { id: 'special', label: '包含特殊字符', met: /[^A-Za-z0-9]/.test(pw) },
-  ];
-}
-
 /**
  * Suspense shell — required by Next.js 14 for any page that calls
  * useSearchParams(). Without this, the page bails to the not-found
@@ -116,7 +101,6 @@ function SignupForm() {
   const confirmRef = useRef<HTMLInputElement>(null);
 
   const strength = useMemo(() => calcPasswordStrength(password), [password]);
-  const requirements = useMemo(() => getRequirements(password), [password]);
 
   const validateEmail = (value: string): string | null => {
     if (!value) return null;
@@ -322,13 +306,18 @@ function SignupForm() {
               >
                 <div className="auth-field__strength-bar" />
               </div>
-              <ul className="auth-field__requirements">
-                {requirements.map((req) => (
-                  <li key={req.id} className={req.met ? 'is-met' : ''}>
-                    {req.met ? '✓' : '○'} {req.label}
-                  </li>
-                ))}
-              </ul>
+              {password.length > 0 && (
+                <p
+                  className="auth-field__hint"
+                  data-score={strength}
+                  aria-live="polite"
+                >
+                  {strength <= 1 && '至少 8 个字符'}
+                  {strength === 2 && '可以再长一点 + 加个数字'}
+                  {strength === 3 && '不错 — 再加个特殊字符会更稳'}
+                  {strength >= 4 && '强密码 ✓'}
+                </p>
+              )}
             </>
           ) : null}
 
@@ -596,24 +585,25 @@ function SignupForm() {
           .auth-field__strength[data-score="4"] .auth-field__strength-bar { width: 80%; background: #34C759; }
           .auth-field__strength[data-score="5"] .auth-field__strength-bar { width: 100%; background: #34C759; }
 
-          .auth-field__requirements {
-            list-style: none;
+          /* Single-line password hint — NOT a 4-item checklist.
+             A checklist reads as "you must do all 4" (mandatory feel);
+             one short line reads as a friendly suggestion. The
+             underlying rule is the same (length ≥ 8) but the user
+             only sees one sentence, not a scoreboard.
+
+             Color tracks strength (data-score) for an at-a-glance
+             hint without screaming "warning!" — just a tonal shift. */
+          .auth-field__hint {
             margin: 0;
-            padding: 0;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: var(--space-1) var(--space-3);
             font-size: var(--type-caption);
             color: var(--label-tertiary);
+            transition: color 200ms var(--ease-standard);
           }
-          .auth-field__requirements li {
-            display: flex;
-            align-items: center;
-            gap: var(--space-1);
-          }
-          .auth-field__requirements li.is-met {
-            color: var(--label-secondary);
-          }
+          .auth-field__hint[data-score="1"] { color: var(--label-quaternary); }
+          .auth-field__hint[data-score="2"] { color: var(--label-tertiary); }
+          .auth-field__hint[data-score="3"] { color: var(--label-secondary); }
+          .auth-field__hint[data-score="4"],
+          .auth-field__hint[data-score="5"] { color: var(--correct); }
 
           .auth-form__submit {
             display: inline-flex;
