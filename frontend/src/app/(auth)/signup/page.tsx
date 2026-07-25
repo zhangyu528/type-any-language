@@ -195,7 +195,7 @@ function SignupForm() {
             <span
               key={i}
               className="auth-title__char"
-              style={{ animationDelay: `${i * 50}ms` }}
+              style={{ animationDelay: `${i * 120}ms` }}
             >
               {char}
             </span>
@@ -426,14 +426,14 @@ function SignupForm() {
             no mismatch. */}
         <style dangerouslySetInnerHTML={{ __html: `
           .auth-form-shake-wrap {
-            animation: auth-form-shake 320ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+            /* disabled per user: */ /* animation: auth-form-shake 320ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both; */
           }
           @keyframes auth-form-shake {
-            0%, 100% { transform: translateX(0); }
-            20%      { transform: translateX(-6px); }
-            40%      { transform: translateX(6px); }
-            60%      { transform: translateX(-4px); }
-            80%      { transform: translateX(4px); }
+            0%, 100% { /* transform: translateX(0); */ }
+            20%      { /* transform: translateX(-6px); */ }
+            40%      { /* transform: translateX(6px); */ }
+            60%      { /* transform: translateX(-4px); */ }
+            80%      { /* transform: translateX(4px); */ }
           }
           .auth-form {
             display: flex;
@@ -451,11 +451,14 @@ function SignupForm() {
             display: flex;
             flex-direction: column;
             gap: var(--space-2);
-            animation: auth-field-rise 400ms var(--ease-emphasized) both;
+            /* Slow fade-in: 4px translateY over 400ms, ease-standard.
+               Single shared animation, no stagger — fields appear
+               together to read as one "form reveal". */
+            animation: auth-field-rise 400ms var(--ease-standard) both;
           }
-          .auth-field-1 { animation-delay: 200ms; }
-          .auth-field-2 { animation-delay: 280ms; }
-          .auth-field-3 { animation-delay: 340ms; }
+          /* (.auth-field-1/2/3 animation-delay rules removed — fields
+             share one animation now. Class names kept on JSX for
+             future per-field tweaks.) */
           .auth-field__label {
             font-size: var(--type-caption);
             color: var(--label-tertiary);
@@ -523,12 +526,12 @@ function SignupForm() {
           .auth-field__input-wrap:focus-within .auth-field__input--error {
             border-color: var(--accent);
             box-shadow: 0 0 0 4px rgba(215, 0, 21, 0.10);
-            animation: auth-field-error-attn 240ms var(--ease-standard) both;
+            /* disabled per user: */ /* animation: auth-field-error-attn 240ms var(--ease-standard) both; */
           }
           @keyframes auth-field-error-attn {
-            0%, 100% { transform: translateX(0); }
-            30%      { transform: translateX(-2px); }
-            70%      { transform: translateX(2px); }
+            0%, 100% { /* transform: translateX(0); */ }
+            30%      { /* transform: translateX(-2px); */ }
+            70%      { /* transform: translateX(2px); */ }
           }
           .auth-field__toggle {
             position: absolute;
@@ -632,10 +635,12 @@ function SignupForm() {
                         box-shadow var(--duration-fast) var(--ease-standard);
           }
           .auth-form__submit:hover:not(:disabled) {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.16);
+            /* No translateY on hover — that reads as "the button is
+               bouncing". Instead we lift the shadow for a raised feel. */
+            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.20);
           }
-          .auth-form__submit:active:not(:disabled) { transform: translateY(0); }
+          /* .auth-form__submit:active translateY removed — no position
+             change on click, keeps shadow elevated. */
           .auth-form__submit:disabled { opacity: 0.7; cursor: progress; }
           .auth-form__spinner {
             animation: auth-form-spin 800ms linear infinite;
@@ -661,7 +666,6 @@ function SignupForm() {
             color: var(--label-tertiary);
             margin: 0;
             margin-top: calc(var(--space-4) * -1 + var(--space-1));
-            animation: auth-field-rise 400ms var(--ease-emphasized) both;
             animation-delay: 110ms;
           }
 

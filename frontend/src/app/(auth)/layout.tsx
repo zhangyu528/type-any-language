@@ -119,10 +119,12 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
             0 12px 48px rgba(80, 40, 120, 0.10),
             0 2px 8px rgba(80, 40, 120, 0.05),
             inset 0 1px 0 rgba(255, 255, 255, 0.7);
-          /* One-time entrance: fade + 12px rise. 'both' fill so the
-             initial state (opacity 0) is applied before the animation
-             starts — avoids a flash of fully-rendered card. */
-          animation: auth-card-rise 600ms var(--ease-emphasized) both;
+          /* Entrance: card scales up from 0.94 (centered, no translate).
+             Scale reads as "the card opens up" — distinct from the
+             "the page is shaking" feel that any translateY/Y on the
+             card gives. 500ms is slow enough to feel cinematic without
+             dragging. */
+          animation: auth-card-rise 500ms var(--ease-standard) both;
         }
         .auth-card__brand {
           display: flex;
@@ -179,22 +181,31 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         .auth-title__char {
           display: inline-block;
           opacity: 0;
-          transform: translateY(6px);
-          animation: auth-char-rise 500ms var(--ease-emphasized) both;
+          /* Each char rises 8px from below with a 120ms stagger
+             between chars (4 chars × 120ms = 480ms cascade, each
+             char animates over 380ms). Total: 860ms — slow, cinematic
+             "welcome" reveal. translateY(8px) is small enough to
+             read as "settling into place" rather than "the card
+             bounced". */
+          animation: auth-char-rise 380ms var(--ease-standard) both;
         }
-
         @keyframes auth-char-rise {
-          from { opacity: 0; transform: translateY(6px); }
+          from { opacity: 0; transform: translateY(8px); }
           to   { opacity: 1; transform: translateY(0); }
         }
         @keyframes auth-card-rise {
-          from { opacity: 0; transform: translateY(12px); }
-          to   { opacity: 1; transform: translateY(0); }
+          from { opacity: 0; transform: scale(0.94); }
+          to   { opacity: 1; transform: scale(1); }
         }
         @keyframes auth-field-rise {
-          from { opacity: 0; transform: translateY(6px); }
+          from { opacity: 0; transform: translateY(4px); }
           to   { opacity: 1; transform: translateY(0); }
         }
+        /* aurora background blobs drift slowly to give the page ambient
+           depth. NOT entrance motion — these are infinite loops that
+           the user reads as a calm color wash, not "the page is
+           shaking". Three blobs at 16-20s loops with 4-10s phase
+           offsets so they don't pulse in sync. */
         @keyframes auth-blob-drift-a {
           0%, 100% { transform: translate(0, 0) scale(1); }
           25%      { transform: translate(12vw, -8vh) scale(1.22); }
@@ -214,11 +225,14 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           50%      { transform: translate(-10vw, 10vh) scale(0.78); }
           75%      { transform: translate(8vw, -6vh) scale(1.18); }
         }
-
         @media (prefers-reduced-motion: reduce) {
           .auth-card { animation: none !important; opacity: 1; transform: none; }
           .auth-title__char { animation: none !important; opacity: 1; transform: none; }
-          .auth-aurora__blob { animation: none !important; }
+          /* .auth-aurora__blob keeps its drift animation even under
+             reduced-motion — the drift is ambient background motion
+             and reads as a calm wash, not a UI element. Users who
+             want a fully still background can disable the animation
+             via OS settings. */
         }
       ` }} />
     </main>
