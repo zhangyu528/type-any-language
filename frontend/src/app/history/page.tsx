@@ -21,12 +21,31 @@
  * progress history (right now progress lives in localStorage and
  * is per-device — the cloud-sync phase will populate this page).
  */
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { Suspense, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../lib/auth';
 
+/**
+ * Suspense shell — required by Next.js 14 for any page that calls
+ * usePathname(). The inner HistoryInner component handles the auth
+ * gate + rendering.
+ */
 export default function HistoryPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="practice practice--loading">
+          <p className="practice__loader-text">Loading…</p>
+        </div>
+      }
+    >
+      <HistoryInner />
+    </Suspense>
+  );
+}
+
+function HistoryInner() {
   const router = useRouter();
   const pathname = usePathname();
   const { user, loading } = useAuth();
