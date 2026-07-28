@@ -190,7 +190,16 @@ function SignupForm() {
 
         <label className="auth-field auth-field-1">
           <span className="auth-field__label">邮箱</span>
-          <span className="auth-field__input-wrap">
+          <span
+            className="auth-field__input-wrap"
+            data-state={
+              emailError
+                ? 'error'
+                : email.length > 0 && !emailFormatError
+                ? 'confirmed'
+                : undefined
+            }
+          >
             <svg
               className="auth-field__icon"
               width="16"
@@ -234,7 +243,10 @@ function SignupForm() {
 
         <label className="auth-field auth-field-2">
           <span className="auth-field__label">密码</span>
-          <span className="auth-field__input-wrap">
+          <span
+            className="auth-field__input-wrap"
+            data-state={passwordError ? 'error' : undefined}
+          >
             <svg
               className="auth-field__icon"
               width="16"
@@ -328,7 +340,10 @@ function SignupForm() {
 
         <label className="auth-field auth-field-3">
           <span className="auth-field__label">确认密码</span>
-          <span className="auth-field__input-wrap">
+          <span
+            className="auth-field__input-wrap"
+            data-state={confirmError ? 'error' : undefined}
+          >
             <svg
               className="auth-field__icon"
               width="16"
@@ -512,10 +527,18 @@ function SignupForm() {
             box-shadow: 0 0 0 4px rgba(28, 28, 30, 0.08);
           }
           .auth-field__input--error,
-          .auth-field__input-wrap:focus-within .auth-field__input--error {
+          .auth-field__input-wrap:focus-within .auth-field__input--error,
+          .auth-field__input-wrap[data-state="error"] .auth-field__input {
             border-color: var(--accent);
             box-shadow: 0 0 0 4px rgba(215, 0, 21, 0.10);
             /* disabled per user: */ /* animation: auth-field-error-attn 240ms var(--ease-standard) both; */
+          }
+          .auth-field__input-wrap[data-state="confirmed"] .auth-field__input {
+            border-color: var(--correct);
+            background: rgba(92, 122, 74, 0.04);
+          }
+          .auth-field__input-wrap[data-state="confirmed"] .auth-field__icon {
+            color: var(--correct);
           }
           @keyframes auth-field-error-attn {
             0%, 100% { /* transform: translateX(0); */ }
@@ -648,8 +671,31 @@ function SignupForm() {
             color: var(--accent);
             text-decoration: none;
             font-weight: var(--type-body-emphasis-weight);
+            position: relative;
+            display: inline-block;
           }
-          .auth-form__alt a:hover { text-decoration: underline; }
+          /* Underline expand-from-center: 1px line at rest grows to
+             2px on hover, animated from scaleX(0) to scaleX(1) over
+             200ms. The two halves are pseudo-elements that meet at
+             the middle — feels like the link is "underlining itself"
+             in response to the cursor. */
+          .auth-form__alt a::after,
+          .auth-form__alt a::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: -2px;
+            height: 1px;
+            background: currentColor;
+            transform: scaleX(0);
+            transform-origin: center;
+            transition: transform 200ms var(--ease-standard);
+          }
+          .auth-form__alt a::before { transform-origin: left; }
+          .auth-form__alt a::after  { transform-origin: right; }
+          .auth-form__alt a:hover::before { transform: scaleX(1); height: 2px; bottom: -3px; }
+          .auth-form__alt a:hover::after  { transform: scaleX(1); height: 2px; bottom: -3px; }
 
           .auth-form__subtitle {
             font-size: var(--type-body);

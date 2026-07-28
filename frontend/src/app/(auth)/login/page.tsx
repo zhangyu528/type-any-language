@@ -83,6 +83,17 @@ function LoginForm() {
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
 
+  // Subtitle changes by interaction state — guides the user through
+  // "you're learning English by signing in" without being heavy.
+  // 0 = idle, 1 = email focused, 2 = email valid, 3 = password focused.
+  const [subtitleState, setSubtitleState] = useState(0);
+  const subtitleText = [
+    '继续你的练习',
+    '用 5 题开始学习',
+    '开始你的中文→英文练习',
+    '你的进度会同步到云端',
+  ][subtitleState];
+
   const validateEmail = useCallback((value: string): string | null => {
     if (!value) return null;
     // Pragmatic regex — not RFC 5322 perfect, but matches the
@@ -172,11 +183,22 @@ function LoginForm() {
           ))}
         </h1>
 
-        <p className="auth-form__subtitle">继续你的练习</p>
+        <p className="auth-form__subtitle" key={subtitleState}>
+          {subtitleText}
+        </p>
 
         <label className="auth-field auth-field-1">
           <span className="auth-field__label">邮箱</span>
-          <span className="auth-field__input-wrap">
+          <span
+            className="auth-field__input-wrap"
+            data-state={
+              emailError
+                ? 'error'
+                : email.length > 0 && !emailFormatError
+                ? 'confirmed'
+                : undefined
+            }
+          >
             <svg
               className="auth-field__icon"
               width="16"
@@ -209,8 +231,21 @@ function LoginForm() {
                   setEmailFormatError(validateEmail(e.target.value));
                 }
               }}
+              onFocus={() => setSubtitleState(1)}
               onBlur={(e) => {
-                setEmailFormatError(validateEmail(e.target.value));
+                const err = validateEmail(e.target.value);
+                setEmailFormatError(err);
+                // Auto-focus password when email is valid and non-empty.
+                // User can still click back to edit email (the field is
+                // not disabled — only its visual state changes).
+                if (!err && e.target.value) {
+                  passwordRef.current?.focus();
+                  setSubtitleState(2);
+                } else if (e.target.value) {
+                  setSubtitleState(2);
+                } else {
+                  setSubtitleState(0);
+                }
               }}
               className={`auth-field__input auth-field__input--with-icon${emailError ? ' auth-field__input--error' : ''}`}
             />
@@ -222,7 +257,10 @@ function LoginForm() {
 
         <label className="auth-field auth-field-2">
           <span className="auth-field__label">密码</span>
-          <span className="auth-field__input-wrap">
+          <span
+            className="auth-field__input-wrap"
+            data-state={errors.password ? 'error' : undefined}
+          >
             <svg
               className="auth-field__icon"
               width="16"
@@ -241,6 +279,7 @@ function LoginForm() {
             <input
               ref={passwordRef}
               type={showPassword ? 'text' : 'password'}
+              onFocus={() => setSubtitleState(3)}
               autoComplete="current-password"
               required
               minLength={8}
@@ -305,7 +344,10 @@ function LoginForm() {
               <span>登录中…</span>
             </>
           ) : (
-            <span>登录</span>
+            <span className="auth-form__submit-label">
+              <span className="auth-form__submit-zh">登录</span>
+              <span className="auth-form__submit-en">Login</span>
+            </span>
           )}
         </button>
 
@@ -434,10 +476,20 @@ function LoginForm() {
             box-shadow: 0 0 0 4px rgba(28, 28, 30, 0.08);
           }
           .auth-field__input--error,
-          .auth-field__input-wrap:focus-within .auth-field__input--error {
+          .auth-field__input-wrap:focus-within .auth-field__input--error,
+          .auth-field__input-wrap[data-state="error"] .auth-field__input {
             border-color: var(--accent);
             box-shadow: 0 0 0 4px rgba(215, 0, 21, 0.10);
             /* disabled per user: */ /* animation: auth-field-error-attn 240ms var(--ease-standard) both; */
+          }
+          /* Confirmed state (data-state="confirmed"): green border + soft
+             glow. Sits on top of focus state for visual layering. */
+          .auth-field__input-wrap[data-state="confirmed"] .auth-field__input {
+            border-color: var(--correct);
+            background: rgba(92, 122, 74, 0.04);
+          }
+          .auth-field__input-wrap[data-state="confirmed"] .auth-field__icon {
+            color: var(--correct);
           }
           @keyframes auth-field-error-attn {
             0%, 100% { /* transform: translateX(0); */ }
@@ -506,9 +558,44 @@ function LoginForm() {
                bouncing". Instead we lift the shadow for a raised feel. */
             box-shadow: 0 8px 22px rgba(0, 0, 0, 0.20);
           }
+          /* Slide-text: 登录 <-> Login on hover. The two spans share
+             one width slot and the EN layer slides up over the ZH
+             layer. No position change on the button itself. */
+          .auth-form__submit-label {
+            position: relative;
+            display: inline-block;
+            line-height: 1;
+          }
+          .auth-form__submit-zh,
+          .auth-form__submit-en {
+            display: inline-block;
+            transition: transform 240ms var(--ease-standard),
+                        opacity 200ms var(--ease-standard);
+          }
+          .auth-form__submit-en {
+            position: absolute;
+            inset: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transform: translateY(8px);
+            font-family: var(--font-mono);
+            letter-spacing: 0.04em;
+          }
+          .auth-form__submit:hover:not(:disabled) .auth-form__submit-zh {
+            opacity: 0;
+            transform: translateY(-8px);
+          }
+          .auth-form__submit:hover:not(:disabled) .auth-form__submit-en {
+            opacity: 1;
+            transform: translateY(0);
+          }
           /* .auth-form__submit:active translateY removed — no position
              change on click, keeps shadow elevated. */
           .auth-form__submit:disabled { opacity: 0.7; cursor: progress; }
+          .auth-form__submit:disabled .auth-form__submit-zh,
+          .auth-form__submit:disabled .auth-form__submit-en { transition: none; }
           .auth-form__spinner {
             animation: auth-form-spin 800ms linear infinite;
           }
@@ -525,8 +612,31 @@ function LoginForm() {
             color: var(--accent);
             text-decoration: none;
             font-weight: var(--type-body-emphasis-weight);
+            position: relative;
+            display: inline-block;
           }
-          .auth-form__alt a:hover { text-decoration: underline; }
+          /* Underline expand-from-center: 1px line at rest grows to
+             2px on hover, animated from scaleX(0) to scaleX(1) over
+             200ms. The two halves are pseudo-elements that meet at
+             the middle — feels like the link is "underlining itself"
+             in response to the cursor. */
+          .auth-form__alt a::after,
+          .auth-form__alt a::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: -2px;
+            height: 1px;
+            background: currentColor;
+            transform: scaleX(0);
+            transform-origin: center;
+            transition: transform 200ms var(--ease-standard);
+          }
+          .auth-form__alt a::before { transform-origin: left; }
+          .auth-form__alt a::after  { transform-origin: right; }
+          .auth-form__alt a:hover::before { transform: scaleX(1); height: 2px; bottom: -3px; }
+          .auth-form__alt a:hover::after  { transform: scaleX(1); height: 2px; bottom: -3px; }
 
           /* Subtitle (just under the title). Lands after the title's
              last char finishes rising (4 chars × 50ms = 200ms).
@@ -538,7 +648,15 @@ function LoginForm() {
             color: var(--label-tertiary);
             margin: 0;
             margin-top: calc(var(--space-4) * -1 + var(--space-1));
-            animation-delay: 160ms;
+            /* key={subtitleState} on the <p> makes React re-mount the
+               element when state changes, so this animation replays
+               each swap. 200ms ease — fast enough to feel like a
+               single thought, slow enough to register. */
+            animation: auth-subtitle-fade 200ms var(--ease-standard) both;
+          }
+          @keyframes auth-subtitle-fade {
+            from { opacity: 0; transform: translateY(4px); }
+            to   { opacity: 1; transform: translateY(0); }
           }
 
           @media (prefers-reduced-motion: reduce) {
