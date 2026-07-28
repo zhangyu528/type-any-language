@@ -116,7 +116,7 @@ block + `DATABASE_URL_FILE`.
 ```
 ├── REGISTRY              # DOCKER_REGISTRY namespace for push/pull (committed shared config)
 ├── backend/              # FastAPI + SQLAlchemy — pure read-layer
-│   ├── VERSION           # tag for english_backend_dev + english_backend (one file per segment)
+│   ├── VERSION           # tag for english_backend (one file per segment)
 │   ├── app/
 │   │   ├── main.py      # FastAPI entry, CORS, no static mounts
 │   │   ├── config.py    # pydantic-settings with _FILE indirection
@@ -127,7 +127,7 @@ block + `DATABASE_URL_FILE`.
 │   └── requirements.txt
 │
 ├── frontend/             # Next.js 14 (App Router) + React 18 + TypeScript
-│   ├── VERSION           # tag for english_frontend_dev + english_frontend
+│   ├── VERSION           # tag for english_frontend
 │   └── src/app/         # API client + main page
 │
 ├── cms/              # The content service — produces + ships the content image
@@ -154,18 +154,17 @@ block + `DATABASE_URL_FILE`.
 ├── ops/                    # target-host operations + image build/release orchestrator
 │   ├── README.md            # ops/ layout, lib.sh helpers, conventions for new scripts
 │   ├── lib.sh               # shared helpers (ok/warn/err, docker detection, gen_secret)
-├── build.sh             # local multi-image build (dev + prod) - no push
-│   ├── release.sh           # release orchestrator: bump + build + push (dev / prod / show)
+└── build.sh             # local prod-image build (no push) - default subcommand is prod
+│   ├── release.sh           # release orchestrator: bump + build + push (prod / show)
 │   ├── build_ielts_csv.py   # one-off data-prep tool (IELTS word list → cms CSV format)
 │   ├── dev/                 # dev target host — lifecycle + per-subcommand helpers
-│   │   ├── _common.sh       # shared setup (image refs, docker postgres contract, watch)
-│   │   ├── lifecycle.sh     # start / stop / restart | reload
-│   │   ├── doctor.sh
-│   │   ├── setup.sh
-│   │   ├── logs.sh
+│   │   ├── _common.sh       # shared setup (docker postgres contract, staging-files helpers)
+│   │   ├── native.sh        # host-native dev driver (uvicorn + next dev on host; db in docker)
+│   │   ├── doctor.sh        # preflight (docker, host python/node, db mount target, ports)
+│   │   ├── setup.sh         # first-time: preflight + install native deps + start docker db
+│   │   ├── logs.sh          # tail native process logs
 │   │   ├── migrate.sh       # apply schema migrations to live docker postgres (host-side runner)
-│   │   ├── watch.sh         # foreground compose watch (dev-only)
-│   │   └── build_image.sh   # build english_backend_dev + english_frontend_dev
+│   │   ├── import_content.sh   # UPSERT cms/content/ to docker postgres (host-side runner)
 │   └── prod/                # prod target host — same shape, no migrate/watch
 │       ├── _common.sh
 │       ├── lifecycle.sh
@@ -177,7 +176,7 @@ block + `DATABASE_URL_FILE`.
 │       └── nginx.conf       # prod-only reverse proxy config
 │
 ├── docker-compose.yml        # prod stack orchestration (backend + frontend + nginx)
-└── docker-compose.dev.yml    # dev stack orchestration (hot-reload, compose-watch)
+└── docker-compose.dev.yml    # dev stack orchestration (only the `db` service — backend/frontend are host-native)
 ```
 
 The runtime `docker-compose.yml` mounts the host-side `DATABASE_URL`
@@ -251,32 +250,44 @@ artifact until you decide to import.
 
 ### Dev target host
 
+The dev host is **host-native** for the app stack: backend + frontend run as
+host processes (uvicorn + `next dev`), talking to a docker postgres on
+`localhost:5432`. The only docker artifact on a dev host is the `db` service
+in `docker-compose.dev.yml`. There is no dev image, no `compose watch`, no
+`Dockerfile.dev` — iteration is pure host processes with hot reload.
+
 ```bash
-```bash
-./ops/dev/setup.sh          # First-time: verify docker postgres + build dev apps
-./ops/dev/setup.sh bootstrap   # (one-time) docker postgres setup - writes DATABASE_URL
-./ops/dev/doctor.sh         # Pre-flight (includes docker postgres reachability probe)
-./ops/dev/lifecycle.sh start          # compose up + background compose watch (auto-sync src/package.json)
-./ops/dev/lifecycle.sh stop
-./ops/dev/lifecycle.sh restart        # Hard restart (recreate + re-read secrets)
-./ops/dev/migrate.sh        # Apply pending schema migrations to live docker postgres (host-side runner)
-./ops/dev/logs.sh [svc]
-# Optional image publishing (offline / first-time local setup -> registry):
-./ops/dev/build_image.sh        # build english_backend_dev + english_frontend_dev
-                                          # dev host does NOT push (stay local)
-./ops/prod/build_image.sh       # build english_backend + english_frontend
-./ops/prod/push_image.sh -y     # push prod backend+frontend to DOCKER_REGISTRY
-./db/scripts/import_staging.sh all   # UPSERT latest cms/content/ content into docker postgres
+# Host-native dev — host Python venv + host Node + host ports 8000/3000
+make dev-setup                       # preflight + venv + node_modules + start docker db
+make dev-start                       # = ./ops/dev/native.sh start (uvicorn + next dev on host)
+make dev-stop
+make dev-status                      # pid + uptime + port + db health
+make dev-logs [backend|frontend|both]  # tail host-native process logs
+make dev-migrate                     # apply pending schema migrations to docker postgres
+make dev-import-content              # UPSERT latest cms/content/ into docker postgres
+make dev-doctor                      # preflight (docker + host-native deps + db)
 ```
 
-No `.env.dev` is needed. The dev compose file defaults `ALLOWED_ORIGINS` to `http://localhost,http://localhost:3000`; override via shell env. The docker postgres DSN comes from `DATABASE_URL` (written by `setup.sh bootstrap`) or `DATABASE_URL` in env.
+No `.env` file is needed. `native.sh` exports the same env defaults that
+compose used:
 
-`setup` is the recommended entry point for a fresh checkout. It runs preflight
-(docker + compose), verifies the docker postgres contract (`DATABASE_URL` or
-`DATABASE_URL` in env), and builds the dev `backend + frontend` images.
-It does NOT start containers or create `.secrets/` - that is `start`'s job.
-Re-running `setup` is safe (idempotent - every step short-circuits on existing state).
-Cloud-db bootstrap is a separate step (`./ops/dev/setup.sh bootstrap`).
+- `ALLOWED_ORIGINS=http://localhost,http://localhost:3000,http://localhost:54102,http://localhost:55407,http://localhost:55500`
+- `DATABASE_URL=postgresql://english_dev:devpw@localhost:5432/english_dev`
+  (override at start time as usual)
+- `NEXT_PUBLIC_API_URL=http://localhost:8000` (Next bakes `NEXT_PUBLIC_*`
+  at first render in dev mode)
+
+`docker-compose.dev.yml` is now a single-service file (just `db`). Native
+mode auto-starts the `db` service via `ensure_dev_db_up`
+(`$DOCKER_COMPOSE_CMD up -d --no-deps db`); the backend + frontend services
+that used to live in this compose file are gone.
+
+`setup` is the recommended entry point for a fresh checkout. It runs
+preflight (docker + compose + python + node), installs host-native deps
+(venv + node_modules), and brings up the docker `db` service. It does NOT
+start backend / frontend dev processes — that is `start`'s job. Re-running
+`setup` is safe (idempotent — every step short-circuits on existing state
+via SHA256 hash files for `requirements.txt` / `package-lock.json`).
 
 ### Prod target host
 
@@ -305,7 +316,7 @@ No `.env` is needed. `ALLOWED_ORIGINS` defaults to `http://localhost` in the pro
 **Image registry model**: each target host pushes its own `backend + frontend`
 images. There is no db image in the pipeline.
 - **Prod target host**: `docker pull` backend + frontend from `$DOCKER_REGISTRY` on every `lifecycle.sh start` / `restart` (auto-pulled - registry is the source of truth for prod).
-- **Dev target host**: `setup.sh` does the **one-time bootstrap pull** from `$DOCKER_REGISTRY` when local images are missing. `start` / `restart` **never auto-pull** - dev iteration is local-first; image lifecycle is owned by `build_image.sh` on the host. This avoids overwriting fresh local builds with stale registry versions. To pull explicitly: `docker pull <full-image>`.
+- **Dev target host**: dev is host-native — there is no dev image to pull. The `english_backend` + `english_frontend` images are prod-only.
 
 The registry namespace (e.g. `ccr.ccs.tencentyun.com/your-ns` for **TCR**, or `docker.io/youruser` for Docker Hub) is **shared project config** that the whole team uses. It is **not** a personal secret, so it lives in the committed `REGISTRY` file at the repo root (symmetric with the per-segment VERSION files), not in `cms/.env` (gitignored). See [Image registry namespace](#image-registry-namespace) below — for Tencent Cloud prod, **TCR is the recommended path**.
 
@@ -348,26 +359,14 @@ The `REGISTRY` file's inline comment block has more detail on this path. The sam
 
 ## Image version tags
 
-The 4 app images (`english_backend{,_dev}`, `english_frontend{,_dev}`) carry an explicit tag. **Dev and prod use DIFFERENT tag sources by design** — see the table.
+The 2 prod app images (`english_backend`, `english_frontend`) carry an explicit tag, sourced from their respective VERSION files.
 
 | Image | Default tag source | Who bumps it |
 |---|---|---|
-| `english_backend_dev`        | **image content hash** (`c<hash7>[-dirty]`)  | every change to a backend content input (auto) |
-| `english_frontend_dev`       | **image content hash** (`c<hash7>[-dirty]`)  | every change to a frontend content input (auto) |
 | `english_backend`            | `backend/VERSION` (semver, e.g. `v0.4.0`)    | `release.sh prod X.Y.Z` (manual) |
 | `english_frontend`           | `frontend/VERSION` (semver, e.g. `v1.2.3`)   | `release.sh prod X.Y.Z` (manual) |
 
-### Why dev tags are content-hash, prod tags are semver
-
-Dev iteration is fluid: the dev tag should change **when image content changes**, not when git state changes. A docs-only commit produces no image churn, so the tag stays put — no phantom tags accumulating in `docker image ls`. `release.sh dev [X.Y.Z]` builds without bumping any VERSION file (the `[X.Y.Z]` arg, if given, is an override applied to both images).
-
-The dev tag is **`ops/lib.sh::compute_dev_image_tag [backend|frontend]`**, format `c<content-hash7>[-dirty]`:
-- **backend** hash inputs: `backend/Dockerfile.dev`, `backend/entrypoint.sh`, `backend/requirements.txt`
-- **frontend** hash inputs: `frontend/Dockerfile.dev`, `frontend/entrypoint.sh`, `frontend/package.json`, `frontend/package-lock.json`
-- `-dirty` suffix added when **any input file for that segment** differs from HEAD in the working tree (unstaged or staged). Editing CLAUDE.md or any other non-input file does NOT add `-dirty`.
-- Same content on different branches (master / feat_x / detached HEAD) → same hash. Branch is intentionally NOT part of the tag — it's a git workflow concept, not an image-content concept.
-
-Prod releases are deliberate, dated points in the project's life: each prod image carries an explicit semver (`v0.4.0`, not auto-bumped from git). VERSION-file edits are reserved for prod release markers; they happen via `release.sh prod X.Y.Z -y` which writes the new value, commits it, then builds + tags + pushes the prod image.
+Prod releases are deliberate, dated points in the project's life: each prod image carries an explicit semver (`v0.4.0`, not auto-bumped from git). VERSION-file edits are reserved for prod release markers; they happen via `release.sh prod X.Y.Z -y` which writes the new value, commits it, then builds + tags + pushes the prod image. There is no dev image — dev runs on host processes.
 
 ### Prod tag resolution chain (`ops/lib.sh` → `resolve_image_tag`)
 
@@ -376,32 +375,9 @@ Prod releases are deliberate, dated points in the project's life: each prod imag
 3. The VERSION file path passed to the helper (e.g. `backend/VERSION`) — first non-empty, non-comment line
 4. Literal `v0.0.0` (won't break a build, but warns once via `warn_if_version_default`)
 
-### Dev tag override (per-image and shared)
-
-Dev tags normally auto-derive from image content. For CI / test fixtures, three knobs in decreasing precedence:
-
-| Env var | Effect |
-|---|---|
-| `BACKEND_DEV_TAG=...`  | Override backend image tag only |
-| `FRONTEND_DEV_TAG=...` | Override frontend image tag only |
-| `IMAGE_DEV_TAG=...`    | Override both backend + frontend (applied via the build script) |
-
-Otherwise leave them unset and let `compute_dev_image_tag` derive each image's tag from its own content inputs.
-
 ### Examples
 
 ```bash
-# Dev — tags auto-derived from each image's content:
-./ops/dev/build_image.sh
-# → english_backend_dev:cafefb1e
-# → english_frontend_dev:cd8c1af0          (independent hash; may differ)
-
-# Dev with explicit override (both images):
-IMAGE_DEV_TAG=ci-test-123 ./ops/dev/build_image.sh
-
-# Dev with per-image override:
-BACKEND_DEV_TAG=be-only FRONTEND_DEV_TAG=fe-only ./ops/dev/build_image.sh
-
 # Prod — bump version, build, push:
 ./ops/release.sh prod v0.4.0 -y
 # → english_backend:v0.4.0  (and pushed to ${DOCKER_REGISTRY} if set)
@@ -409,22 +385,19 @@ BACKEND_DEV_TAG=be-only FRONTEND_DEV_TAG=fe-only ./ops/dev/build_image.sh
 
 For a full release (bump + build + push), use `ops/release.sh prod X.Y.Z` instead of running the build scripts individually — see "Release flow" below.
 
-The dev/prod `lifecycle.sh` reads the same tags at start time, so what gets pulled from the registry matches what was built.
+Prod `lifecycle.sh` reads the same tags at start time, so what gets pulled from the registry matches what was built.
 
 ### Drift detection
 
 Every prod image carries the `type-any-language.app.version` LABEL (sourced from `APP_VERSION` build-arg, which the build scripts set to the resolved `*_IMAGE_TAG`). `doctor.sh` (both dev and prod) iterates the running containers and compares each LABEL against the locally-resolved expected tag — mismatches print a `drift` warning, suggesting `lifecycle.sh restart` to pick up the new image.
 
-Dev images also carry a `type-any-language.app.version` LABEL (now content-hash-based, not git-sha) and a `type-any-language.app.git-sha` LABEL for informational purposes; their canonical tag is the resolved `BACKEND_IMAGE_TAG` / `FRONTEND_IMAGE_TAG` from content hash.
-
 ### Release flow
 
-`ops/release.sh` is the single point of release orchestration. `cmd_dev` builds dev images from each image's content hash without touching VERSION files. `cmd_prod` bumps VERSION, commits, then builds + tags + pushes prod images.
+`ops/release.sh` is the single point of release orchestration. `cmd_prod` bumps VERSION, commits, then builds + tags + pushes prod images.
 
 | Subcommand | Touches VERSION files | Builds + pushes |
 |---|---|---|
-| `show`              | — | — (print all 3 per-segment VERSION files + each dev tag from content hash) |
-| `dev  [TAG]`        | — (dev tags are content-hash-based, computed independently per image) | `english_{backend,frontend}_dev` (no push) |
+| `show`              | — | — (print all 3 per-segment VERSION files) |
 | `prod [X.Y.Z]`      | bumps `backend/VERSION` + `frontend/VERSION` to the new value | `english_{backend,frontend}` (no push if `DOCKER_REGISTRY` unset) |
 
 `X.Y.Z` is optional: omit it to publish the current VERSION without bumping. Add `-y` to skip the bump-confirmation prompt.
@@ -432,9 +405,6 @@ Dev images also carry a `type-any-language.app.version` LABEL (now content-hash-
 Local vs remote is controlled by `DOCKER_REGISTRY` (chain: shell env → `./REGISTRY` file → auto-detect → empty):
 
 ```bash
-# Local mode — build images, no push
-./ops/release.sh dev v0.3.0
-
 # Remote mode — uses REGISTRY file (committed, shared team namespace)
 # (or override via shell env if pushing to a one-off namespace)
 ./ops/release.sh prod v0.3.0 -y
@@ -447,13 +417,12 @@ The full release flow with `release.sh` (one command per host):
 
 ```bash
 # On the workstation — after merging changes to master:
-./ops/release.sh dev v0.3.0       # bump backend/VERSION + frontend/VERSION + build dev b/f
 ./ops/release.sh prod v0.3.0 -y    # bump backend/VERSION + frontend/VERSION + build + push prod b/f
 git push
 
-# On each target host — just verify, the images are already in the registry:
-./ops/<host>/doctor.sh    # should show "drift OK (version=v0.3.0)" for backend + frontend
-./ops/<host>/lifecycle.sh restart   # pull new image and recreate
+# On the prod target host — just verify, the images are already in the registry:
+./ops/prod/doctor.sh    # should show "drift OK (version=v0.3.0)" for backend + frontend
+./ops/prod/lifecycle.sh restart   # pull new image and recreate
 ```
 
 Content (staging files → docker postgres UPSERT) is a separate workflow:
@@ -480,9 +449,9 @@ If you upgraded from a release that used `:latest` (or hardcoded) tags, expect t
 
 1. **`lifecycle.sh start` may fail with "image 未构建"** — the compose file now references a tagged tag (`:v0.1.0` or whatever the stream's VERSION file says), not `:latest`. Fix once:
    ```bash
-   ./ops/dev/build_image.sh    # or ops/prod/build_image.sh
+   ./ops/prod/build_image.sh
    ```
-   Old `:latest` images on the host will still exist as stale tags. They're harmless; clean up later with `docker rmi english_backend_dev:latest english_frontend_dev:latest`.
+   Old `:latest` images on the host will still exist as stale tags. They're harmless; clean up later with `docker rmi english_backend:latest english_frontend:latest`.
 
 2. **`compose pull` now pulls by versioned tag, not `:latest`.** If your local cache has a stale `:latest` and the registry has a different `:v0.1.0`, the pull overwrites the local tag. This is intentional — it's the whole point of having a version pin.
 
@@ -501,8 +470,8 @@ to **one file per segment** — there is no dev/prod split anymore:
 | `VERSION.prod` at repo root                             | (deleted) |
 | `db/VERSION`                                           | (deleted — runtime db is docker postgres, no image) |
 | `cms/VERSION` (placeholder)                             | `cms/VERSION` (unchanged) |
-| `backend/VERSION.dev` + `backend/VERSION.prod`         | `backend/VERSION` (gates both english_backend_dev + english_backend) |
-| `frontend/VERSION.dev` + `frontend/VERSION.prod`        | `frontend/VERSION` (gates both english_frontend_dev + english_frontend) |
+| `backend/VERSION.dev` + `backend/VERSION.prod`         | `backend/VERSION` (gates the english_backend image) |
+| `frontend/VERSION.dev` + `frontend/VERSION.prod`        | `frontend/VERSION` (gates the english_frontend image) |
 
 The db segment has always had a single VERSION file (db has no
 dev/prod split — its image is prod-bound content shared by both
@@ -554,7 +523,7 @@ Answer validation is **client-side**: the frontend normalizes (lowercase, strip 
 5. `db/scripts/import_staging.sh` reads the staging files and UPSERTs them into `vocabulary_libs` / `vocabulary_words` / `sentences` on the docker postgres (`importer`). Cloud DSN comes from `DATABASE_URL` (written by `db/scripts/migrate.sh` via `ops/{dev,prod}/setup.sh bootstrap`).
 
 **Runtime (target host):**
-1. `lifecycle.sh start` verifies `DATABASE_URL` exists (written by one-time `setup.sh bootstrap`), then `compose up`.
+1. Prod `lifecycle.sh start` verifies `DATABASE_URL` exists (written by one-time `setup.sh bootstrap`), then `compose up`.
 2. Backend container reads `DATABASE_URL_FILE=/run/secrets/database_url` and connects to docker postgres.
 3. Frontend fetches a sentence, browser plays its MP3 directly from `sentences.audio_url` (a full Tencent Cloud COS URL). The backend exposes no `/audio` endpoint.
 4. User submits answer → `validate_answer()` normalizes (lowercase, strip punctuation/spaces) and compares.
@@ -597,7 +566,7 @@ hot-reload handles Python changes).
 When the operator merges new schema changes:
 1. CMS host (or any host with `DATABASE_URL`): `./db/scripts/migrate.sh` — runs `migrations.runner` against the docker postgres
 2. Operator also runs `./db/scripts/import_staging.sh all` if content needs to be refreshed (CMS pipeline ran first)
-3. Target hosts: `./ops/<host>/lifecycle.sh restart` — pulls the latest `english_backend{,_dev}` + `english_frontend{,_dev}` from the registry (backend picks up the schema change on next request)
+3. Target hosts: `./ops/prod/lifecycle.sh restart` — pulls the latest `english_backend` + `english_frontend` from the registry (backend picks up the schema change on next request)
 4. Fresh docker postgress (created by `bootstrap_tencent.sh`): the base schema in `backend/init_schema.py` runs via `./db/scripts/init_schema.sh`. Existing docker postgress keep their data; migrations are additive.
 
 ### Migration naming + merge rules
@@ -743,7 +712,7 @@ Runtime configuration is via shell env (passed to `lifecycle.sh` via `KEY=value 
   ```
 - `DOCKER_REGISTRY` — registry namespace to push to / pull from. Comes from the committed `REGISTRY` file at the repo root; shell env wins. Pull behavior is **asymmetric**:
   - **Prod**: `lifecycle.sh start` auto-pulls the backend + frontend images on every start/restart — registry is the source of truth.
-  - **Dev**: `setup.sh` does the **one-time bootstrap pull** when local images are missing. `start` / `restart` **never auto-pull** — image lifecycle is local (build_image.sh). Pull manually with `docker pull <full-image>` if needed.
+  - **Dev**: dev is host-native — there is no dev image to pull. `english_backend` + `english_frontend` are prod-only.
 
   Empty = local-only mode (no push to / pull from any registry).
 - `BACKEND_IMAGE_TAG`, `FRONTEND_IMAGE_TAG` — image tag for backend/frontend. Default: `backend/VERSION` on both dev and prod hosts (the single per-segment file gates both the dev and prod image tags at the same value), same for `frontend/VERSION` (resolved by `ops/lib.sh`). Override per image, or set `IMAGE_TAG` to bump all images at once (CI use):

@@ -2,29 +2,33 @@
 #
 # ops/dev/doctor.sh — pre-flight env check (read-only).
 #
-# Validates that everything ops/dev/{lifecycle,setup} need is in place —
-# docker, compose, the right images, db volume mount target, ports not
-# in use. Does NOT modify anything on disk or call docker compose.
+# Validates that everything the host-native dev loop needs is in
+# place — docker (for the postgres container), compose, the host
+# python + node, the backend venv + frontend node_modules, and the
+# db bind-mount target. Does NOT modify anything on disk or call
+# docker compose.
 #
-# The runtime db is a `postgres:15-alpine` container in the same
-# compose file (see docker-compose.dev.yml). doctor doesn't probe the
-# db directly — if compose is up, the db is up; if compose is down,
-# `lifecycle.sh start` will create it on next start. The only db-state
-# check is whether the bind-mount target is writable (so the first
-# start can create the data dir).
+# The runtime db is a `postgres:15-alpine` container in
+# docker-compose.dev.yml. doctor doesn't probe the db directly — if
+# compose is up, the db is up; if compose is down, `native.sh start`
+# will create it on next start. The only db-state check is whether
+# the bind-mount target is writable (so the first start can create
+# the data dir).
 #
-# Drift check (running containers vs local image tags) is appended.
+# Host-native dev path (`make dev-start`): requires python3 ≥ 3.11,
+# node ≥ 20, npm, `backend/.venv/bin/uvicorn`, `frontend/node_modules`.
+# Their absence is a WARN (not a hard fail) — the operator may be
+# running only a subset (e.g. just import content without coding).
 #
 # Exit: 0 if all required checks pass; 1 if any required check fails.
 #
-# Counterpart to ops/dev/{lifecycle,setup,logs,migrate,watch}.sh.
+# Counterpart to ops/dev/{native,setup,logs,migrate,import_content}.sh.
 
 set -e
 
 COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_common.sh
 source "$COMMON_DIR/_common.sh"
-setup_dev_host_env
 
 cmd_doctor() {
     local failed=0
@@ -47,19 +51,6 @@ cmd_doctor() {
         ok "compose: $DOCKER_COMPOSE_CMD"
     else
         err "未找到 docker-compose / docker compose"; failed=1
-    fi
-
-    if check_docker_installed && check_docker_daemon_running; then
-        if image_exists "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"; then
-            ok "image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 存在"
-        else
-            warn "image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 缺失 → 运行 ops/dev/build_image.sh"
-        fi
-        if image_exists "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"; then
-            ok "image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 存在"
-        else
-            warn "image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 缺失 → 运行 ops/dev/build_image.sh"
-        fi
     fi
 
     # db-bind-mount target writability. compose creates the dir on first
@@ -89,8 +80,47 @@ cmd_doctor() {
         fi
     fi
 
-    echo "--- drift check (running containers vs local image tags) ---"
-    drift_check
+    # ─── Host-native dev deps (make dev-start needs these) ─────────────────
+    echo "--- host-native dev deps (make dev-start needs these) ---"
+    local py_v=""
+    if command -v python3 >/dev/null 2>&1; then
+        py_v="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo unknown)"
+        ok "python3: $py_v"
+        case "$py_v" in
+            3.11|3.12|3.13|3.14) ;;
+            *)                       warn "  python ≥ 3.11 推荐 (你: $py_v)";;
+        esac
+    elif command -v python >/dev/null 2>&1; then
+        ok "python: $(python -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo unknown)"
+    else
+        warn "  python3 / python 都不在 PATH — native backend 起不了"
+    fi
+    if command -v node >/dev/null 2>&1; then
+        local node_v
+        node_v="$(node --version 2>/dev/null | sed 's/^v//' || echo unknown)"
+        ok "node: $node_v"
+        case "$node_v" in
+            2[0-9].*|1[8-9].*) ;;
+            *)                     warn "  node ≥ 20 推荐 (你: $node_v)";;
+        esac
+    else
+        warn "  node 不在 PATH — native frontend 起不了"
+    fi
+    if command -v npm >/dev/null 2>&1; then
+        ok "npm: $(npm --version 2>/dev/null)"
+    else
+        warn "  npm 不在 PATH"
+    fi
+    if [ -d "./backend/.venv" ] && ([ -f "./backend/.venv/bin/uvicorn" ] || [ -f "./backend/.venv/Scripts/uvicorn.exe" ]); then
+        ok "backend/.venv 存在 + uvicorn 可用"
+    else
+        warn "  backend/.venv 缺失或 uvicorn 未装 — 跑 make dev-setup"
+    fi
+    if [ -d "./frontend/node_modules" ]; then
+        ok "frontend/node_modules 存在"
+    else
+        warn "  frontend/node_modules 缺失 — 跑 make dev-setup"
+    fi
 
     echo ""
     if [ $failed -eq 0 ]; then

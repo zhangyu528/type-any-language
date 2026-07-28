@@ -9,10 +9,10 @@
 | 角色 | 根目录入口 | 详细脚本 | 数据库 |
 |---|---|---|---|
 | CMS 主机（生产内容） | — | `cms/scripts/*.sh` | 把 staging 内容 UPSERT 到 **docker postgres**（外部云 db） |
-| 开发目标机 | `./dev.sh` | `ops/dev/*.sh` | 读 **docker postgres**（`DATABASE_URL`） |
+| 开发目标机 | `make dev-*` | `ops/dev/*.sh` | 读 **docker postgres**（`DATABASE_URL`） |
 | 生产目标机 | — | `ops/prod/*.sh` | 读 **docker postgres**（`DATABASE_URL`） |
 
-dev / prod 目标机只跑 backend + frontend（dev 还有 compose watch 做热重载），**没有 db 容器、没有 .env 文件**。运行时数据库（docker postgres）是外部依赖 —— backend 容器通过 compose `secrets:` block 把 host 侧的 `DATABASE_URL` 挂进来，DSN 进 `DATABASE_URL_FILE=/run/secrets/database_url`。Backend 不需要知道 db 在哪；网络可达、DSN 对即可。`POSTGRES_PASSWORD` 不再需要 —— 密码写进 `DATABASE_URL`，由 `db/scripts/migrate.sh` 在每个 host 一次性 setup 时写入。
+dev / prod 目标机只跑 backend + frontend（dev 走 host-native：uvicorn + `next dev` 直接在宿主机上跑，db 走 docker 容器），**没有 db 容器、没有 .env 文件**。运行时数据库（docker postgres）是外部依赖 —— backend 容器通过 compose `secrets:` block 把 host 侧的 `DATABASE_URL` 挂进来，DSN 进 `DATABASE_URL_FILE=/run/secrets/database_url`。Backend 不需要知道 db 在哪；网络可达、DSN 对即可。`POSTGRES_PASSWORD` 不再需要 —— 密码写进 `DATABASE_URL`，由 `db/scripts/migrate.sh` 在每个 host 一次性 setup 时写入。
 
 ## 仓库结构（按角色）
 
@@ -63,34 +63,33 @@ make release-prod [X.Y.Z]
 dev 主机自己跑 docker postgres（`postgres:15-alpine`，数据在 `./.dev/data/postgres/`，gitignored）—— 没有外部云 db，没有 `.secrets/` 间接层，`DATABASE_URL` 由 compose 的 `environment:` 直接注入 backend 容器。
 
 ```bash
-# 一次性: 装好 dev 应用镜像
-make dev-setup                     # preflight + build english_backend_dev + english_frontend_dev
-make dev-doctor                    # 前置检查 (docker + compose + images + ports + drift)
+# 一次性: 装 host-native deps + 起 docker db
+make dev-setup                     # preflight + 装 backend/.venv + frontend/node_modules + 起 db
+make dev-doctor                    # 前置检查 (docker + compose + host python/node + ports + db 可达性)
 
-# 起容器 (拉 postgres:15-alpine + 起 db/backend/frontend + 后台 spawn compose watch)
+# 起 host-native 进程 (uvicorn :8000 + next dev :3000,都连 docker postgres :5432)
 make dev-start
 # 起完会立即看: 「db 是空的 (vocabulary_libs = 0 行)」→ 提示跑 import_content
 
 # 灌入内容 (CMS 主机: ./cms/run.sh 产出 cms/content/,rsync 到本机)
 make dev-import-content            # 自动起 db(如需) → UPSERT → migrations/backfills
-# 无需 restart；下一次 API 请求立即读到新内容
+# 无需 restart;下一次 API 请求立即读到新内容
 
-# 改了代码 / docker-compose.dev.yml / .env 后
-make dev-restart                   # recreate backend + frontend
-# 改了某个 service: make dev-restart frontend   # 只 recreate 一个
+# 改了代码后
+make dev-restart                   # 重起 backend + frontend 进程 (uvicorn/next 自动重载一般不需要)
 
 # 改了 backend/migrations/versions/*.py 后
-make dev-migrate                   # host-side runner(可选;restart backend 也会自动跑)
+make dev-migrate                   # host-side runner,直接打 docker postgres
 
 # 日常
-make dev-logs [svc]                # tail logs
-make dev-stop                      # 停 watch + 容器
+make dev-logs [backend|frontend]   # tail native 进程日志
+make dev-stop                      # 停两个 native 进程(db 留着)
 ```
 
 需要换 CORS 白名单: `ALLOWED_ORIGINS=https://my.domain make dev-start`
 
 > 没装 docker / daemon 没起,`make dev-doctor` 会直接报错,先装 docker。
-> dev db 是 docker postgres,不需要任何 bootstrap 命令 —— dev-setup 只 build image,所有 db 操作都在 start 时按需发生。
+> dev db 是 docker postgres,不需要任何 bootstrap 命令 —— dev-setup 只装 host-native deps 和起 db,所有 db 操作都在 start 时按需发生。
 
 访问:
 - 前端: <http://localhost:3000>
@@ -98,27 +97,26 @@ make dev-stop                      # 停 watch + 容器
 
 ### `dev-setup` 做什么
 
-`make dev-setup` 把 dev 跑起来所需的镜像摆到位,**不启动容器、不动 secrets、不 push**:
+`make dev-setup` 把 dev 跑起来所需的本地环境摆到位,**不启动应用进程、不动 secrets、不 push**:
 
-1. **Preflight** —— docker / compose 必须在
-2. **dev app images** (`english_backend_dev` + `english_frontend_dev`) —— 缺失就 build(每个 image 的 tag 由各自 image 内容 hash 算出,`c<content-hash7>[-dirty]`,见 [Image version tags](CLAUDE.md) 里 "Why dev tags are content-hash, prod tags are semver")
-3. **Final summary** —— 提示下一步 `make dev-start`
+1. **Preflight** —— docker / compose / python3 / node 必须在
+2. **host-native deps** —— `backend/.venv` (pip install) + `frontend/node_modules` (npm install),两个都用 SHA256 哈希感知,manifest 不变就跳过
+3. **docker db** —— 拉起 `postgres:15-alpine` 容器(`./.dev/data/postgres/` bind-mount,gitignored)
+4. **Final summary** —— 提示下一步 `make dev-start`
 
 ### 改 schema / 改内容 / 改代码
 
-**改代码**(`backend/app/...` 或 `frontend/src/...`):保存即热重载 —— backend 是 uvicorn --reload,frontend 是 compose watch 同步 + Next.js HMR。不需要任何命令。
+**改代码**(`backend/app/...` 或 `frontend/src/...`):保存即热重载 —— backend 是 uvicorn --reload,frontend 是 Next.js Fast Refresh。**不需要任何命令**。
 
-**改了 Dockerfile / requirements.txt / package.json**:需要重 build image 再 restart:
+**改了 `requirements.txt` / `package.json`** —— 重新感知 hash + 重装 deps,然后重起进程:
 ```bash
-make dev-build                     # 重新 build dev image
-make dev-restart                   # recreate 容器用新 image
+make dev-setup                      # 感知 hash 变化,自动 pip/npm install
+make dev-restart                    # 重起两个进程让新 deps 生效
 ```
 
-**改了 `backend/migrations/versions/*.py`** —— 两种方式都行:
+**改了 `backend/migrations/versions/*.py`**:
 ```bash
-make dev-migrate                   # host-side 立即 apply (可选)
-# 或:
-make dev-restart backend           # backend container 重起,entrypoint 自动 apply
+make dev-migrate                    # host-side 立即 apply,直接打 docker postgres
 ```
 
 `make dev-migrate` 在 host 跑 `migrations.runner`(需要 python3 + psycopg2-binary + sqlalchemy 已装,这些 `db/scripts/init_schema.sh` / `import_staging.sh` 也要用,所以一次性装好就行)。Idempotent —— re-runs are no-ops。
@@ -133,14 +131,9 @@ dev 自带 `cms/content/` 是 git tracked,但 commit + pull 之后还需要 `mak
 
 ## 镜像发布(可选,无 registry 时跳过)
 
-dev 主机 **不 push**(dev 是开发机,image 留在本地,跑 build 后直接 start)。
-prod 主机推自己的 backend+frontend 镜像。
+dev 主机 **不 build 任何 image** —— dev 是 host-native loop(uvicorn + `next dev` 直接跑在 host 上),没有 `english_backend_dev` / `english_frontend_dev` 这种 dev 镜像。prod 主机推自己的 backend+frontend 镜像。
 
 ```bash
-# dev host: 只 build,不 push,直接 start
-make dev-build
-make dev-start
-
 # prod host: build + push
 export DOCKER_REGISTRY=docker.io/youruser
 make prod-build
@@ -148,7 +141,7 @@ make prod-push
 ```
 
 > 看当前所有 per-segment VERSION 文件:`make release-show`
-> 一站式 release(自动 bump + build + push):`make release-dev [X.Y.Z]` / `make release-prod [X.Y.Z]`
+> 一站式 release(自动 bump + build + push):`make release-prod [X.Y.Z]`
 
 ### 推荐:Tencent Cloud 部署走 TCR(腾讯云容器镜像服务)
 
@@ -237,6 +230,4 @@ rm -f .secrets/tencent_db_admin_url # cloud-db-era artifact
 make dev-start    # or make prod-start after editing .secrets/db_password
 ```
 
-After that, `./dev-start` (or `./prod-start`) works as in a fresh install. The new docker postgres bind-mounts to `./.dev/data/postgres/` (dev) or `/var/lib/type-any-language/postgres/` (prod — `chown 999:999` first); compose takes care of `docker pull postgres:15-alpine`, schema via entrypoint.sh + migrations, and content via `make dev-import-content`.
-
-After that, `make dev-start` (or `make prod-start`) works as in a fresh install.
+After that, `make dev-start` (or `make prod-start`) works as in a fresh install. The docker postgres bind-mounts to `./.dev/data/postgres/` (dev) or `/var/lib/type-any-language/postgres/` (prod — `chown 999:999` first); compose takes care of `docker pull postgres:15-alpine`, schema via `make dev-migrate`, and content via `make dev-import-content`.

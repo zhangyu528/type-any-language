@@ -25,10 +25,6 @@
 #                                or any VERSION* under repo root; falls back to "v0.0.0")
 #   - resolve_image_tag VAR [path] (per-image env > IMAGE_TAG > version file > "v0.0.0")
 #   - warn_if_version_default    (one-shot warn when VERSION file is missing/empty)
-#   - compute_backend_content_hash / compute_frontend_content_hash
-#                                  (7-char SHA256 of inputs that affect each dev image)
-#   - compute_dev_image_tag [backend|frontend]
-#                                  (c<content-hash7>[-dirty] — no branch)
 #   - resolve_docker_registry    (shell env > REGISTRY file > detect_default_registry())
 #   - sed_inplace                (portable sed -i; GNU vs BSD/macOS)
 #
@@ -241,27 +237,12 @@ detect_default_registry() {
 #                                       today; reserved for a future CMS pipeline
 #                                       version stamp)
 #
-# **Dev** tags are NOT versioned. They are derived from current image
-# CONTENT via `compute_backend_content_hash` /
-# `compute_frontend_content_hash` and assembled by
-# `compute_dev_image_tag [segment]` (format `c<hash7>[-dirty]`).
-# Every change to an image input file (Dockerfile.dev / entrypoint.sh /
-# requirements.txt / package*.json) produces a new tag; docs-only or
-# bind-mount-src changes do not. This is by design:
-#
-#   - dev tag is automatic → no VERSION-file edits during dev iteration
-#   - dev tag is content-derived → same content = same tag, even across branches
-#   - dev tag is local-only → never pushed to any registry
-#   - prod tag is explicit → semver, bumped only by `release.sh prod`
-#
-# The two paths are intentionally different: dev is fluid, prod is
-# frozen at release points.
-#
-# One file per segment (no dev/prod split): backend/VERSION gates both the
-# dev and prod backend image tags, frontend/VERSION gates both frontend
-# image tags. Dev and prod streams therefore always release at the same
-# per-segment version — when you bump backend, you bump both backend
-# images at once.
+# One file per segment: backend/VERSION gates the prod backend image tag,
+# frontend/VERSION gates the prod frontend image tag. Dev has no docker
+# images — the dev loop runs host-native (uvicorn + `next dev` on the
+# host, talking to the docker `db` container) so there's no image tag to
+# resolve for dev iteration. Prod tags are explicit semver, bumped only
+# by `release.sh prod`.
 #
 # All callers resolve tags by passing an explicit relative path (relative to
 # find_repo_root) — there is no implicit root-level fallback. There is no
@@ -368,206 +349,6 @@ resolve_image_tag() {
     resolved="$(read_version_file "$path")"
     printf -v "$var" '%s' "$resolved"
     export "$var"
-}
-
-# ---------------------------------------------------------------------------
-# Dev image tag — content-hash based
-# ---------------------------------------------------------------------------
-# Dev tags reflect **image content** (what's baked into the image layers),
-# NOT git state. Two builds at different commits that don't change any
-# image-affecting file produce the same tag — no tag thrash, no phantom
-# tags in `docker image ls`.
-#
-# Format: c<content-hash7>[-dirty]
-#   clean working tree at HEAD         → cabc1234
-#   local edit to a content input      → cabc1234-dirty
-#
-# Why "c" prefix:
-#   A bare 7-char hex string looks ambiguous (could be a git sha). The
-#   `c` prefix makes it unambiguous: `c1234af0` reads as "content hash
-#   1234af0", distinct from git sha `1234af0`.
-#
-# Why NO branch in the tag:
-#   - Same content on master / feat_x / detached HEAD should produce the
-#     same tag — branch is a git workflow concept, not an image content
-#     concept. Including branch just makes the same image wear N tags
-#     for no benefit.
-#   - If two branches really produce different content, their content
-#     hashes will differ anyway — that's the signal that matters.
-#
-# Why content hash, not git SHA:
-#   - docs-only commits → image unchanged → tag unchanged ✓
-#   - bind-mount src changes (app/, frontend/src/) → image unchanged
-#     (those files aren't COPY'd into the image) → tag unchanged ✓
-#   - requirements.txt / package.json changes → image unchanged but
-#     expected runtime behavior differs → tag SHOULD change (entrypoint
-#     hash-aware reinstall picks it up) → tag changes ✓
-#   - Dockerfile.dev / entrypoint.sh changes → image layers change →
-#     tag changes ✓
-#
-# Why dirty, not git-state:
-#   `-dirty` means "your local working tree differs from HEAD in a way
-#   that affects image content". If you only edited CLAUDE.md, the
-#   image is bit-identical to HEAD's — no `-dirty`. If you edited
-#   backend/requirements.txt, the image's baked-in hash expectation
-#   differs — `-dirty` so you don't accidentally reuse an image built
-#   before your local edit.
-#
-# Each image segment computes its own content hash (its inputs differ):
-#   - english_backend_dev  ← Dockerfile.dev + entrypoint.sh + requirements.txt
-#   - english_frontend_dev ← Dockerfile.dev + entrypoint.sh + package.json/lock
-# db/migrations/** is intentionally NOT included — migrations run
-# host-side via ops/dev/migrate.sh, never inside the dev image. A
-# migration change requires no image rebuild.
-
-# _dev_image_inputs <segment> — print newline-separated list of files
-# whose content affects the given segment's dev image. Used by
-# compute_dev_image_tag. Hidden helper (underscore prefix).
-#
-# Args: backend | frontend
-# Output: one path per line, relative to repo root.
-_dev_image_inputs() {
-    case "$1" in
-        backend)
-            printf '%s\n' \
-                "backend/Dockerfile.dev" \
-                "backend/entrypoint.sh" \
-                "backend/requirements.txt"
-            ;;
-        frontend)
-            printf '%s\n' \
-                "frontend/Dockerfile.dev" \
-                "frontend/entrypoint.sh" \
-                "frontend/package.json" \
-                "frontend/package-lock.json"
-            ;;
-        *)
-            echo "[ERR] _dev_image_inputs: unknown segment '$1' (use backend|frontend)" >&2
-            return 1
-            ;;
-    esac
-}
-
-# _file_content_for_hash <relpath> — emit the file's current content
-# bytes for hashing. Prefers the HEAD-committed version (so two builds
-# on the same commit produce identical hashes even if the working tree
-# has unrelated dirty files), but falls back to the working-tree file
-# when the file is locally modified.
-#
-# Why HEAD-first: the tag should be stable across commits that don't
-# touch image inputs. A README typo shouldn't perturb the hash.
-#
-# Why fall back to working tree: a locally-edited requirements.txt must
-# change the hash — otherwise we'd reuse the old image and silently
-# ignore the local edit. Detect "locally modified" via `git diff` for
-# the file, and use the working-tree content in that case.
-_file_content_for_hash() {
-    local relpath="$1"
-    if git diff --quiet -- "$relpath" 2>/dev/null \
-       && git diff --cached --quiet -- "$relpath" 2>/dev/null; then
-        # File matches HEAD (no unstaged, no staged changes). Hash the
-        # committed version — stable across unrelated dirty files.
-        git show "HEAD:${relpath}" 2>/dev/null
-    else
-        # File is locally modified. Use working-tree content so the hash
-        # reflects what would actually be baked into the image.
-        cat -- "$relpath"
-    fi
-}
-
-# _dev_image_content_dirty <segment> — print 1 if any input file for the
-# segment differs from HEAD (working tree or staged), 0 if all inputs
-# match HEAD. Used by compute_dev_image_tag to decide the `-dirty`
-# suffix.
-_dev_image_content_dirty() {
-    local relpath
-    while IFS= read -r relpath; do
-        [ -z "$relpath" ] && continue
-        if ! git diff --quiet -- "$relpath" 2>/dev/null \
-           || ! git diff --cached --quiet -- "$relpath" 2>/dev/null; then
-            return 0  # 0 = "this segment is dirty"
-        fi
-    done < <(_dev_image_inputs "$1")
-    return 1  # 1 = "this segment is clean"
-}
-
-# compute_backend_content_hash / compute_frontend_content_hash — echo
-# the 7-char content hash for the segment's dev image. Format: lowercase
-# hex, no `c` prefix (caller adds it when assembling the tag).
-#
-# Returns the empty string on hash failure. Callers should treat empty
-# as "couldn't compute" and abort.
-_compute_dev_content_hash() {
-    local segment="$1"
-    if ! git rev-parse --git-dir >/dev/null 2>&1; then
-        echo "[ERR] compute_${segment}_content_hash: not in a git repo" >&2
-        return 1
-    fi
-
-    local hasher=""
-    if command -v sha256sum &> /dev/null; then
-        hasher="sha256sum"
-    elif command -v shasum &> /dev/null; then
-        hasher="shasum -a 256"
-    else
-        echo "[ERR] compute_${segment}_content_hash: need sha256sum or shasum" >&2
-        return 1
-    fi
-
-    # Concatenate every input file's content (in declared order) and
-    # hash the concatenation. The declared order is stable, so two
-    # calls with the same inputs produce the same hash. We hash the
-    # raw bytes — no file separators — because adding separators would
-    # be redundant (each file's bytes are already distinct enough).
-    #
-    # Use git ls-files --error-unmatch to fail loudly if an input path
-    # is missing from the index (typo in _dev_image_inputs, or file
-    # never committed). Better to error here than silently hash empty
-    # input and produce a hash that collides with other missing files.
-    local relpath content
-    local concat=""
-    while IFS= read -r relpath; do
-        [ -z "$relpath" ] && continue
-        if ! git ls-files --error-unmatch -- "$relpath" >/dev/null 2>&1; then
-            echo "[ERR] compute_${segment}_content_hash: input not in index: $relpath" >&2
-            return 1
-        fi
-        content="$(_file_content_for_hash "$relpath")" || {
-            echo "[ERR] compute_${segment}_content_hash: cannot read $relpath" >&2
-            return 1
-        }
-        concat="${concat}${content}"
-    done < <(_dev_image_inputs "$segment")
-
-    # Hash + truncate to 7 hex chars.
-    printf '%s' "$concat" | $hasher | awk '{print substr($1,1,7)}'
-}
-compute_backend_content_hash()  { _compute_dev_content_hash backend;  }
-compute_frontend_content_hash() { _compute_dev_content_hash frontend; }
-
-# compute_dev_image_tag [segment] — echo the dev image tag for the
-# given segment (default: backend). Output format: c<hash7>[-dirty].
-#
-# Args: backend (default) | frontend
-# Errors: returns 1 if not in a git repo, no usable hasher, or any
-# input file is missing from the index.
-compute_dev_image_tag() {
-    local segment="${1:-backend}"
-
-    local content_hash dirty=""
-    content_hash="$(_compute_dev_content_hash "$segment")" || return 1
-    if [ -z "$content_hash" ]; then
-        echo "[ERR] compute_dev_image_tag($segment): empty content hash" >&2
-        return 1
-    fi
-
-    # `-dirty` iff the segment's inputs are locally modified. Document /
-    # cms/ migrations edits don't trigger `-dirty` for either image.
-    if _dev_image_content_dirty "$segment"; then
-        dirty="-dirty"
-    fi
-
-    printf 'c%s%s' "$content_hash" "$dirty"
 }
 
 # warn_if_version_default <tag> [path]  — prints a single warn line if the

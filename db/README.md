@@ -64,7 +64,7 @@ Each target host (dev / prod) does its own one-time docker postgres bootstrap (t
 # → writes DATABASE_URL (consumed by compose's `secrets:` block)
 ```
 
-After bootstrap, lifecycle.sh start picks up the DSN automatically.
+After bootstrap, `lifecycle.sh start` picks up the DSN automatically.
 
 ## Schema ownership
 

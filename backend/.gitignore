@@ -30,3 +30,8 @@ audio/
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Native dev runtime artifact — written by ops/dev/setup.sh so the
+# hash-aware pip install can skip on no-op restarts. Always generated
+# next to the backend's requirements.txt.
+.requirements.sha256

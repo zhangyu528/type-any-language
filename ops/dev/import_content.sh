@@ -104,12 +104,12 @@ cmd_import() {
     # frontend would show "该词库暂无可练习的句子".
     #
     # We use the host-side runner (db/scripts/migrate.sh → runner.py)
-    # rather than waiting for the next backend container restart,
-    # because in the common flow `./dev start` already brought up the
-    # backend container — its entrypoint migrations ran on an empty
-    # db, and won't re-run until the container recreates. Triggering
-    # it here makes the data → migration ordering correct without
-    # forcing an extra `./dev restart`.
+    # rather than waiting for the next backend reload, because in the
+    # common flow `make dev-start` already brought up uvicorn — its
+    # initial connect saw an empty db, and any backfill migrations
+    # won't re-run until the next request triggers a fresh connect.
+    # Triggering them here makes the data → migration ordering correct
+    # without forcing an extra restart.
     #
     # Idempotent: rerunnable migrations handle repeated runs, and
     # schema_migrations stamps the rest. Same DATABASE_URL as the

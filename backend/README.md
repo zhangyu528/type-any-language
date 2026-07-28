@@ -14,7 +14,6 @@ type-any-language 的 FastAPI 读层。运行时有意做得很薄:提供已缓�
 ```
 backend/
 ├── Dockerfile         # prod image
-├── Dockerfile.dev     # dev image(uvicorn --reload,hash-aware entrypoint)
 ├── requirements.txt
 ├── app/
 │   ├── main.py        # FastAPI 应用,CORS
@@ -48,31 +47,50 @@ backend/
 
 | 变量 | 来源 | 说明 |
 |---|---|---|
-| `DATABASE_URL` | compose secret(`DATABASE_URL_FILE`) | `postgresql://...` 连接串 |
-| `ALLOWED_ORIGINS` | shell env | 逗号分隔的 CORS 白名单,例如 `https://my.domain`。Dev 默认 `http://localhost,http://localhost:3000` |
+| `DATABASE_URL` | shell env(native 由 `ops/dev/native.sh` 自动 export;docker 由 compose `environment:` 注入) | `postgresql://...` 连接串 |
+| `ALLOWED_ORIGINS` | shell env | 逗号分隔的 CORS 白名单,例如 `https://my.domain`。Native + dev 默认 `http://localhost,http://localhost:3000,http://localhost:54102,http://localhost:55407,http://localhost:55500` |
 
-`DATABASE_URL` 优先用 `*_FILE` 间接方式(compose 的 `secrets:` 块),这样密码不会出现在 `docker inspect` 输出里。解析顺序见 `config.py:resolved_database_url()`。目标机不需要 `.env` 文件 —— `ops/{dev,prod}/setup.sh bootstrap` 一次性写 `DATABASE_URL`(chmod 600),compose 把它作为 secret 文件挂进容器(读取路径 `DATABASE_URL_FILE=/run/secrets/database_url`)。
+目标机不需要 `.env` 文件 —— native 路径由 `ops/dev/native.sh` 自动 export;docker 路径由 compose `environment:` block 注入。**`DATABASE_URL_FILE` 已被废弃** —— 那是 cloud-db 时代的旧间接方式,当前所有路径都不再使用它。
 
-## 本地开发(不用 docker)
+## 本地开发(默认 — host-native)
+
+直接宿主机跑 uvicorn,db 仍然在 docker(`./.dev/data/postgres/`)。这是新的
+默认路径,比 backend 容器快很多。完整流程:
 
 ```bash
-cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+# 一次性 bootstrap:venv + node_modules + 起 db 容器
+make dev-setup                  # = ./ops/dev/setup.sh
 
-export DATABASE_URL=postgresql://english_user:<password>@localhost:5432/english_learning
-export ALLOWED_ORIGINS=http://localhost,http://localhost:3000
+# 起 native 进程 (uvicorn + next dev 都在宿主机上)
+make dev-start                  # = ./ops/dev/native.sh start
 
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# 改 backend/ 下任何 .py → uvicorn 自动 --reload
+# 改 requirements.txt → make dev-restart(venv 会感知 hash 变化重 pip install)
+# 想看进程 / 日志:
+make dev-status
+make dev-logs
+# 想停:
+make dev-stop
 ```
 
-需要有一个能通过 `$DATABASE_URL` 访问的 Postgres,且 schema 已经加载好了。最简单的路径:先用 `make dev-start`(等价 `./ops/dev/lifecycle.sh start`)把整个 dev 栈起来,让 backend 指同一个云 db。
+默认环境变量(`native.sh` 自动 export,你不用手动):
 
-## 热重载(dev)
+| 变量 | 默认值 |
+|---|---|
+| `DATABASE_URL` | `postgresql://english_dev:devpw@localhost:5432/english_dev` |
+| `ALLOWED_ORIGINS` | `http://localhost,http://localhost:3000,http://localhost:54102,http://localhost:55407,http://localhost:55500` |
 
-`docker-compose.dev.yml` 把 backend 服务 bind-mount 进去,跑 `uvicorn --reload`。改 `.py` 文件 → FastAPI 自动重启。无需重启容器。
+要换就 `ALLOWED_ORIGINS=... make dev-start`。
 
-依赖改动(`requirements.txt`)会被 `entrypoint.sh` 哈希感知:只有 SHA256 变了才重跑 `pip install`。所以确实需要 `make dev-restart`(等价 `./ops/dev/lifecycle.sh restart`)重建容器 —— 但不需要重新 build image。
+## 热重载(dev — host-native)
+
+uvicorn 以 `--reload` 跑。改任意 `app/**/*.py` → FastAPI 自动重启,无需手
+动操作。改 `requirements.txt` → host 上 `setup.sh` 感知 hash 变化会重跑
+`pip install`(需要 `make dev-setup` 重新触发,然后 `make dev-restart` 重
+起 uvicorn 进程)。
+
+Schema 改动后:`make dev-migrate`(宿主机直接打 docker postgres,不会重
+起 backend)。
 
 ## 测试
 

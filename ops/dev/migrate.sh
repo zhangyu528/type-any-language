@@ -69,7 +69,7 @@ cmd_migrate() {
     echo ""
     ok "=== migrate 完成 ==="
     info "  backend hot reload 自动捡新 schema;要确认:"
-    info "    ./ops/dev/lifecycle.sh restart"
+    info "    ./ops/dev/native.sh restart"
     info "  或直接由 backend entrypoint 自动跑:"
     info "    docker compose restart backend"
 }

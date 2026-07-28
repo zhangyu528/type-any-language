@@ -1,38 +1,20 @@
 # ---------------------------------------------------------------------------
 # Development docker-compose for type-any-language.
 #
-# Runtime model: each dev host has its own postgres running in a
-# container. Three services:
+# Sole purpose: run the dev postgres (`english_dev` / `devpw` /
+# `english_dev`) on the host so the host-native dev loop (uvicorn +
+# `next dev` on the host) has a database to talk to. There are no
+# other services in this file — backend and frontend run on the host
+# via `make dev-start` (ops/dev/native.sh), not in containers.
 #
-#   db         — postgres:15-alpine, bind-mounted to ./.dev/data/postgres/
-#                for data persistence across container restarts. Each dev
-#                host gets one db (per-user, single instance) — not per-
-#                branch (the early mode-2 per-branch design was reverted
-#                when db moved back to local docker from TencentDB).
+# One db per dev host (single-tenant). Data is bind-mounted to
+# ./.dev/data/postgres/ (gitignored) so container recreate preserves
+# state, and the data is visible on the host for backup / inspection.
 #
-#   backend    — FastAPI / uvicorn --reload, ./backend bind-mounted for
-#                hot-reload. Connects to db via DATABASE_URL env (compose
-#                network, no secret-file indirection — simpler than the
-#                old TencentDB-mode setup).
-#
-#   frontend   — Next.js dev server with HMR via compose watch. Bakes
-#                base source into image; syncs hot paths at runtime.
-#
-# Migration flow:
-#   - db service comes up with empty schema.
-#   - backend container's entrypoint.sh runs `python -m migrations.runner`
-#     on start → applies all pending migrations idempotently.
-#   - first-time data: run `make dev-import-content` on the host (or
-#     `python -m importer all` directly). The dev wrapper UPSERTs vocab +
-#     sentences, then immediately re-runs migrations so rerunnable backfills
-#     see the imported rows. No backend restart is required.
-#
-# Run via:  ./ops/dev/lifecycle.sh start
-# BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG are content-hash tags (computed by
-# ops/dev/build_image.sh from each image's own content inputs). They are
-# computed independently for backend and frontend, and may differ when
-# only one segment's content changes. Override per-image via
-# BACKEND_DEV_TAG / FRONTEND_DEV_TAG, or both via IMAGE_DEV_TAG.
+# First-time data: run `make dev-import-content` on the host (or
+# `python -m importer all` directly). The dev wrapper UPSERTs vocab +
+# sentences, then immediately re-runs migrations so rerunnable backfills
+# see the imported rows. No backend restart is required.
 # ---------------------------------------------------------------------------
 
 services:
@@ -47,8 +29,7 @@ services:
       POSTGRES_PASSWORD: devpw
       POSTGRES_DB: english_dev
     ports:
-      # Expose to host for tooling (psql, python3 -m importer).
-      # Backend talks to it via the compose network's `db` hostname.
+      # Expose to host for tooling (psql, python3 -m importer, uvicorn).
       - "5432:5432"
     volumes:
       # Persistent data — bind-mounted to ./.dev/data/postgres/ (gitignored)
@@ -61,95 +42,3 @@ services:
       timeout: 5s
       retries: 10
     restart: unless-stopped
-
-  # -------------------------------------------------------------------------
-  # Backend — hot-reload via ./backend bind-mount + uvicorn --reload
-  # -------------------------------------------------------------------------
-  backend:
-    image: english_backend_dev:${BACKEND_IMAGE_TAG:-latest}
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.dev
-      args:
-        # Dev image tag = image content hash (see ops/lib.sh::
-        # compute_dev_image_tag). GIT_SHA is informational (surfaces as
-        # an image LABEL, NOT as the canonical tag).
-        APP_VERSION: ${BACKEND_IMAGE_TAG:-latest}
-        GIT_SHA: ${GIT_SHA:-unknown}
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      # CORS allowlist — dev defaults to localhost:3000 (Next.js dev server).
-      # Override via shell env:
-      #   ALLOWED_ORIGINS=... ./ops/dev/lifecycle.sh start
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost,http://localhost:3000}
-      # db is reachable as `db` on the compose network (port 5432 internal).
-      DATABASE_URL: postgresql://english_dev:devpw@db:5432/english_dev
-    volumes:
-      # Hot-reload source mount
-      - ./backend:/app
-    ports:
-      # Expose backend directly on :8000 (no nginx in dev)
-      - "8000:8000"
-    # entrypoint.sh (set by Dockerfile.dev's ENTRYPOINT) runs migrations
-    # before exec. If migrations fail, container exits so dev sees the
-    # error immediately instead of 5xx-ing on first request.
-    entrypoint: /app/entrypoint.sh
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-
-  # -------------------------------------------------------------------------
-  # Frontend — Next.js dev server (HMR) on :3000
-  # -------------------------------------------------------------------------
-  frontend:
-    image: english_frontend_dev:${FRONTEND_IMAGE_TAG:-latest}
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.dev
-      args:
-        APP_VERSION: ${FRONTEND_IMAGE_TAG:-latest}
-        GIT_SHA: ${GIT_SHA:-unknown}
-    restart: unless-stopped
-    environment:
-      # In dev, the React app talks to the backend on the host directly
-      # (no nginx in the path). NEXT_PUBLIC_API_URL is build-time.
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
-    develop:
-      watch:
-        # --- Source code (live HMR) ---
-        - action: sync
-          path: ./frontend/src
-          target: /app/src
-        - action: sync
-          path: ./frontend/public
-          target: /app/public
-
-        # --- Package files (sync overlay; entrypoint picks up on restart) ---
-        - action: sync
-          path: ./frontend/package.json
-          target: /app/package.json
-        - action: sync
-          path: ./frontend/package-lock.json
-          target: /app/package-lock.json
-
-        # --- Configs (sync overlay; restart picks up changes) ---
-        - action: sync
-          path: ./frontend/next.config.js
-          target: /app/next.config.js
-        - action: sync
-          path: ./frontend/tsconfig.json
-          target: /app/tsconfig.json
-        - action: sync
-          path: ./frontend/next-env.d.ts
-          target: /app/next-env.d.ts
-
-        # --- Dev-only scripts ---
-        - action: sync
-          path: ./frontend/entrypoint.sh
-          target: /app/entrypoint.sh
-    ports:
-      - "3000:3000"
-    command: ["npm", "run", "dev"]
-    depends_on:
-      - backend

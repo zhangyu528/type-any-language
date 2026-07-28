@@ -68,7 +68,7 @@ cms/content/sentences/<lib>.jsonl
         ↓  db/scripts/import_staging.sh (importer all)              (L: Load)
 docker postgres(vocabulary_libs + vocabulary_words + sentences)
                                                                             
-        ↓  目标主机的 ops/{dev,prod}/lifecycle.sh start
+        ↓  目标主机的 ops/prod/lifecycle.sh start
 docker compose up -d
         ↓
 frontend 请求 /api/sentences/random
