@@ -100,7 +100,7 @@ function LoginForm() {
   // 3 = review + submit. Screen transitions are exclusive — only one
   // stage renders at a time. Server errors during Screen 3 submit
   // bounce the user back to the offending screen via setScreen().
-  const [screen, setScreen] = useState<1 | 2 | 3>(1);
+  const [screen, setScreen] = useState<1 | 2>(1);
 
   // Per-char highlight buffer for the typewriter. On Screen 1 this
   // mirrors `email` exactly, but kept as a separate state slot so
@@ -108,22 +108,44 @@ function LoginForm() {
   // password field's buffer never lights up chars).
   const [typed, setTyped] = useState('');
 
-  // Subtitle carousel — a 2s loop alternating between a CN line and
-  // its EN translation. Picked deliberately so the auth page reads
-  // as a tiny preview of the product's "see Chinese, write English"
-  // loop without forcing the user to actually type. Index flips on
-  // a 2s timer set up in the effect below.
-  const SUBTITLE_LINES = [
-    { lang: 'zh', text: '请告诉我你的邮箱' },
-    { lang: 'en', text: 'Please tell me your email' },
-  ] as const;
+  // Subtitle carousel — each screen has its own CN+EN pair so the
+  // prompt matches what the user is currently doing. Picked
+  // deliberately so the auth page reads as a tiny preview of the
+  // product's "see Chinese, write English" loop without forcing
+  // the user to actually type. Index flips on a 2s timer set up
+  // in the effect below.
+  //
+  // Per-screen content:
+  //   Screen 1 (email)   — 请告诉我你的邮箱 / Please tell me your email
+  //   Screen 2 (password)— 现在告诉我你的密码 / Now tell me your password
+  const SUBTITLE_LINES_BY_SCREEN: Record<1 | 2, readonly { lang: 'zh' | 'en'; text: string }[]> = {
+    1: [
+      { lang: 'zh', text: '请告诉我你的邮箱' },
+      { lang: 'en', text: 'Please tell me your email' },
+    ],
+    2: [
+      { lang: 'zh', text: '现在告诉我你的密码' },
+      { lang: 'en', text: 'Now tell me your password' },
+    ],
+  };
+  // Resolved at render time so the JSX below always sees the pair
+  // for the currently active screen.
+  const subtitleLines = SUBTITLE_LINES_BY_SCREEN[screen];
   const [subtitleIndex, setSubtitleIndex] = useState(0);
+  // Reset the index to 0 every time the screen changes, so a quick
+  // jump from Screen 2 → 1 → 2 doesn't carry the user mid-fade from
+  // the prior pass. The setTimeout(0) defers the reset past the same
+  // tick the screen switch commits, so the new line first renders
+  // with index 0 (CN), then the interval below takes over.
+  useEffect(() => {
+    setSubtitleIndex(0);
+  }, [screen]);
   useEffect(() => {
     const id = window.setInterval(() => {
-      setSubtitleIndex((i) => (i + 1) % SUBTITLE_LINES.length);
+      setSubtitleIndex((i) => (i + 1) % subtitleLines.length);
     }, 2000);
     return () => window.clearInterval(id);
-  }, []);
+  }, [subtitleLines]);
 
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
@@ -140,9 +162,9 @@ function LoginForm() {
 
   // Trigger card shake + bounce the user to the offending screen
   // whenever a new error arrives. Server-side errors land here after
-  // a Screen 3 submit (future PR) and need to drop the user back to
-  // the right input; client-side errors (e.g. submit with empty
-  // password) also route through this effect.
+  // a Screen 2 submit and need to drop the user back to the matching
+  // input; client-side errors (e.g. submit with empty email/password)
+  // also route through this effect.
   useEffect(() => {
     const hasErrors = Object.values(errors).some(Boolean);
     if (!hasErrors) return;
@@ -158,10 +180,12 @@ function LoginForm() {
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    // Screen 1 / 2: Enter on the input must NOT trigger login (Screen 3
-    // submit button is the only valid login trigger). Guard here so a
-    // stray Enter in the email field doesn't 400 the API.
-    if (screen !== 3) return;
+    // Only Screen 2's Next button (type="submit") should ever reach
+    // here. A stray Enter on the email input on Screen 1 must NOT
+    // hit the API — guard explicitly so we don't 400 with an empty
+    // password. The Next button is also disabled when the password
+    // is too short, but the guard is defense in depth.
+    if (screen !== 2) return;
     if (submitting || dissolving) return;
 
     // Run client-side validation first — don't bother the server if
@@ -219,6 +243,23 @@ function LoginForm() {
   const canAdvanceFromScreen1 =
     email.length > 0 && emailFormatError === null;
 
+  // Screen 2 advance gate — Next is enabled only when the user has
+  // entered a PASSWORD_LENGTH-char password. Browser maxLength on the
+  // hidden input already caps the value at PASSWORD_LENGTH, so a
+  // simple length check is enough. PASSWORD_LENGTH is 8 to match
+  // the backend's password min_length=8 and to stay in lockstep
+  // with the signup page.
+  const PASSWORD_LENGTH = 8;
+  const canAdvanceFromScreen2 = password.length >= PASSWORD_LENGTH;
+
+  // Per-screen canAdvance — picked by current screen. Used to drive
+  // the disabled state of the Next button on every screen.
+  function canAdvanceForCurrentScreen(): boolean {
+    if (screen === 1) return canAdvanceFromScreen1;
+    if (screen === 2) return canAdvanceFromScreen2;
+    return true; // Screen 3's Next is the submit trigger; always enabled
+  }
+
   // Screen 1 event handlers. Typed buffer mirrors email on Screen 1
   // and feeds the per-char highlight on the small EN hint below the
   // hero CN word. No "seal" / "full-match" animation — the EN hint
@@ -237,17 +278,40 @@ function LoginForm() {
     // No-op on Screen 1 — subtitle is static, no focus-state copy.
   }
 
+  // Password change — mirrors onEmailChange in spirit. We don't run
+  // client-side format validation on passwords (no length error in
+  // advance — the gate is purely on character count via
+  // canAdvanceFromScreen2). Server errors land in errors.password
+  // and the [errors] effect bounces the user back to Screen 2.
+  function onPasswordChange(e: ChangeEvent<HTMLInputElement>) {
+    const next = e.target.value;
+    setPassword(next);
+    if (errors.password) {
+      setErrors((p) => ({ ...p, password: undefined }));
+    }
+  }
+
   function onEmailBlur(e: FocusEvent<HTMLInputElement>) {
     setEmailFormatError(validateEmail(e.target.value));
   }
 
   function onNext() {
-    if (!canAdvanceFromScreen1) return;
-    setScreen(2);
-    // Soft-focus the password input (placeholder on Screen 2 for now;
-    // guarded when Screen 2 lands). requestAnimationFrame defers focus
-    // until after React has committed the screen-2 JSX.
-    requestAnimationFrame(() => passwordRef.current?.focus());
+    // Screen 1: advance to password (gate on valid + non-empty email)
+    if (screen === 1) {
+      if (!canAdvanceFromScreen1) return;
+      setScreen(2);
+      // Soft-focus the password input on the next frame, after React
+      // has committed the screen-2 JSX. Without this, passwordRef
+      // would still point at a stale (not-yet-mounted) node.
+      requestAnimationFrame(() => passwordRef.current?.focus());
+      return;
+    }
+    // Screen 2: Next IS the submit button. It carries type="submit"
+    // and lives inside the form, so clicking it triggers the form's
+    // onSubmit handler. The [errors] bounce effect handles any
+    // server-side errors that come back.
+    if (screen === 2 && !canAdvanceFromScreen2) return;
+    // (No explicit submit call here — the button is type="submit".)
   }
 
   return (
@@ -276,9 +340,9 @@ function LoginForm() {
             and gets opacity 1; the other is opacity 0. The cross-fade
             uses the same auth-subtitle-fade keyframe as before. */}
         <div className="auth-screen__subtitle" aria-live="polite">
-          {SUBTITLE_LINES.map((line, i) => (
+          {subtitleLines.map((line, i) => (
             <span
-              key={line.lang}
+              key={`${screen}-${line.lang}`}
               className="auth-screen__subtitle-line"
               data-active={i === subtitleIndex ? 'true' : 'false'}
               lang={line.lang}
@@ -309,15 +373,17 @@ function LoginForm() {
         </div>
 
         <div className="auth-screen__pane" data-active={screen === 2 ? 'true' : 'false'}>
-          <p className="auth-screen__placeholder">
-            Screen 2 — coming next
-          </p>
-        </div>
-
-        <div className="auth-screen__pane" data-active={screen === 3 ? 'true' : 'false'}>
-          <p className="auth-screen__placeholder">
-            Screen 3 — coming next
-          </p>
+          <PasswordScreen
+            password={password}
+            passwordError={errors.password}
+            canAdvance={canAdvanceFromScreen2}
+            inputRef={passwordRef}
+            onChange={onPasswordChange}
+            onNext={onNext}
+            showPassword={showPassword}
+            onToggleShow={() => setShowPassword((v) => !v)}
+            pinLength={PASSWORD_LENGTH}
+          />
         </div>
 
         <p className="auth-form__alt">
@@ -665,10 +731,14 @@ function LoginForm() {
             opacity: 1;
             color: var(--label-primary);
           }
-          /* Underline-only input — transparent bg, no border, single
-             1px bottom-border that changes color on hover/focus. The
-             focus state draws a black underline from the left via a
-             pseudo-element overlay. */
+          /* Underline-only input — transparent bg, no border. Always
+             shows a 1px underline (the resting state uses
+             --label-tertiary so it's actually visible — earlier
+             versions used --label-quaternary which was too light to
+             read). On focus the input's own underline stays in
+             place (no longer transparent) and a 2px black
+             ::after overlay animates in from the left, layered ON
+             TOP of the resting underline for emphasis. */
           .auth-screen__input {
             width: 100%;
             height: 44px;
@@ -679,7 +749,7 @@ function LoginForm() {
             color: var(--label-primary);
             background: transparent;
             border: 0;
-            border-bottom: 1px solid var(--label-quaternary);
+            border-bottom: 1px solid var(--label-tertiary);
             border-radius: 0;
             letter-spacing: 0.02em;
             caret-color: var(--label-primary);
@@ -690,22 +760,32 @@ function LoginForm() {
             color: var(--label-quaternary);
             font-family: var(--font-body);
           }
+          /* Hover: nudge the underline slightly darker so the user
+             feels the field is interactive. */
           .auth-screen__input:hover {
-            border-bottom-color: var(--label-tertiary);
+            border-bottom-color: var(--label-secondary);
           }
+          /* Focus: the resting 1px underline shifts toward black
+             while the 2px overlay animates in. Both visible —
+             no more "underline disappears on focus" surprise. */
           .auth-screen__input:focus {
             outline: none;
-            border-bottom-color: transparent;
+            border-bottom-color: var(--label-secondary);
           }
-          /* Animated focus underline — pseudo-element overlay that
-             scales from 0 to 1 from the LEFT over 350ms. */
+          /* Focus overlay — a 2px black pseudo-element that animates
+             in from the left over 350ms when the input is focused.
+             Sits 1px below the input's bottom edge (bottom: -1px)
+             so it lands right under the input's 1px underline,
+             forming a clear "taller, bold" focus state without
+             obscuring the resting underline. Resting state is
+             hidden by scaleX(0). */
           .auth-screen__input::after {
             content: "";
             position: absolute;
             left: var(--space-2);
             right: var(--space-2);
-            bottom: 0;
-            height: 1px;
+            bottom: -1px;
+            height: 2px;
             background: var(--label-primary);
             transform: scaleX(0);
             transform-origin: left center;
@@ -798,6 +878,147 @@ function LoginForm() {
             padding: var(--space-5) 0;
           }
 
+          /* -------------------------------------------------------------
+             Screen 2 — password: back button + 6-dot PIN + show/hide
+             toggle + hidden text input. The hidden input is the
+             capture surface; the dots are derived state. Visual
+             treatment mirrors Screen 1's underline-only input feel
+             (no boxed borders on the row).
+             ------------------------------------------------------------- */
+
+          /* PIN row — 8 fixed dot slots centered horizontally. The row
+             itself is a click target that focuses the hidden input
+             below, so users can resume typing by tapping anywhere on
+             the row. */
+          .auth-screen__pin {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: var(--space-3);
+            padding: var(--space-4) 0;
+            cursor: text;
+            user-select: none;
+          }
+          /* Single PIN slot — an independent short underline (24×28
+             box) that fills as the user types. Empty state: 1px gray
+             underline at 50% opacity. Filled state: 2px black
+             underline at full opacity. Shown state (showPassword=
+             true): same filled underline + the character rendered
+             above it. The flex-end layout pins the character to
+             the bottom of the slot, just above the underline. */
+          .auth-screen__pin-dot {
+            display: inline-flex;
+            align-items: flex-end;
+            justify-content: center;
+            width: 24px;
+            height: 28px;
+            border: 0;
+            border-bottom: 1px solid var(--label-quaternary);
+            border-radius: 0;
+            background: transparent;
+            opacity: 0.5;
+            padding-bottom: 1px;
+            font-size: 16px;
+            font-family: var(--font-mono);
+            color: var(--label-primary);
+            transition: border-bottom-color var(--duration-fast) var(--ease-standard),
+                        border-bottom-width var(--duration-fast) var(--ease-standard),
+                        opacity var(--duration-fast) var(--ease-standard);
+          }
+          /* Filled (hidden mode, default): thicker, opaque underline. */
+          .auth-screen__pin-dot--filled {
+            border-bottom: 2px solid var(--label-primary);
+            opacity: 1;
+          }
+          /* Shown mode (showPassword=true): same filled underline +
+             the character is rendered above it (the existing JSX
+             already produces the char when shown=true). */
+          .auth-screen__pin-dot--shown {
+            border-bottom: 2px solid var(--label-primary);
+            opacity: 1;
+          }
+
+          /* Caret slot — the next empty position. Underline stays
+             in the empty-state 1px gray, but a thin vertical bar
+             (1.5×18px) sits centered above the underline, blinking
+             at 1s period via the auth-screen-caret-blink keyframe.
+             The bar is rendered as a ::after pseudo-element because
+             the slot's own content slot is reserved for the mask
+             char (a black bullet, U+2022) or the real char in
+             shown mode. */
+          .auth-screen__pin-dot--cursor {
+            border-bottom: 1px solid var(--label-quaternary);
+            opacity: 1;
+          }
+          .auth-screen__pin-dot--cursor::after {
+            content: "";
+            display: block;
+            width: 1.5px;
+            height: 18px;
+            background: var(--label-primary);
+            /* The slot is 28px tall. The 1px underline + 1px
+               padding-bottom + 18px caret = 20px, leaving 8px of
+               space above the caret. That space is split as ~4px
+               above the caret and ~4px from the caret to the
+               underline, which reads as visually centered. */
+            margin-bottom: 4px;
+            animation: auth-screen-caret-blink 1s steps(2, end) infinite;
+          }
+          @keyframes auth-screen-caret-blink {
+            0%, 50%       { opacity: 1; }
+            50.01%, 100%  { opacity: 0; }
+          }
+
+          /* Hidden text input that captures keystrokes. Visually
+             invisible (no border, no background, no size) but still
+             focusable and clickable from the PIN row above. */
+          .auth-screen__pin-input {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+            /* Pull it off-screen so screen readers still find it but
+               it doesn't take up layout space. */
+            left: -9999px;
+            top: -9999px;
+          }
+          /* But when the input itself is focused (via click on the
+             PIN row), it stays out of view — the visual cue is the
+             dot filling, not a visible cursor. */
+
+          /* Show/hide eye toggle. Sits to the right of the PIN row,
+             inline. Same color treatment as the back button. */
+          .auth-screen__show-toggle {
+            display: inline-flex;
+            align-self: center;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            margin: calc(var(--space-4) * -1) auto 0;
+            background: transparent;
+            border: 0;
+            border-radius: var(--radius-sm);
+            color: var(--label-quaternary);
+            padding: 0;
+            cursor: pointer;
+            transition: color var(--duration-fast) var(--ease-standard),
+                        background var(--duration-fast) var(--ease-standard);
+          }
+          .auth-screen__show-toggle:hover {
+            color: var(--label-secondary);
+            background: rgba(0, 0, 0, 0.04);
+          }
+          .auth-screen__show-toggle:focus-visible {
+            outline: 2px solid var(--label-primary);
+            outline-offset: 1px;
+          }
+
+          /* -------------------------------------------------------------
+             Per-screen pane — see .auth-screen__pane below.
+             ------------------------------------------------------------- */
+
           /* Per-screen pane — the wrapper that holds one screen's content.
              All three panes (Screen 1, 2, 3) are mounted simultaneously
              and stacked in source order; only one has data-active="true"
@@ -887,6 +1108,10 @@ function LoginForm() {
             .auth-screen__dot { transition: none !important; }
             .auth-screen__dot[data-active="true"] { animation: none !important; transform: scale(1); }
             .auth-screen__progress { animation: none !important; opacity: 1; }
+            /* Screen 2 additions — snap everything to final state. */
+            .auth-screen__pin-dot { transition: none !important; }
+            .auth-screen__show-toggle { transition: none !important; }
+            .auth-screen__pin-dot--cursor::after { animation: none !important; opacity: 1; }
           }
         ` }} />
       </form>
@@ -1000,7 +1225,168 @@ function EmailScreen(props: {
       <div className="auth-screen__progress" aria-hidden="true">
         <span className="auth-screen__dot" data-active="true" />
         <span className="auth-screen__dot" data-active="false" />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * PasswordScreen — Screen 2 of the step-by-step login flow.
+ *
+ * Mirrors EmailScreen's visual language (hero CN, EN hint, icon-only
+ * Next, 3-dot progress) but the input surface is a 6-dot PIN row
+ * with a hidden text/password input behind it. The user types into
+ * the hidden input (focused on mount), and the visual dots are
+ * derived from `password.length` + `showPassword`. The eye icon
+ * toggles between dots and plain chars without ever touching the
+ * actual input value.
+ *
+ * A small ← back button sits at the top-left of the stage so the
+ * user can return to Screen 1 and edit their email without
+ * clearing it.
+ *
+ * Visual states per dot:
+ *   - Empty: 1.5px label-quaternary border, transparent fill, opacity 0.5
+ *   - Filled (default, hidden mode): solid label-primary fill
+ *   - Filled (shown mode via eye): 1.5px label-primary border, char rendered inside
+ */
+function PasswordScreen(props: {
+  password: string;
+  passwordError?: string | null;
+  canAdvance: boolean;
+  inputRef: RefObject<HTMLInputElement>;
+  onChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  onNext: () => void;
+  showPassword: boolean;
+  onToggleShow: () => void;
+  pinLength: number;
+}) {
+  const TARGET_WORD = 'password';
+  const chars = Array.from(props.password);
+
+  return (
+    <div className="auth-screen__stage" data-screen="2">
+      {/* Hero CN — same scale/style as Screen 1 for visual continuity. */}
+      <p className="auth-screen__zh-large" aria-hidden="true">
+        密码
+      </p>
+
+      {/* EN hint — "password" in mono, dim. Static text, no per-char
+          highlighting here (the PIN dots provide the dynamic feedback
+          instead). */}
+      <p className="auth-screen__en-hint" aria-hidden="true">
+        {TARGET_WORD}
+      </p>
+
+      {/* PIN row — 6 fixed slots. Each slot fills as the user types.
+          Clicking anywhere on the row focuses the hidden input so the
+          user can resume typing without hunting for a target. */}
+      <div
+        className="auth-screen__pin"
+        onClick={() => props.inputRef.current?.focus()}
+      >
+        {Array.from({ length: props.pinLength }).map((_, i) => {
+          const isCursor = i === chars.length && chars.length < props.pinLength;
+          const isFilled = i < chars.length;
+          const isShown = isFilled && props.showPassword;
+          const stateClass = isCursor
+            ? 'auth-screen__pin-dot--cursor'
+            : isFilled
+              ? 'auth-screen__pin-dot--filled'
+              : '';
+          return (
+            <span
+              key={i}
+              className={`auth-screen__pin-dot ${stateClass}`.trim()}
+              data-state={isCursor ? 'cursor' : isFilled ? 'filled' : 'empty'}
+            >
+              {isShown ? chars[i] : isFilled ? '•' : ''}
+            </span>
+          );
+        })}
+      </div>
+
+      {/* Show/hide toggle — same eye-icon pattern as signup. tabIndex=-1
+          so the keyboard Tab order skips it (focus stays on the hidden
+          input). Positioned absolute-right of the pin row. */}
+      <button
+        type="button"
+        onClick={props.onToggleShow}
+        className="auth-screen__show-toggle"
+        aria-label={props.showPassword ? '隐藏密码' : '显示密码'}
+        tabIndex={-1}
+      >
+        {props.showPassword ? (
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M2 8 C3.5 4.5 5.5 3 8 3 s4.5 1.5 6 5 c-1.5 3.5 -3.5 5 -6 5 s-4.5 -1.5 -6 -5 z" />
+            <circle cx="8" cy="8" r="2" />
+            <path d="M2 2 L14 14" />
+          </svg>
+        ) : (
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M2 8 C3.5 4.5 5.5 3 8 3 s4.5 1.5 6 5 c-1.5 3.5 -3.5 5 -6 5 s-4.5 -1.5 -6 -5 z" />
+            <circle cx="8" cy="8" r="2" />
+          </svg>
+        )}
+      </button>
+
+      {/* Hidden input — captures keystrokes. maxLength caps at the
+          pin length so the dot row can never overflow. type toggles
+          between password and text based on showPassword so password
+          managers and the native last-char peek both still work. */}
+      <input
+        ref={props.inputRef}
+        type={props.showPassword ? 'text' : 'password'}
+        inputMode="text"
+        autoComplete="current-password"
+        maxLength={props.pinLength}
+        aria-label="密码"
+        aria-invalid={props.passwordError ? true : undefined}
+        value={props.password}
+        onChange={props.onChange}
+        className="auth-screen__pin-input"
+      />
+
+      {props.passwordError ? (
+        <span className="auth-field__error" role="alert">
+          {props.passwordError}
+        </span>
+      ) : null}
+
+      <button
+        type="submit"
+        disabled={!props.canAdvance}
+        className="auth-screen__next"
+        aria-label="登录"
+      >
+        <span className="auth-screen__next-arrow" aria-hidden="true">
+          →
+        </span>
+      </button>
+
+      <div className="auth-screen__progress" aria-hidden="true">
         <span className="auth-screen__dot" data-active="false" />
+        <span className="auth-screen__dot" data-active="true" />
       </div>
     </div>
   );
