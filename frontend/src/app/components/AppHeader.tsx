@@ -21,9 +21,9 @@
  *     "elevated above content" cue
  *   - Brand mark on the left (enso ◯ + name) — clickable, returns
  *     to `/`
- *   - Login pill on the right — same gradient as auth pages' submit
- *     button (visual consistency: one "primary action" look across
- *     the app)
+ *   - Right side: in the anonymous state, two pills "登录" (primary)
+ *     + "注册" (ghost); once signed in, swaps to the avatar + 登出
+ *     pair.
  *
  * Route-aware:
  *   - Renders null on /login and /signup. Those pages have their own
@@ -31,22 +31,16 @@
  *     top would fight with the card's own "back to home" affordance.
  *     Keeping the chrome out of the auth flow preserves the "you're
  *     entering a private space" visual context shift.
- *
- * The chrome is intentionally NOT auth-aware (no avatar / logout /
- * dropdown yet). When the auth backend lands, swap the right side
- * conditionally based on useAuth().
  */
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useAuth } from '../lib/auth';
-import { safeRedirectPath } from '../lib/safeRedirect';
 
 const HIDE_CHROME_PATHS = ['/login', '/signup'];
 
 /** Build a same-origin `?from=<current>` query for the auth pages.
  *  Used so a successful login/signup returns the user to where they
- *  came from. Caller must pass the resulting path through
- *  safeRedirectPath() before using it as a redirect target. */
+ *  came from. */
 function currentPathWithQuery(pathname: string | null, search: string | null): string {
   const path = pathname || '/';
   return search ? `${path}${search}` : path;
@@ -61,13 +55,11 @@ export default function AppHeader() {
     return null;
   }
 
-  // The login pill is only rendered on /login + /signup (see HIDE_CHROME_PATHS),
-  // so by the time we get here we're on a public route (/, /?lib=X, /history,
-  // etc.). Append ?from=<current> so a successful login returns the user
-  // to where they clicked from. Skip appending when there's no real path
-  // (the homepage can be implied by the auth page's default fallback).
+  // On the public routes (/, /?lib=X, /history, etc.). Append ?from=<current>
+  // so a successful login returns the user to where they clicked from.
   const here = currentPathWithQuery(pathname, searchParams?.toString() ?? null);
   const loginHref = here === '/' ? '/login' : `/login?from=${encodeURIComponent(here)}`;
+  const signupHref = here === '/' ? '/signup' : `/signup?from=${encodeURIComponent(here)}`;
 
   return (
     <header className="app-header" role="banner">
@@ -77,7 +69,7 @@ export default function AppHeader() {
       </Link>
 
       <nav className="app-header__nav" aria-label="主导航">
-        {user ? (
+        {loading ? null : user ? (
           <>
             <Link
               href="/history"
@@ -99,9 +91,18 @@ export default function AppHeader() {
             </button>
           </>
         ) : (
-          <Link href={loginHref} className="app-header__login" aria-label="登录">
-            登录
-          </Link>
+          <>
+            <Link
+              href={signupHref}
+              className="app-header__signup"
+              aria-label="注册"
+            >
+              注册
+            </Link>
+            <Link href={loginHref} className="app-header__login" aria-label="登录">
+              登录
+            </Link>
+          </>
         )}
       </nav>
     </header>
