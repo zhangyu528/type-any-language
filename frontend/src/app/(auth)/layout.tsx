@@ -112,7 +112,11 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
       <style dangerouslySetInnerHTML={{ __html: `
         .auth-shell {
           position: relative;
+          /* 100dvh accounts for mobile browser chrome (URL bar) so the
+             card stays centered as the bar collapses on scroll. Falls
+             back to 100vh on browsers that don't support dvh. */
           min-height: 100vh;
+          min-height: 100dvh;
           display: flex;
           align-items: center;
           justify-content: center;

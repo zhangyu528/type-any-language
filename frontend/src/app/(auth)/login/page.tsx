@@ -1,17 +1,30 @@
 'use client';
 
 /**
- * /login — email + password sign-in UI.
+ * /login — step-by-step reveal sign-in UI.
  *
- * Implementation per design-auth.md:
- *   - Title 4 chars × 50ms stagger (auth-char-rise)
- *   - Subtitle 160ms after title lands
- *   - Field stagger: 200ms / 280ms (auth-field-rise)
- *   - Real-time email validation on blur + re-check on change
- *   - Password visibility toggle (eye icon morph)
- *   - Card shake on submit error (key-based re-trigger)
- *   - Success dissolve: card scale 0.96 + fade, 200ms hold, then nav
- *   - Reduced-motion: all motion disabled
+ * Each field gets its own screen (1=email, 2=password, 3=review+submit).
+ * The English word is the visual hero on each screen, with the Chinese
+ * translation directly underneath; the user types into a single
+ * underline-only input below. This PR delivers Screen 1 (email);
+ * Screens 2 and 3 are placeholder stubs so the state plumbing is
+ * ready for the next PR.
+ *
+ * Implementation notes:
+ *   - Title 4 chars × 120ms stagger (existing auth-char-rise).
+ *   - Subtitle static line; 4-state focus machine is dropped on Screen 1
+ *     (one input only — no focus-state copy variants).
+ *   - Word char-by-char typewriter: each char span flips opacity
+ *     0.30 ↔ 1.0 as the user types matching chars; full match
+ *     triggers a 240ms "seal" border around the word.
+ *   - Real-time email validation on change; Next button disabled
+ *     until email is valid + non-empty.
+ *   - Card shake on submit error (key-based re-trigger) — same
+ *     pattern as before, now also bounces the user back to the
+ *     offending screen if a server field error arrives.
+ *   - Success dissolve (Screen 3, future): card scale 0.96 + fade,
+ *     200ms hold, then nav. Wired but unreachable in this PR.
+ *   - Reduced-motion: all motion disabled.
  *
  * API:
  *   POST /api/auth/login { email, password } → UserPublic + Set-Cookie.
@@ -23,7 +36,10 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import {
+  ChangeEvent,
+  FocusEvent,
   FormEvent,
+  RefObject,
   useCallback,
   useEffect,
   useRef,
@@ -80,19 +96,37 @@ function LoginForm() {
   // the wrapper is the parent — only its key changes, not the form's.
   const [shakeKey, setShakeKey] = useState(0);
 
+  // Screen-by-screen flow state. 1 = email (in this PR), 2 = password,
+  // 3 = review + submit. Screen transitions are exclusive — only one
+  // stage renders at a time. Server errors during Screen 3 submit
+  // bounce the user back to the offending screen via setScreen().
+  const [screen, setScreen] = useState<1 | 2 | 3>(1);
+
+  // Per-char highlight buffer for the typewriter. On Screen 1 this
+  // mirrors `email` exactly, but kept as a separate state slot so
+  // future screens can have a different tracking buffer (e.g. the
+  // password field's buffer never lights up chars).
+  const [typed, setTyped] = useState('');
+
+  // Subtitle carousel — a 2s loop alternating between a CN line and
+  // its EN translation. Picked deliberately so the auth page reads
+  // as a tiny preview of the product's "see Chinese, write English"
+  // loop without forcing the user to actually type. Index flips on
+  // a 2s timer set up in the effect below.
+  const SUBTITLE_LINES = [
+    { lang: 'zh', text: '请告诉我你的邮箱' },
+    { lang: 'en', text: 'Please tell me your email' },
+  ] as const;
+  const [subtitleIndex, setSubtitleIndex] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setSubtitleIndex((i) => (i + 1) % SUBTITLE_LINES.length);
+    }, 2000);
+    return () => window.clearInterval(id);
+  }, []);
+
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
-
-  // Subtitle changes by interaction state — guides the user through
-  // "you're learning English by signing in" without being heavy.
-  // 0 = idle, 1 = email focused, 2 = email valid, 3 = password focused.
-  const [subtitleState, setSubtitleState] = useState(0);
-  const subtitleText = [
-    '继续你的练习',
-    '用 5 题开始学习',
-    '开始你的中文→英文练习',
-    '你的进度会同步到云端',
-  ][subtitleState];
 
   const validateEmail = useCallback((value: string): string | null => {
     if (!value) return null;
@@ -104,21 +138,30 @@ function LoginForm() {
     return null;
   }, []);
 
-  // Trigger card shake + auto-focus first invalid field whenever
-  // a new error arrives.
+  // Trigger card shake + bounce the user to the offending screen
+  // whenever a new error arrives. Server-side errors land here after
+  // a Screen 3 submit (future PR) and need to drop the user back to
+  // the right input; client-side errors (e.g. submit with empty
+  // password) also route through this effect.
   useEffect(() => {
     const hasErrors = Object.values(errors).some(Boolean);
-    if (hasErrors) {
-      setShakeKey((k) => k + 1);
-      const order: (keyof FieldErrors)[] = ['email', 'password'];
-      const firstInvalid = order.find((k) => errors[k]);
-      if (firstInvalid === 'email') emailRef.current?.focus();
-      else if (firstInvalid === 'password') passwordRef.current?.focus();
+    if (!hasErrors) return;
+    setShakeKey((k) => k + 1);
+    if (errors.email) {
+      setScreen(1);
+      requestAnimationFrame(() => emailRef.current?.focus());
+    } else if (errors.password) {
+      setScreen(2);
+      requestAnimationFrame(() => passwordRef.current?.focus());
     }
   }, [errors]);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // Screen 1 / 2: Enter on the input must NOT trigger login (Screen 3
+    // submit button is the only valid login trigger). Guard here so a
+    // stray Enter in the email field doesn't 400 the API.
+    if (screen !== 3) return;
     if (submitting || dissolving) return;
 
     // Run client-side validation first — don't bother the server if
@@ -127,7 +170,8 @@ function LoginForm() {
     if (localEmailError) {
       setEmailFormatError(localEmailError);
       setShakeKey((k) => k + 1);
-      emailRef.current?.focus();
+      setScreen(1);
+      requestAnimationFrame(() => emailRef.current?.focus());
       return;
     }
 
@@ -152,8 +196,13 @@ function LoginForm() {
       const apiErr = err as ApiError;
       if (apiErr.fieldErrors) {
         setErrors(apiErr.fieldErrors as FieldErrors);
+        // Bounce back to the offending screen — the useEffect on
+        // [errors] will refocus the field automatically.
+        if (apiErr.fieldErrors.email) setScreen(1);
+        else if (apiErr.fieldErrors.password) setScreen(2);
       } else {
         setErrors({ email: apiErr.message ?? '登录失败' });
+        setScreen(1);
       }
     } finally {
       setSubmitting(false);
@@ -164,11 +213,48 @@ function LoginForm() {
   // error (the server has the final say on whether this email exists).
   const emailError = errors.email || emailFormatError;
 
+  // Screen 1 advance gate — Next is enabled only when email is
+  // syntactically valid AND non-empty. Empty + invalid format both
+  // keep Next disabled (opacity 0.4, no pointer).
+  const canAdvanceFromScreen1 =
+    email.length > 0 && emailFormatError === null;
+
+  // Screen 1 event handlers. Typed buffer mirrors email on Screen 1
+  // and feeds the per-char highlight on the small EN hint below the
+  // hero CN word. No "seal" / "full-match" animation — the EN hint
+  // is no longer the visual hero (CN is), so sealing felt misplaced.
+  const TARGET_WORD = 'email';
+
+  function onEmailChange(e: ChangeEvent<HTMLInputElement>) {
+    const next = e.target.value;
+    setEmail(next);
+    setTyped(next);
+    if (errors.email) setErrors((p) => ({ ...p, email: undefined }));
+    if (emailFormatError) setEmailFormatError(validateEmail(next));
+  }
+
+  function onEmailFocus() {
+    // No-op on Screen 1 — subtitle is static, no focus-state copy.
+  }
+
+  function onEmailBlur(e: FocusEvent<HTMLInputElement>) {
+    setEmailFormatError(validateEmail(e.target.value));
+  }
+
+  function onNext() {
+    if (!canAdvanceFromScreen1) return;
+    setScreen(2);
+    // Soft-focus the password input (placeholder on Screen 2 for now;
+    // guarded when Screen 2 lands). requestAnimationFrame defers focus
+    // until after React has committed the screen-2 JSX.
+    requestAnimationFrame(() => passwordRef.current?.focus());
+  }
+
   return (
     <div key={`shake-${shakeKey}`} className="auth-form-shake-wrap">
       <form
         onSubmit={onSubmit}
-        className={`auth-form${dissolving ? ' auth-form--dissolving' : ''}`}
+        className={`auth-screen${dissolving ? ' auth-screen--dissolving' : ''}`}
         noValidate
       >
         <h1 className="auth-title">
@@ -183,173 +269,56 @@ function LoginForm() {
           ))}
         </h1>
 
-        <p className="auth-form__subtitle" key={subtitleState}>
-          {subtitleText}
-        </p>
-
-        <label className="auth-field auth-field-1">
-          <span className="auth-field__label">邮箱</span>
-          <span
-            className="auth-field__input-wrap"
-            data-state={
-              emailError
-                ? 'error'
-                : email.length > 0 && !emailFormatError
-                ? 'confirmed'
-                : undefined
-            }
-          >
-            <svg
-              className="auth-field__icon"
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
+        {/* Subtitle — a 2s fade carousel alternating between the CN
+            and EN phrasing of the same line. Both spans stay in the
+            DOM (one absolute, one static) so the swap doesn't cause
+            layout reflow. Only the visible one has data-active="true"
+            and gets opacity 1; the other is opacity 0. The cross-fade
+            uses the same auth-subtitle-fade keyframe as before. */}
+        <div className="auth-screen__subtitle" aria-live="polite">
+          {SUBTITLE_LINES.map((line, i) => (
+            <span
+              key={line.lang}
+              className="auth-screen__subtitle-line"
+              data-active={i === subtitleIndex ? 'true' : 'false'}
+              lang={line.lang}
             >
-              <rect x="2" y="3.5" width="12" height="9" rx="1" />
-              <path d="M2.5 4.5 L8 9 L13.5 4.5" />
-            </svg>
-            <input
-              ref={emailRef}
-              type="email"
-              inputMode="email"
-              autoComplete="email"
-              required
-              aria-invalid={emailError ? true : undefined}
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                if (errors.email) {
-                  setErrors((prev) => ({ ...prev, email: undefined }));
-                }
-                if (emailFormatError) {
-                  setEmailFormatError(validateEmail(e.target.value));
-                }
-              }}
-              onFocus={() => setSubtitleState(1)}
-              onBlur={(e) => {
-                const err = validateEmail(e.target.value);
-                setEmailFormatError(err);
-                // Auto-focus password when email is valid and non-empty.
-                // User can still click back to edit email (the field is
-                // not disabled — only its visual state changes).
-                if (!err && e.target.value) {
-                  passwordRef.current?.focus();
-                  setSubtitleState(2);
-                } else if (e.target.value) {
-                  setSubtitleState(2);
-                } else {
-                  setSubtitleState(0);
-                }
-              }}
-              className={`auth-field__input auth-field__input--with-icon${emailError ? ' auth-field__input--error' : ''}`}
-            />
-          </span>
-          {emailError ? (
-            <span className="auth-field__error" role="alert">{emailError}</span>
-          ) : null}
-        </label>
-
-        <label className="auth-field auth-field-2">
-          <span className="auth-field__label">密码</span>
-          <span
-            className="auth-field__input-wrap"
-            data-state={errors.password ? 'error' : undefined}
-          >
-            <svg
-              className="auth-field__icon"
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <rect x="3" y="7" width="10" height="7" rx="1" />
-              <path d="M5 7 V5 a3 3 0 0 1 6 0 V7" />
-            </svg>
-            <input
-              ref={passwordRef}
-              type={showPassword ? 'text' : 'password'}
-              onFocus={() => setSubtitleState(3)}
-              autoComplete="current-password"
-              required
-              minLength={8}
-              maxLength={72}
-              aria-invalid={errors.password ? true : undefined}
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                if (errors.password) {
-                  setErrors((prev) => ({ ...prev, password: undefined }));
-                }
-              }}
-              className={`auth-field__input auth-field__input--with-icon auth-field__input--with-toggle${errors.password ? ' auth-field__input--error' : ''}`}
-            />
-            <button
-              type="button"
-              className="auth-field__toggle"
-              onClick={() => setShowPassword((v) => !v)}
-              aria-label={showPassword ? '隐藏密码' : '显示密码'}
-              tabIndex={-1}
-            >
-              {showPassword ? (
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M2 8 C3.5 4.5 5.5 3 8 3 s4.5 1.5 6 5 c-1.5 3.5 -3.5 5 -6 5 s-4.5 -1.5 -6 -5 z" />
-                  <circle cx="8" cy="8" r="2" />
-                  <path d="M2 2 L14 14" />
-                </svg>
-              ) : (
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M2 8 C3.5 4.5 5.5 3 8 3 s4.5 1.5 6 5 c-1.5 3.5 -3.5 5 -6 5 s-4.5 -1.5 -6 -5 z" />
-                  <circle cx="8" cy="8" r="2" />
-                </svg>
-              )}
-            </button>
-          </span>
-          {errors.password ? (
-            <span className="auth-field__error" role="alert">{errors.password}</span>
-          ) : null}
-        </label>
-
-        <button type="submit" disabled={submitting || dissolving} className="auth-form__submit">
-          {submitting ? (
-            <>
-              <svg
-                className="auth-form__spinner"
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                aria-hidden
-              >
-                <circle
-                  cx="8"
-                  cy="8"
-                  r="6"
-                  stroke="currentColor"
-                  strokeWidth="1.75"
-                  strokeLinecap="round"
-                  strokeDasharray="28 60"
-                />
-              </svg>
-              <span>登录中…</span>
-            </>
-          ) : (
-            <span className="auth-form__submit-label">
-              <span className="auth-form__submit-zh">登录</span>
-              <span className="auth-form__submit-en">Login</span>
+              {line.text}
             </span>
-          )}
-        </button>
+          ))}
+        </div>
+
+        {/* All three screen panes are mounted simultaneously. Only one
+            has data-active="true"; the others are inert (opacity 0,
+            pointer-events: none) and cross-fade via the
+            auth-screen__pane transition. This avoids the "hard cut"
+            of conditional rendering and gives the eye a continuous
+            path from one step to the next. */}
+        <div className="auth-screen__pane" data-active={screen === 1 ? 'true' : 'false'}>
+          <EmailScreen
+            email={email}
+            emailError={emailError}
+            typed={typed}
+            canAdvance={canAdvanceFromScreen1}
+            inputRef={emailRef}
+            onChange={onEmailChange}
+            onFocus={onEmailFocus}
+            onBlur={onEmailBlur}
+            onNext={onNext}
+          />
+        </div>
+
+        <div className="auth-screen__pane" data-active={screen === 2 ? 'true' : 'false'}>
+          <p className="auth-screen__placeholder">
+            Screen 2 — coming next
+          </p>
+        </div>
+
+        <div className="auth-screen__pane" data-active={screen === 3 ? 'true' : 'false'}>
+          <p className="auth-screen__placeholder">
+            Screen 3 — coming next
+          </p>
+        </div>
 
         <p className="auth-form__alt">
           还没有账号？
@@ -534,68 +503,8 @@ function LoginForm() {
             font-size: 11px;
             flex-shrink: 0;
           }
-          .auth-form__submit {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: var(--space-2);
-            height: 48px;
-            margin-top: var(--space-2);
-            font-family: inherit;
-            font-size: var(--type-body);
-            font-weight: var(--type-body-emphasis-weight);
-            color: var(--surface);
-            background: linear-gradient(180deg, #2C2C2E 0%, #1C1C1E 100%);
-            border: 0;
-            border-radius: var(--radius-md);
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-            transition: transform var(--duration-fast) var(--ease-standard),
-                        box-shadow var(--duration-fast) var(--ease-standard);
-          }
-          .auth-form__submit:hover:not(:disabled) {
-            /* No translateY on hover — that reads as "the button is
-               bouncing". Instead we lift the shadow for a raised feel. */
-            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.20);
-          }
-          /* Slide-text: 登录 <-> Login on hover. The two spans share
-             one width slot and the EN layer slides up over the ZH
-             layer. No position change on the button itself. */
-          .auth-form__submit-label {
-            position: relative;
-            display: inline-block;
-            line-height: 1;
-          }
-          .auth-form__submit-zh,
-          .auth-form__submit-en {
-            display: inline-block;
-            transition: transform 240ms var(--ease-standard),
-                        opacity 200ms var(--ease-standard);
-          }
-          .auth-form__submit-en {
-            position: absolute;
-            inset: 0;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            transform: translateY(8px);
-            font-family: var(--font-mono);
-            letter-spacing: 0.04em;
-          }
-          .auth-form__submit:hover:not(:disabled) .auth-form__submit-zh {
-            opacity: 0;
-            transform: translateY(-8px);
-          }
-          .auth-form__submit:hover:not(:disabled) .auth-form__submit-en {
-            opacity: 1;
-            transform: translateY(0);
-          }
-          /* .auth-form__submit:active translateY removed — no position
-             change on click, keeps shadow elevated. */
-          .auth-form__submit:disabled { opacity: 0.7; cursor: progress; }
-          .auth-form__submit:disabled .auth-form__submit-zh,
-          .auth-form__submit:disabled .auth-form__submit-en { transition: none; }
+          /* .auth-form__submit rules removed — the submit button is gone
+             in the screen-by-screen flow. Re-enable when Screen 3 lands. */
           .auth-form__spinner {
             animation: auth-form-spin 800ms linear infinite;
           }
@@ -606,7 +515,7 @@ function LoginForm() {
             text-align: center;
             font-size: var(--type-caption);
             color: var(--label-tertiary);
-            margin-top: var(--space-3);
+            margin: 0;
           }
           .auth-form__alt a {
             color: var(--accent);
@@ -638,37 +547,461 @@ function LoginForm() {
           .auth-form__alt a:hover::before { transform: scaleX(1); height: 2px; bottom: -3px; }
           .auth-form__alt a:hover::after  { transform: scaleX(1); height: 2px; bottom: -3px; }
 
-          /* Subtitle (just under the title). Lands after the title's
-             last char finishes rising (4 chars × 50ms = 200ms).
-             Negative margin-top pulls it into the title's 16px gap,
-             so visually title↔subtitle = 4px while keeping the
-             form-level gap unchanged for label↔field, etc. */
-          .auth-form__subtitle {
+          /* .auth-form__subtitle rule removed — replaced by
+             .auth-screen__subtitle in the new Screen 1 block. */
+          @keyframes auth-subtitle-fade {
+            from { opacity: 0; transform: translateY(4px); }
+            to   { opacity: 1; transform: translateY(0); }
+          }
+
+          /* -------------------------------------------------------------
+             auth-screen (Screen 1 — email)
+             Replaces .auth-form. Single-screen layout with a hero EN
+             word, ZH translation, underline-only input, Next button,
+             and 3-dot progress indicator. Screens 2 and 3 reuse
+             .auth-screen shell but render their own .auth-screen__stage
+             contents (those are placeholders in this PR).
+             ------------------------------------------------------------- */
+          .auth-screen {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-4);
+            transition: opacity 200ms var(--ease-standard),
+                        transform 200ms var(--ease-standard);
+          }
+          .auth-screen--dissolving {
+            opacity: 0;
+            transform: scale(0.96);
+            pointer-events: none;
+          }
+          /* Per-screen stage wrapper — the visible content for one
+             screen (word + ZH + input + Next + progress). */
+          .auth-screen__stage {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+            /* Pane positioning context — see .auth-screen__pane.
+               Inactive panes are absolutely positioned on top of the
+               stage so they don't take up vertical space (otherwise
+               Screen 2 / 3 placeholder text would push the layout
+               down and create a big blank gap). The active pane
+               snaps to position:static to size the stage. */
+            position: relative;
+          }
+          /* Subtitle — a 2s fade carousel alternating between a CN
+             line and its EN translation. The wrapper is positioned
+             relative so the two absolute children can stack; only the
+             one with data-active="true" gets opacity 1 + translateY(0),
+             the other is opacity 0 + translateY(4px) (slides up as it
+             enters, slides down as it leaves). min-height locks the
+             row so the hero text below doesn't shift on swap. */
+          .auth-screen__subtitle {
+            position: relative;
+            display: block;
+            min-height: 1.6em;
             font-size: var(--type-body);
             color: var(--label-tertiary);
             margin: 0;
             margin-top: calc(var(--space-4) * -1 + var(--space-1));
-            /* key={subtitleState} on the <p> makes React re-mount the
-               element when state changes, so this animation replays
-               each swap. 200ms ease — fast enough to feel like a
-               single thought, slow enough to register. */
-            animation: auth-subtitle-fade 200ms var(--ease-standard) both;
+            animation: auth-subtitle-fade 200ms var(--ease-standard) 700ms both;
           }
-          @keyframes auth-subtitle-fade {
+          .auth-screen__subtitle-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 0;
+            opacity: 0;
+            transform: translateY(4px);
+            transition: opacity 400ms var(--ease-standard),
+                        transform 400ms var(--ease-standard);
+          }
+          .auth-screen__subtitle-line[data-active="true"] {
+            opacity: 1;
+            transform: translateY(0);
+          }
+          /* Word hierarchy: hero CN + hint EN. CN is the visual hero
+             (32-42px body, label-primary, opacity 0.85); EN is a
+             typewriter hint (18-22px mono, label-tertiary,
+             opacity 0.55). The earlier uppercase eyebrow marker was
+             dropped — the carousel subtitle and the CN hero carry
+             enough context on their own. */
+          .auth-screen__zh-large {
+            font-family: var(--font-body);
+            font-size: clamp(32px, 5vw, 42px);
+            font-weight: 700;
+            color: var(--label-primary);
+            text-align: center;
+            letter-spacing: -0.01em;
+            line-height: 1.2;
+            margin: var(--space-1) auto var(--space-2);
+            opacity: 0;
+            animation: auth-screen-zh-large-fade-in 480ms var(--ease-emphasized) 1300ms both;
+          }
+          .auth-screen__en-hint {
+            display: inline-flex;
+            justify-content: center;
+            align-items: baseline;
+            gap: 0.04em;
+            font-family: var(--font-mono);
+            font-size: clamp(18px, 2vw, 22px);
+            font-weight: 500;
+            color: var(--label-tertiary);
+            letter-spacing: 0.02em;
+            line-height: 1.2;
+            margin: 0 auto var(--space-4);
+            opacity: 0;
+            animation: auth-screen-en-hint-fade-in 320ms var(--ease-standard) 1700ms both;
+          }
+          /* Per-char span inside .auth-screen__en-hint. Default dim
+             (0.55 to remain readable at the smaller font); matched
+             chars flip to 1.0 with 80ms transition for immediate
+             typing feedback. */
+          .auth-screen__char {
+            display: inline-block;
+            opacity: 0.55;
+            transition: opacity 80ms var(--ease-standard);
+          }
+          .auth-screen__char[data-matched="true"] {
+            opacity: 1;
+            color: var(--label-primary);
+          }
+          /* Underline-only input — transparent bg, no border, single
+             1px bottom-border that changes color on hover/focus. The
+             focus state draws a black underline from the left via a
+             pseudo-element overlay. */
+          .auth-screen__input {
+            width: 100%;
+            height: 44px;
+            padding: 0 var(--space-2);
+            font-family: var(--font-mono);
+            font-size: var(--type-body);
+            font-weight: 500;
+            color: var(--label-primary);
+            background: transparent;
+            border: 0;
+            border-bottom: 1px solid var(--label-quaternary);
+            border-radius: 0;
+            letter-spacing: 0.02em;
+            caret-color: var(--label-primary);
+            transition: border-bottom-color var(--duration-fast) var(--ease-standard);
+            position: relative;
+          }
+          .auth-screen__input::placeholder {
+            color: var(--label-quaternary);
+            font-family: var(--font-body);
+          }
+          .auth-screen__input:hover {
+            border-bottom-color: var(--label-tertiary);
+          }
+          .auth-screen__input:focus {
+            outline: none;
+            border-bottom-color: transparent;
+          }
+          /* Animated focus underline — pseudo-element overlay that
+             scales from 0 to 1 from the LEFT over 350ms. */
+          .auth-screen__input::after {
+            content: "";
+            position: absolute;
+            left: var(--space-2);
+            right: var(--space-2);
+            bottom: 0;
+            height: 1px;
+            background: var(--label-primary);
+            transform: scaleX(0);
+            transform-origin: left center;
+          }
+          .auth-screen__input:focus::after {
+            animation: auth-screen-underline-grow var(--duration-base) var(--ease-emphasized) forwards;
+          }
+          /* Next button — icon-only square button with a single arrow.
+             No text label (decorative; aria-label on the <button> carries
+             the accessible name). Disabled = opacity 0.3 + no pointer,
+             matches the convention the rest of the auth flow uses. */
+          .auth-screen__next {
+            align-self: flex-end;
+            margin-top: var(--space-2);
+            width: 56px;
+            height: 56px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-body);
+            font-size: 22px;
+            font-weight: 500;
+            line-height: 1;
+            color: var(--label-primary);
+            background: rgba(0, 0, 0, 0.04);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: var(--radius-md);
+            padding: 0;
+            cursor: pointer;
+            transition: background var(--duration-fast) var(--ease-standard),
+                        border-color var(--duration-fast) var(--ease-standard),
+                        transform var(--duration-fast) var(--ease-standard),
+                        opacity var(--duration-fast) var(--ease-standard);
+          }
+          .auth-screen__next-arrow {
+            display: inline-block;
+            transform: translateX(0);
+            transition: transform var(--duration-fast) var(--ease-standard);
+          }
+          .auth-screen__next:hover:not([disabled]) {
+            background: rgba(0, 0, 0, 0.08);
+            border-color: rgba(0, 0, 0, 0.16);
+          }
+          .auth-screen__next:hover:not([disabled]) .auth-screen__next-arrow {
+            transform: translateX(2px);
+          }
+          .auth-screen__next:active:not([disabled]) {
+            transform: scale(0.96);
+          }
+          .auth-screen__next:focus-visible {
+            outline: 2px solid var(--label-primary);
+            outline-offset: 3px;
+          }
+          .auth-screen__next[disabled] {
+            opacity: 0.3;
+            pointer-events: none;
+          }
+          /* 3-dot progress indicator. Active dot scales up + fills
+             label-primary; inactive dots stay at label-quaternary. */
+          .auth-screen__progress {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: var(--space-2);
+            margin: 0;
+            animation: auth-screen-fade-in 240ms var(--ease-standard) 1500ms both;
+          }
+          .auth-screen__dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--label-quaternary);
+            opacity: 0.5;
+            transition: background var(--duration-fast) var(--ease-standard),
+                        opacity var(--duration-fast) var(--ease-standard),
+                        transform var(--duration-fast) var(--ease-standard);
+          }
+          .auth-screen__dot[data-active="true"] {
+            background: var(--label-primary);
+            opacity: 1;
+            transform: scale(1.15);
+            animation: auth-screen-dot-fill var(--duration-base) var(--ease-emphasized) both;
+          }
+          /* Screen 2 / 3 placeholders — centered muted text. */
+          .auth-screen__placeholder {
+            text-align: center;
+            font-size: var(--type-body);
+            color: var(--label-tertiary);
+            padding: var(--space-5) 0;
+          }
+
+          /* Per-screen pane — the wrapper that holds one screen's content.
+             All three panes (Screen 1, 2, 3) are mounted simultaneously
+             and stacked in source order; only one has data-active="true"
+             and the rest are opacity-0 + non-interactive. The transition
+             on opacity gives a smooth cross-fade when the active flag
+             swaps: outgoing pane fades 240ms, incoming pane delays 100ms
+             and runs a 240ms fade + 8px rise for a subtle "arrived"
+             feel. Total transition ~340ms. */
+          .auth-screen__pane {
+            /* Inactive panes are absolutely positioned on top of the
+               stage (see .auth-screen__stage position:relative) so
+               they don't add to the stage's height. Opacity 0 keeps
+               them invisible during the cross-fade; pointer-events
+               none blocks any accidental interaction with placeholder
+               text. */
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            transform: translateY(0);
+            pointer-events: none;
+            transition: opacity 240ms var(--ease-standard);
+          }
+          .auth-screen__pane[data-active="true"] {
+            /* Active pane snaps back to static flow so it determines
+               the stage's actual height. The enter animation runs on
+               top via the auth-screen-pane-enter keyframe. */
+            position: static;
+            opacity: 1;
+            pointer-events: auto;
+            animation: auth-screen-pane-enter 320ms var(--ease-emphasized) 100ms both;
+          }
+
+          /* Keyframes for Screen 1 motion. Each fade-in ends at the
+             final visible opacity so post-mount state is stable. */
+          @keyframes auth-screen-zh-large-fade-in {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 0.85; transform: translateY(0); }
+          }
+          @keyframes auth-screen-en-hint-fade-in {
             from { opacity: 0; transform: translateY(4px); }
+            to   { opacity: 0.55; transform: translateY(0); }
+          }
+          /* Pane enter — 8px rise + opacity. The pane-enter animation
+             re-runs each time data-active flips because the animation
+             is declared on [data-active="true"] which React re-mounts
+             via the attribute change. */
+          @keyframes auth-screen-pane-enter {
+            from { opacity: 0; transform: translateY(8px); }
             to   { opacity: 1; transform: translateY(0); }
+          }
+          /* Input focus underline — scaleX from left. */
+          @keyframes auth-screen-underline-grow {
+            from { transform: scaleX(0); }
+            to   { transform: scaleX(1); }
+          }
+          /* Progress dot fill — scale + opacity from 0 to active state. */
+          @keyframes auth-screen-dot-fill {
+            from { transform: scale(0.6); opacity: 0; }
+            to   { transform: scale(1.15); opacity: 1; }
+          }
+          /* Generic fade-in (for the progress row, which has no other
+             per-element animation). */
+          @keyframes auth-screen-fade-in {
+            from { opacity: 0; }
+            to   { opacity: 1; }
           }
 
           @media (prefers-reduced-motion: reduce) {
             .auth-form-shake-wrap { animation: none !important; }
             .auth-form { transition: none !important; }
             .auth-field { animation: none !important; opacity: 1; transform: none; }
-            .auth-form__subtitle { animation: none !important; opacity: 1; transform: none; }
+            /* .auth-form__subtitle removed (replaced by .auth-screen__subtitle) */
             .auth-field__input--error { animation: none !important; }
             .auth-form__spinner { animation: none !important; }
+            /* Screen 1 motion overrides — snap everything to final state. */
+            .auth-screen { transition: none !important; }
+            .auth-screen__subtitle { animation: none !important; opacity: 1; transform: none; }
+            .auth-screen__zh-large { animation: none !important; opacity: 0.85; transform: none; }
+            .auth-screen__en-hint { animation: none !important; opacity: 0.55; transform: none; }
+            .auth-screen__char { transition: none !important; }
+            .auth-screen__char[data-matched="true"] { opacity: 1; }
+            .auth-screen__pane { transition: none !important; }
+            .auth-screen__pane[data-active="true"] { animation: none !important; transform: none; }
+            .auth-screen__input::after { animation: none !important; transform: scaleX(1); }
+            .auth-screen__next { transition: none !important; }
+            .auth-screen__next-arrow { transition: none !important; }
+            .auth-screen__dot { transition: none !important; }
+            .auth-screen__dot[data-active="true"] { animation: none !important; transform: scale(1); }
+            .auth-screen__progress { animation: none !important; opacity: 1; }
           }
         ` }} />
       </form>
+    </div>
+  );
+}
+
+/**
+ * EmailScreen — the email step of the step-by-step login flow.
+ *
+ * Visual hierarchy (product is "see Chinese, write English"):
+ *   - Eyebrow "EMAIL" — 11px mono uppercase marker. Tells the user
+ *     this is an English-input step without competing for attention.
+ *   - Hero CN "邮箱" — 32-42px body font, opacity 0.85. The user
+ *     reads this; it's the product's "see" half.
+ *   - Hint EN "email" — 18-22px mono, opacity 0.55. The user types
+ *     this; per-char spans light up to opacity 1.0 as matching chars
+ *     arrive (typewriter feedback).
+ *   - Underline-only input — transparent bg, no border. Focus draws
+ *     a black underline from the left.
+ *   - "Next →" text button (disabled until email is valid + non-empty).
+ *   - 3-dot progress indicator (Screen 1 active).
+ *
+ * No "seal" / full-match animation: with the EN word as hint instead
+ * of hero, sealing felt misplaced.
+ */
+function EmailScreen(props: {
+  email: string;
+  emailError?: string | null;
+  typed: string;
+  canAdvance: boolean;
+  inputRef: RefObject<HTMLInputElement>;
+  onChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  onFocus: () => void;
+  onBlur: (e: FocusEvent<HTMLInputElement>) => void;
+  onNext: () => void;
+}) {
+  const TARGET_WORD = 'email';
+
+  // Per-char match — case-insensitive, indexed by char position.
+  // Returns true iff the typed buffer has at least this index AND
+  // the char at this index matches the target char (case-insensitive).
+  function isCharMatched(charIndex: number): boolean {
+    if (charIndex >= props.typed.length) return false;
+    return (
+      TARGET_WORD[charIndex].toLowerCase() ===
+      props.typed[charIndex].toLowerCase()
+    );
+  }
+
+  return (
+    <div className="auth-screen__stage" data-screen="1">
+      {/* Hero Chinese — the "see" half. Largest text on screen.
+          aria-hidden because the visible word is decorative; the
+          input below is the canonical element. */}
+      <p className="auth-screen__zh-large" aria-hidden="true">
+        邮箱
+      </p>
+
+      {/* Hint English — the "write" half. Per-char spans flip to
+          opacity 1.0 as the user types matching chars. Smaller font
+          + dimmer baseline communicates "this is what you type". */}
+      <div className="auth-screen__en-hint" aria-hidden="true">
+        {Array.from(TARGET_WORD).map((ch, i) => {
+          const matched = isCharMatched(i);
+          return (
+            <span
+              key={i}
+              className="auth-screen__char"
+              data-matched={matched ? 'true' : 'false'}
+            >
+              {ch}
+            </span>
+          );
+        })}
+      </div>
+
+      <input
+        ref={props.inputRef}
+        type="email"
+        inputMode="email"
+        autoComplete="email"
+        required
+        aria-label="邮箱"
+        aria-invalid={props.emailError ? true : undefined}
+        value={props.email}
+        onChange={props.onChange}
+        onFocus={props.onFocus}
+        onBlur={props.onBlur}
+        className="auth-screen__input"
+      />
+
+      {props.emailError ? (
+        <span className="auth-field__error" role="alert">
+          {props.emailError}
+        </span>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={props.onNext}
+        disabled={!props.canAdvance}
+        className="auth-screen__next"
+        aria-label="下一步"
+      >
+        <span className="auth-screen__next-arrow" aria-hidden="true">
+          →
+        </span>
+      </button>
+
+      <div className="auth-screen__progress" aria-hidden="true">
+        <span className="auth-screen__dot" data-active="true" />
+        <span className="auth-screen__dot" data-active="false" />
+        <span className="auth-screen__dot" data-active="false" />
+      </div>
     </div>
   );
 }
