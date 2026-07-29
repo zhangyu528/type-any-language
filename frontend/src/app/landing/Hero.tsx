@@ -1,107 +1,93 @@
 'use client';
 
+import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { VocabularyLib, TranslationProgress } from '../api';
 import { useAuth } from '../lib/auth';
-import { composeLandingData } from './data';
+import styles from './Hero.module.css';
+import PaperGrain from './PaperGrain';
 import TypefallDemo from './TypefallDemo';
 
 interface HeroProps {
   libs: VocabularyLib[];
   translationProgress: TranslationProgress;
-  /** Parent callback: pick a lib and remount the practice surface.
-   *  Used by the bottom CTA when a lib is known. */
   onPickLib: (libId: string) => void;
 }
 
 const HERO_TITLE = '听一句，写一句，把英语练出肌肉记忆。';
-const HERO_SUBTITLE =
-  '基于真实语料的句子听写练习。每天 10 分钟，30 天就能跟读整段播客。';
+const HERO_SUBTITLE = '语料取自日常场景，不是课本例句。';
+// (chip / kicker / foot removed — see commit history for the trim log.)
 
-/**
- * Hero — full-viewport opening with character-level fadeUp + single CTA.
- *
- * Visual: warm radial wash (cool white + a whisper of vermilion at the
- * center) over a 1px grid texture. The main headline is split into
- * per-character <span> nodes that fade up in a 28ms cascade so the
- * title appears to "type itself in" over ~700ms.
- *
- * Below the headline sits a live "中→英听写" demo
- * ({@link TypefallDemo}) — three short sentences cycle through with
- * Chinese on top, English characters "typed" into place below. The
- * single CTA sits immediately under the demo:
- *   - signed-in + a recommended lib exists → "开始今日练习 · <lib>"
- *     calls `onPickLib(libId)` to drop the user straight into practice
- *   - otherwise (no user, or no catalog data) → "登录后开始练习 →"
- *     sends them to /login?from=/ so they bounce back after auth
- *
- * Header chrome (注册 / 登录) handles the dual auth entry; this is
- * the only product CTA on the hero.
- *
- * "下沉箭头" at the bottom of the hero scrolls to the next section.
- */
-export default function Hero({ libs, translationProgress, onPickLib }: HeroProps) {
-  // Stage 0 → 3 controls the cascade: title (1) → subtitle (2) →
-  // demo + chevron + start button (3).
+export default function Hero({ libs, onPickLib }: HeroProps) {
   const [stage, setStage] = useState(0);
   const { user } = useAuth();
 
   useEffect(() => {
-    // Title 0→1 (per-char animation) at mount
-    const t1 = window.setTimeout(() => setStage(1), 0);
-    // Subtitle 1→2 after title settles
-    const t2 = window.setTimeout(() => setStage(2), 700);
-    // Demo + CTA + chevron 2→3 after subtitle
-    const t3 = window.setTimeout(() => setStage(3), 950);
+    const t0 = window.setTimeout(() => setStage(1), 0);     // demo in
+    const t1 = window.setTimeout(() => setStage(2), 220);   // title chars
+    const t2 = window.setTimeout(() => setStage(3), 880);   // subtitle + kicker
+    const t3 = window.setTimeout(() => setStage(4), 1280);  // CTA + foot
     return () => {
+      window.clearTimeout(t0);
       window.clearTimeout(t1);
       window.clearTimeout(t2);
       window.clearTimeout(t3);
     };
   }, []);
 
-  // Pick the recommended lib for the CTA — same shape as
-  // weekly_plan.new_lib_id used by DailyPlan below.
-  const landing = composeLandingData({ libs, progress: translationProgress });
-  const newLib = libs.find((l) => l.id === landing.weekly_plan.new_lib_id);
-  const canStart = !!user && !!newLib;
+  // CTA: pick the first lib if logged in, else go to login
+  const canStart = !!user && libs.length > 0;
+  const firstLib = libs[0];
 
   const handleStart = () => {
-    if (canStart && newLib) {
-      onPickLib(newLib.id);
+    if (canStart && firstLib) {
+      onPickLib(firstLib.id);
     } else {
-      // Anonymous or no catalog — send through login with a return path.
       window.location.href = '/login?from=' + encodeURIComponent('/');
     }
   };
 
-  const startLabel = canStart && newLib
-    ? `开始今日练习 · ${newLib.name}`
+  const startLabel = canStart && firstLib
+    ? `开始今日练习 · ${firstLib.name}`
     : '登录后开始练习';
 
-  const scrollTo = (id: string) => {
-    if (typeof document === 'undefined') return;
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
   return (
-    <section className="hero" aria-label="产品介绍">
-      <div className="hero__bg" aria-hidden>
-        <div className="hero__glow" />
-        <div className="hero__grid" />
-      </div>
+    <section className={styles.root} aria-label="产品介绍">
+      {/* 背景层 —— 顶部薄荷光 + 纸纹颗粒,z-index 0,demo 在 z-index 1 之上 */}
+      <PaperGrain />
 
-      <div className="hero__inner">
-        <p className="hero__caption">Type Any Language</p>
+      <div className={styles.inner}>
+        {/* Stage 1: demo — the hero's centerpiece, fades in first */}
+        <motion.div
+          className={styles.demo}
+          aria-hidden={stage < 1}
+          initial={{ opacity: 0, y: 12, scale: 0.985 }}
+          animate={
+            stage >= 1
+              ? { opacity: 1, y: 0, scale: 1 }
+              : { opacity: 0, y: 12, scale: 0.985 }
+          }
+          transition={{ duration: 0.7, ease: [0.34, 1.56, 0.64, 1] }}
+        >
+          <div className={styles.demoCard}>
+            <TypefallDemo />
+          </div>
+        </motion.div>
 
-        <h1 className="hero__title" aria-label={HERO_TITLE}>
+        {/* Stage 2: title fadeUp (brand caption removed — AppHeader
+            already shows the brand mark + name on the same screen) */}
+        <h1
+          className={styles.title}
+          aria-label={HERO_TITLE}
+          aria-hidden={stage < 2}
+        >
           {HERO_TITLE.split('').map((ch, i) => (
             <span
               key={i}
-              className="hero__char"
+              className={styles.char}
               style={{
-                animationDelay: `${i * 28}ms`,
-                animationPlayState: stage >= 1 ? 'running' : 'paused',
+                animationDelay: `${i * 30}ms`,
+                animationPlayState: stage >= 2 ? 'running' : 'paused',
               }}
               aria-hidden
             >
@@ -110,44 +96,37 @@ export default function Hero({ libs, translationProgress, onPickLib }: HeroProps
           ))}
         </h1>
 
+        <div
+          className={
+            styles.rule + (stage >= 3 ? ` ${styles.ruleIn}` : '')
+          }
+          aria-hidden
+        />
+
+        {/* Stage 3: subtitle + kicker */}
         <p
-          className={'hero__subtitle' + (stage >= 2 ? ' hero__subtitle--in' : '')}
-          aria-hidden={stage < 2}
+          className={styles.subtitle + (stage >= 3 ? ` ${styles.subtitleIn}` : '')}
+          aria-hidden={stage < 3}
         >
           {HERO_SUBTITLE}
         </p>
 
-        {/* Typefall demo — "中→英听写"微观动作的可视化循环,
-            放在 subtitle 下方作为产品核心动作的活体示例 */}
-        <div
-          className={'hero__demo' + (stage >= 3 ? ' hero__demo--in' : '')}
-          aria-hidden={stage < 3}
-        >
-          <TypefallDemo />
-        </div>
-
-        {/* 单一动作出口 —— demo 框正下方,36px 高的细按钮。
-            匿名态:登录后开始练习(跳 /login);登录态:开始今日练习 + lib 名 */}
-        <button
+        {/* Stage 4: CTA + foot */}
+        <motion.button
           type="button"
-          className={'hero__start' + (stage >= 3 ? ' hero__start--in' : '')}
+          className={styles.start}
           onClick={handleStart}
-          aria-hidden={stage < 3}
+          aria-hidden={stage < 4}
+          initial={{ opacity: 0, y: 8 }}
+          animate={stage >= 4 ? { opacity: 1, y: 0 } : { opacity: 0, y: 8 }}
+          transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
+          whileHover={{ y: -2 }}
+          whileTap={{ y: 0 }}
         >
-          <span className="hero__start-label">{startLabel}</span>
-          <span className="hero__start-arrow" aria-hidden>→</span>
-        </button>
+          <span className={styles.startLabel}>{startLabel}</span>
+          <span className={styles.startArrow} aria-hidden>→</span>
+        </motion.button>
       </div>
-
-      <button
-        type="button"
-        className={'hero__chevron' + (stage >= 3 ? ' hero__chevron--in' : '')}
-        onClick={() => scrollTo('daily-plan')}
-        aria-label="向下滚动到今日计划"
-        aria-hidden={stage < 3}
-      >
-        <span aria-hidden>⌄</span>
-      </button>
     </section>
   );
 }

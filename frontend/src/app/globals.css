@@ -132,26 +132,103 @@
   --content-wide:    1200px;
 
   /* ----- Landing-only color tokens -----
-     Hero glow uses a desaturated vermilion wash (the same hue as
-     `--accent`) at 0.04 alpha to read as warm without screaming.
-     Carousel cards are tinted by level — three cool-to-warm ramps. */
-  --hero-glow:        rgba(199, 62, 29, 0.04);
-  --hero-grid:        rgba(26, 31, 38, 0.04);
-  --tint-cool:        #E8EEF4;   /* a1/a2 covers */
-  --tint-mist:        #E5E9EE;   /* b1/b2 covers */
-  --tint-warm:        #F0E2D8;   /* c1/c2 covers */
+     Hero 用淡绿治愈风(鼠尾草 sage)。--accent 朱砂保留作为错改 flash
+     专属语义色,不再用于日常装饰(装订/笔尖/erase 都换成治愈绿)。
+     --heal-tint 给 hero 区一抹淡薄荷雾,跟 --surface 二度灰区分但
+     保持同色温,避免出现"暖白纸"那种割裂感。 */
+  --heal-bg:          #F1F7F2;   /* 薄荷雾 —— hero/landing 主底色 */
+  --heal-card:        rgba(255, 255, 255, 0.72);   /* 笔记本卡半透白 */
+  --heal-card-solid:  #FAFCF9;   /* 不透明 fallback */
+  --heal-line:        rgba(135, 184, 145, 0.28);   /* 装订/栅格线 */
+  --heal-glow:        rgba(135, 184, 145, 0.18);   /* hero 中心晕染 */
+  --heal-grid:        rgba(74, 110, 84, 0.06);     /* 1px 栅格 */
+  --heal-sage:        #87B891;   /* 鼠尾草 —— 笔尖/erase/progress */
+  --heal-sage-soft:   #B5D1BC;   /* 浅鼠尾草 —— 装订线/分隔 */
+  --heal-ink:         #2C3A30;   /* 深苔文字(不再纯黑) */
+  /* 朱砂 --accent 保留 —— 仅在错改 flash 用 600ms,其余地方不再出现 */
+  /* Carousel / lib-market cover tints —— 三个 level 梯度,都在治愈绿系内
+     走深→浅,跟 hero 同一色温。cool 是最深,a1/a2;warm 是最浅,c1/c2。 */
+  --tint-cool:        #D6E2DA;   /* a1/a2 covers —— 深薄荷 */
+  --tint-mist:        #E3EBE0;   /* b1/b2 covers —— 中薄荷 */
+  --tint-warm:        #EEF2E8;   /* c1/c2 covers —— 浅薄荷 */
+
+  /* ----- Landing-d (薄荷青柠 / Citrus Mint) -----
+     近白底 + 高饱和青柠绿 + 鲜柠檬黄 + 浅松针字 —— 整体偏亮丽。
+     跟 --heal-* / --sf-* 独立,landing 页面只走这组。
+     气质:凉、亮、轻快有活力。
+     错字符的 --cm-accent 用琥珀黄,跟 CTA 跳出色一致。 */
+  --cm-bg:            #FFFFFF;   /* 纯白 —— hero 主底色,纸面感 */
+  --cm-bg-grain:      rgba(63, 209, 122, 0.06);   /* 青柠 noise 基色 */
+  --cm-card:          rgba(255, 255, 255, 0.96); /* 卡片近不透白 */
+  --cm-line:          rgba(63, 209, 122, 0.36);  /* 青柠装订线 */
+  --cm-mint:          #3FD17A;   /* 鲜青柠绿 —— 主色,enso stroke */
+  --cm-mint-deep:     #16A35E;   /* 深青柠 —— 落定字色 / focus 环 */
+  --cm-lemon:         #FFD91A;   /* 鲜柠檬黄 —— 大面积主色,CTA fill */
+  --cm-lemon-deep:    #F5B800;   /* 深柠檬 —— CTA hover */
+  --cm-ink:           #2D5A3F;   /* 浅松针字 —— 比松针浅一档,亮 */
+  --cm-ink-soft:      #6B8C7A;   /* 副文字 / 弱化标签 */
+  --cm-accent:        #FF9F1C;   /* 琥珀橘 —— enso 品牌标记 + 错字符 flash */
+  --cm-rule:          rgba(45, 90, 63, 0.12);    /* 印刷感分隔线 */
+
+  /* spring-out 缓动 —— 字符落地时轻轻弹一下 */
+  --cm-spring:        cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* 纸纹 noise —— 青柠调,SVG filter inline,不产生额外网络请求 */
+  --cm-grain-url:     url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.36 0 0 0 0 0.78 0 0 0 0 0.54 0 0 0 0.5 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
 }
 
 /* ============================================================
-   Dark mode (base mirror — surface + label + separator only)
+   Dark mode (manual toggle)
    ------------------------------------------------------------
-   Toggled by the user's OS preference. The landing page inverts
-   cleanly because the tokens it relies on are all in this group.
+   Triggered by `data-theme="dark"` on <html> (set by ThemeProvider
+   on user click). System preference is **not** the default — this
+   product ships light-first. The landing page inverts cleanly
+   because the tokens it relies on are all in this group.
    The drill surface was authored light-only; it stays light in
    dark mode (we don't pretend to redo the entire design system).
+
+   If the user has NOT manually toggled, we still honour OS
+   preference as a fallback (this keeps the "follows system" feel
+   for users who never open the toggle).
    ============================================================ */
+[data-theme="dark"] {
+  --surface:               #0E1116;
+  --surface-elevated:      #161B22;
+  --surface-secondary:     #1F2630;
+  --surface-tertiary:      #2A323D;
+  --label-primary:         #ECEFF4;
+  --label-secondary:       #C2C8D0;
+  --label-tertiary:        #8E97A3;
+  --label-quaternary:      #5C6773;
+  --label-mist:            #2F3741;
+  --separator:             #2A323D;
+  --heal-bg:               #0F1411;   /* 森林夜 —— hero 主底色 */
+  --heal-card:             rgba(28, 38, 32, 0.65);
+  --heal-card-solid:       #1A241D;
+  --heal-line:             rgba(135, 184, 145, 0.20);
+  --heal-glow:             rgba(135, 184, 145, 0.22);
+  --heal-grid:             rgba(166, 207, 176, 0.06);
+  --heal-sage:             #A6CFB0;
+  --heal-sage-soft:        #6F9079;
+  --heal-ink:              #E8EFE9;
+  /* ----- Landing-d dark (薄荷夜 / Citrus Night) -----
+   近黑薄荷夜底色 + 鲜亮青柠 + 柠檬黄保留跳出 + 浅松针亮字 */
+  --cm-bg:                 #0E1A14;   /* 薄荷夜 —— hero 主底色 */
+  --cm-bg-grain:           rgba(255, 255, 255, 0.03);
+  --cm-card:               rgba(28, 48, 36, 0.7);
+  --cm-line:               rgba(63, 209, 122, 0.28);
+  --cm-mint:               #5DE89A;   /* 提亮的鲜青柠,薄荷夜下也能读 */
+  --cm-mint-deep:          #3FD17A;
+  --cm-lemon:              #FFD91A;
+  --cm-lemon-deep:         #F5B800;
+  --cm-ink:                #E8F4EC;
+  --cm-ink-soft:           #A8C2B2;
+  --cm-accent:             #FFB347;   /* 夜下琥珀橘稍亮 */
+  --cm-rule:               rgba(232, 244, 236, 0.14);
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
+    /* 用户从未手动设置过主题 —— 跟随系统 */
     --surface:               #0E1116;
     --surface-elevated:      #161B22;
     --surface-secondary:     #1F2630;
@@ -162,17 +239,36 @@
     --label-quaternary:      #5C6773;
     --label-mist:            #2F3741;
     --separator:             #2A323D;
-    --hero-glow:             rgba(199, 62, 29, 0.08);
-    --hero-grid:             rgba(236, 239, 244, 0.05);
+    --heal-bg:               #0F1411;
+    --heal-card:             rgba(28, 38, 32, 0.65);
+    --heal-card-solid:       #1A241D;
+    --heal-line:             rgba(135, 184, 145, 0.20);
+    --heal-glow:             rgba(135, 184, 145, 0.22);
+    --heal-grid:             rgba(166, 207, 176, 0.06);
+    --heal-sage:             #A6CFB0;
+    --heal-sage-soft:        #6F9079;
+    --heal-ink:              #E8EFE9;
+    --cm-bg:                 #0E1A14;
+    --cm-bg-grain:           rgba(255, 255, 255, 0.03);
+    --cm-card:               rgba(28, 48, 36, 0.7);
+    --cm-line:               rgba(63, 209, 122, 0.28);
+    --cm-mint:               #5DE89A;
+    --cm-mint-deep:          #3FD17A;
+    --cm-lemon:              #FFD91A;
+    --cm-lemon-deep:         #F5B800;
+    --cm-ink:                #E8F4EC;
+    --cm-ink-soft:           #A8C2B2;
+    --cm-accent:             #FFB347;
+    --cm-rule:               rgba(232, 244, 236, 0.14);
   }
-  body { background-color: var(--surface); }
-  .app-header {
-    /* Dark chrome: deep surface + same blur, hairline flips to
-       light-alpha so the 1px separator stays visible against
-       the near-black background. */
-    background: rgba(14, 17, 22, 0.72);
-    border-bottom-color: rgba(236, 239, 244, 0.08);
-  }
+}
+[data-theme="dark"] body { background-color: var(--surface); }
+[data-theme="dark"] .app-header {
+  /* Dark chrome: deep surface + same blur, hairline flips to
+     light-alpha so the 1px separator stays visible against
+     the near-black background. */
+  background: rgba(14, 17, 22, 0.72);
+  border-bottom-color: rgba(236, 239, 244, 0.08);
 }
 
 /* ============================================================
@@ -1291,14 +1387,78 @@ select:focus-visible {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  /* --surface-elevated mirrors in dark mode (#FFFFFF → #161B22), so the
-     chrome bg + hairline flip cleanly without per-mode overrides. */
-  background: color-mix(in srgb, var(--surface-elevated) 72%, transparent);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border-bottom: 1px solid color-mix(in srgb, var(--label-primary) 6%, transparent);
+  /* Header 跟 hero 同一色温 —— 半透薄荷绿雾,blur 让下方内容透出 */
+  background: color-mix(in srgb, var(--heal-bg) 72%, transparent);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border-bottom: 1px solid color-mix(in srgb, var(--heal-sage) 12%, transparent);
   z-index: 50;
   font-family: var(--font-body);
+}
+
+/* Landing variant — transparent, sits on top of the Citrus Mint hero.
+   The default frosted-glass heal-bg tint would read as a green band
+   cutting the hero in half; here the chrome just floats on the page
+   bg with a thin mint hairline. Brand mark colour and sizing also
+   adapt so the EnsoMark SVG (not the legacy ◯ glyph) fits cleanly. */
+.app-header--landing {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom-color: rgba(45, 90, 63, 0.10);
+}
+.app-header--landing .app-header__brand-name {
+  color: var(--cm-ink, #2D5A3F);
+}
+.app-header--landing .app-header__brand-mark {
+  width: auto;
+  height: auto;
+  color: var(--cm-mint-deep, #16A35E);
+}
+/* Login / signup on landing — match the Citrus Mint palette so the
+   chrome buttons don't read as "charcoal pills on a mint page". The
+   CTA below the hero uses lemon fill + ink text, so we keep the same
+   ink colour here but switch to a mint hairline outline for the
+   secondary (signup) and a mint fill for the primary (login) — the
+   two sit visually related to the CTA without competing with it. */
+.app-header--landing .app-header__login {
+  color: #FFFFFF;
+  background: var(--cm-mint-deep, #16A35E);
+  border-color: var(--cm-mint-deep, #16A35E);
+  box-shadow: 0 1px 2px rgba(31, 58, 43, 0.06),
+              0 4px 12px rgba(63, 209, 122, 0.32);
+}
+.app-header--landing .app-header__login:hover {
+  background: #0E7E47;     /* one notch deeper, matches Hero CTA hover */
+  border-color: #0E7E47;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(31, 58, 43, 0.10),
+              0 8px 22px rgba(63, 209, 122, 0.42);
+}
+.app-header--landing .app-header__login:active {
+  transform: translateY(0);
+}
+.app-header--landing .app-header__login:focus-visible {
+  outline-color: var(--cm-mint-deep, #16A35E);
+}
+.app-header--landing .app-header__signup {
+  color: var(--cm-ink, #2D5A3F);
+  background: transparent;
+  border-color: rgba(45, 90, 63, 0.32);
+  box-shadow: none;
+}
+.app-header--landing .app-header__signup:hover {
+  color: var(--cm-mint-deep, #16A35E);
+  background: rgba(63, 209, 122, 0.10);
+  border-color: var(--cm-mint-deep, #16A35E);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(63, 209, 122, 0.18);
+}
+.app-header--landing .app-header__signup:active {
+  transform: translateY(0);
+}
+.app-header--landing .app-header__signup:focus-visible {
+  outline-color: var(--cm-mint-deep, #16A35E);
 }
 
 /* Brand mark + name on the left — logo + title group.
@@ -1343,7 +1503,7 @@ select:focus-visible {
   font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.015em;
-  color: var(--label-primary);
+  color: var(--heal-ink);
   white-space: nowrap;
 }
 @media (max-width: 640px) {
@@ -1460,14 +1620,6 @@ select:focus-visible {
      -  920px: daily plan, daily word/sentence
      -  680px: fallback for very long hero copy
    ============================================================ */
-.landing {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  background: var(--surface);
-  color: var(--label-primary);
-  font-family: var(--font-body);
-}
 
 /* Generic section header used by every landing section. */
 .section-header {
@@ -1481,8 +1633,8 @@ select:focus-visible {
 }
 .section-header__caption {
   font-size: var(--type-caption);
-  font-weight: var(--type-body-weight);
-  color: var(--label-tertiary);
+  font-weight: 600;
+  color: var(--heal-sage);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   margin: 0;
@@ -1491,1082 +1643,19 @@ select:focus-visible {
 .section-header__title {
   font-size: clamp(28px, 4.4vw, 44px);
   font-weight: var(--type-title-1-weight);
-  color: var(--label-primary);
+  color: var(--heal-ink);
   letter-spacing: -0.02em;
   line-height: 1.15;
   margin: 0;
 }
 .section-header__hint {
   font-size: var(--type-body);
-  color: var(--label-tertiary);
+  color: var(--heal-ink);
+  opacity: 0.7;
   line-height: 1.5;
   margin: 0;
   max-width: 56ch;
 }
-
-/* ============================================================
-   Hero — full-viewport opening with character-level fadeUp
-   ============================================================ */
-.hero {
-  position: relative;
-  width: 100%;
-  min-height: calc(100vh - 52px);
-  padding: clamp(80px, 14vh, 160px) var(--space-5) clamp(120px, 20vh, 200px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  isolation: isolate;
-}
-
-.hero__bg {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-}
-.hero__glow {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    ellipse 80% 60% at 50% 35%,
-    var(--hero-glow) 0%,
-    transparent 70%
-  );
-  animation: hero-glow 6s var(--ease-standard) infinite;
-}
-.hero__grid {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(to right, var(--hero-grid) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--hero-grid) 1px, transparent 1px);
-  background-size: 64px 64px;
-  mask-image: radial-gradient(ellipse 60% 80% at 50% 50%, black 30%, transparent 75%);
-  -webkit-mask-image: radial-gradient(ellipse 60% 80% at 50% 50%, black 30%, transparent 75%);
-}
-@keyframes hero-glow {
-  0%, 100% { opacity: 0.6; }
-  50%      { opacity: 1; }
-}
-
-.hero__inner {
-  position: relative;
-  max-width: var(--content-medium);
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: var(--space-5);
-}
-
-.hero__caption {
-  font-size: var(--type-caption);
-  font-weight: var(--type-body-emphasis-weight);
-  color: var(--accent);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  margin: 0;
-  user-select: none;
-}
-
-.hero__title {
-  font-size: clamp(36px, 6vw, 64px);
-  font-weight: var(--type-large-title-weight);
-  color: var(--label-primary);
-  letter-spacing: -0.025em;
-  line-height: 1.1;
-  margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.04em;
-}
-
-.hero__char {
-  display: inline-block;
-  opacity: 0;
-  transform: translateY(0.4em);
-  animation: hero-char-rise 600ms var(--ease-emphasized) forwards;
-}
-@keyframes hero-char-rise {
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.hero__subtitle {
-  font-size: clamp(15px, 1.4vw, 18px);
-  color: var(--label-tertiary);
-  line-height: 1.6;
-  margin: 0;
-  max-width: 56ch;
-  opacity: 0;
-  transform: translateY(8px);
-  transition:
-    opacity var(--duration-base) var(--ease-standard),
-    transform var(--duration-base) var(--ease-standard);
-}
-.hero__subtitle--in {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* Typefall demo wrapper — 跟 CTAs 一起入场,但排在其上 */
-.hero__demo {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  opacity: 0;
-  transform: translateY(8px);
-  transition:
-    opacity var(--duration-base) var(--ease-standard),
-    transform var(--duration-base) var(--ease-standard);
-  transition-delay: 80ms;
-}
-.hero__demo--in {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* 单 CTA —— demo 框正下方,36px 高的细按钮
-   ----------------------------------------------------
-   视觉:1px 深色边框 + 透明底 + --label-primary 字色。
-   hover 时整块填色(深底亮字),强化"按下去"的可执行感。
-   整体宽度跟 demo 框对齐(520px),文案超长时收起次要 label。 */
-.hero__start {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  margin-top: var(--space-4);
-  height: 36px;
-  padding: 0 var(--space-5);
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: var(--type-body-emphasis-weight);
-  letter-spacing: 0.005em;
-  color: var(--label-primary);
-  background: var(--surface-elevated);
-  border: 1px solid var(--label-primary);
-  border-radius: var(--radius-circle);
-  cursor: pointer;
-  user-select: none;
-  white-space: nowrap;
-  opacity: 0;
-  transform: translateY(8px);
-  transition:
-    opacity var(--duration-base) var(--ease-standard),
-    transform var(--duration-base) var(--ease-standard),
-    background var(--duration-fast) var(--ease-standard),
-    color var(--duration-fast) var(--ease-standard),
-    box-shadow var(--duration-fast) var(--ease-standard);
-}
-.hero__start--in {
-  opacity: 1;
-  transform: translateY(0);
-  transition-delay: 120ms;
-}
-.hero__start:hover {
-  background: var(--label-primary);
-  color: var(--on-primary);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
-}
-.hero__start:active {
-  transform: translateY(0);
-  box-shadow: var(--shadow-sm);
-}
-.hero__start:focus-visible {
-  outline: 2px solid var(--label-primary);
-  outline-offset: 3px;
-}
-/* 箭头 —— 单独控制,hover 时轻微位移暗示方向 */
-.hero__start-arrow {
-  display: inline-flex;
-  font-family: var(--font-mono);
-  font-size: 14px;
-  line-height: 1;
-  transition: transform var(--duration-fast) var(--ease-standard);
-}
-.hero__start:hover .hero__start-arrow {
-  transform: translateX(2px);
-}
-
-.hero__ctas {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-3);
-  margin-top: var(--space-5);
-  opacity: 0;
-  transform: translateY(8px);
-  transition:
-    opacity var(--duration-base) var(--ease-standard),
-    transform var(--duration-base) var(--ease-standard);
-}
-.hero__ctas--in {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.hero__cta {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  height: 52px;
-  padding: 0 var(--space-5);
-  border-radius: var(--radius-md);
-  font-family: inherit;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.005em;
-  cursor: pointer;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--label-primary);
-  transition:
-    background var(--duration-fast) var(--ease-standard),
-    color var(--duration-fast) var(--ease-standard),
-    border-color var(--duration-fast) var(--ease-standard),
-    transform var(--duration-fast) var(--ease-standard);
-  user-select: none;
-  white-space: nowrap;
-}
-.hero__cta:focus-visible {
-  outline: 2px solid var(--label-primary);
-  outline-offset: 3px;
-}
-.hero__cta-meta {
-  color: inherit;
-  opacity: 0.7;
-  font-weight: 400;
-}
-
-.hero__cta--primary {
-  background: var(--surface-elevated);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.hero__cta--primary:hover {
-  background: var(--accent);
-  color: var(--surface);
-  transform: translateY(-1px);
-}
-.hero__cta--primary:hover .hero__cta-meta {
-  opacity: 0.85;
-  color: var(--surface);
-}
-
-.hero__cta--ghost {
-  background: var(--surface-elevated);
-  border-color: var(--separator);
-  color: var(--label-primary);
-}
-.hero__cta--ghost:hover {
-  background: var(--surface-secondary);
-  border-color: var(--label-quaternary);
-  transform: translateY(-1px);
-}
-
-.hero__chevron {
-  position: absolute;
-  bottom: var(--space-7);
-  left: 50%;
-  transform: translateX(-50%) translateY(0);
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-circle);
-  background: transparent;
-  border: 1px solid var(--separator);
-  color: var(--label-tertiary);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  line-height: 1;
-  opacity: 0;
-  transition:
-    opacity var(--duration-base) var(--ease-standard),
-    transform var(--duration-base) var(--ease-standard),
-    background var(--duration-fast) var(--ease-standard);
-}
-.hero__chevron--in {
-  opacity: 0.7;
-  animation: hero-chevron-bob 2.4s var(--ease-standard) infinite;
-}
-.hero__chevron:hover {
-  opacity: 1;
-  background: var(--surface-secondary);
-  color: var(--label-primary);
-  animation: none;
-  transform: translateX(-50%) translateY(-1px);
-}
-@keyframes hero-chevron-bob {
-  0%, 100% { transform: translateX(-50%) translateY(0); }
-  50%      { transform: translateX(-50%) translateY(4px); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hero__char,
-  .hero__glow,
-  .hero__chevron--in { animation: none; }
-  .hero__char { opacity: 1; transform: none; }
-  .hero__chevron--in { opacity: 0.7; }
-}
-
-/* ============================================================
-   TypefallDemo — hero 区域"中→英听写"微观动作演示
-   ------------------------------------------------------------
-   与实际练习 1:1 对齐:中文在上(题目),英文在下。
-   英文层每个词是独立的「cell」:下划线占位 + 字符浮动在占位之上。
-   字符从 --label-quaternary 淡入 → settle 到 --label-primary。
-
-   整词判断 ——  流程:
-     1. 该词字符全部 settle 到 --label-primary
-     2. 判断延迟(JUDGE_DELAY)200ms —— "刚刚输完"
-     3. 若是错改词(.typefall__word--err):
-        a. flash 错误效果(朱砂背景 wash + 字符 line-through),持续 FLASH
-        b. 字符 fade-out(FADE_OUT)
-        c. 重输 pause(RETYPE_PAUSE)
-        d. 字符重新逐个 settle 到 --label-primary
-        e. RECOVERY_PAUSE 修正后停顿("反应过来")
-     4. 不是错改词:保持 settle 状态
-
-   整组**常驻**:容器不淡出,React 用 key 让内容原地替换。
-   ============================================================ */
-.typefall {
-  position: relative;
-  width: 100%;
-  max-width: 720px;
-  margin: var(--space-4) auto 0;
-  padding: var(--space-5) var(--space-6) var(--space-4);
-  background: var(--surface-elevated);
-  border: 1px solid var(--separator);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-  isolation: isolate;
-}
-
-.typefall::before {
-  content: '实时听写示例';
-  position: absolute;
-  top: var(--space-3);
-  right: var(--space-4);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--label-quaternary);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  user-select: none;
-}
-
-/* 中文层 —— 略小、灰色,在英文前完成 stagger */
-.typefall__zh {
-  margin: 0 0 var(--space-4);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: center;
-  text-align: center;
-  letter-spacing: -0.005em;
-  line-height: 1.5;
-  font-size: clamp(13px, 1.2vw, 15px);
-  color: var(--label-tertiary);
-  min-height: 1.5em;
-}
-
-.typefall__zh-char {
-  display: inline-block;
-  opacity: 0;
-  transform: translateY(6px);
-  animation: typefall-zh-rise 420ms var(--ease-emphasized) forwards;
-}
-
-@keyframes typefall-zh-rise {
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* 英文层 —— 词 + 词间空格,跟实际练习的 cell 排版一致 */
-.typefall__en {
-  margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: center;
-  text-align: center;
-  letter-spacing: -0.015em;
-  line-height: 1.5;
-  font-size: clamp(13px, 1.4vw, 16px);
-  font-weight: 500;
-  color: var(--label-primary);
-  font-family: var(--font-body);
-  min-height: 1.5em;
-  gap: 0.32em;
-}
-
-/* 字符 —— 默认从 quaternary 漂到 primary。
-   关键帧时长固定,起始时间由 React 通过 --typefall-settle-delay 注入。 */
-
-/* 单词 cell —— 下划线占位 + 字符浮动。跟实际练习的 .cells__item/.cell 保持一致 */
-.typefall__word {
-  position: relative;
-  display: inline-block;       /* 不是 inline-flex —— slot 会失去 baseline */
-  padding: 0 4px 6px;
-  min-width: 1.2em;
-  /* 下划线 —— 默认 separator(灰),在「当前正在输入」阶段高亮到 primary。 */
-  border-bottom: 1.5px solid var(--separator);
-  /* 强制不换行 —— slot 和 char 永远是 inline 同行 */
-  white-space: nowrap;
-  /* 错改词 —— 在 flash 阶段切换背景 + 下划线颜色 */
-  transition: background var(--duration-fast) var(--ease-standard);
-  /* 整词「正在输入」下划线高亮 —— 在该词首个字符 settle 起点到最末
-     字符 settle 完成的窗口内,bottom-color 从 separator 漂到 label-primary;
-     settle 完毕之后(单词进入"等待下一个"或"已答对"状态)回到 separator。
-     duration = settle 全长,delay = settle-start。 */
-  animation: typefall-word-settle-active
-             var(--typefall-word-settle-window, 600ms)
-             var(--ease-emphasized) forwards;
-  animation-delay: var(--typefall-word-settle-start, 0ms);
-}
-
-@keyframes typefall-word-settle-active {
-  /* 0% / 100%:空闲或已完成 —— 下划线回到 separator 灰 */
-  0%, 100% {
-    border-bottom-color: var(--separator);
-  }
-  /* settle 进行中(40%-70% 区间):下划线亮到 primary */
-  40%, 70% {
-    border-bottom-color: var(--label-primary);
-  }
-}
-
-.typefall__word--err {
-  /* 全 cycle 时长 = JUDGE_DELAY + FLASH + (fade-out 没在这个 keyframe 里)
-     由 --typefall-word-cycle 控制,React 端算好。
-     flash 时段占总 cycle 的 ~70%,代表错误的"重头戏"。 */
-  animation: typefall-word-flash var(--typefall-word-cycle, 920ms) var(--ease-emphasized) forwards;
-  animation-delay: var(--typefall-word-flash-at, 0ms);
-}
-
-@keyframes typefall-word-flash {
-  /* 0% → JUDGE_DELAY 阶段:背景透明,字符已经 settle 到 primary */
-  0% {
-    background: transparent;
-    border-bottom-color: var(--separator);
-  }
-  /* JUDGE_DELAY 之后的 flash 阶段:
-     朱砂红 wash + 朱砂下划线。flash 占 cycle 大部分时间。 */
-  30%, 70% {
-    background: color-mix(in srgb, var(--accent) 14%, transparent);
-    border-bottom-color: var(--accent);
-  }
-  /* flash 结束 → 过渡回透明(此时字符正在 fade-out + 重输 settle) */
-  85% {
-    background: transparent;
-    border-bottom-color: var(--label-primary);
-  }
-  /* 重输 settle 完毕:下划线淡出,标识"完成" */
-  100% {
-    background: transparent;
-    border-bottom-color: var(--separator);
-  }
-}
-
-.typefall__en-char {
-  display: inline-block;
-  opacity: 0;
-  filter: blur(2px);
-  transform: translateY(2px);
-  color: var(--label-quaternary);
-  animation: typefall-en-type 380ms var(--ease-emphasized) forwards;
-  animation-delay: var(--typefall-settle-delay, 220ms);
-}
-
-@keyframes typefall-en-type {
-  0% {
-    opacity: 0;
-    filter: blur(3px);
-    transform: translateY(2px);
-    color: var(--label-quaternary);
-  }
-  60% {
-    opacity: 0.9;
-    filter: blur(0.4px);
-    color: var(--label-primary);
-  }
-  100% {
-    opacity: 1;
-    filter: blur(0);
-    transform: translateY(0);
-    /* 最终态 = --correct 绿(代表"答对、已确认") */
-    color: var(--correct);
-  }
-}
-
-/* 错改词里的字符 —— 走「settle → flash(line-through)→ fade-out → 重输 settle」完整 cycle。
-   时间锚(--typefall-word-flash-at / --typefall-word-fadeout-at / --typefall-word-retype-at)
-   来自 React 端按单词算出,见 buildWordTimings。
-
-   关键点:在 flash 阶段,line-through 只发生在字符层(word 层管背景);
-   fade-out 阶段字符整词淡出;re-settle 阶段字符再次从 quaternary 浮上来。 */
-.typefall__word--err .typefall__en-char {
-  /* 全 cycle 时长 = 从 settle 起点到最终落定。React 已经按单词算好。 */
-  animation: typefall-en-err-cycle var(--typefall-word-cycle, 1080ms) var(--ease-emphasized) forwards;
-  animation-delay: var(--typefall-settle-delay, 220ms);
-}
-
-@keyframes typefall-en-err-cycle {
-  /* 0% (settle 起点) → 字符起点 */
-  0% {
-    opacity: 0;
-    filter: blur(3px);
-    transform: translateY(2px);
-    color: var(--label-quaternary);
-    text-decoration: none;
-  }
-  /* settle 完成:漂到 primary —— 错改词的其它字符此时与普通 settle 看起来一致 */
-  30% {
-    opacity: 1;
-    filter: blur(0);
-    transform: translateY(0);
-    color: var(--label-primary);
-    text-decoration: none;
-  }
-  /* flash 阶段:朱砂色 + line-through(与 word 背景共同呈现) */
-  40%, 60% {
-    opacity: 1;
-    color: var(--accent);
-    text-decoration: line-through;
-    text-decoration-color: var(--accent);
-    text-decoration-thickness: 1.5px;
-    text-decoration-skip-ink: none;
-  }
-  /* fade-out 阶段:fade + 错乱位移,准备重输 */
-  72% {
-    opacity: 0;
-    filter: blur(2px);
-    transform: translateY(-2px);
-    color: var(--label-quaternary);
-    text-decoration: none;
-  }
-  /* 重输 settle 的视觉:"新输入"再次从 quaternary 漂上来 */
-  88% {
-    opacity: 0.9;
-    filter: blur(0.4px);
-    color: var(--label-primary);
-    text-decoration: none;
-  }
-  100% {
-    opacity: 1;
-    filter: blur(0);
-    transform: translateY(0);
-    /* 最终态 = --correct 绿(代表"答对、已确认") */
-    color: var(--correct);
-    text-decoration: none;
-  }
-}
-
-/* 错改词的字符槽位 —— 同一格子里叠放「错字」和「正确」两个 span。
-   - .typefall__en-slot 自身显示**正确字符**(可见,有 baseline,
-     让父级 inline-flex 不会因为 slot 失去内容而把整词推下行)
-   - .typefall__en-wrong 绝对定位于 slot 之上,只在 cycle 阶段(settle
-     → flash → fade-out 期间)显示;然后被正确字符取代
-   - .typefall__en-correct 默认 opacity:0,在 --typefall-retype-delay
-     触发后才 settle 进来 -- 此时正好和 slot 默认显示的字符做"无缝切"
-     (视觉效果 = 字符颜色从 quaternary 漂到 primary)
-
-   起始时间由 React 端按字符 + 单词算出:
-     --typefall-settle-delay = 错字字符 settle 起点
-     --typefall-retype-delay  = 正确字符 settle 起点
-     --typefall-word-flash-at  = flash 阶段开始(整词错改效果)
-     --typefall-word-fadeout-at = fade-out 开始
-
-   视觉流程:
-     1. .en-slot 显示正确字符(低不透明,代表"待输入")
-     2. .en-wrong 立即 settle 进来到 tertiary,盖在 slot 之上
-     3. ~word flashAt:wrong + accent 色 + line-through(整词 flash)
-     4. ~word fadeOutAt:wrong 淡出,正确字符从 quaternary 漂上来
-
-   .en-correct 自身不透明度被控制,只通过 --typefall-retype-delay
-   触发整体 cycle(它本身一直保持 op=0,直到正确字符真正出现)。
-   这种"slot 显示正确字符 + wrong 覆盖 + 关键时刻双层动画"的方案,
-   比 absolute 叠放更稳定 —— slot 永远有字符,baseline 永远稳定。 */
-.typefall__en-slot {
-  display: inline-block;
-  position: relative;
-  /* 宽度按字母最大字符(常见 0.7em)留余量,确保 wrong/correct 都是单字符时
-     不会因 inline-block 宽度不够而掉到下一行 */
-  width: 0.72em;
-  text-align: center;
-  vertical-align: baseline;
-  /* slot 自身**先隐藏**(0 透明)—— 不再默认显示 0.6 透明的正确字符,
-     否则错的单词在到达前正确字符就已可见(用户报这个 bug)。
-     typefall-slot-settle 在 retype-delay 触发时让 slot 从 quaternary 漂到 primary。 */
-  opacity: 0;
-  color: var(--label-quaternary);
-  animation: typefall-slot-settle 480ms var(--ease-emphasized) forwards;
-  animation-delay: var(--typefall-retype-delay, 0ms);
-}
-.typefall__en-wrong {
-  /* 错字字符:跟对应字符一起 stagger settle 进来(tertiary 灰)→
-     在整词 flash 阶段变红 + line-through → 整词 fade 时一起淡出。
-     实现方式 = 两个动画叠加:
-       1. typefall-en-wrong-settle (380ms):跟正常字符一样的 stagger 浮现
-       2. typefall-en-wrong-flash (cycle 长度,在 wordSettleStart 时启动):
-          整词 flash 阶段变红,跟 word-level flash 同步
-     base state:opacity:0,在 settle 动画 delay 之前保持隐藏。 */
-  display: inline-block;
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  text-align: center;
-  line-height: inherit;
-  opacity: 0;
-  color: var(--label-tertiary);
-  animation:
-    typefall-en-wrong-settle 380ms var(--ease-emphasized) forwards,
-    typefall-en-wrong-flash var(--typefall-word-cycle, 1540ms)
-      var(--ease-emphasized) forwards;
-  /* settle delay = 字符 stagger 起点;flash delay = word settle 起点。
-     两个动画并行运行,通过 keyframe 节点对齐。 */
-  animation-delay:
-    var(--typefall-wrong-delay, 220ms),
-    var(--typefall-word-settle-start, 220ms);
-}
-
-@keyframes typefall-en-wrong-settle {
-  /* 跟正常字符一样的 stagger 浮现:quaternary → tertiary。 */
-  0% {
-    opacity: 0;
-    filter: blur(3px);
-    transform: translateY(2px);
-    color: var(--label-quaternary);
-  }
-  100% {
-    opacity: 1;
-    filter: blur(0);
-    transform: translateY(0);
-    color: var(--label-tertiary);
-  }
-}
-
-@keyframes typefall-en-wrong-flash {
-  /* 0% - 30% (settle + JUDGE_DELAY):错字保持 tertiary(跟正常 settle 一致) */
-  0%, 30% {
-    color: var(--label-tertiary);
-    text-decoration: none;
-  }
-  /* flash 阶段(38% - 58%):错字变红 + line-through */
-  38%, 58% {
-    color: var(--accent);
-    text-decoration: line-through;
-    text-decoration-color: var(--accent);
-    text-decoration-thickness: 1.5px;
-    text-decoration-skip-ink: none;
-  }
-  /* fade-out 阶段(77%):错字淡出 */
-  77% {
-    opacity: 0;
-    filter: blur(2px);
-    transform: translateY(-2px);
-    color: var(--label-quaternary);
-    text-decoration: none;
-  }
-  100% {
-    opacity: 0;
-    filter: blur(2px);
-    transform: translateY(-2px);
-    color: var(--label-quaternary);
-    text-decoration: none;
-  }
-}
-
-/* correct 不渲染可见文字,它由 slot 默认显示;只在 retype 阶段
-   触发 slot 的主色调,把整字变成 primary。 */
-.typefall__en-correct {
-  display: inline-block;
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  text-align: center;
-  line-height: inherit;
-  color: transparent;
-  animation: typefall-en-correct-cycle 480ms var(--ease-emphasized) forwards;
-  animation-delay: var(--typefall-retype-delay, 0ms);
-  pointer-events: none;
-}
-
-@keyframes typefall-en-correct-cycle {
-  /* 0%:不能让别人看到 —— slot 已经是正确的字符(低透明) */
-  0% {
-    color: var(--label-quaternary);
-  }
-  /* 100%:作为触发信号,把 slot 从 quaternary 低透明切到 primary */
-  100% {
-    color: var(--label-primary);
-  }
-}
-
-/* 让 slot 在 --typefall-retype-delay 触发时整体 ramp 到 primary。
-   直接用 animation 影响 .typefall__en-slot 而不是 .en-correct,
-   这样能稳定地控制"字符从 quaternary → primary"的过渡。 */
-@keyframes typefall-slot-settle {
-  0% {
-    color: var(--label-quaternary);
-    opacity: 0.6;
-    filter: blur(2px);
-    transform: translateY(2px);
-  }
-  60% {
-    opacity: 0.9;
-    filter: blur(0.4px);
-    color: var(--label-primary);
-  }
-  100% {
-    /* 最终态 = --correct 绿(代表"答对、已确认") */
-    color: var(--correct);
-    opacity: 1;
-    filter: blur(0);
-    transform: translateY(0);
-  }
-}
-
-/* Reduced-motion 回退 —— typefall 元素的动画全部关掉,
-   直接显示最终状态。 */
-.typefall[data-reduced="true"] .typefall__zh-char,
-.typefall[data-reduced="true"] .typefall__en-char {
-  animation: none;
-  opacity: 1;
-  filter: none;
-  transform: none;
-  color: var(--label-primary);
-  text-decoration: none;
-}
-@media (prefers-reduced-motion: reduce) {
-  .typefall__zh-char,
-  .typefall__en-char { animation: none; }
-}
-
-/* ============================================================
-   Daily plan — three plan cards
-   ============================================================ */
-.daily-plan {
-  width: 100%;
-  max-width: var(--content-wide);
-  margin: 0 auto;
-  padding: clamp(80px, 12vh, 120px) var(--space-5) clamp(60px, 10vh, 96px);
-}
-
-.daily-plan__cards {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-4);
-  list-style: none;
-  padding: 0 var(--space-5);
-  margin: 0 auto;
-  max-width: var(--content-medium);
-}
-@media (min-width: 720px) {
-  .daily-plan__cards {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-.plan-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-5);
-  background: var(--surface-elevated);
-  border: 1px solid var(--separator);
-  border-radius: var(--radius-lg);
-  min-height: 220px;
-  opacity: 0;
-  transform: translateY(16px);
-  transition:
-    opacity var(--duration-base) var(--ease-standard),
-    transform var(--duration-base) var(--ease-standard),
-    border-color var(--duration-fast) var(--ease-standard);
-}
-.plan-card--in {
-  opacity: 1;
-  transform: translateY(0);
-}
-.plan-card--empty {
-  background: var(--surface-secondary);
-}
-.plan-card:hover {
-  border-color: var(--label-quaternary);
-}
-
-.plan-card__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-.plan-card__caption {
-  font-size: var(--type-caption);
-  font-weight: var(--type-body-emphasis-weight);
-  color: var(--label-tertiary);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  user-select: none;
-}
-.plan-card__title {
-  font-size: var(--type-title-3);
-  font-weight: var(--type-title-3-weight);
-  color: var(--label-primary);
-  letter-spacing: -0.005em;
-  line-height: 1.3;
-  margin: 0;
-}
-.plan-card__meta {
-  font-size: var(--type-body);
-  color: var(--label-secondary);
-  line-height: 1.4;
-  margin: 0;
-  flex: 1;
-}
-.plan-card__btn {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  height: 36px;
-  padding: 0 var(--space-4);
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--label-primary);
-  background: var(--surface-secondary);
-  border: 1px solid var(--separator);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  margin-top: var(--space-2);
-  transition:
-    background var(--duration-fast) var(--ease-standard),
-    color var(--duration-fast) var(--ease-standard);
-}
-.plan-card__btn:hover:not(:disabled) {
-  background: var(--label-primary);
-  color: var(--on-primary);
-  border-color: var(--label-primary);
-}
-.plan-card__btn:disabled {
-  color: var(--label-quaternary);
-  cursor: not-allowed;
-}
-
-/* Progress ring — small SVG dial, sage green */
-.progress-ring {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  height: 56px;
-  flex-shrink: 0;
-}
-.progress-ring svg {
-  position: absolute;
-  inset: 0;
-}
-.progress-ring__track {
-  stroke: var(--separator);
-}
-.progress-ring__fill {
-  stroke: var(--correct);
-  transition: stroke-dasharray var(--duration-slow) var(--ease-emphasized);
-}
-.progress-ring__label {
-  position: relative;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--label-primary);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-}
-.progress-ring__sub {
-  position: absolute;
-  bottom: -2px;
-  right: -4px;
-  font-size: 9px;
-  color: var(--label-tertiary);
-  font-variant-numeric: tabular-nums;
-  background: var(--surface-elevated);
-  padding: 1px 3px;
-  border-radius: 3px;
-}
-
-/* ============================================================
-   Lib market — carousel + grid
-   ============================================================ */
-.lib-market {
-  width: 100%;
-  max-width: var(--content-wide);
-  margin: 0 auto;
-  padding: clamp(60px, 10vh, 96px) 0 clamp(80px, 12vh, 120px);
-  position: relative;
-}
-
-.lib-market__carousel-wrap {
-  margin-bottom: var(--space-8);
-  padding: 0 var(--space-5);
-}
-
-.lib-carousel {
-  position: relative;
-  width: 100%;
-  max-width: var(--content-wide);
-  margin: 0 auto;
-}
-.lib-carousel__track {
-  display: flex;
-  gap: var(--space-4);
-  overflow-x: auto;
-  overflow-y: hidden;
-  scroll-snap-type: x mandatory;
-  scroll-behavior: smooth;
-  padding: 4px 4px 16px;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  mask-image: linear-gradient(
-    to right,
-    transparent 0,
-    black 40px,
-    black calc(100% - 40px),
-    transparent 100%
-  );
-  -webkit-mask-image: linear-gradient(
-    to right,
-    transparent 0,
-    black 40px,
-    black calc(100% - 40px),
-    transparent 100%
-  );
-}
-.lib-carousel__track::-webkit-scrollbar { display: none; }
-
-.carousel-card {
-  flex: 0 0 360px;
-  min-width: 360px;
-  scroll-snap-align: start;
-  display: flex;
-  flex-direction: column;
-  background: var(--surface-elevated);
-  border: 1px solid var(--separator);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  transition:
-    border-color var(--duration-fast) var(--ease-standard),
-    transform var(--duration-fast) var(--ease-standard);
-}
-.carousel-card:hover {
-  border-color: var(--label-quaternary);
-  transform: translateY(-2px);
-}
-.carousel-card__cover {
-  position: relative;
-  height: 120px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-start;
-  padding: var(--space-4);
-}
-.carousel-card--tint-cool .carousel-card__cover { background: var(--tint-cool); }
-.carousel-card--tint-mist .carousel-card__cover { background: var(--tint-mist); }
-.carousel-card--tint-warm .carousel-card__cover { background: var(--tint-warm); }
-
-.carousel-card__level {
-  display: inline-flex;
-  align-items: center;
-  height: 24px;
-  padding: 0 var(--space-3);
-  background: var(--surface-elevated);
-  border: 1px solid var(--separator);
-  border-radius: var(--radius-circle);
-  font-family: var(--font-mono);
-  font-size: var(--type-caption);
-  font-weight: 500;
-  color: var(--label-tertiary);
-  letter-spacing: 0.04em;
-  text-transform: lowercase;
-}
-.carousel-card__body {
-  padding: var(--space-4) var(--space-5) var(--space-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  flex: 1;
-}
-.carousel-card__name {
-  font-size: var(--type-title-2);
-  font-weight: var(--type-title-2-weight);
-  color: var(--label-primary);
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-  margin: 0;
-}
-.carousel-card__desc {
-  font-size: var(--type-body);
-  color: var(--label-secondary);
-  line-height: 1.4;
-  margin: 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.carousel-card__meta {
-  font-size: var(--type-caption);
-  color: var(--label-tertiary);
-  font-variant-numeric: tabular-nums;
-  margin: 0;
-}
-.carousel-card__btn {
-  align-self: flex-start;
-  margin-top: auto;
-  display: inline-flex;
-  align-items: center;
-  height: 36px;
-  padding: 0 var(--space-4);
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--surface);
-  background: var(--label-primary);
-  border: 1px solid var(--label-primary);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition:
-    background var(--duration-fast) var(--ease-standard),
-    transform var(--duration-fast) var(--ease-standard);
-}
-.carousel-card__btn:hover {
-  opacity: 0.88;
-  transform: translateY(-1px);
-}
-
-@media (max-width: 720px) {
-  .carousel-card {
-    flex: 0 0 84vw;
-    min-width: 84vw;
-  }
-}
-
-.lib-market__grid {
-  opacity: 0;
-  transition: opacity var(--duration-base) var(--ease-standard);
-  max-width: var(--content-wide);
-  margin: 0 auto;
-  padding: 0 var(--space-5);
-}
-.lib-market__grid--in { opacity: 1; }
 
 /* Add progress bar + recent chip to existing home tiles. */
 .home__tile {
@@ -2579,21 +1668,21 @@ select:focus-visible {
   right: var(--space-5);
   bottom: calc(var(--space-3) - 2px);
   height: 3px;
-  background: var(--surface-secondary);
+  background: var(--heal-line);
   border-radius: var(--radius-circle);
   overflow: hidden;
 }
 .home__tile-progress-fill {
   display: block;
   height: 100%;
-  background: var(--correct);
+  background: var(--heal-sage);
   transition: width var(--duration-base) var(--ease-standard);
 }
 .home__tile--recent {
-  border-color: var(--accent);
+  border-color: var(--heal-sage);
 }
 .home__tile--recent:hover {
-  border-color: var(--accent);
+  border-color: var(--heal-sage-soft);
 }
 .home__tile-chip {
   position: absolute;
@@ -2603,257 +1692,14 @@ select:focus-visible {
   align-items: center;
   height: 22px;
   padding: 0 var(--space-2);
-  background: var(--accent);
-  color: var(--surface);
+  background: var(--heal-sage);
+  color: #FFFFFF;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
   border-radius: var(--radius-sm);
   z-index: 1;
 }
-
-/* ============================================================
-   Daily word / sentence cards
-   ============================================================ */
-.daily-ws {
-  width: 100%;
-  max-width: var(--content-wide);
-  margin: 0 auto;
-  padding: clamp(60px, 10vh, 96px) 0;
-}
-.daily-ws__grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-4);
-  padding: 0 var(--space-5);
-  max-width: var(--content-medium);
-  margin: 0 auto;
-}
-@media (min-width: 720px) {
-  .daily-ws__grid { grid-template-columns: 1fr 1fr; }
-}
-
-.ws-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-6);
-  background: var(--surface-elevated);
-  border: 1px solid var(--separator);
-  border-radius: var(--radius-lg);
-  opacity: 0;
-  transform: translateY(16px);
-  transition:
-    opacity var(--duration-base) var(--ease-standard),
-    transform var(--duration-base) var(--ease-standard);
-}
-.ws-card--in {
-  opacity: 1;
-  transform: translateY(0);
-}
-.ws-card__caption {
-  font-size: var(--type-caption);
-  font-weight: var(--type-body-emphasis-weight);
-  color: var(--label-tertiary);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin: 0;
-  user-select: none;
-}
-.ws-card__word {
-  font-size: clamp(36px, 5vw, 52px);
-  font-weight: var(--type-large-title-weight);
-  color: var(--label-primary);
-  letter-spacing: -0.025em;
-  line-height: 1.1;
-  margin: 0;
-}
-.ws-card__phonetic {
-  font-family: var(--font-mono);
-  font-size: var(--type-body);
-  color: var(--label-tertiary);
-  margin: 0;
-}
-.ws-card__peek {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  height: 32px;
-  padding: 0 var(--space-3);
-  background: var(--surface-secondary);
-  border: 1px solid var(--separator);
-  border-radius: var(--radius-md);
-  font-family: inherit;
-  font-size: 14px;
-  cursor: pointer;
-  color: var(--label-secondary);
-  transition:
-    background var(--duration-fast) var(--ease-standard),
-    color var(--duration-fast) var(--ease-standard);
-}
-.ws-card__peek:hover {
-  background: var(--label-primary);
-  color: var(--on-primary);
-  border-color: var(--label-primary);
-}
-.ws-card__peek[aria-pressed="true"] {
-  background: var(--correct-tint);
-  color: var(--label-primary);
-  border-color: var(--correct);
-}
-.ws-card__translation {
-  font-weight: 500;
-}
-.ws-card__translation-hint {
-  color: var(--label-quaternary);
-}
-
-.ws-card__example {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-3) var(--space-4);
-  background: var(--surface-secondary);
-  border-radius: var(--radius-md);
-}
-.ws-card__example-en {
-  font-size: var(--type-body);
-  color: var(--label-primary);
-  margin: 0;
-  line-height: 1.5;
-}
-.ws-card__example-zh {
-  font-size: var(--type-caption);
-  color: var(--label-tertiary);
-  margin: 0;
-  line-height: 1.5;
-}
-
-.ws-card__sentence-en {
-  font-size: clamp(20px, 2.4vw, 26px);
-  color: var(--label-primary);
-  line-height: 1.4;
-  margin: 0;
-  letter-spacing: -0.005em;
-}
-.ws-card__sentence-zh {
-  font-size: var(--type-body);
-  color: var(--label-tertiary);
-  line-height: 1.5;
-  margin: 0;
-}
-
-.ws-card__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin-top: var(--space-2);
-}
-.ws-card__difficulty {
-  font-family: var(--font-mono);
-  font-size: var(--type-caption);
-  color: var(--label-tertiary);
-  background: var(--surface-secondary);
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-  letter-spacing: 0.04em;
-}
-
-/* ============================================================
-   Audio button — shared by daily word/sentence (and future cards)
-   ============================================================ */
-.audio-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-circle);
-  background: var(--label-primary);
-  color: var(--on-primary);
-  border: 0;
-  cursor: pointer;
-  font-family: inherit;
-  transition:
-    background var(--duration-fast) var(--ease-standard),
-    transform var(--duration-fast) var(--ease-standard),
-    opacity var(--duration-fast) var(--ease-standard);
-}
-.audio-button:hover:not(:disabled) {
-  transform: scale(1.04);
-}
-.audio-button:active:not(:disabled) {
-  transform: scale(0.96);
-}
-.audio-button:disabled {
-  background: var(--surface-tertiary);
-  color: var(--label-quaternary);
-  cursor: not-allowed;
-}
-.audio-button--playing {
-  background: var(--correct);
-}
-.audio-button__glyph {
-  font-size: 14px;
-  line-height: 1;
-  display: inline-flex;
-}
-.audio-button--inline {
-  width: auto;
-  height: 36px;
-  padding: 0 var(--space-3);
-  border-radius: var(--radius-md);
-  font-size: 14px;
-  font-weight: 500;
-}
-.audio-button__label {
-  color: inherit;
-}
-
-/* ============================================================
-   Landing footer
-   ============================================================ */
-.landing-footer {
-  width: 100%;
-  border-top: 1px solid var(--separator);
-  margin-top: var(--space-9);
-  padding: var(--space-6) var(--space-5);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  max-width: var(--content-wide);
-  margin-left: auto;
-  margin-right: auto;
-  color: var(--label-tertiary);
-  font-size: var(--type-caption);
-}
-.landing-footer__brand {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--label-secondary);
-}
-.landing-footer__mark {
-  color: var(--accent);
-  font-size: 16px;
-}
-.landing-footer__links {
-  display: inline-flex;
-  gap: var(--space-4);
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.landing-footer__links a {
-  color: var(--label-tertiary);
-  text-decoration: none;
-  transition: color var(--duration-fast) var(--ease-standard);
-}
-.landing-footer__links a:hover { color: var(--label-primary); }
-
 /* ============================================================
    AppHeader anonymous state — Sign up (ghost) + Log in (primary)
    ------------------------------------------------------------

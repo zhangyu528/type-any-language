@@ -1,30 +1,28 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import styles from './TypefallDemo.module.css';
 
 /**
  * TypefallDemo — hero 区域"中→英听写"微观动作演示
  *
- * 与实际练习 1:1 对齐:
- *   - 中文先到(作为要翻译的题目),灰色小字提示
- *   - 英文逐词填入,每个单词**先有下划线占位**,然后逐字符浮现
- *     到占位之上,字符从 --label-quaternary 漂到 --label-primary
- *   - 整词完成后"判断":若该词是预选的错改演示词,先停顿一会
- *     (代表"刚刚输完") → flash 错误效果(朱砂色背景 + line-through,
- *     持续约 600ms) → 字符全部 fade-out → 重新逐字符输入正确版本
- *     → 最终落定为 --label-primary
- *   - 修正完成后,该词后面的输入再继续,且**修正后停顿 320ms** 让用户
- *     看清"已改好"。
- *   - 整组**不淡出**:容器常驻,内容原地替换(React 用 key 切下一句)
+ * 1:1 对齐实际练习:
+ *   - 中文题目直接渲染(灰色小字提示),无逐字 fade-in
+ *   - 英文逐词填入,字符从模糊渐清晰到 settle
+ *   - 选中的错改词:字符先错版 settle → 标朱砂 + 删除线 → 字符逐个
+ *     退格(向左滑出) → 留空 → 正确字符 spring-in 替换
+ *   - 修正后停顿 ~600ms,该词后面的输入再继续
+ *   - 容器常驻,内容原地替换(React 用 key 切下一句)
  *
  * 节奏设计 ——「真人翻译」的微观动作:
  *   - 词内字符:30-80ms 抖动
- *   - 词间停顿:80-160ms(代表"回忆下一个词")
- *   - 错改词判断延迟:settle 完成后 +200ms(代表"看着刚输的")
- *   - flash 错误效果:~600ms(朱砂红 wash)
- *   - fade-out 重输:380ms(整词消失)
- *   - 重输 settle 与初输节奏一致(逐字符 settle)
- *   - 修正后停顿:RECOVERY_PAUSE = 320ms(代表"反应过来")
+ *   - 词间停顿:150-280ms(代表"回忆下一个词")
+ *   - 错改词 settle 完成后 +360ms hold(代表"看着刚输的")
+ *   - 退格 70ms/字符
+ *   - 退格后 +280ms 光标闪一下("回想正确字符")
+ *   - 重输 settle 与初输节奏一致(逐字符 spring-in)
+ *   - 修正后停顿:RECOVERY_PAUSE = 200ms,随后该词 settle 结束,
+ *     下一个词的字符才启动 settle
  */
 const DEMOS: ReadonlyArray<{ zh: string; en: string }> = [
   { zh: '我每天早上喝咖啡。', en: 'I drink coffee every morning.' },
@@ -33,44 +31,49 @@ const DEMOS: ReadonlyArray<{ zh: string; en: string }> = [
 ];
 
 // 时间线常量(ms)—— 调整这里改节奏
-const ZH_BASE_DELAY = 60;
-const ZH_CHAR_STAGGER = 28;
-const EN_BASE_DELAY = 220;
+// 中文题目直接渲染(无逐字 fade-in),见 .zh 样式。
+const EN_BASE_DELAY = 600;       // 读题停顿:zh 落定后等用户「看完中文再下笔」
+const EN_CHAR_STAGGER = 150;
 const EN_SETTLE_DURATION = 380;
-const JUDGE_DELAY = 200;            // 词 settle 完之后,代表"判断中"
-const FLASH_DURATION = 600;         // 错误 flash 持续时间
-const FADE_OUT_DURATION = 280;      // 整词 fade-out(字符)
-const RETYPE_PAUSE = 80;            // fade-out 到重输 settle 的间隔
-const RECOVERY_PAUSE = 320;         // 修正后停顿("反应过来")
-const DWELL_AFTER_FULL = 1400;      // 整句完成后停留(用户能看清)
-const LOOP_PAUSE = 320;             // 切下一句前的间隔
+const WRONG_HOLD = 360;            // 错字符 settle 完后,代表"看着刚输的"
+const WRONG_RECOGNIZE = 320;       // 识别到错的「诶?」停顿(judgeAt → backspaceAt)
+const BACKSPACE_PER_CHAR = 70;     // 退格每字符耗时
+const BACKSPACE_STAGGER = 25;      // 退格字符间的级联
+const CURSOR_BLINK = 80;           // 退格完成后,代表"回想正确字符"
+const RETYPE_STAGGER = 150;        // 重输字符间的级联(与初次输入 EN_CHAR_STAGGER 一致)
+const RETYPE_DURATION = 380;       // 重输 settle 持续
+const RECOVERY_PAUSE = 200;        // 修正后停顿("反应过来")
+const WORD_HOLD_TAIL = 400;        // 整词 settle 完成后下划线维持 mint-deep 的尾巴时间
+const DWELL_AFTER_FULL = 1600;     // 整句完成后停留(用户能看清)
+const LOOP_PAUSE = 320;            // 切下一句前的间隔
 
 interface WordMeta {
   /** 词文本,如 "drink" */
   text: string;
-  /** 错改词专属:整词中**只一个字符**被替换为相似形,长度 = text.length,
-   *  但只有 wrongCharIdx 那个位置字符是错字,其余与 text 一致。
-   *  非错改词为 null。 */
+  /** 错改词专属:整词中**只一个字符**被替换为相似形。其它字符与 text 一致。 */
   wrongChars: string[] | null;
-  /** 错改词被选中的字符 idx(0-based),错字符在 wrongChars[wrongCharIdx]。 */
+  /** 错改词被选中的字符 idx(0-based)。非错改词为 null。 */
   wrongCharIdx: number | null;
-  /** 该词的字符在原字符串中的起始 idx(包含空格也算) */
-  startIdx: number;
-  /** "判断时刻" = 该词最后字符 settle 完成 + JUDGE_DELAY */
+  /** 当前词的 settle 起始时刻(基于上一个词的 endAt + 词间停顿算出) */
+  startSettleAt: number;
+  /** 整词最后一个字符 settle 完成的时刻(下划线由 --cm-rule 切到 --cm-mint-deep 的时刻) */
+  settleEnd: number;
+  /** "判断时刻" = 该词最后字符 settle 完成 + WRONG_HOLD */
   judgeAt: number;
-  /** "flash 阶段开始" = judgeAt */
-  flashAt: number;
-  /** "fade-out 阶段开始" = flashAt + FLASH_DURATION */
-  fadeOutAt: number;
-  /** "重输正确 settle 开始" = fadeOutAt + RETYPE_PAUSE */
+  /** "退格阶段开始" = judgeAt */
+  backspaceAt: number;
+  /** 整词最后一个字符退格完成的时刻 */
+  backspaceDoneAt: number;
+  /** "重输正确 settle 开始" = backspaceDoneAt + CURSOR_BLINK */
   retypeAt: number;
-  /** "最终落定完成" = retypeAt + EN_SETTLE_DURATION × 字符数 + 各字符 jitter */
+  /** "重输 settle 完成" = retypeAt + RETYPE_STAGGER × (len-1) + RETYPE_DURATION */
+  retypeEndAt: number;
+  /** "最终落定完成" = retypeEnd + RECOVERY_PAUSE */
   endAt: number;
   /** 是否为错改演示词 */
   isErrorWord: boolean;
 }
 
-/** Split en into words; record each word's char-index range in the original string. */
 function tokenizeWords(en: string): { text: string; startIdx: number }[] {
   const out: { text: string; startIdx: number }[] = [];
   const re = /\S+/g;
@@ -81,11 +84,6 @@ function tokenizeWords(en: string): { text: string; startIdx: number }[] {
   return out;
 }
 
-/** Hash-based jitter (deterministic). Mixing Math.random() into a
- *  useMemo would make the timings mutate on every render, which in
- *  turn retriggers effect deps and yields a "setState during render"
- *  warning. Using a hash keeps the same per-(index, char) jitter
- *  across renders. */
 function hashJitter(seed: number, lo: number, hi: number): number {
   let h = seed >>> 0;
   h = (h ^ (h >>> 16)) * 0x85ebca6b;
@@ -95,7 +93,7 @@ function hashJitter(seed: number, lo: number, hi: number): number {
 }
 
 /** Pick one word as the "error word" for this sentence. Skip first/last
- *  word so the typo lands mid-stream (visually balanced). */
+ *  word so the typo lands mid-stream. */
 function pickErrorWordIdx(en: string): number {
   const tokens = tokenizeWords(en);
   if (tokens.length < 3) return -1;
@@ -107,15 +105,9 @@ function pickErrorWordIdx(en: string): number {
   return candidates[hash % candidates.length];
 }
 
-/** Pick a "wrong" letter for a given correct char inside a word.
- *  Strategy: prefer a visually-similar look-alike from a curated map
- *  (n↔h, l↔i, m↔n, etc.); otherwise fall back to a different letter
- *  from the same word. The wrong text reads as an obvious typo
- *  ("dri*hk*" instead of "drink").
- *
- *  IMPORTANT: wrong text MUST be a single character — the slot's CSS
- *  width is sized for one character (0.625em), and any longer text
- *  would wrap onto a second line and break the inline-flow layout. */
+/** Pick a "wrong" letter for a given correct char. Prefer visually-similar
+ *  look-alikes (n↔h, l↔i, m↔n); fall back to a different letter from the
+ *  same word. Single character — slot width is sized for one. */
 const LOOK_ALIKES: Record<string, string> = {
   n: 'h', h: 'n',
   m: 'n',
@@ -139,10 +131,6 @@ function pickWrongChar(correct: string, word: string): string {
   return 'a';
 }
 
-/** Build per-word timings. Each word resolves its `endAt` based on
- *  whether it's the error word (longer cycle: judge→flash→fade→re-type)
- *  or a normal word (single settle pass). Subsequent words' `judgeAt`
- *  starts after the previous word's `endAt`. */
 function buildWordTimings(en: string, errorIdx: number, jitterSeed: number): WordMeta[] {
   const tokens = tokenizeWords(en);
   const words: WordMeta[] = [];
@@ -150,28 +138,29 @@ function buildWordTimings(en: string, errorIdx: number, jitterSeed: number): Wor
 
   for (let wi = 0; wi < tokens.length; wi++) {
     const tok = tokens[wi];
-    const intra = hashJitter(jitterSeed ^ (wi * 2654435761), 30, 80);
 
-    const settleStart = cursor;
-    const settleEnd = settleStart + intra * (tok.text.length - 1) + EN_SETTLE_DURATION;
-
+    const startSettleAt = cursor;
+    /* 用固定 EN_CHAR_STAGGER 算 settleEnd —— 字符 settle 启动间隔是固定值,
+       下划线切色点必须严格对齐"最后一个字符 settle 完成"那一刻。
+       如果这里用 jittered intra(30-80ms),而字符 settle 用 120ms,会导致
+       intra 偏小时 keyframe 切色点比字符实际 settle 完早 100-300ms,
+       视觉上"单词还没输完下划线就变绿"。
+       词间停顿仍走 jitter(150-280ms),保持节奏呼吸感。 */
+    const settleEnd =
+      cursor + EN_CHAR_STAGGER * (tok.text.length - 1) + EN_SETTLE_DURATION;
     const isErrorWord = wi === errorIdx;
-    const judgeAt = settleEnd + JUDGE_DELAY;
-    const flashAt = isErrorWord ? judgeAt : settleEnd;
-    const fadeOutAt = flashAt + FLASH_DURATION;
-    const retypeAt = fadeOutAt + RETYPE_PAUSE;
-    const retypeEnd = retypeAt + intra * (tok.text.length - 1) + EN_SETTLE_DURATION;
 
-    const endAt = isErrorWord ? retypeEnd + RECOVERY_PAUSE : settleEnd;
+    const judgeAt = settleEnd + WRONG_HOLD;
+    // 退格比 judgeAt 晚 320ms ——「诶?打错了」的识别瞬间(中等停顿,够用户
+    // 看清朱砂下划线 + 字符删除线,但不至于慢到让节奏拖沓)
+    const backspaceAt = judgeAt + (isErrorWord ? WRONG_RECOGNIZE : 0);
+    const lastCharBackspaceStart = backspaceAt + BACKSPACE_STAGGER * (tok.text.length - 1);
+    const backspaceDoneAt = lastCharBackspaceStart + BACKSPACE_PER_CHAR;
+    const retypeAt = backspaceDoneAt + CURSOR_BLINK;
+    const retypeEndAt = retypeAt + RETYPE_STAGGER * (tok.text.length - 1) + RETYPE_DURATION;
 
-    // 错改词:整词中**只一个字符**被替换成"看起来像"的错字 —— 跟正确版本只差一个字母,
-    // 其它字符保持正确。
-    //
-    // e.g. "drink" 选第 3 个字符 'n' 错成 'h' → 初输显示 "drihk"(差一个字母,看着像真打错),
-    //      judge 后 flash(红字 + line-through) → fade → 重输 settle 为 "drink"。
-    //
-    // 字符位置 = jitterSeed 派生,保证同一个句子不同 cycle 出不同位置;
-    // 字符选择范围 = 跳过首尾(避免错在词首/词尾变成前缀/后缀差)。
+    const endAt = isErrorWord ? retypeEndAt + RECOVERY_PAUSE : settleEnd;
+
     let wrongChars: string[] | null = null;
     let wrongCharIdx: number | null = null;
     if (isErrorWord) {
@@ -189,16 +178,18 @@ function buildWordTimings(en: string, errorIdx: number, jitterSeed: number): Wor
       text: tok.text,
       wrongChars,
       wrongCharIdx,
-      startIdx: tok.startIdx,
+      startSettleAt,
+      settleEnd,
       judgeAt,
-      flashAt,
-      fadeOutAt,
+      backspaceAt,
+      backspaceDoneAt,
       retypeAt,
+      retypeEndAt,
       endAt,
       isErrorWord,
     });
 
-    cursor = endAt + hashJitter(jitterSeed ^ (wi * 2246822519 + 13), 80, 160);
+    cursor = endAt + hashJitter(jitterSeed ^ (wi * 2246822519 + 13), 150, 280);
   }
   return words;
 }
@@ -207,7 +198,6 @@ export default function TypefallDemo() {
   const [index, setIndex] = useState(0);
   const [reduced, setReduced] = useState(false);
 
-  // Reduced-motion check (SSR-safe: 默认 false,hydrated 后再判)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -219,14 +209,6 @@ export default function TypefallDemo() {
 
   const current = DEMOS[index];
 
-  const zhChars = useMemo(() => Array.from(current.zh), [current.zh]);
-  const zhTimings = useMemo(
-    () => zhChars.map((_, i) => ({
-      delay: ZH_BASE_DELAY + i * ZH_CHAR_STAGGER,
-    })),
-    [current.zh],
-  );
-
   const errorWordIdx = useMemo(() => pickErrorWordIdx(current.en), [current.en]);
 
   const words = useMemo(
@@ -234,13 +216,11 @@ export default function TypefallDemo() {
     [current.en, errorWordIdx, index],
   );
 
-  // 全句真正"打字完成 + 错改修正完毕"的时刻
   const fullDoneMs = useMemo(
     () => words.reduce((max, w) => Math.max(max, w.endAt), 0),
     [words],
   );
 
-  // 容器常驻 —— 内容原地替换,不淡出。
   const nextMs = fullDoneMs + DWELL_AFTER_FULL + LOOP_PAUSE;
 
   useEffect(() => {
@@ -253,94 +233,169 @@ export default function TypefallDemo() {
 
   return (
     <div
-      className="typefall"
+      className={styles.root}
       role="presentation"
       aria-hidden
       data-reduced={reduced ? 'true' : 'false'}
       data-error-word={errorWordIdx >= 0 ? errorWordIdx : 'none'}
     >
-      <p className="typefall__zh" key={`zh-${index}`}>
-        {zhChars.map((ch, i) => (
-          <span
-            key={`zh-${index}-${i}`}
-            className="typefall__zh-char"
-            style={{ animationDelay: `${zhTimings[i].delay}ms` }}
-          >
-            {ch}
-          </span>
-        ))}
+      <p className={styles.zh} key={`zh-${index}`}>
+        {current.zh}
       </p>
 
-      <div className="typefall__en" key={`en-${index}`}>
-        {words.map((word, wi) => {
-          const isError = word.isErrorWord;
-          const cls = 'typefall__word' + (isError ? ' typefall__word--err' : '');
-          const wordSettleStart = word.judgeAt - JUDGE_DELAY - EN_SETTLE_DURATION;
-          const intraGuess = 50;
-          return (
-            <span
-              key={`w-${index}-${wi}`}
-              className={cls}
-              data-error-word={isError ? 'true' : 'false'}
-              style={{
-                '--typefall-word-flash-at': `${word.flashAt}ms`,
-                '--typefall-word-fadeout-at': `${word.fadeOutAt}ms`,
-                '--typefall-word-retype-at': `${word.retypeAt}ms`,
-                '--typefall-word-cycle': `${word.endAt - wordSettleStart}ms`,
-                '--typefall-word-settle-start': `${wordSettleStart}ms`,
-                '--typefall-word-settle-end': `${wordSettleStart + intraGuess * (word.text.length - 1) + EN_SETTLE_DURATION}ms`,
-                '--typefall-word-settle-window': `${intraGuess * (word.text.length - 1) + EN_SETTLE_DURATION + 200}ms`,
-              } as React.CSSProperties & Record<string, string>}
-            >
-              {Array.from(word.text).map((ch, k) => {
-                const charSettleStart = wordSettleStart + intraGuess * k;
-                const charRetypeStart = word.retypeAt + intraGuess * k;
-                // 错改词里只有 wrongCharIdx 这一字符走 slot 双层动画
-                // (wrong → fade → correct),其它字符走普通 .en-char 单层 settle。
-                if (isError && word.wrongChars && word.wrongCharIdx === k) {
-                  const wrongText = word.wrongChars[k];
+      <div className={styles.enRow}>
+        <p className={styles.en} key={`en-${index}`}>
+          {words.map((word, wi) => {
+            const isError = word.isErrorWord;
+            const wordClass = isError
+              ? `${styles.word} ${styles.wordErr}`
+              : styles.word;
+
+            /* 每词独一无二的 keyframe —— 名字按 index+wi 拼,
+               保证 SSR / 切句 / 热重载 时 keyframe 不撞车。
+               下划线跟"整词"状态同步:
+                 - 正常词:整词 settleEnd 切到 mint-deep,之后维持 WORD_HOLD_TAIL
+                 - 错改词:judgeAt(整词 settle + WRONG_HOLD = "看着刚输错")切到
+                   朱砂,retypeEndAt(整词重输 settle 完)切回 mint-deep
+               animation-delay = startSettleAt —— 让 keyframe 在该词字符
+               settle 真正开始时启动(关键!否则所有 keyframe 在 mount 0ms
+               同时跑,跨词时序全错)。
+               既然有 delay,keyframe 内的百分比必须是相对 delay 的:
+               pMintOn = (settleEnd - startSettleAt) / ruleTotal,
+                 即"该词字符 settle 持续时间"占 keyframe 总长的比例。
+               0% 起色必须与 .word 默认 border-bottom-color 完全一致,
+               否则 mount 时会出现瞬态跳变。 */
+            const ruleAnimName = `kf-rule-${index}-${wi}`;
+            const ruleStartColor = 'color-mix(in srgb, var(--cm-ink) 22%, transparent)';
+            const ruleDelay = `${word.startSettleAt}ms`;
+            let ruleKeyframes: string;
+            let ruleDur: string;
+            if (isError) {
+              const relErrDur = word.endAt - word.startSettleAt;
+              ruleDur = `${relErrDur}ms`;
+              const pAccentOn = ((word.judgeAt - word.startSettleAt) / relErrDur) * 100;
+              /* 退格完成 = backspaceDoneAt,字符已全部滑出,代表"字空了"。
+                 此时下划线切回灰透明(还没重输,不该是 mint 也不能是朱砂)。
+                 然后等 retypeEndAt(正确字符 fade-in 完成)再切 mint。 */
+              const pAccentOff = ((word.backspaceDoneAt - word.startSettleAt) / relErrDur) * 100;
+              const pMintOn = ((word.retypeEndAt - word.startSettleAt) / relErrDur) * 100;
+              /* step 写法:每个色块前留 0.01% 锁住前色,避免 CSS 自动
+                 线性插值导致「过程就开始渐变」。 */
+              const pBeforeAccent = Math.max(0, pAccentOn - 0.01);
+              const pBeforeBack = Math.max(0, pAccentOff - 0.01);
+              const pBeforeMint = Math.max(0, pMintOn - 0.01);
+              ruleKeyframes =
+                `@keyframes ${ruleAnimName}{` +
+                `0%{border-bottom-color:${ruleStartColor};}` +
+                `${pBeforeAccent.toFixed(2)}%{border-bottom-color:${ruleStartColor};}` +
+                `${pAccentOn.toFixed(2)}%{border-bottom-color:var(--cm-accent);}` +
+                `${pBeforeBack.toFixed(2)}%{border-bottom-color:var(--cm-accent);}` +
+                `${pAccentOff.toFixed(2)}%{border-bottom-color:${ruleStartColor};}` +
+                `${pBeforeMint.toFixed(2)}%{border-bottom-color:${ruleStartColor};}` +
+                `${pMintOn.toFixed(2)}%{border-bottom-color:var(--cm-mint-deep);}` +
+                `100%{border-bottom-color:var(--cm-mint-deep);}` +
+                `}`;
+            } else {
+              const relSettleDur = word.settleEnd - word.startSettleAt;
+              const ruleTotal = relSettleDur + WORD_HOLD_TAIL;
+              ruleDur = `${ruleTotal}ms`;
+              const pMintOn = (relSettleDur / ruleTotal) * 100;
+              /* 整词同步切色:border-bottom 用 22% 透明度(柔和),color
+                 用不透明(清晰可读)。两套不同的"起始色"。下划线在整词
+                 settle 完成那一瞬切绿,字符颜色(inherit 自 .word)同一
+                 时刻切绿。
+                 关键:必须用 step 写法 —— 在 pMintOn 前一帧(67.99%)锁住
+                 起始色,否则 CSS 会在 0% → pMintOn 之间自动线性插值,
+                 视觉上「字符刚开始 settle 下划线就在渐变」。step 让切色
+                 严格发生在最后一个字符 100% 完成那一刻。 */
+              const pStepBefore = Math.max(0, pMintOn - 0.01);
+              ruleKeyframes =
+                `@keyframes ${ruleAnimName}{` +
+                `0%{border-bottom-color:${ruleStartColor};color:var(--cm-ink);}` +
+                `${pStepBefore.toFixed(2)}%{border-bottom-color:${ruleStartColor};color:var(--cm-ink);}` +
+                `${pMintOn.toFixed(2)}%{border-bottom-color:var(--cm-mint-deep);color:var(--cm-mint-deep);}` +
+                `100%{border-bottom-color:var(--cm-mint-deep);color:var(--cm-mint-deep);}` +
+                `}`;
+            }
+
+            return (
+              <span
+                key={`w-${index}-${wi}`}
+                style={{ display: 'contents' }}
+              >
+                {/* Per-word keyframe:每个词挂一份独一无二的 <style> 标签,
+                   keyframe 名字按 index+wi 拼。React 会在词 unmount 时把
+                   <style> 也一起清掉,不会跨句泄漏。 */}
+                <style>{ruleKeyframes}</style>
+                <span
+                  className={wordClass}
+                  style={{
+                    animation: `${ruleAnimName} ${ruleDur} ${ruleDelay} linear forwards`,
+                    '--typefall-word-blink-at': `${word.backspaceAt + BACKSPACE_PER_CHAR * (word.text.length - 1) + CURSOR_BLINK}ms`,
+                    '--typefall-word-wrong-at': `${word.backspaceAt}ms`,
+                    /* 退格光标:在 backspaceAt 出现,retypeAt 前 20ms 消失,
+                       模拟「手指在键上按退格」的小竖线 */
+                    '--typefall-word-cursor-on': `${word.backspaceAt}ms`,
+                    '--typefall-word-cursor-off': `${word.retypeAt - 20}ms`,
+                  } as React.CSSProperties & Record<string, string>}
+                >
+                {Array.from(word.text).map((ch, k) => {
+                  // 字符 settle 起始用 word meta 的 startSettleAt(基于上一
+                  // 词的 endAt 算出),保证严格串行:错改词修正完成前,
+                  // 下一个词的字符不会启动 settle。
+                  const charSettleStart =
+                    word.startSettleAt + k * EN_CHAR_STAGGER;
+                  const charBackspaceStart =
+                    word.backspaceAt + k * BACKSPACE_STAGGER;
+                  const charRetypeStart =
+                    word.retypeAt + k * RETYPE_STAGGER;
+
+                  const baseStyle: React.CSSProperties & Record<string, string> = {
+                    '--typefall-settle-delay': `${charSettleStart}ms`,
+                    '--typefall-backspace-delay': `${charBackspaceStart}ms`,
+                    '--typefall-backspace-duration': `${BACKSPACE_PER_CHAR}ms`,
+                    '--typefall-retype-delay': `${charRetypeStart}ms`,
+                  };
+
+                  if (isError) {
+                    /* 错改词:同时渲染错字符 + 对字符 两个 span,靠 CSS
+                       控制可见性时窗。
+                         - .enCharErr 跑完整 typefallEnErrChain(settle → 错 → 退格)
+                         - .enCharOk 在 retypeAt + k*45ms fade-in
+                       渲染前错字符 fade-out 的视觉空档由对字符 fade-in 填补,
+                       无缝衔接。不再需要 React 状态切换。 */
+                    const showChar =
+                      word.wrongChars && word.wrongCharIdx === k
+                        ? word.wrongChars[k]
+                        : ch;
+                    return (
+                      <span key={`en-${index}-${wi}-${k}`} className={styles.enCharWrap}>
+                        <span className={styles.enCharErr} style={baseStyle}>
+                          {showChar}
+                        </span>
+                        <span className={styles.enCharOk} style={baseStyle}>
+                          {ch}
+                        </span>
+                      </span>
+                    );
+                  }
+
+                  // Normal word: single settle, no correction.
                   return (
                     <span
                       key={`en-${index}-${wi}-${k}`}
-                      className="typefall__en-slot"
-                      style={{
-                        '--typefall-settle-delay': `${charSettleStart}ms`,
-                        '--typefall-retype-delay': `${charRetypeStart}ms`,
-                        /* wrong 字符自己的 delay = 它所在字符的 stagger 起点,
-                           让它跟其它字符一样按 stagger 顺序浮现,而不是
-                           一次性跟首字符一起出。 */
-                        '--typefall-wrong-delay': `${charSettleStart}ms`,
-                      } as React.CSSProperties & Record<string, string>}
+                      className={styles.enChar}
+                      style={baseStyle}
                     >
-                      {/* 直接渲染正确字符 —— slot 自身显示正确字符作为底色,
-                          wrong 字符绝对覆盖在上面 */}
                       {ch}
-                      <span className="typefall__en-wrong" aria-hidden>{wrongText}</span>
                     </span>
                   );
-                }
-                // 错改词的其它字符(以及所有普通词):单层 .en-char,
-                // 整词走 typefall-word-flash 错误效果时,这些字符也跟着
-                // 一起进错改视觉(由 .typefall__word--err .typefall__en-char
-                // 选择器覆盖 —— 但这里渲染的还是 .en-char class,所以选不中,
-                // 错改时这些字符保持正确 settle 状态;整词 flash 阶段只是
-                // 背景 + 那个错字符变红)。
-                const charStyle: React.CSSProperties & Record<string, string> = {
-                  '--typefall-settle-delay': `${charSettleStart}ms`,
-                };
-                return (
-                  <span
-                    key={`en-${index}-${wi}-${k}`}
-                    className="typefall__en-char"
-                    style={charStyle}
-                  >
-                    {ch}
-                  </span>
-                );
-              })}
-            </span>
-          );
-        })}
+                })}
+                </span>
+              </span>
+            );
+          })}
+        </p>
       </div>
     </div>
   );

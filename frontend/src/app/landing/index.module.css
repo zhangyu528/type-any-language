@@ -1,0 +1,54 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  background: var(--cm-bg);
+  color: var(--cm-ink);
+  font-family: var(--font-body-zh), var(--font-body), sans-serif;
+}
+
+.footer {
+  width: 100%;
+  border-top: 1px solid var(--cm-rule);
+  margin-top: var(--space-9);
+  padding: var(--space-6) var(--space-5);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  max-width: var(--content-wide);
+  margin-left: auto;
+  margin-right: auto;
+  color: var(--cm-ink-soft);
+  font-size: var(--type-caption);
+}
+.footerBrand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--cm-ink);
+  font-weight: 500;
+}
+.footerLinks {
+  display: inline-flex;
+  gap: var(--space-4);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.footerLinks a {
+  color: var(--cm-ink-soft);
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+.footerLinks a:hover {
+  color: var(--cm-mint-deep);
+}
+.footerYear {
+  font-family: var(--font-mono-web), var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--cm-ink-soft);
+  opacity: 0.7;
+}

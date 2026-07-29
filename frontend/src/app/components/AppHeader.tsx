@@ -35,6 +35,8 @@
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useAuth } from '../lib/auth';
+import EnsoMark from '../landing/EnsoMark';
+import ThemeToggle from './ThemeToggle';
 
 const HIDE_CHROME_PATHS = ['/login', '/signup'];
 
@@ -61,16 +63,30 @@ export default function AppHeader() {
   const loginHref = here === '/' ? '/login' : `/login?from=${encodeURIComponent(here)}`;
   const signupHref = here === '/' ? '/signup' : `/signup?from=${encodeURIComponent(here)}`;
 
+  // Landing page uses its own Citrus Mint palette — let the header sit
+  // on top of it as a transparent layer instead of the default heal-bg
+  // frosted glass, otherwise the top 52px reads as a green band on the
+  // otherwise near-white hero.
+  const isLanding = pathname === '/';
+
   return (
-    <header className="app-header" role="banner">
+    <header
+      className={`app-header${isLanding ? ' app-header--landing' : ''}`}
+      role="banner"
+    >
       <Link href="/" className="app-header__brand" aria-label="返回首页">
-        <span className="app-header__brand-mark" aria-hidden="true">◯</span>
+        <span className="app-header__brand-mark" aria-hidden="true">
+          <EnsoMark size={20} />
+        </span>
         <span className="app-header__brand-name">Type Any Language</span>
       </Link>
 
       <nav className="app-header__nav" aria-label="主导航">
-        {loading ? null : user ? (
+        {loading ? (
+          <ThemeToggle />
+        ) : user ? (
           <>
+            <ThemeToggle />
             <Link
               href="/history"
               className="app-header__avatar"
@@ -92,6 +108,7 @@ export default function AppHeader() {
           </>
         ) : (
           <>
+            <ThemeToggle />
             <Link
               href={signupHref}
               className="app-header__signup"

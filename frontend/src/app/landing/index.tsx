@@ -2,6 +2,7 @@
 
 import { VocabularyLib, TranslationProgress } from '../api';
 import Hero from './Hero';
+import styles from './index.module.css';
 
 interface LandingPageProps {
   libs: VocabularyLib[];
@@ -9,39 +10,24 @@ interface LandingPageProps {
   onPickLib: (libId: string) => void;
 }
 
-/**
- * LandingPage — content-driven home page.
- *
- * Sections, top to bottom:
- *   1. Hero (full viewport, char-level fadeUp + live TypefallDemo + single CTA)
- *   2. Footer (minimal links)
- *
- * The hero is the entire page content; the user enters via the
- * header's 登录 / 注册 pills or the hero's start button. Daily-plan
- * / lib-market / daily-word sections used to live here but were
- * retired in favour of a single, focused hero — the rest of the
- * page is `/history` (signed-in users) or whatever the auth flow
- * bounces them into.
- */
 export default function LandingPage({
   libs,
   translationProgress,
   onPickLib,
 }: LandingPageProps) {
   return (
-    <div className="landing">
+    <div className={styles.root}>
       <Hero
         libs={libs}
         translationProgress={translationProgress}
         onPickLib={onPickLib}
       />
 
-      <footer className="landing-footer" aria-label="页脚">
-        <span className="landing-footer__brand">
-          <span className="landing-footer__mark" aria-hidden>◯</span>
-          Type Any Language · 听一句，写一句
+      <footer className={styles.footer} aria-label="页脚">
+        <span className={styles.footerBrand}>
+          Type Any Language
         </span>
-        <ul className="landing-footer__links">
+        <ul className={styles.footerLinks}>
           <li>
             <a
               href="https://github.com/"
@@ -55,7 +41,7 @@ export default function LandingPage({
             <a href="mailto:hi@type-any-language.dev">联系</a>
           </li>
         </ul>
-        <span>© 2026</span>
+        <span className={styles.footerYear}>© 2026</span>
       </footer>
     </div>
   );

@@ -1,0 +1,199 @@
+/* TypefallDemo — "中→英听写"微观动作 */
+
+.root {
+  position: relative;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+  isolation: isolate;
+}
+/* chip removed — was "live drill · sample", redundant with the
+   demo's own visible animation. */
+.zh {
+  margin: 0 0 var(--space-5);
+  display: block;
+  text-align: center;
+  letter-spacing: -0.005em;
+  line-height: 1.5;
+  font-size: clamp(18px, 1.7vw, 22px);
+  color: var(--cm-ink);
+  opacity: 0.65;
+  min-height: 1.5em;
+  font-family: var(--font-body-zh), var(--font-body), sans-serif;
+}
+/* 中文题目直接渲染 —— 不走逐字 fade-in。一个词一个读音,不要给眼睛
+   "中文字正在打" 的错觉(中文字符不像英文单词能"逐个 settle")。 */
+
+.enRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  width: 100%;
+}
+.en {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  text-align: center;
+  letter-spacing: -0.015em;
+  line-height: 1.5;
+  font-size: clamp(20px, 2.2vw, 26px);
+  font-weight: 500;
+  color: var(--cm-ink);
+  font-family: var(--font-display), var(--font-body-zh), serif;
+  min-height: 1.5em;
+  gap: 0.32em;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Word container —— 每个 .word 接收一条 inline animation(由
+   TypefallDemo.tsx 注入的 per-word keyframe),duration = 该词 endAt,
+   keyframe 内部在 settle 完成 / 字符染朱砂 / 修正完成 三个时刻切换
+   border-bottom-color。整句跨字时通过 inline keyframe 的百分比点位对齐
+   到每个词各自的绝对时间。
+   默认下划线 2px,色为 --cm-ink 的 22% —— 在白底上明显可读但不抢词。
+   切色后(--cm-mint-deep / --cm-accent)完全不透明,色阶对比清晰。 */
+.word {
+  position: relative;
+  display: inline-block;
+  padding: 0 4px 8px;
+  min-width: 1.2em;
+  white-space: nowrap;
+  border-bottom: 2px solid color-mix(in srgb, var(--cm-ink) 22%, transparent);
+  /* 字符颜色 inherit 自 .word;inline keyframe 在整词 settle 完成那一刻
+     把 color 从 --cm-ink 切到 --cm-mint-deep(整词同步)。 */
+  color: var(--cm-ink);
+}
+
+/* 错改词里每字符的包装 —— 把错字符和对字符叠在同一位置,靠 CSS 控制
+   时窗的可见性。错字符 fade-out 时对字符 fade-in,视觉上无缝衔接。 */
+.enCharWrap {
+  position: relative;
+  display: inline-block;
+}
+
+/* 退格光标 —— 在退格阶段显示,retype 之前消失。挂在 .wordErr 上,
+   仅错改词会有。用 ::after 给一个细窄的小竖线,opacity 由 CSS 变量
+   控制的 keyframe 决定。 */
+.wordErr::after {
+  content: '|';
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  font-family: var(--font-mono-web), var(--font-mono), monospace;
+  font-weight: 300;
+  font-size: 1.1em;
+  line-height: 1;
+  color: var(--cm-accent, #FF9F1C);
+  opacity: 0;
+  pointer-events: none;
+  animation: typefallCursorBlink
+    calc(var(--typefall-word-cursor-off, 0ms) - var(--typefall-word-cursor-on, 0ms))
+    var(--ease-emphasized) forwards;
+  animation-delay: var(--typefall-word-cursor-on, 0ms);
+}
+@keyframes typefallCursorBlink {
+  /* 0%~10% 渐入;10%~85% 闪两下;85%~100% 渐出,正好让位给重输 */
+  0%   { opacity: 0; }
+  10%  { opacity: 0.85; }
+  20%  { opacity: 0; }
+  35%  { opacity: 0.85; }
+  50%  { opacity: 0.15; }
+  70%  { opacity: 0.85; }
+  85%  { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+
+/* .wordErr: 退格光标(::after)的容器。视觉上与其他 .word 一致,
+   同样有 .word 的固定下划线 —— 修正过程不染背景色块、不挂 ::before
+   闪光。错改词与正常词的差别只在字符级(enCharErr / enCharOk)上。 */
+
+/* Normal character — settles once, stays. Color 由父级 .word 的 inline
+   keyframe 整词控制(整词字符全部 settle 完成那一刻从默认色切到 mint);
+   这里只做透明度 + blur + translateY,不动 color。 */
+.enChar {
+  display: inline-block;
+  opacity: 0;
+  filter: blur(2px);
+  transform: translateY(2px);
+  animation: typefallEnType 380ms var(--ease-emphasized) forwards;
+  animation-delay: var(--typefall-settle-delay, 220ms);
+}
+@keyframes typefallEnType {
+  0%   { opacity: 0; filter: blur(3px); transform: translateY(2px); }
+  60%  { opacity: 0.9; filter: blur(0.4px); }
+  100% { opacity: 1; filter: blur(0); transform: translateY(0); }
+}
+
+/* Error-word character — chains settle → mark wrong (琥珀黄 + strike) →
+   backspace (slide left + fade) → blank. The correct character (see
+   .enCharOk below) is layered on top in parallel and fades in at
+   retypeAt, so the user sees a seamless correction.
+   settle 阶段保持默认色 --cm-ink;不预先染 mint,等 .enCharOk 接管。 */
+.enCharErr {
+  display: inline-block;
+  opacity: 0;
+  color: var(--cm-ink);
+  animation: typefallEnErrChain
+    calc(var(--typefall-backspace-delay, 0ms) + var(--typefall-backspace-duration, 70ms) - var(--typefall-settle-delay, 0ms))
+    var(--ease-emphasized) forwards;
+  animation-delay: var(--typefall-settle-delay, 0ms);
+}
+@keyframes typefallEnErrChain {
+  /* 0%–35%: settle —— 保持默认色 --cm-ink,不预先染 mint */
+  0%   { opacity: 0; filter: blur(3px); transform: translateY(2px); color: var(--cm-ink); text-decoration: none; }
+  35%  { opacity: 1; filter: blur(0); transform: translateY(0); color: var(--cm-ink); text-decoration: none; }
+  /* 38%–42%: 泛黄过渡 —— 字符先染一层淡琥珀,代表「看着不对」 */
+  38%  { opacity: 1; color: #F2C078; text-decoration: none; transform: translateX(0); }
+  42%  { opacity: 1; color: var(--cm-accent); text-decoration: none; transform: translateX(0); }
+  /* 50%: 确认错 + 删除线 */
+  50%  { opacity: 1; color: var(--cm-accent); text-decoration: line-through; text-decoration-color: var(--cm-accent); text-decoration-thickness: 1.5px; text-decoration-skip-ink: none; transform: translateX(0); }
+  /* 80%: still marked, still present, slight leftward shift (退格开始) */
+  80%  { opacity: 1; color: var(--cm-accent); text-decoration: line-through; text-decoration-color: var(--cm-accent); text-decoration-thickness: 1.5px; transform: translateX(-3px); }
+  /* 100%: 退格完成 —— 滑出 + 淡出,color 也归零(不再可见,无需指定) */
+  100% { opacity: 0; filter: blur(1px); transform: translateX(-14px) scale(0.88); color: var(--cm-accent); text-decoration: line-through; text-decoration-color: transparent; text-decoration-thickness: 0; }
+}
+
+/* Correct character — for error words we render this side-by-side
+   with .enCharErr and let CSS time the fade-in. The wrong char fades
+   out at backspace time; this one fades in at retypeAt + k*45ms.
+   No React state swap needed — both spans exist from the start, CSS
+   alone owns who is visible when. */
+.enCharOk {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: inline-block;
+  opacity: 0;
+  color: var(--cm-ink);
+  animation: typefallEnOk 380ms var(--cm-spring, cubic-bezier(0.34, 1.56, 0.64, 1)) forwards;
+  animation-delay: var(--typefall-retype-delay, 0ms);
+}
+@keyframes typefallEnOk {
+  0%   { opacity: 0; filter: blur(2px); transform: scale(0.85); }
+  60%  { opacity: 1; filter: blur(0); transform: scale(1.06); color: var(--cm-mint-deep); }
+  100% { opacity: 1; filter: blur(0); transform: scale(1); color: var(--cm-mint-deep); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enChar,
+  .enCharErr,
+  .enCharOk { animation: none; opacity: 1; filter: none; transform: none; }
+  /* reduced-motion 用户:跳过下划线染色动画,直接落到 mint-deep,
+     保留"输入正确"的视觉确认,但移除朱砂闪烁和缓动。 */
+  .word { animation: none !important; border-bottom-color: var(--cm-mint-deep); }
+}

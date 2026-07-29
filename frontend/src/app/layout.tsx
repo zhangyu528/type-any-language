@@ -1,6 +1,29 @@
+import { Fraunces, JetBrains_Mono, Noto_Sans_SC } from 'next/font/google';
 import AppHeader from './components/AppHeader';
+import ThemeProvider from './components/ThemeProvider';
 import { AuthProvider } from './lib/auth';
 import './globals.css';
+
+const fraunces = Fraunces({
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+  variable: '--font-display',
+  display: 'swap',
+});
+
+const notoSansSC = Noto_Sans_SC({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-body-zh',
+  display: 'swap',
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-mono-web',
+  display: 'swap',
+});
 
 export default function RootLayout({
   children,
@@ -8,40 +31,38 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="zh-CN">
+    <html
+      lang="zh-CN"
+      className={`${fraunces.variable} ${notoSansSC.variable} ${jetbrainsMono.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         <title>Type Any Language</title>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         {/*
-          Body/display family uses the platform system font stack
-          (SF Pro on macOS/iOS, Segoe UI Variable on Windows, Roboto
-          on Android/Linux) — declared in globals.css :root as
-          --font-body. No webfont needed.
+          All webfonts are loaded via next/font/google (above). The
+          resulting CSS variables --font-display, --font-body-zh,
+          --font-mono-web are exposed on <html> and consumed inside
+          globals.css / per-component stylesheets.
 
-          JetBrains Mono is the only webfont, used for IPA phonetics
-          and code-like chips. Fira Code and ui-monospace are the
-          fallbacks declared in --font-mono.
+          Pre-paint theme bootstrap: before React hydrates, ThemeProvider
+          may have already set data-theme on <html>. To prevent the
+          browser from flashing the wrong theme on first paint, we read
+          localStorage here and apply it synchronously. This MUST run
+          before any rendered DOM touches the bg.
         */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
-          rel="stylesheet"
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('landing.theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);document.documentElement.style.colorScheme=t;}}catch(e){}})();`,
+          }}
         />
       </head>
       <body>
-        {/* AuthProvider wraps everything (including the chrome) so
-            AppHeader can call useAuth() to swap login pill ↔ avatar
-            based on the cookie-derived `user` state. Without this
-            wrapper, AppHeader would render before the provider
-            hydrates and throw "useAuth must be used inside
-            <AuthProvider>". */}
-        <AuthProvider>
-          {/* Global top chrome. Self-hides on /login + /signup via
-              usePathname — those pages have their own brand link
-              inside the aurora glass card. */}
-          <AppHeader />
-          {children}
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <AppHeader />
+            {children}
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
