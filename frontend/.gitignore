@@ -3,6 +3,8 @@ build/
 
 # Next.js
 .next/
+# dev/build 隔离目录 — `NEXT_DIST_DIR=.next-build npx next build` 写到这
+.next-build/
 
 # Node modules
 node_modules/
