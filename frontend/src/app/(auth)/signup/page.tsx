@@ -103,8 +103,6 @@ function SignupForm() {
   // No Screen 3 (signup commits directly from Screen 2).
   const [screen, setScreen] = useState<1 | 2>(1);
 
-  // Per-char highlight buffer for the typewriter on Screen 1.
-  const [typed, setTyped] = useState('');
 
   // Subtitle carousel — per-screen CN+EN pair, 2s loop.
   const SUBTITLE_LINES_BY_SCREEN: Record<1 | 2, readonly { lang: 'zh' | 'en'; text: string }[]> = {
@@ -302,7 +300,6 @@ function SignupForm() {
   function onEmailChange(e: ChangeEvent<HTMLInputElement>) {
     const next = e.target.value;
     setEmail(next);
-    setTyped(next);
     if (errors.email) setErrors((p) => ({ ...p, email: undefined }));
     if (emailFormatError) setEmailFormatError(validateEmail(next));
   }
@@ -357,14 +354,6 @@ function SignupForm() {
     }
   }
 
-  function onCharMatched(charIndex: number): boolean {
-    if (charIndex >= typed.length) return false;
-    return (
-      TARGET_WORD[charIndex].toLowerCase() ===
-      typed[charIndex].toLowerCase()
-    );
-  }
-
   return (
     <div key={`shake-${shakeKey}`} className="auth-form-shake-wrap">
       <form
@@ -406,17 +395,9 @@ function SignupForm() {
               邮箱
             </p>
 
-            <div className="auth-screen__en-hint" aria-hidden="true">
-              {Array.from(TARGET_WORD).map((ch, i) => (
-                <span
-                  key={i}
-                  className="auth-screen__char"
-                  data-matched={onCharMatched(i) ? 'true' : 'false'}
-                >
-                  {ch}
-                </span>
-              ))}
-            </div>
+            <p className="auth-screen__en-hint" aria-hidden="true">
+              email
+            </p>
 
             <input
               ref={emailRef}
@@ -831,15 +812,6 @@ function SignupForm() {
             opacity: 0;
             animation: auth-screen-en-hint-fade-in 320ms var(--ease-standard) 1700ms both;
           }
-          .auth-screen__char {
-            display: inline-block;
-            opacity: 0.55;
-            transition: opacity 80ms var(--ease-standard);
-          }
-          .auth-screen__char[data-matched="true"] {
-            opacity: 1;
-            color: var(--label-primary);
-          }
           .auth-screen__input {
             width: 100%;
             height: 44px;
@@ -1190,8 +1162,6 @@ function SignupForm() {
             .auth-screen__subtitle { animation: none !important; opacity: 1; transform: none; }
             .auth-screen__zh-large { animation: none !important; opacity: 0.85; transform: none; }
             .auth-screen__en-hint { animation: none !important; opacity: 0.55; transform: none; }
-            .auth-screen__char { transition: none !important; }
-            .auth-screen__char[data-matched="true"] { opacity: 1; }
             .auth-screen__pane { transition: none !important; }
             .auth-screen__pane[data-active="true"] { animation: none !important; transform: none; }
             .auth-screen__input::after { animation: none !important; transform: scaleX(1); }

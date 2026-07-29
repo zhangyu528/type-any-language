@@ -102,12 +102,6 @@ function LoginForm() {
   // bounce the user back to the offending screen via setScreen().
   const [screen, setScreen] = useState<1 | 2>(1);
 
-  // Per-char highlight buffer for the typewriter. On Screen 1 this
-  // mirrors `email` exactly, but kept as a separate state slot so
-  // future screens can have a different tracking buffer (e.g. the
-  // password field's buffer never lights up chars).
-  const [typed, setTyped] = useState('');
-
   // Subtitle carousel — each screen has its own CN+EN pair so the
   // prompt matches what the user is currently doing. Picked
   // deliberately so the auth page reads as a tiny preview of the
@@ -261,15 +255,9 @@ function LoginForm() {
   }
 
   // Screen 1 event handlers. Typed buffer mirrors email on Screen 1
-  // and feeds the per-char highlight on the small EN hint below the
-  // hero CN word. No "seal" / "full-match" animation — the EN hint
-  // is no longer the visual hero (CN is), so sealing felt misplaced.
-  const TARGET_WORD = 'email';
-
   function onEmailChange(e: ChangeEvent<HTMLInputElement>) {
     const next = e.target.value;
     setEmail(next);
-    setTyped(next);
     if (errors.email) setErrors((p) => ({ ...p, email: undefined }));
     if (emailFormatError) setEmailFormatError(validateEmail(next));
   }
@@ -372,7 +360,6 @@ function LoginForm() {
           <EmailScreen
             email={email}
             emailError={emailError}
-            typed={typed}
             canAdvance={canAdvanceFromScreen1}
             inputRef={emailRef}
             onChange={onEmailChange}
@@ -794,15 +781,6 @@ function LoginForm() {
              (0.55 to remain readable at the smaller font); matched
              chars flip to 1.0 with 80ms transition for immediate
              typing feedback. */
-          .auth-screen__char {
-            display: inline-block;
-            opacity: 0.55;
-            transition: opacity 80ms var(--ease-standard);
-          }
-          .auth-screen__char[data-matched="true"] {
-            opacity: 1;
-            color: var(--label-primary);
-          }
           /* Underline-only input — transparent bg, no border. Always
              shows a 1px underline (the resting state uses
              --label-tertiary so it's actually visible — earlier
@@ -1180,8 +1158,6 @@ function LoginForm() {
             .auth-screen__subtitle { animation: none !important; opacity: 1; transform: none; }
             .auth-screen__zh-large { animation: none !important; opacity: 0.85; transform: none; }
             .auth-screen__en-hint { animation: none !important; opacity: 0.55; transform: none; }
-            .auth-screen__char { transition: none !important; }
-            .auth-screen__char[data-matched="true"] { opacity: 1; }
             .auth-screen__pane { transition: none !important; }
             .auth-screen__pane[data-active="true"] { animation: none !important; transform: none; }
             .auth-screen__input::after { animation: none !important; transform: scaleX(1); }
@@ -1224,7 +1200,6 @@ function LoginForm() {
 function EmailScreen(props: {
   email: string;
   emailError?: string | null;
-  typed: string;
   canAdvance: boolean;
   inputRef: RefObject<HTMLInputElement>;
   onChange: (e: ChangeEvent<HTMLInputElement>) => void;
@@ -1232,19 +1207,6 @@ function EmailScreen(props: {
   onBlur: (e: FocusEvent<HTMLInputElement>) => void;
   onNext: () => void;
 }) {
-  const TARGET_WORD = 'email';
-
-  // Per-char match — case-insensitive, indexed by char position.
-  // Returns true iff the typed buffer has at least this index AND
-  // the char at this index matches the target char (case-insensitive).
-  function isCharMatched(charIndex: number): boolean {
-    if (charIndex >= props.typed.length) return false;
-    return (
-      TARGET_WORD[charIndex].toLowerCase() ===
-      props.typed[charIndex].toLowerCase()
-    );
-  }
-
   return (
     <div className="auth-screen__stage" data-screen="1">
       {/* Hero Chinese — the "see" half. Largest text on screen.
@@ -1254,23 +1216,13 @@ function EmailScreen(props: {
         邮箱
       </p>
 
-      {/* Hint English — the "write" half. Per-char spans flip to
-          opacity 1.0 as the user types matching chars. Smaller font
-          + dimmer baseline communicates "this is what you type". */}
-      <div className="auth-screen__en-hint" aria-hidden="true">
-        {Array.from(TARGET_WORD).map((ch, i) => {
-          const matched = isCharMatched(i);
-          return (
-            <span
-              key={i}
-              className="auth-screen__char"
-              data-matched={matched ? 'true' : 'false'}
-            >
-              {ch}
-            </span>
-          );
-        })}
-      </div>
+      {/* Hint English — static label, no per-char highlight. The
+          user's keystrokes are intentionally NOT matched against
+          the hint — the field is just a form input, not an
+          exercise. */}
+      <p className="auth-screen__en-hint" aria-hidden="true">
+        email
+      </p>
 
       <input
         ref={props.inputRef}
