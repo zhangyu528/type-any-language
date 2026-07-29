@@ -109,12 +109,12 @@ function SignupForm() {
   // Subtitle carousel — per-screen CN+EN pair, 2s loop.
   const SUBTITLE_LINES_BY_SCREEN: Record<1 | 2, readonly { lang: 'zh' | 'en'; text: string }[]> = {
     1: [
-      { lang: 'zh', text: '开始你的练习' },
-      { lang: 'en', text: 'Begin your practice' },
+      { lang: 'zh', text: '请输入邮箱' },
+      { lang: 'en', text: 'Enter your email' },
     ],
     2: [
-      { lang: 'zh', text: '设一个 8 位密码' },
-      { lang: 'en', text: 'Set an 8-character password' },
+      { lang: 'zh', text: '请输入密码' },
+      { lang: 'en', text: 'Enter your password' },
     ],
   };
   const subtitleLines = SUBTITLE_LINES_BY_SCREEN[screen];
@@ -512,10 +512,74 @@ function SignupForm() {
                   );
                 })}
               </div>
+
+              {/* Eye toggle — single button for the password row
+                  only (the confirm row below has no toggle). The
+                  toggle controls BOTH row A and row B via the
+                  shared showPassword state, but visually lives
+                  next to row A's dots because the user typed the
+                  password here. tabIndex=-1 keeps keyboard focus
+                  on the hidden input. */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPassword((v) => !v);
+                  // The button steals focus on click, which makes
+                  // backspace trigger the button's pressed animation
+                  // instead of deleting a character. After React
+                  // commits the type-attribute change (password ↔
+                  // text), return focus to the active row's hidden
+                  // input and place the caret at the end. Two
+                  // requestAnimationFrames are needed because React
+                  // re-renders asynchronously — calling focus()
+                  // inside the first rAF still targets the
+                  // pre-render type=password node, where some
+                  // browsers reset the caret to position 0 on
+                  // focus. The second rAF runs after the re-render
+                  // commit, so type="text" is in effect.
+                  requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                      const target =
+                        focusedRow === 'confirm'
+                          ? confirmRef.current
+                          : passwordRef.current;
+                      if (
+                        target &&
+                        document.activeElement !== target
+                      ) {
+                        target.focus();
+                        const end = target.value.length;
+                        try {
+                          target.setSelectionRange(end, end);
+                        } catch {
+                          /* setSelectionRange can throw on
+                             type=password inputs in some browsers */
+                        }
+                      }
+                    });
+                  });
+                }}
+                className="auth-screen__show-toggle"
+                aria-label={showPassword ? '隐藏密码' : '显示密码'}
+                tabIndex={-1}
+              >
+                {showPassword ? (
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M2 8 C3.5 4.5 5.5 3 8 3 s4.5 1.5 6 5 c-1.5 3.5 -3.5 5 -6 5 s-4.5 -1.5 -6 -5 z" />
+                    <circle cx="8" cy="8" r="2" />
+                    <path d="M2 2 L14 14" />
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M2 8 C3.5 4.5 5.5 3 8 3 s4.5 1.5 6 5 c-1.5 3.5 -3.5 5 -6 5 s-4.5 -1.5 -6 -5 z" />
+                    <circle cx="8" cy="8" r="2" />
+                  </svg>
+                )}
+              </button>
             </div>
 
-            {/* Row B — "再输一次". Same showPassword as row A so the
-                eye toggle below affects both at once. */}
+            {/* Row B — "再输一次". The eye toggle on row A above
+                controls showPassword for both rows. */}
             <div
               className="auth-screen__pin-row"
               onClick={() => confirmRef.current?.focus()}
@@ -548,31 +612,7 @@ function SignupForm() {
               </div>
             </div>
 
-            {/* Show/hide toggle — single button for both rows.
-                Anchored to the right of the second row visually;
-                tabIndex=-1 keeps keyboard focus on the hidden
-                inputs. */}
-            <button
-              type="button"
-              onClick={() => setShowPassword((v) => !v)}
-              className="auth-screen__show-toggle auth-screen__show-toggle--centered"
-              aria-label={showPassword ? '隐藏密码' : '显示密码'}
-              tabIndex={-1}
-            >
-              {showPassword ? (
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M2 8 C3.5 4.5 5.5 3 8 3 s4.5 1.5 6 5 c-1.5 3.5 -3.5 5 -6 5 s-4.5 -1.5 -6 -5 z" />
-                  <circle cx="8" cy="8" r="2" />
-                  <path d="M2 2 L14 14" />
-                </svg>
-              ) : (
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M2 8 C3.5 4.5 5.5 3 8 3 s4.5 1.5 6 5 c-1.5 3.5 -3.5 5 -6 5 s-4.5 -1.5 -6 -5 z" />
-                  <circle cx="8" cy="8" r="2" />
-                </svg>
-              )}
-            </button>
-
+            
             {/* Hidden inputs — the capture surfaces. maxLength caps
                 the value at PASSWORD_LENGTH on both, so neither
                 row can overflow. type toggles between password /
@@ -963,6 +1003,9 @@ function SignupForm() {
             padding: var(--space-2) 0;
             cursor: text;
             user-select: none;
+            /* Anchor for the absolutely-positioned eye toggle (row A
+               only — row B has no toggle). */
+            position: relative;
           }
           .auth-screen__pin-row-label {
             font-size: var(--type-caption);
@@ -975,6 +1018,9 @@ function SignupForm() {
             align-items: center;
             gap: var(--space-3);
             padding: var(--space-2) 0;
+            /* Right padding reserves space for the absolute-positioned
+               eye toggle on the right edge of row A's wrapper. */
+            padding-right: 44px;
           }
           .auth-screen__pin-dot {
             display: inline-flex;
@@ -1042,9 +1088,17 @@ function SignupForm() {
             top: -9999px;
           }
 
-          /* Show/hide toggle — single button for both rows.
-             Sits centered between the two PIN rows visually. */
+          /* Show/hide toggle — single button for the password row only
+             (the confirm row has no toggle). Anchored to the right
+             edge of row A's .auth-screen__pin-row, vertically
+             centered. Absolute so it doesn't disrupt the dots'
+             flex layout. The .auth-screen__pin row reserves 44px of
+             right padding so the dots never overlap the toggle. */
           .auth-screen__show-toggle {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -1058,10 +1112,6 @@ function SignupForm() {
             cursor: pointer;
             transition: color var(--duration-fast) var(--ease-standard),
                         background var(--duration-fast) var(--ease-standard);
-          }
-          .auth-screen__show-toggle--centered {
-            align-self: center;
-            margin-top: calc(var(--space-2) * -1);
           }
           .auth-screen__show-toggle:hover {
             color: var(--label-secondary);

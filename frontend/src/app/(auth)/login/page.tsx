@@ -120,12 +120,12 @@ function LoginForm() {
   //   Screen 2 (password)— 现在告诉我你的密码 / Now tell me your password
   const SUBTITLE_LINES_BY_SCREEN: Record<1 | 2, readonly { lang: 'zh' | 'en'; text: string }[]> = {
     1: [
-      { lang: 'zh', text: '请告诉我你的邮箱' },
-      { lang: 'en', text: 'Please tell me your email' },
+      { lang: 'zh', text: '请输入邮箱' },
+      { lang: 'en', text: 'Enter your email' },
     ],
     2: [
-      { lang: 'zh', text: '现在告诉我你的密码' },
-      { lang: 'en', text: 'Now tell me your password' },
+      { lang: 'zh', text: '请输入密码' },
+      { lang: 'en', text: 'Enter your password' },
     ],
   };
   // Resolved at render time so the JSX below always sees the pair
@@ -314,6 +314,16 @@ function LoginForm() {
     // (No explicit submit call here — the button is type="submit".)
   }
 
+  // Back from Screen 2 → Screen 1. State (email + password) is
+  // preserved — the inputs re-mount on the active pane and the
+  // already-filled slots show the masked glyph / typed char.
+  function onPrev() {
+    if (screen === 2) {
+      setScreen(1);
+      requestAnimationFrame(() => emailRef.current?.focus());
+    }
+  }
+
   return (
     <div key={`shake-${shakeKey}`} className="auth-form-shake-wrap">
       <form
@@ -379,9 +389,32 @@ function LoginForm() {
             canAdvance={canAdvanceFromScreen2}
             inputRef={passwordRef}
             onChange={onPasswordChange}
+            onPrev={onPrev}
             onNext={onNext}
             showPassword={showPassword}
-            onToggleShow={() => setShowPassword((v) => !v)}
+            onToggleShow={() => {
+              setShowPassword((v) => !v);
+              // After toggling, return focus to the hidden input.
+              // The button steals focus on click, which makes
+              // backspace trigger the button's pressed animation
+              // instead of deleting a character. We also set the
+              // selection range to the end of the value because
+              // React's re-render on type/password toggle can reset
+              // the caret to position 0.
+              requestAnimationFrame(() => {
+                const el = passwordRef.current;
+                if (el && document.activeElement !== el) {
+                  el.focus();
+                  const end = el.value.length;
+                  try {
+                    el.setSelectionRange(end, end);
+                  } catch {
+                    /* setSelectionRange can throw on type=password
+                       inputs in some browsers — ignore */
+                  }
+                }
+              });
+            }}
             pinLength={PASSWORD_LENGTH}
           />
         </div>
@@ -651,9 +684,48 @@ function LoginForm() {
                stage so they don't take up vertical space (otherwise
                Screen 2 / 3 placeholder text would push the layout
                down and create a big blank gap). The active pane
-               snaps to position:static to size the stage. */
+               snaps to position:static to size the stage. Also the
+               anchor for the .auth-screen__back absolute child. */
             position: relative;
           }
+
+          /* Back button — top-left of the stage, absolutely
+             positioned so it doesn't push the rest of the content
+             down. Same hover/active/focus treatment as the eye
+             toggle so the two icon buttons feel like a family. */
+          .auth-screen__back {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 36px;
+            height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            line-height: 1;
+            color: var(--label-tertiary);
+            background: transparent;
+            border: 0;
+            border-radius: var(--radius-sm);
+            padding: 0;
+            cursor: pointer;
+            transition: color var(--duration-fast) var(--ease-standard),
+                        background var(--duration-fast) var(--ease-standard),
+                        transform var(--duration-fast) var(--ease-standard);
+          }
+          .auth-screen__back:hover {
+            color: var(--label-primary);
+            background: rgba(0, 0, 0, 0.04);
+          }
+          .auth-screen__back:active {
+            transform: scale(0.94);
+          }
+          .auth-screen__back:focus-visible {
+            outline: 2px solid var(--label-primary);
+            outline-offset: 2px;
+          }
+
           /* Subtitle — a 2s fade carousel alternating between a CN
              line and its EN translation. The wrapper is positioned
              relative so the two absolute children can stack; only the
@@ -896,8 +968,13 @@ function LoginForm() {
             align-items: center;
             gap: var(--space-3);
             padding: var(--space-4) 0;
+            /* Right padding reserves space for the absolute-positioned
+               eye toggle on the right edge of the PIN row. */
+            padding-right: 44px;
             cursor: text;
             user-select: none;
+            /* Anchor for the absolutely-positioned eye toggle. */
+            position: relative;
           }
           /* Single PIN slot — an independent short underline (24×28
              box) that fills as the user types. Empty state: 1px gray
@@ -987,16 +1064,21 @@ function LoginForm() {
              PIN row), it stays out of view — the visual cue is the
              dot filling, not a visible cursor. */
 
-          /* Show/hide eye toggle. Sits to the right of the PIN row,
-             inline. Same color treatment as the back button. */
+          /* Show/hide eye toggle. Anchored to the right edge of the PIN
+             row, vertically centered. Absolute so it doesn't disrupt
+             the flex layout of the dots. The .auth-screen__pin row
+             reserves 44px of right padding so the dots never overlap
+             the toggle. */
           .auth-screen__show-toggle {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
             display: inline-flex;
-            align-self: center;
             align-items: center;
             justify-content: center;
             width: 32px;
             height: 32px;
-            margin: calc(var(--space-4) * -1) auto 0;
             background: transparent;
             border: 0;
             border-radius: var(--radius-sm);
@@ -1111,6 +1193,7 @@ function LoginForm() {
             /* Screen 2 additions — snap everything to final state. */
             .auth-screen__pin-dot { transition: none !important; }
             .auth-screen__show-toggle { transition: none !important; }
+            .auth-screen__back { transition: none !important; }
             .auth-screen__pin-dot--cursor::after { animation: none !important; opacity: 1; }
           }
         ` }} />
@@ -1256,6 +1339,7 @@ function PasswordScreen(props: {
   canAdvance: boolean;
   inputRef: RefObject<HTMLInputElement>;
   onChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  onPrev: () => void;
   onNext: () => void;
   showPassword: boolean;
   onToggleShow: () => void;
@@ -1266,6 +1350,16 @@ function PasswordScreen(props: {
 
   return (
     <div className="auth-screen__stage" data-screen="2">
+      {/* Back button — top-left of the stage, anchored absolutely
+          so it doesn't push the rest of the content down. */}
+      <button
+        type="button"
+        onClick={props.onPrev}
+        className="auth-screen__back"
+        aria-label="返回上一步"
+      >
+        <span aria-hidden="true">←</span>
+      </button>
       {/* Hero CN — same scale/style as Screen 1 for visual continuity. */}
       <p className="auth-screen__zh-large" aria-hidden="true">
         密码

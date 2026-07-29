@@ -292,7 +292,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           font-size: clamp(20px, 2.4vw, 36px);
           font-weight: 500;
           color: var(--label-primary);
-          opacity: 0.07;
+          opacity: 0.14;
           white-space: nowrap;
           cursor: default;
           /* Two animations: drift (large position loop, ~28s) +
