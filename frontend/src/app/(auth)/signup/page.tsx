@@ -522,42 +522,41 @@ function SignupForm() {
                   on the hidden input. */}
               <button
                 type="button"
+                onMouseDown={(e) => {
+                  // Prevent the button from grabbing focus on
+                  // click (some browsers like Safari ignore this,
+                  // so we also force focus back via onClick below).
+                  e.preventDefault();
+                }}
                 onClick={() => {
                   setShowPassword((v) => !v);
-                  // The button steals focus on click, which makes
-                  // backspace trigger the button's pressed animation
-                  // instead of deleting a character. After React
-                  // commits the type-attribute change (password ↔
-                  // text), return focus to the active row's hidden
-                  // input and place the caret at the end. Two
-                  // requestAnimationFrames are needed because React
-                  // re-renders asynchronously — calling focus()
-                  // inside the first rAF still targets the
-                  // pre-render type=password node, where some
-                  // browsers reset the caret to position 0 on
-                  // focus. The second rAF runs after the re-render
-                  // commit, so type="text" is in effect.
-                  requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                      const target =
-                        focusedRow === 'confirm'
-                          ? confirmRef.current
-                          : passwordRef.current;
-                      if (
-                        target &&
-                        document.activeElement !== target
-                      ) {
-                        target.focus();
-                        const end = target.value.length;
-                        try {
-                          target.setSelectionRange(end, end);
-                        } catch {
-                          /* setSelectionRange can throw on
-                             type=password inputs in some browsers */
-                        }
+                  // Force focus back to whichever hidden input is
+                  // active, with caret at the end. setTimeout(..., 0)
+                  // schedules the focus call on the next tick, after
+                  // React has committed the type-attribute change.
+                  // Without this, some browsers (notably Safari)
+                  // leave the focus on the button even with the
+                  // mousedown preventDefault above — and the
+                  // button's :focus state then captures the next
+                  // backspace keypress, leaving the password value
+                  // untouched. The setTimeout covers the
+                  // mousedown-doesn't-help case.
+                  const target =
+                    focusedRow === 'confirm'
+                      ? confirmRef.current
+                      : passwordRef.current;
+                  setTimeout(() => {
+                    if (target) {
+                      target.focus();
+                      const end = target.value.length;
+                      try {
+                        target.setSelectionRange(end, end);
+                      } catch {
+                        /* setSelectionRange can throw on
+                           type=password inputs in some browsers */
                       }
-                    });
-                  });
+                    }
+                  }, 0);
                 }}
                 className="auth-screen__show-toggle"
                 aria-label={showPassword ? '隐藏密码' : '显示密码'}
