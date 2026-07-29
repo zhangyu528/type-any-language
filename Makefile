@@ -19,36 +19,44 @@ SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
 # ---------------------------------------------------------------------------
-# dev target host — daily driver (containers + compose watch)
+# dev target host — daily driver.
+#
+# HOST-NATIVE dev loop only. backend (uvicorn) and frontend (next dev)
+# run on the host against the docker postgres (the `db` service in
+# docker-compose.dev.yml). No dev docker images, no compose watch.
 # ---------------------------------------------------------------------------
 
-## dev-setup: first-time bootstrap (build dev app images; db is docker postgres, auto-started by lifecycle.sh)
+## dev-setup: install host-native deps (python venv + node_modules) + bring up docker db
 dev-setup:
 	@bash ops/dev/setup.sh
 
-## dev-start: start dev containers + background compose watch
+## dev-start: HOST-NATIVE start (uvicorn + next dev on host; db in docker)
 dev-start:
-	@bash ops/dev/lifecycle.sh start
+	@bash ops/dev/native.sh start
 
-## dev-stop: stop compose watch + dev containers
+## dev-stop: stop host-native backend + frontend
 dev-stop:
-	@bash ops/dev/lifecycle.sh stop
+	@bash ops/dev/native.sh stop
 
-## dev-restart: recreate containers + re-read env (≈5s, no rebuild)
+## dev-restart: stop + start host-native
 dev-restart:
-	@bash ops/dev/lifecycle.sh restart
+	@bash ops/dev/native.sh restart
 
-## dev-doctor: preflight check (images / drift / ports / docker postgres)
+## dev-status: pid + uptime + port for native backend/frontend + docker db health
+dev-status:
+	@bash ops/dev/native.sh status
+
+## dev-logs [backend|frontend|both]: tail native logs (default both)
+dev-logs:
+	@bash ops/dev/native.sh logs
+
+## dev-native-preflight: read-only check (python/node/.venv/node_modules/db)
+dev-native-preflight:
+	@bash ops/dev/native.sh preflight
+
+## dev-doctor: preflight check (docker / compose / host python+node / db mount / ports)
 dev-doctor:
 	@bash ops/dev/doctor.sh
-
-## dev-logs [svc]: tail container logs (optional service name)
-dev-logs:
-	@bash ops/dev/logs.sh
-
-## dev-watch: foreground compose watch (Ctrl+C to stop)
-dev-watch:
-	@bash ops/dev/watch.sh
 
 ## dev-migrate: apply pending schema migrations to docker postgres (host-side runner)
 dev-migrate:
@@ -57,10 +65,6 @@ dev-migrate:
 ## dev-import-content: start db if needed, UPSERT cms/content/, then run rerunnable backfills
 dev-import-content:
 	@bash ops/dev/import_content.sh
-
-## dev-build: build english_backend_dev + english_frontend_dev images
-dev-build:
-	@bash ops/dev/build_image.sh
 
 # ---------------------------------------------------------------------------
 # prod target host — pre-built, no watch, registry-pulled
@@ -167,21 +171,9 @@ db-next-migration-prefix:
 release-show:
 	@bash ops/release.sh show
 
-## release-dev [X.Y.Z]: bump backend/VERSION + frontend/VERSION + build dev apps
-release-dev:
-	@bash ops/release.sh dev
-
 ## release-prod [X.Y.Z]: bump backend/VERSION + frontend/VERSION + build + push prod apps
 release-prod:
 	@bash ops/release.sh prod
-
-## build-all: local multi-image build (dev + prod), no push
-build-all:
-	@bash ops/build.sh
-
-## build-dev-only: only build dev app images
-build-dev-only:
-	@bash ops/build.sh dev
 
 ## build-prod-only: only build prod app images
 build-prod-only:

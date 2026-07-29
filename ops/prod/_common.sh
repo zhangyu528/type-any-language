@@ -67,7 +67,7 @@ setup_prod_host_env() {
     # Prod image tags come from per-segment VERSION files:
     #   BACKEND_IMAGE_TAG  ← backend/VERSION  (semver)
     #   FRONTEND_IMAGE_TAG ← frontend/VERSION (semver)
-    # Dev tags are content-hash-based and don't apply here.
+    # Dev is host-native and has no image tag — only prod images exist.
     resolve_image_tag BACKEND_IMAGE_TAG  backend/VERSION
     resolve_image_tag FRONTEND_IMAGE_TAG frontend/VERSION
     warn_if_version_default "$BACKEND_IMAGE_TAG" backend/VERSION

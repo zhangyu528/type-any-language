@@ -1,8 +1,6 @@
 # frontend/.dockerignore — exclude everything that shouldn't be baked
-# into the dev image. Critical with the new compose-watch layout:
-# Dockerfile.dev does `COPY . .` to seed the container with a source
-# baseline; without this file, .next/, node_modules/ from the host
-# would get baked in and confuse the dev runtime.
+# into the prod image. Dockerfile does `COPY . .` so this is the only
+# thing standing between the host working tree and the image context.
 
 # ── Build artifacts (regenerated inside the container) ───────────────────
 node_modules/
@@ -43,5 +41,5 @@ coverage/
 *.tsbuildinfo
 tsconfig.tsbuildinfo
 
-# ── entrypoint hash file (runtime artifact, never bake in) ──────────────
+# ── Native dev artifact (written by ops/dev/setup.sh) ──────────────────
 .package-lock.sha256

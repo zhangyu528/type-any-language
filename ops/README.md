@@ -8,27 +8,25 @@
 ops/
 ├── README.md           本文件
 ├── lib.sh              共享 helper —— 每个脚本都 source 它
-├── build.sh            本地多镜像 build(dev + prod),no push
-├── release.sh          发版编排器(bump + build + push)
+├── build.sh            本地 build prod 镜像,no push
+├── release.sh          发版编排器(bump + build + push prod)
 ├── build_ielts_csv.py  一次性数据准备工具(IELTS 词表 → cms CSV 格式)
-├── dev/                dev 目标机(热重载,compose-watch)
-│   ├── _common.sh      共享 bootstrap(image refs、docker postgres contract、watch lifecycle、preflight gates)
-│   ├── lifecycle.sh    start / stop / restart | reload
-│   ├── doctor.sh       只读 preflight env check(docker、compose、images、docker postgres 可达性、ports)+ drift check
-│   ├── setup.sh        首次 bootstrap:verify docker postgres + build dev apps
-│   │                   (含 `setup.sh bootstrap` 子命令 — 一次性 docker postgres setup)
-│   ├── logs.sh         docker compose logs -f wrapper
-│   ├── migrate.sh      把 pending schema migrations 应用到云 db(host-side runner)
-│   ├── watch.sh        前台 docker compose watch(Ctrl+C 停;后台版由 lifecycle.sh start 自动 spawn)
-│   └── build_image.sh  本地 build english_backend_dev + english_frontend_dev
-└── prod/               prod 目标机(预编译,no watch)
+├── dev/                dev 目标机(host-native + docker postgres)
+│   ├── _common.sh      共享 bootstrap(docker postgres contract、db helpers、staging-files check)
+│   ├── native.sh       host-native dev driver(uvicorn + next dev on host; db 在 docker)
+│   ├── doctor.sh       只读 preflight env check(docker、compose、host python+node、ports、db 可达性)
+│   ├── setup.sh        首次 bootstrap:preflight + 装 host-native deps + 起 docker db
+│   ├── logs.sh         dev 容器/进程日志 wrapper
+│   ├── migrate.sh      把 pending schema migrations 应用到 docker db(host-side runner)
+│   └── import_content.sh  UPSERT cms/content/ 到 docker db
+└── prod/               prod 目标机(预编译)
     ├── _common.sh      共享 bootstrap
     ├── lifecycle.sh    start / stop / restart | reload(auto-pull from registry)
     ├── doctor.sh       只读 preflight env check for prod(含 docker postgres 可达性)
     ├── setup.sh        首次 bootstrap for fresh prod host(含 `setup.sh bootstrap` 子命令)
     ├── logs.sh         docker compose logs -f wrapper
     ├── build_image.sh  本地 build english_backend + english_frontend
-    ├── push_image.sh   推送 prod backend+frontend 到 $DOCKER_REGISTRY(dev 不推送)
+    ├── push_image.sh   推送 prod backend+frontend 到 $DOCKER_REGISTRY
     └── nginx.conf      prod-only 反向代理配置(无 /audio location —— audio 由 COS 直出)
 ```
 
@@ -40,22 +38,22 @@ ops/
 |---|---|
 | 发版 | `./ops/release.sh dev\|prod [X.Y.Z] [-y]` |
 | 查看当前版本 | `./ops/release.sh show` |
-| 本地 build 多镜像(不 push) | `./ops/build.sh all\|dev\|prod` |
-| 首次 verify docker postgres + build dev apps | `./ops/dev/setup.sh` |
-| 一次性 docker postgres setup(dev) | `./ops/dev/setup.sh bootstrap` |
+| 本地 build prod 镜像(不 push) | `./ops/build.sh` |
+| 首次 dev setup(装 host-native deps + 起 docker db) | `./ops/dev/setup.sh` |
+| 启动 / 停止 / 重启 host-native dev loop | `./ops/dev/native.sh start\|stop\|restart` |
 | 首次 verify docker postgres + build prod apps | `./ops/prod/setup.sh` |
 | 一次性 docker postgres setup(prod) | `./ops/prod/setup.sh bootstrap` |
 | 检查主机就绪状态 | `./ops/<host>/doctor.sh` |
-| 启动 / 停止 / 重启容器 | `./ops/<host>/lifecycle.sh start\|stop\|restart` |
-| 滚动重载(同容器、不重建) | `./ops/<host>/lifecycle.sh reload` |
+| 启动 / 停止 / 重启 prod 容器 | `./ops/prod/lifecycle.sh start\|stop\|restart` |
+| 滚动重载(同容器、不重建) | `./ops/prod/lifecycle.sh reload` |
 | 查看容器日志 | `./ops/<host>/logs.sh [svc]` |
-| Apply schema migrations 到云 db(dev-only) | `./ops/dev/migrate.sh` |
-| 本地 build dev/prod 镜像 | `./ops/<host>/build_image.sh` |
+| Apply schema migrations 到 docker db(dev-only host runner) | `./ops/dev/migrate.sh` |
+| 本地 build prod 镜像 | `./ops/prod/build_image.sh` |
 | 推送 prod 镜像到 registry | `./ops/prod/push_image.sh -y` |
-| Import staging 内容到云 db | `./db/scripts/import_staging.sh all` |
+| Import staging 内容到 db | `./db/scripts/import_staging.sh all` |
 | 拉 CMS 密钥到 shell | `eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"` (每次新 shell 都跑) |
 
-`<host>` 是 `dev` 或 `prod`。CMS 脚本在 `cms/scripts/` 下,db 脚本在 `db/scripts/` 下 —— 这两个独立子系统的入口不在 `ops/` 里,保留各自的命名空间。
+`ops/dev/` 用 host-native loop(uvicorn + `next dev` on host;db 在 docker);prod 才是容器化的。CMS 脚本在 `cms/scripts/` 下,db 脚本在 `db/scripts/` 下 —— 这两个独立子系统的入口不在 `ops/` 里,保留各自的命名空间。
 
 ## `lib.sh` —— 共享 helper
 
@@ -143,24 +141,28 @@ require_docker    # 脚本用到 docker 时
 
 ## 版本模型
 
-每个段目录下自己的 VERSION 文件控制 image tag:
+每个段目录下自己的 VERSION 文件控制 prod image tag:
 
 | 文件 | 管哪些 image |
 |---|---|
-| `backend/VERSION`           | `english_backend_dev` + `english_backend` (同一文件管两个 tag) |
-| `frontend/VERSION`          | `english_frontend_dev` + `english_frontend` (同一文件管两个 tag) |
+| `backend/VERSION`           | `english_backend` (prod) |
+| `frontend/VERSION`          | `english_frontend` (prod) |
 | `cms/VERSION`               | 占位文件 (cms 段当前没有 image) |
 
-没有 db image —— runtime db 是 docker postgres(外部服务),schema 跟内容都不进 image。Schema 版本 = `schema_migrations` 表行数,内容版本 = 最近一次 `db/scripts/import_staging.sh` 跑的时间。完整的解析链和覆盖优先级见仓库根 `CLAUDE.md` 的 "Image version tags" 段。
+没有 db image —— runtime db 是 docker postgres(外部服务),schema 跟内容都不进 image。Schema 版本 = `schema_migrations` 表行数,内容版本 = 最近一次 `db/scripts/import_staging.sh` 跑的时间。
+
+dev 没有 image(uvicorn + `next dev` 跑在 host 上),所以也没有 dev VERSION 概念 —— `backend/VERSION` 只管 prod 那个 tag。完整的解析链和覆盖优先级见仓库根 `CLAUDE.md` 的 "Image version tags" 段。
 
 `ops/release.sh` 是版本管理的唯一入口 —— 优先用它,别手改 VERSION 文件。
 
 ## 新增脚本流程
 
 1. 选对子目录:
-   - 影响某台主机的容器生命周期 → `ops/<host>/lifecycle.sh` + 配套
-     `doctor.sh` / `setup.sh` / `logs.sh` / `migrate.sh`(只 dev)/ `watch.sh`(只 dev)
-   - 跨切面编排(build all / release) → `ops/` 根(`build.sh` / `release.sh`)
+   - 影响 prod 主机容器生命周期 → `ops/prod/lifecycle.sh` + 配套
+     `doctor.sh` / `setup.sh` / `logs.sh`
+   - 影响 dev 主机 host-native loop → `ops/dev/native.sh` + 配套
+     `setup.sh` / `doctor.sh` / `migrate.sh` / `import_content.sh`
+   - 跨切面编排(build / release) → `ops/` 根(`build.sh` / `release.sh`)
    - 操作某 service 的 image / config → 那个 service 自己的目录
      (如 `cms/scripts/staging.sh`、`db/scripts/migrate.sh`)
 2. 复制一个相同形状的现有脚本作模板(`lifecycle.sh` / `build_image.sh`

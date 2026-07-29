@@ -1,15 +1,12 @@
 # .gitattributes — enforce line-ending policy per file type.
 #
 # Without this, Git's core.autocrlf setting can quietly rewrite line
-# endings on checkout/commit, which has bitten this project twice:
-#   1. backend/entrypoint.sh was committed with CRLF line terminators.
-#      The Dockerfile.dev's `COPY . .` baked those CRLFs into the
-#      image, then the entrypoint invoked `sh ./entrypoint.sh` and
-#      dash barfed on `set -e\r` ("Illegal option -") — backend
-#      container ended up in a restart loop on every `./dev start`.
-#   2. Same pathology applies to any *.sh file edited in an editor
-#      that writes CRLF on Windows. We want shell scripts to always
-#      be LF, regardless of host OS or editor.
+# endings on checkout/commit, which has bitten this project on shell
+# scripts: a *.sh file edited in an editor that writes CRLF on
+# Windows gets committed with CR-LF line terminators, and then dash
+# (the default `/bin/sh` in many distros) barfs on `set -e\r`
+# ("Illegal option -"). We want shell scripts to always be LF,
+# regardless of host OS or editor.
 #
 # Rule: all shell scripts MUST be LF in the repo. .gitattributes
 # re-normalizes them on next checkout (text eol=lf), but existing
