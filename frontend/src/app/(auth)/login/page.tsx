@@ -115,11 +115,11 @@ function LoginForm() {
   const SUBTITLE_LINES_BY_SCREEN: Record<1 | 2, readonly { lang: 'zh' | 'en'; text: string }[]> = {
     1: [
       { lang: 'zh', text: '请输入邮箱' },
-      { lang: 'en', text: 'Enter your email' },
+      { lang: 'en', text: 'Please enter your email' },
     ],
     2: [
       { lang: 'zh', text: '请输入密码' },
-      { lang: 'en', text: 'Enter your password' },
+      { lang: 'en', text: 'Please enter your password' },
     ],
   };
   // Resolved at render time so the JSX below always sees the pair
@@ -219,7 +219,17 @@ function LoginForm() {
         if (apiErr.fieldErrors.email) setScreen(1);
         else if (apiErr.fieldErrors.password) setScreen(2);
       } else {
-        setErrors({ email: apiErr.message ?? '登录失败' });
+        // apiErr.message comes from the server (Chinese, e.g. "邮箱
+        // 或密码错误") or from fetch (English, e.g. "Failed to
+        // fetch" on network failure). The English variants are
+        // user-hostile, so fall back to a friendly Chinese message
+        // for any error string that looks like a network/transport
+        // failure.
+        const msg = apiErr.message ?? '';
+        const isNetworkError = /failed to fetch|networkerror|load failed/i.test(msg);
+        setErrors({
+          email: isNetworkError || !msg ? '网络异常,请稍后重试' : msg,
+        });
         setScreen(1);
       }
     } finally {

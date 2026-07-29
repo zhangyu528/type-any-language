@@ -108,11 +108,11 @@ function SignupForm() {
   const SUBTITLE_LINES_BY_SCREEN: Record<1 | 2, readonly { lang: 'zh' | 'en'; text: string }[]> = {
     1: [
       { lang: 'zh', text: '请输入邮箱' },
-      { lang: 'en', text: 'Enter your email' },
+      { lang: 'en', text: 'Please enter your email' },
     ],
     2: [
       { lang: 'zh', text: '请输入密码' },
-      { lang: 'en', text: 'Enter your password' },
+      { lang: 'en', text: 'Please enter your password' },
     ],
   };
   const subtitleLines = SUBTITLE_LINES_BY_SCREEN[screen];
