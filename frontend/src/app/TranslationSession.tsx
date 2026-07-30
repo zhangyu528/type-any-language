@@ -12,6 +12,10 @@ import {
   LessonDetail,
 } from './api';
 import TranslationStage from './TranslationStage';
+import { useAuth } from './lib/auth';
+import PracticeHintCard, {
+  type PracticeHintCardKind,
+} from './components/PracticeHintCard';
 
 interface TranslationSessionProps {
   libId: string;
@@ -23,6 +27,12 @@ type SessionState = 'loading' | 'running' | 'empty-lib' | 'error';
 interface PickedStep {
   word: WordInLesson;
   sentence: LessonSentence;
+}
+
+interface HintCardState {
+  improvedCardShown: boolean;
+  rateCardShown: boolean;
+  dismissedThisSession: boolean;
 }
 
 /**
@@ -91,15 +101,44 @@ export default function TranslationSession({
   libId,
   onBack,
 }: TranslationSessionProps) {
+  const { user } = useAuth();
+  const isGuest = !user;
+
   const [sessionState, setSessionState] = useState<SessionState>('loading');
   const [error, setError] = useState('');
   const [lesson, setLesson] = useState<LessonDetail | null>(null);
   const [progress, setProgress] = useState<TranslationProgress>({});
   const [currentStep, setCurrentStep] = useState<PickedStep | null>(null);
 
+  // Guest-only trigger state. Reset on libId change (new session).
+  const [sessionStats, setSessionStats] = useState({
+    total: 0,
+    correct: 0,
+  });
+  const [lastResult, setLastResult] = useState<
+    'correct' | 'wrong' | 'skipped' | null
+  >(null);
+  const [cardState, setCardState] = useState<HintCardState>({
+    improvedCardShown: false,
+    rateCardShown: false,
+    dismissedThisSession: false,
+  });
+  const [activeHint, setActiveHint] = useState<PracticeHintCardKind | null>(
+    null
+  );
+
   // Initial load: lesson + progress + first pick.
   useEffect(() => {
     let cancelled = false;
+    // Reset guest trigger state on libId change (new session).
+    setSessionStats({ total: 0, correct: 0 });
+    setLastResult(null);
+    setCardState({
+      improvedCardShown: false,
+      rateCardShown: false,
+      dismissedThisSession: false,
+    });
+    setActiveHint(null);
     (async () => {
       try {
         const [l, p] = await Promise.all([
@@ -157,14 +196,53 @@ export default function TranslationSession({
       setProgress(nextProgress);
       saveTranslationProgress(nextProgress);
 
+      // Guest-only: update session stats + evaluate hint triggers.
+      // Use the *current* lastResult (closure), then schedule the
+      // next render to compute the new stats from nextProgress. We
+      // compute rate off the fresh progress so the threshold check
+      // sees this answer.
+      if (isGuest) {
+        const previousResult = lastResult;
+        const newTotal = sessionStats.total + 1;
+        const newCorrect =
+          sessionStats.correct + (correct ? 1 : 0);
+        setSessionStats({ total: newTotal, correct: newCorrect });
+        setLastResult(correct ? 'correct' : 'wrong');
+
+        // Skip API: skipped counts as wrong, never triggers improved.
+        // (TranslationStage already routes skip through onComplete(false))
+        const cardAvailable =
+          !cardState.improvedCardShown &&
+          !cardState.rateCardShown &&
+          !cardState.dismissedThisSession;
+
+        if (cardAvailable && previousResult !== 'correct' && correct) {
+          setActiveHint('improved');
+          setCardState((prev) => ({ ...prev, improvedCardShown: true }));
+        } else if (cardAvailable && newTotal >= 5 && newCorrect / newTotal >= 0.8) {
+          setActiveHint('rate');
+          setCardState((prev) => ({ ...prev, rateCardShown: true }));
+        }
+      }
+
       // Draw the next step using the freshly-written progress so a
       // self-corrected step doesn't immediately re-surface.
       const next = pickNextStep(lesson, nextProgress, libId);
       setCurrentStep(next);
       if (!next) setSessionState('empty-lib');
     },
-    [progress, libId, lesson, currentStep]
+    [progress, libId, lesson, currentStep, isGuest, lastResult, sessionStats, cardState]
   );
+
+  const handleHintLogin = useCallback(() => {
+    const from = `${window.location.pathname}${window.location.search}`;
+    window.location.href = `/login?from=${encodeURIComponent(from)}`;
+  }, []);
+
+  const handleHintDismiss = useCallback(() => {
+    setActiveHint(null);
+    setCardState((prev) => ({ ...prev, dismissedThisSession: true }));
+  }, []);
 
   // Aggregate stats for the meta line.
   const stats = useMemo(() => {
@@ -251,6 +329,13 @@ export default function TranslationSession({
           {' · '}
           本词 {currentWordAnswered} 句
         </p>
+      )}
+      {activeHint && (
+        <PracticeHintCard
+          kind={activeHint}
+          onLogin={handleHintLogin}
+          onDismiss={handleHintDismiss}
+        />
       )}
     </>
   );
