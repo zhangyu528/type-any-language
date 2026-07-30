@@ -74,12 +74,12 @@ export default function AppHeader() {
       className={`app-header${isLanding ? ' app-header--landing' : ''}`}
       role="banner"
     >
-      <Link href="/" className="app-header__brand" aria-label="返回首页">
+      <span className="app-header__brand">
         <span className="app-header__brand-mark" aria-hidden="true">
           <EnsoMark size={20} />
         </span>
         <span className="app-header__brand-name">Type Any Language</span>
-      </Link>
+      </span>
 
       <nav className="app-header__nav" aria-label="主导航">
         {loading ? (

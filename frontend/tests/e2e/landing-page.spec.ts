@@ -114,4 +114,19 @@ test.describe('LandingPage — Hero CTA + Footer', () => {
       'https://github.com/zhangyu528/type-any-language',
     );
   });
+
+  test('AppHeader brand 是不可点击的（不是 link，不带 href）', async ({
+    page,
+  }) => {
+    await freshPage(page);
+    // The brand text should exist in the header but NOT be exposed
+    // as a link by accessibility tree (no <a> wrapping it).
+    const brand = page.locator('.app-header__brand');
+    await expect(brand).toBeVisible();
+    await expect(brand).toContainText('Type Any Language');
+    // No link wraps the brand: query for <a> inside the brand and
+    // expect zero hits.
+    const linkCount = await brand.locator('a').count();
+    expect(linkCount).toBe(0);
+  });
 });
