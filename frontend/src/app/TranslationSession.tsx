@@ -16,6 +16,7 @@ import { useAuth } from './lib/auth';
 import PracticeHintCard, {
   type PracticeHintCardKind,
 } from './components/PracticeHintCard';
+import LoadingMark from './components/LoadingMark';
 
 interface TranslationSessionProps {
   libId: string;
@@ -294,9 +295,7 @@ export default function TranslationSession({
   if (sessionState === 'loading' || !lesson) {
     return (
       <div className="translation translation--loading">
-        <div className="translation__loader" aria-hidden>
-          <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-        </div>
+        <LoadingMark />
         <p className="translation__loader-text">Loading…</p>
       </div>
     );

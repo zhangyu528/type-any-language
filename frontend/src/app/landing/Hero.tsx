@@ -35,6 +35,12 @@ export default function Hero({ libs, onPickLib }: HeroProps) {
     };
   }, []);
 
+  // CTA: pick the first lib. Logged-out users go straight into
+  // practice (LandingPage is guest-only; logged-in users are bounced
+  // to /history by page.tsx before this component ever renders, so
+  // we never need to branch on `user` here — but we still label the
+  // CTA "开始今日练习 · X" when logged in, in case the redirect
+  // hasn't landed yet during the first paint).
   const firstLib = libs[0];
   const canStart = !!firstLib;
 
