@@ -153,8 +153,8 @@
 }
 
 /* CTA — pill, mint-deep fill + white text. Stays inside the Citrus Mint
-   family (same hue as the EnsoMark stroke and the header login button)
-   so the page reads as one palette. Hover deepens + lifts. */
+   family (same hue as the BrandMark dot matrix and the header login
+   button) so the page reads as one palette. Hover deepens + lifts. */
 .start {
   display: inline-flex;
   align-items: center;

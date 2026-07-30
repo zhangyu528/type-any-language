@@ -1400,7 +1400,8 @@ select:focus-visible {
    The default frosted-glass heal-bg tint would read as a green band
    cutting the hero in half; here the chrome just floats on the page
    bg with a thin mint hairline. Brand mark colour and sizing also
-   adapt so the EnsoMark SVG (not the legacy ◯ glyph) fits cleanly. */
+   adapt so the BrandMark SVG (3×3 dot matrix, "muscle memory"
+   silhouette) fits cleanly. */
 .app-header--landing {
   background: transparent;
   backdrop-filter: none;

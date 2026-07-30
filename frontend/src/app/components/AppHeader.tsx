@@ -35,7 +35,7 @@
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useAuth } from '../lib/auth';
-import EnsoMark from '../landing/EnsoMark';
+import BrandMark from '../landing/BrandMark';
 import ThemeToggle from './ThemeToggle';
 
 const HIDE_CHROME_PATHS = ['/login', '/signup'];
@@ -76,7 +76,7 @@ export default function AppHeader() {
     >
       <span className="app-header__brand">
         <span className="app-header__brand-mark" aria-hidden="true">
-          <EnsoMark size={20} />
+          <BrandMark size={20} />
         </span>
         <span className="app-header__brand-name">Type Any Language</span>
       </span>

@@ -129,4 +129,18 @@ test.describe('LandingPage — Hero CTA + Footer', () => {
     const linkCount = await brand.locator('a').count();
     expect(linkCount).toBe(0);
   });
+
+  test('AppHeader brand mark 是 3×3 dot matrix SVG（不是 enso 圆环）', async ({
+    page,
+  }) => {
+    await freshPage(page);
+    // The new BrandMark renders a 3×3 grid of <circle>s inside the
+    // mark container. Count = 9.
+    const markSvg = page.locator('.app-header__brand-mark svg');
+    await expect(markSvg).toBeVisible();
+    const circleCount = await markSvg.locator('circle').count();
+    expect(circleCount).toBe(9);
+    // And it's the "Type Any Language" brand label, not an old label.
+    await expect(markSvg).toHaveAttribute('aria-label', 'Type Any Language');
+  });
 });
