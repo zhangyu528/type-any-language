@@ -4,7 +4,6 @@ import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { VocabularyLib, TranslationProgress } from '../api';
 import { useAuth } from '../lib/auth';
-import BrandMark from './BrandMark';
 import styles from './Hero.module.css';
 import PaperGrain from './PaperGrain';
 import TypefallDemo from './TypefallDemo';
@@ -62,19 +61,6 @@ export default function Hero({ libs, onPickLib }: HeroProps) {
       <PaperGrain />
 
       <div className={styles.inner}>
-        {/* Stage 0: BrandMark with pulse — the product's "live"
-            silhouette. Lives above the demo card and is the first
-            thing the page reveals. Header chrome shows the same
-            mark at 22px static; here at 72px with the centre dot
-            pulsing 1.6s to convey "actively typing in your muscle
-            memory". */}
-        <div
-          className={styles.brand}
-          aria-hidden={stage < 1}
-        >
-          <BrandMark size={72} pulse />
-        </div>
-
         {/* Stage 1: demo — the hero's centerpiece, fades in first */}
         <motion.div
           className={styles.demo}

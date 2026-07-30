@@ -98,18 +98,6 @@
   transform: translateY(0);
 }
 
-/* BrandMark — sits above the demo card, the first thing the user
-   sees on /. Centred, generous breathing room. The pulse on the
-   centre dot is the only motion in the hero's intro stage. */
-.brand {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: var(--space-3) 0 var(--space-2);
-  position: relative;
-  z-index: 1;
-}
-
 /* Demo — soft card wrap, centered. */
 .demo {
   position: relative;
