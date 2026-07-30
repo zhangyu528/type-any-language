@@ -601,12 +601,6 @@ function LoginForm() {
           }
           /* .auth-form__submit rules removed — the submit button is gone
              in the screen-by-screen flow. Re-enable when Screen 3 lands. */
-          .auth-form__spinner {
-            animation: auth-form-spin 800ms linear infinite;
-          }
-          @keyframes auth-form-spin {
-            to { transform: rotate(360deg); }
-          }
           .auth-form__alt {
             text-align: center;
             font-size: var(--type-caption);
@@ -1162,7 +1156,6 @@ function LoginForm() {
             .auth-field { animation: none !important; opacity: 1; transform: none; }
             /* .auth-form__subtitle removed (replaced by .auth-screen__subtitle) */
             .auth-field__input--error { animation: none !important; }
-            .auth-form__spinner { animation: none !important; }
             /* Screen 1 motion overrides — snap everything to final state. */
             .auth-screen { transition: none !important; }
             .auth-screen__subtitle { animation: none !important; opacity: 1; transform: none; }

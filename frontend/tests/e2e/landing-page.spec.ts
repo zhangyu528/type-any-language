@@ -160,4 +160,28 @@ test.describe('LandingPage — Hero CTA + Footer', () => {
     const centre = heroMark.locator('circle').nth(4);
     await expect(centre.locator('animate')).toHaveCount(1);
   });
+
+  test('LoadingMark = 3×3 全矩阵 pulse（每点都参与动画）', async ({ page }) => {
+    // Block the catalog request so the practice page stays in its
+    // "loading" state long enough to assert against the rendered
+    // LoadingMark. We never resolve the route — the loading UI stays.
+    await page.route('**/api/content/catalog', async () => {
+      // Hold the request open until the test ends.
+      await new Promise(() => {});
+    });
+    // Use waitUntil: 'commit' so the page navigates but we don't wait
+    // for the catalog to finish loading.
+    await page.goto('/', { waitUntil: 'commit' });
+    // The loading state should be rendered. LoadingMark is a SVG with
+    // 9 circles, each carrying an <animate> child (every dot pulses,
+    // unlike BrandMark where only the centre pulses).
+    const loadingMark = page
+      .locator('.practice--loading svg, .translation--loading svg')
+      .first();
+    await expect(loadingMark).toBeVisible();
+    const circleCount = await loadingMark.locator('circle').count();
+    expect(circleCount).toBe(9);
+    const animateCount = await loadingMark.locator('animate').count();
+    expect(animateCount).toBe(9);
+  });
 });

@@ -10,6 +10,7 @@ import {
 } from './api';
 import { useAuth } from './lib/auth';
 import LandingPage from './landing';
+import LoadingMark from './components/LoadingMark';
 import TranslationSession from './TranslationSession';
 
 /**
@@ -142,15 +143,7 @@ export default function PracticePage() {
   if (!catalog) {
     return (
       <div className="practice practice--loading">
-        <div className="practice__loader" aria-hidden>
-          <span></span>
-          <span></span>
-          <span></span>
-          <span></span>
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
+        <LoadingMark />
         <p className="practice__loader-text">Loading…</p>
       </div>
     );
@@ -178,10 +171,7 @@ export default function PracticePage() {
     }
     return (
       <div className="practice practice--loading">
-        <div className="practice__loader" aria-hidden>
-          <span></span><span></span><span></span><span></span>
-          <span></span><span></span><span></span>
-        </div>
+        <LoadingMark />
         <p className="practice__loader-text">Loading…</p>
       </div>
     );

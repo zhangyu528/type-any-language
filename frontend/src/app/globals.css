@@ -361,34 +361,6 @@ select:focus-visible {
   color: var(--label-tertiary);
 }
 
-.practice__loader {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 32px;
-}
-
-.practice__loader span {
-  display: inline-block;
-  width: 2px;
-  background: var(--label-tertiary);
-  border-radius: 1px;
-  animation: practice-loader-bounce 1.4s var(--ease-standard) infinite;
-}
-
-.practice__loader span:nth-child(1) { height: 6px;  animation-delay: 0.00s; }
-.practice__loader span:nth-child(2) { height: 14px; animation-delay: 0.15s; }
-.practice__loader span:nth-child(3) { height: 22px; animation-delay: 0.30s; }
-.practice__loader span:nth-child(4) { height: 18px; animation-delay: 0.45s; }
-.practice__loader span:nth-child(5) { height: 10px; animation-delay: 0.60s; }
-.practice__loader span:nth-child(6) { height: 26px; animation-delay: 0.75s; }
-.practice__loader span:nth-child(7) { height: 16px; animation-delay: 0.90s; }
-
-@keyframes practice-loader-bounce {
-  0%, 100% { opacity: 0.25; transform: scaleY(0.5); }
-  50%      { opacity: 0.85; transform: scaleY(1); }
-}
-
 .practice__loader-text {
   font-family: var(--font-body);
   font-size: var(--type-caption);
@@ -1004,29 +976,6 @@ select:focus-visible {
   min-height: 40vh;
   gap: var(--space-4);
 }
-
-.translation__loader {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 32px;
-}
-
-.translation__loader span {
-  display: inline-block;
-  width: 2px;
-  background: var(--label-tertiary);
-  border-radius: 1px;
-  animation: practice-loader-bounce 1.4s var(--ease-standard) infinite;
-}
-
-.translation__loader span:nth-child(1) { height: 6px;  animation-delay: 0.00s; }
-.translation__loader span:nth-child(2) { height: 14px; animation-delay: 0.15s; }
-.translation__loader span:nth-child(3) { height: 22px; animation-delay: 0.30s; }
-.translation__loader span:nth-child(4) { height: 18px; animation-delay: 0.45s; }
-.translation__loader span:nth-child(5) { height: 10px; animation-delay: 0.60s; }
-.translation__loader span:nth-child(6) { height: 26px; animation-delay: 0.75s; }
-.translation__loader span:nth-child(7) { height: 16px; animation-delay: 0.90s; }
 
 .translation__loader-text {
   font-family: var(--font-body);
