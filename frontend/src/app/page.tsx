@@ -7,7 +7,7 @@ import {
   loadTranslationProgress,
   TranslationProgress,
 } from './api';
-import Home from './Home';
+import LandingPage from './landing';
 import TranslationSession from './TranslationSession';
 
 /**
@@ -16,20 +16,16 @@ import TranslationSession from './TranslationSession';
  * URL conventions (single-route + query-string state machine, so
  * refreshing on a lesson page takes the user straight back):
  *
- *   /            → Home picker (always — the canonical landing)
+ *   /            → LandingPage (the content-driven home)
  *   /?lib=X      → TranslationSession for lib X (random-step drill)
  *
- * Translation is the only mode. There is no listening/dictation
- * surface — the dictation ladder (LessonList / LessonSession /
- * RecognitionStage / DictationStage) was removed entirely.
- *
- * The "lesson" intermediate layer was removed too: clicking a lib
- * goes straight into a weighted random step drill (TranslationSession),
- * not a per-lesson picker.
+ * The landing page is the canonical `/` surface. It hosts the hero,
+ * daily plan, lib market, and daily word/sentence cards. The
+ * TranslationSession is reachable via any `?lib=X` param.
  *
  * Persistence: `prefs.libId` is still written to localStorage on
- * selection, but NOT read back on init — Home is always the landing
- * page when the URL has no `?lib=` param.
+ * selection, but NOT read back on init — LandingPage reads it on
+ * its own to drive the "继续上次" CTA card.
  */
 export default function PracticePage() {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
@@ -38,7 +34,7 @@ export default function PracticePage() {
   const [error, setError] = useState('');
   const [selectedLibId, setSelectedLibId] = useState<string | null>(null);
 
-  // Read ?lib from the URL. Default: no lib → null (Home renders).
+  // Read ?lib from the URL. Default: no lib → null (Landing renders).
   const readUrl = useCallback(() => {
     if (typeof window === 'undefined') return { lib: null };
     const params = new URLSearchParams(window.location.search);
@@ -61,20 +57,20 @@ export default function PracticePage() {
 
         // Initial route resolution:
         //   - URL `?lib=X`            → TranslationSession for lib X
-        //   - no URL params           → Home picker (always)
+        //   - no URL params           → LandingPage (always)
         //
-        // Home is the canonical landing surface. We do NOT auto-resume
-        // from `prefs.libId` (the last-picked lib) — the user wants
-        // Home every time they land on `/` without query params.
-        // `prefs.libId` is still written (for any future cross-tab
-        // sync / debug), but ignored on init.
+        // LandingPage is the canonical landing surface. We do NOT
+        // auto-resume from `prefs.libId` (the last-picked lib) — the
+        // user wants Landing every time they land on `/` without
+        // query params. `prefs.libId` is still written (for the
+        // LandingPage's "继续上次" CTA), but ignored on init.
         const initial = readUrl();
         if (initial.lib && c.libs.some((l) => l.id === initial.lib)) {
           setSelectedLibId(initial.lib);
         }
-        // else: leave selectedLibId null → Home renders.
+        // else: leave selectedLibId null → LandingPage renders.
       } catch {
-        // session / home will surface their own errors
+        // session / landing will surface their own errors
       }
     })();
     return () => {
@@ -82,8 +78,8 @@ export default function PracticePage() {
     };
   }, [readUrl]);
 
-  // Persist selected libId (debug / future cross-tab use). Reads of
-  // this key have been intentionally removed from the init path above.
+  // Persist selected libId so the LandingPage's "继续上次" CTA knows
+  // which lib to deep-link into. Reads are owned by LandingPage itself.
   useEffect(() => {
     if (!selectedLibId) return;
     try {
@@ -94,8 +90,7 @@ export default function PracticePage() {
   }, [selectedLibId]);
 
   // Update the URL when entering a lib (history.pushState so the back
-  // button works as expected). `?lesson=N` is gone — there's no
-  // intermediate lesson picker anymore.
+  // button works as expected).
   const pushUrl = useCallback((libId: string | null) => {
     const url = new URL(window.location.href);
     url.pathname = '/';
@@ -114,8 +109,8 @@ export default function PracticePage() {
     [pushUrl]
   );
 
-  // Navigate to home picker (clear ?lib=).
-  const navigateToHome = useCallback(() => {
+  // Navigate to landing (clear ?lib=).
+  const navigateToLanding = useCallback(() => {
     pushUrl(null);
     setSelectedLibId(null);
   }, [pushUrl]);
@@ -169,20 +164,14 @@ export default function PracticePage() {
     );
   }
 
-  // No lib selected → render Home picker. With a single-lib catalog
-  // the parent page could auto-select, but the user has explicitly
-  // asked for "always go to Home on /" — keep this branch unconditional.
+  // No lib selected → render LandingPage (the new content-driven home).
   if (!selectedLibId) {
     return (
-      <div className="practice">
-        <div className="practice__content">
-          <Home
-            libs={catalog.libs}
-            translationProgress={translationProgress}
-            onPickLib={(libId) => navigateToSession(libId)}
-          />
-        </div>
-      </div>
+      <LandingPage
+        libs={catalog.libs}
+        translationProgress={translationProgress}
+        onPickLib={navigateToSession}
+      />
     );
   }
 
@@ -195,7 +184,7 @@ export default function PracticePage() {
             href="/"
             onClick={(e) => {
               e.preventDefault();
-              navigateToHome();
+              navigateToLanding();
             }}
           >
             ← 返回
@@ -204,7 +193,7 @@ export default function PracticePage() {
 
         <TranslationSession
           libId={selectedLibId}
-          onBack={navigateToHome}
+          onBack={navigateToLanding}
         />
       </div>
     </div>

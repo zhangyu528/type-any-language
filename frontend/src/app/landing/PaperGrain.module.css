@@ -1,0 +1,47 @@
+/* PaperGrain — hero 背景层
+   两层叠加:
+     1. 顶部一抹薄荷径向渐变(给 demo 一个柔和高光)
+     2. 全幅 SVG noise(纸纹颗粒,opacity 极低,不抢戏)
+   demo 卡用 z-index 1 浮在它上面,所以这两个 layer 不会盖 demo。 */
+
+.root {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* 顶部薄荷高光 —— 280px 高,从顶往下 mint-soft 渐变到透明 */
+.mintGlow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 280px;
+  background:
+    radial-gradient(
+      ellipse 80% 100% at 50% 0%,
+      rgba(63, 209, 122, 0.14) 0%,
+      rgba(63, 209, 122, 0.06) 38%,
+      transparent 70%
+    );
+  pointer-events: none;
+}
+
+/* 纸纹颗粒 —— SVG fractalNoise,220×220 tile 平铺,极淡墨色 */
+.grain {
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.36 0 0 0 0 0.78 0 0 0 0 0.54 0 0 0 0.55 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  background-size: 220px 220px;
+  opacity: 0.05;
+  pointer-events: none;
+  /* blend-mode multiply 让颗粒只在浅底上显示,不会让 demo 区域也变粗 */
+  mix-blend-mode: multiply;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 该组件无动画,留个空规则占位以便将来加动效时不漏改 */
+}

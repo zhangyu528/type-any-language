@@ -1,0 +1,132 @@
+'use client';
+
+import { motion } from 'motion/react';
+import { useEffect, useState } from 'react';
+import { VocabularyLib, TranslationProgress } from '../api';
+import { useAuth } from '../lib/auth';
+import styles from './Hero.module.css';
+import PaperGrain from './PaperGrain';
+import TypefallDemo from './TypefallDemo';
+
+interface HeroProps {
+  libs: VocabularyLib[];
+  translationProgress: TranslationProgress;
+  onPickLib: (libId: string) => void;
+}
+
+const HERO_TITLE = '听一句，写一句，把英语练出肌肉记忆。';
+const HERO_SUBTITLE = '语料取自日常场景，不是课本例句。';
+// (chip / kicker / foot removed — see commit history for the trim log.)
+
+export default function Hero({ libs, onPickLib }: HeroProps) {
+  const [stage, setStage] = useState(0);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    const t0 = window.setTimeout(() => setStage(1), 0);     // demo in
+    const t1 = window.setTimeout(() => setStage(2), 220);   // title chars
+    const t2 = window.setTimeout(() => setStage(3), 880);   // subtitle + kicker
+    const t3 = window.setTimeout(() => setStage(4), 1280);  // CTA + foot
+    return () => {
+      window.clearTimeout(t0);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearTimeout(t3);
+    };
+  }, []);
+
+  // CTA: pick the first lib if logged in, else go to login
+  const canStart = !!user && libs.length > 0;
+  const firstLib = libs[0];
+
+  const handleStart = () => {
+    if (canStart && firstLib) {
+      onPickLib(firstLib.id);
+    } else {
+      window.location.href = '/login?from=' + encodeURIComponent('/');
+    }
+  };
+
+  const startLabel = canStart && firstLib
+    ? `开始今日练习 · ${firstLib.name}`
+    : '登录后开始练习';
+
+  return (
+    <section className={styles.root} aria-label="产品介绍">
+      {/* 背景层 —— 顶部薄荷光 + 纸纹颗粒,z-index 0,demo 在 z-index 1 之上 */}
+      <PaperGrain />
+
+      <div className={styles.inner}>
+        {/* Stage 1: demo — the hero's centerpiece, fades in first */}
+        <motion.div
+          className={styles.demo}
+          aria-hidden={stage < 1}
+          initial={{ opacity: 0, y: 12, scale: 0.985 }}
+          animate={
+            stage >= 1
+              ? { opacity: 1, y: 0, scale: 1 }
+              : { opacity: 0, y: 12, scale: 0.985 }
+          }
+          transition={{ duration: 0.7, ease: [0.34, 1.56, 0.64, 1] }}
+        >
+          <div className={styles.demoCard}>
+            <TypefallDemo />
+          </div>
+        </motion.div>
+
+        {/* Stage 2: title fadeUp (brand caption removed — AppHeader
+            already shows the brand mark + name on the same screen) */}
+        <h1
+          className={styles.title}
+          aria-label={HERO_TITLE}
+          aria-hidden={stage < 2}
+        >
+          {HERO_TITLE.split('').map((ch, i) => (
+            <span
+              key={i}
+              className={styles.char}
+              style={{
+                animationDelay: `${i * 30}ms`,
+                animationPlayState: stage >= 2 ? 'running' : 'paused',
+              }}
+              aria-hidden
+            >
+              {ch === ' ' ? ' ' : ch}
+            </span>
+          ))}
+        </h1>
+
+        <div
+          className={
+            styles.rule + (stage >= 3 ? ` ${styles.ruleIn}` : '')
+          }
+          aria-hidden
+        />
+
+        {/* Stage 3: subtitle + kicker */}
+        <p
+          className={styles.subtitle + (stage >= 3 ? ` ${styles.subtitleIn}` : '')}
+          aria-hidden={stage < 3}
+        >
+          {HERO_SUBTITLE}
+        </p>
+
+        {/* Stage 4: CTA + foot */}
+        <motion.button
+          type="button"
+          className={styles.start}
+          onClick={handleStart}
+          aria-hidden={stage < 4}
+          initial={{ opacity: 0, y: 8 }}
+          animate={stage >= 4 ? { opacity: 1, y: 0 } : { opacity: 0, y: 8 }}
+          transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
+          whileHover={{ y: -2 }}
+          whileTap={{ y: 0 }}
+        >
+          <span className={styles.startLabel}>{startLabel}</span>
+          <span className={styles.startArrow} aria-hidden>→</span>
+        </motion.button>
+      </div>
+    </section>
+  );
+}

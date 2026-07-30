@@ -121,6 +121,154 @@
   --duration-fast:  200ms;
   --duration-base:  350ms;
   --duration-slow:  500ms;
+
+  /* ----- Layout: wider containers for the landing page -----
+     The practice column stays 680px (intimate). The landing page
+     needs a 1200px wide column to host the lib carousel + grid,
+     and a 920px medium column for the daily-plan / word-sentence
+     sections. */
+  --content-narrow:  680px;
+  --content-medium:  920px;
+  --content-wide:    1200px;
+
+  /* ----- Landing-only color tokens -----
+     Hero 用淡绿治愈风(鼠尾草 sage)。--accent 朱砂保留作为错改 flash
+     专属语义色,不再用于日常装饰(装订/笔尖/erase 都换成治愈绿)。
+     --heal-tint 给 hero 区一抹淡薄荷雾,跟 --surface 二度灰区分但
+     保持同色温,避免出现"暖白纸"那种割裂感。 */
+  --heal-bg:          #F1F7F2;   /* 薄荷雾 —— hero/landing 主底色 */
+  --heal-card:        rgba(255, 255, 255, 0.72);   /* 笔记本卡半透白 */
+  --heal-card-solid:  #FAFCF9;   /* 不透明 fallback */
+  --heal-line:        rgba(135, 184, 145, 0.28);   /* 装订/栅格线 */
+  --heal-glow:        rgba(135, 184, 145, 0.18);   /* hero 中心晕染 */
+  --heal-grid:        rgba(74, 110, 84, 0.06);     /* 1px 栅格 */
+  --heal-sage:        #87B891;   /* 鼠尾草 —— 笔尖/erase/progress */
+  --heal-sage-soft:   #B5D1BC;   /* 浅鼠尾草 —— 装订线/分隔 */
+  --heal-ink:         #2C3A30;   /* 深苔文字(不再纯黑) */
+  /* 朱砂 --accent 保留 —— 仅在错改 flash 用 600ms,其余地方不再出现 */
+  /* Carousel / lib-market cover tints —— 三个 level 梯度,都在治愈绿系内
+     走深→浅,跟 hero 同一色温。cool 是最深,a1/a2;warm 是最浅,c1/c2。 */
+  --tint-cool:        #D6E2DA;   /* a1/a2 covers —— 深薄荷 */
+  --tint-mist:        #E3EBE0;   /* b1/b2 covers —— 中薄荷 */
+  --tint-warm:        #EEF2E8;   /* c1/c2 covers —— 浅薄荷 */
+
+  /* ----- Landing-d (薄荷青柠 / Citrus Mint) -----
+     近白底 + 高饱和青柠绿 + 鲜柠檬黄 + 浅松针字 —— 整体偏亮丽。
+     跟 --heal-* / --sf-* 独立,landing 页面只走这组。
+     气质:凉、亮、轻快有活力。
+     错字符的 --cm-accent 用琥珀黄,跟 CTA 跳出色一致。 */
+  --cm-bg:            #FFFFFF;   /* 纯白 —— hero 主底色,纸面感 */
+  --cm-bg-grain:      rgba(63, 209, 122, 0.06);   /* 青柠 noise 基色 */
+  --cm-card:          rgba(255, 255, 255, 0.96); /* 卡片近不透白 */
+  --cm-line:          rgba(63, 209, 122, 0.36);  /* 青柠装订线 */
+  --cm-mint:          #3FD17A;   /* 鲜青柠绿 —— 主色,enso stroke */
+  --cm-mint-deep:     #16A35E;   /* 深青柠 —— 落定字色 / focus 环 */
+  --cm-lemon:         #FFD91A;   /* 鲜柠檬黄 —— 大面积主色,CTA fill */
+  --cm-lemon-deep:    #F5B800;   /* 深柠檬 —— CTA hover */
+  --cm-ink:           #2D5A3F;   /* 浅松针字 —— 比松针浅一档,亮 */
+  --cm-ink-soft:      #6B8C7A;   /* 副文字 / 弱化标签 */
+  --cm-accent:        #FF9F1C;   /* 琥珀橘 —— enso 品牌标记 + 错字符 flash */
+  --cm-rule:          rgba(45, 90, 63, 0.12);    /* 印刷感分隔线 */
+
+  /* spring-out 缓动 —— 字符落地时轻轻弹一下 */
+  --cm-spring:        cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* 纸纹 noise —— 青柠调,SVG filter inline,不产生额外网络请求 */
+  --cm-grain-url:     url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.36 0 0 0 0 0.78 0 0 0 0 0.54 0 0 0 0.5 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+
+/* ============================================================
+   Dark mode (manual toggle)
+   ------------------------------------------------------------
+   Triggered by `data-theme="dark"` on <html> (set by ThemeProvider
+   on user click). System preference is **not** the default — this
+   product ships light-first. The landing page inverts cleanly
+   because the tokens it relies on are all in this group.
+   The drill surface was authored light-only; it stays light in
+   dark mode (we don't pretend to redo the entire design system).
+
+   If the user has NOT manually toggled, we still honour OS
+   preference as a fallback (this keeps the "follows system" feel
+   for users who never open the toggle).
+   ============================================================ */
+[data-theme="dark"] {
+  --surface:               #0E1116;
+  --surface-elevated:      #161B22;
+  --surface-secondary:     #1F2630;
+  --surface-tertiary:      #2A323D;
+  --label-primary:         #ECEFF4;
+  --label-secondary:       #C2C8D0;
+  --label-tertiary:        #8E97A3;
+  --label-quaternary:      #5C6773;
+  --label-mist:            #2F3741;
+  --separator:             #2A323D;
+  --heal-bg:               #0F1411;   /* 森林夜 —— hero 主底色 */
+  --heal-card:             rgba(28, 38, 32, 0.65);
+  --heal-card-solid:       #1A241D;
+  --heal-line:             rgba(135, 184, 145, 0.20);
+  --heal-glow:             rgba(135, 184, 145, 0.22);
+  --heal-grid:             rgba(166, 207, 176, 0.06);
+  --heal-sage:             #A6CFB0;
+  --heal-sage-soft:        #6F9079;
+  --heal-ink:              #E8EFE9;
+  /* ----- Landing-d dark (薄荷夜 / Citrus Night) -----
+   近黑薄荷夜底色 + 鲜亮青柠 + 柠檬黄保留跳出 + 浅松针亮字 */
+  --cm-bg:                 #0E1A14;   /* 薄荷夜 —— hero 主底色 */
+  --cm-bg-grain:           rgba(255, 255, 255, 0.03);
+  --cm-card:               rgba(28, 48, 36, 0.7);
+  --cm-line:               rgba(63, 209, 122, 0.28);
+  --cm-mint:               #5DE89A;   /* 提亮的鲜青柠,薄荷夜下也能读 */
+  --cm-mint-deep:          #3FD17A;
+  --cm-lemon:              #FFD91A;
+  --cm-lemon-deep:         #F5B800;
+  --cm-ink:                #E8F4EC;
+  --cm-ink-soft:           #A8C2B2;
+  --cm-accent:             #FFB347;   /* 夜下琥珀橘稍亮 */
+  --cm-rule:               rgba(232, 244, 236, 0.14);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    /* 用户从未手动设置过主题 —— 跟随系统 */
+    --surface:               #0E1116;
+    --surface-elevated:      #161B22;
+    --surface-secondary:     #1F2630;
+    --surface-tertiary:      #2A323D;
+    --label-primary:         #ECEFF4;
+    --label-secondary:       #C2C8D0;
+    --label-tertiary:        #8E97A3;
+    --label-quaternary:      #5C6773;
+    --label-mist:            #2F3741;
+    --separator:             #2A323D;
+    --heal-bg:               #0F1411;
+    --heal-card:             rgba(28, 38, 32, 0.65);
+    --heal-card-solid:       #1A241D;
+    --heal-line:             rgba(135, 184, 145, 0.20);
+    --heal-glow:             rgba(135, 184, 145, 0.22);
+    --heal-grid:             rgba(166, 207, 176, 0.06);
+    --heal-sage:             #A6CFB0;
+    --heal-sage-soft:        #6F9079;
+    --heal-ink:              #E8EFE9;
+    --cm-bg:                 #0E1A14;
+    --cm-bg-grain:           rgba(255, 255, 255, 0.03);
+    --cm-card:               rgba(28, 48, 36, 0.7);
+    --cm-line:               rgba(63, 209, 122, 0.28);
+    --cm-mint:               #5DE89A;
+    --cm-mint-deep:          #3FD17A;
+    --cm-lemon:              #FFD91A;
+    --cm-lemon-deep:         #F5B800;
+    --cm-ink:                #E8F4EC;
+    --cm-ink-soft:           #A8C2B2;
+    --cm-accent:             #FFB347;
+    --cm-rule:               rgba(232, 244, 236, 0.14);
+  }
+}
+[data-theme="dark"] body { background-color: var(--surface); }
+[data-theme="dark"] .app-header {
+  /* Dark chrome: deep surface + same blur, hairline flips to
+     light-alpha so the 1px separator stays visible against
+     the near-black background. */
+  background: rgba(14, 17, 22, 0.72);
+  border-bottom-color: rgba(236, 239, 244, 0.08);
 }
 
 /* ============================================================
@@ -1234,20 +1382,89 @@ select:focus-visible {
   top: 0;
   left: 0;
   right: 0;
-  height: 36px;
-  padding: 0 var(--space-5);
+  height: 52px;
+  padding: 0 clamp(20px, 4vw, 40px);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  /* Header 跟 hero 同一色温 —— 半透薄荷绿雾,blur 让下方内容透出 */
+  background: color-mix(in srgb, var(--heal-bg) 72%, transparent);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border-bottom: 1px solid color-mix(in srgb, var(--heal-sage) 12%, transparent);
   z-index: 50;
   font-family: var(--font-body);
 }
 
-/* Brand mark + name on the left */
+/* Landing variant — transparent, sits on top of the Citrus Mint hero.
+   The default frosted-glass heal-bg tint would read as a green band
+   cutting the hero in half; here the chrome just floats on the page
+   bg with a thin mint hairline. Brand mark colour and sizing also
+   adapt so the EnsoMark SVG (not the legacy ◯ glyph) fits cleanly. */
+.app-header--landing {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom-color: rgba(45, 90, 63, 0.10);
+}
+.app-header--landing .app-header__brand-name {
+  color: var(--cm-ink, #2D5A3F);
+}
+.app-header--landing .app-header__brand-mark {
+  width: auto;
+  height: auto;
+  color: var(--cm-mint-deep, #16A35E);
+}
+/* Login / signup on landing — match the Citrus Mint palette so the
+   chrome buttons don't read as "charcoal pills on a mint page". The
+   CTA below the hero uses lemon fill + ink text, so we keep the same
+   ink colour here but switch to a mint hairline outline for the
+   secondary (signup) and a mint fill for the primary (login) — the
+   two sit visually related to the CTA without competing with it. */
+.app-header--landing .app-header__login {
+  color: #FFFFFF;
+  background: var(--cm-mint-deep, #16A35E);
+  border-color: var(--cm-mint-deep, #16A35E);
+  box-shadow: 0 1px 2px rgba(31, 58, 43, 0.06),
+              0 4px 12px rgba(63, 209, 122, 0.32);
+}
+.app-header--landing .app-header__login:hover {
+  background: #0E7E47;     /* one notch deeper, matches Hero CTA hover */
+  border-color: #0E7E47;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(31, 58, 43, 0.10),
+              0 8px 22px rgba(63, 209, 122, 0.42);
+}
+.app-header--landing .app-header__login:active {
+  transform: translateY(0);
+}
+.app-header--landing .app-header__login:focus-visible {
+  outline-color: var(--cm-mint-deep, #16A35E);
+}
+.app-header--landing .app-header__signup {
+  color: var(--cm-ink, #2D5A3F);
+  background: transparent;
+  border-color: rgba(45, 90, 63, 0.32);
+  box-shadow: none;
+}
+.app-header--landing .app-header__signup:hover {
+  color: var(--cm-mint-deep, #16A35E);
+  background: rgba(63, 209, 122, 0.10);
+  border-color: var(--cm-mint-deep, #16A35E);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(63, 209, 122, 0.18);
+}
+.app-header--landing .app-header__signup:active {
+  transform: translateY(0);
+}
+.app-header--landing .app-header__signup:focus-visible {
+  outline-color: var(--cm-mint-deep, #16A35E);
+}
+
+/* Brand mark + name on the left — logo + title group.
+   The enso circle is the visual anchor; the type carries the product
+   name with a touch of tracking so it reads as a "wordmark" rather
+   than a sentence. */
 .app-header__brand {
   display: inline-flex;
   align-items: center;
@@ -1257,62 +1474,82 @@ select:focus-visible {
   border-radius: var(--radius-sm);
   color: var(--label-primary);
   text-decoration: none;
-  transition: background var(--duration-fast) var(--ease-standard);
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
 }
 .app-header__brand:hover {
   background: var(--surface-secondary);
+  transform: translateY(-1px);
+}
+.app-header__brand:active {
+  transform: translateY(0);
 }
 .app-header__brand:focus-visible {
   outline: 2px solid var(--label-primary);
   outline-offset: 2px;
 }
 .app-header__brand-mark {
-  font-size: 16px;
+  font-size: 18px;
   color: var(--accent);
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
 }
 .app-header__brand-name {
-  font-size: 14px;
-  font-weight: var(--type-body-emphasis-weight);
-  letter-spacing: -0.01em;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--heal-ink);
+  white-space: nowrap;
 }
 @media (max-width: 640px) {
   /* Drop the brand name on phones — the enso still reads as
-     "go home", and 36px is too tight for both glyphs + pill. */
+     "go home", and 52px is tight for both glyph + dual pills. */
   .app-header__brand-name { display: none; }
 }
 
-/* Right-side nav: login pill (and future avatar/menu slots) */
+/* Right-side nav: ghost 登录 + filled 注册 (or the inverse in
+   anonymous state — see AppHeader.tsx). The two pills share a
+   32px height so the chrome stays one row regardless of state. */
 .app-header__nav {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 .app-header__login {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 28px;
-  padding: 0 var(--space-4);
+  height: 32px;
+  padding: 0 var(--space-5);
   font-family: inherit;
   font-size: 13px;
   font-weight: var(--type-body-emphasis-weight);
-  letter-spacing: 0.01em;
-  color: var(--on-primary);
-  background: linear-gradient(180deg, #2C2C2E 0%, #1C1C1E 100%);
-  border: 0;
+  letter-spacing: 0.005em;
+  /* color follows --surface so dark mode inverts automatically:
+     light = dark fill + light text, dark = light fill + dark text. */
+  color: var(--surface);
+  background: var(--label-primary);
+  border: 1px solid var(--label-primary);
   border-radius: var(--radius-circle);
   text-decoration: none;
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-  transition: opacity var(--duration-fast) var(--ease-standard),
-              transform var(--duration-fast) var(--ease-standard),
-              box-shadow var(--duration-fast) var(--ease-standard);
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
 }
 .app-header__login:hover {
-  opacity: 0.88;
+  background: var(--label-secondary);
+  border-color: var(--label-secondary);
   transform: translateY(-1px);
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.14);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.14);
 }
 .app-header__login:active {
   transform: translateY(0);
@@ -1370,6 +1607,141 @@ select:focus-visible {
   background: var(--surface-secondary);
 }
 .app-header__logout:focus-visible {
+  outline: 2px solid var(--label-primary);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   Landing page — main shell
+   ------------------------------------------------------------
+   Wider container than the practice column. Three section
+   widths cascade down the page:
+     - 1200px: lib market (carousel + grid)
+     -  920px: daily plan, daily word/sentence
+     -  680px: fallback for very long hero copy
+   ============================================================ */
+
+/* Generic section header used by every landing section. */
+.section-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0 auto var(--space-7);
+  max-width: 720px;
+  text-align: left;
+  padding: 0 var(--space-5);
+}
+.section-header__caption {
+  font-size: var(--type-caption);
+  font-weight: 600;
+  color: var(--heal-sage);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0;
+  user-select: none;
+}
+.section-header__title {
+  font-size: clamp(28px, 4.4vw, 44px);
+  font-weight: var(--type-title-1-weight);
+  color: var(--heal-ink);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin: 0;
+}
+.section-header__hint {
+  font-size: var(--type-body);
+  color: var(--heal-ink);
+  opacity: 0.7;
+  line-height: 1.5;
+  margin: 0;
+  max-width: 56ch;
+}
+
+/* Add progress bar + recent chip to existing home tiles. */
+.home__tile {
+  position: relative;
+  padding-bottom: calc(var(--space-4) + 3px); /* leave room for the bar */
+}
+.home__tile-progress {
+  position: absolute;
+  left: var(--space-5);
+  right: var(--space-5);
+  bottom: calc(var(--space-3) - 2px);
+  height: 3px;
+  background: var(--heal-line);
+  border-radius: var(--radius-circle);
+  overflow: hidden;
+}
+.home__tile-progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--heal-sage);
+  transition: width var(--duration-base) var(--ease-standard);
+}
+.home__tile--recent {
+  border-color: var(--heal-sage);
+}
+.home__tile--recent:hover {
+  border-color: var(--heal-sage-soft);
+}
+.home__tile-chip {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 var(--space-2);
+  background: var(--heal-sage);
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  border-radius: var(--radius-sm);
+  z-index: 1;
+}
+/* ============================================================
+   AppHeader anonymous state — Sign up (ghost) + Log in (primary)
+   ------------------------------------------------------------
+   Two-pill pair: ghost outline first (secondary action), filled
+   pill second (primary action). Same 28px height so the chrome
+   stays one row regardless of auth state. Mirrors the visual
+   hierarchy of the auth pages' submit buttons.
+   ============================================================ */
+.app-header__signup {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 var(--space-5);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: var(--type-body-emphasis-weight);
+  letter-spacing: 0.005em;
+  color: var(--label-primary);
+  background: transparent;
+  border: 1px solid var(--label-primary);
+  border-radius: var(--radius-circle);
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    color      var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    transform  var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+.app-header__signup:hover {
+  color: var(--surface);
+  background: var(--label-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.10);
+}
+.app-header__signup:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.app-header__signup:focus-visible {
   outline: 2px solid var(--label-primary);
   outline-offset: 2px;
 }
