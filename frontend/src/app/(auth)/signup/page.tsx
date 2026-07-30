@@ -1,32 +1,48 @@
 'use client';
 
 /**
- * /signup — email + password + confirm, with live password strength.
+ * /signup — step-by-screen sign-up UI.
  *
- * Implementation per design-auth.md:
- *   - Title 4 chars × 50ms stagger (auth-char-rise)
- *   - Subtitle 110ms after title (slightly earlier than login to
- *     emphasize "quick" copy)
- *   - 3 field stagger: 200ms / 280ms / 340ms
- *   - Password strength meter (5-point scale, live updates)
- *   - Requirements checklist (✓ / ○ per rule)
- *   - Confirm-password match check
- *   - Card shake on submit error + per-field attention motion
- *   - Success dissolve → /history
+ * Visual style mirrors /login: per-screen subtitle carousel, hero
+ * CN/EN pair, underline-only input, 56×56 icon-only Next button,
+ * 3-dot progress (2 dots only — signup has 2 screens, dot count
+ * is honest), pane cross-fade. The flow is 2 screens:
+ *
+ *   Screen 1 — email (same component as login's Screen 1, with
+ *              a different title/subtitle)
+ *   Screen 2 — password + confirm: two stacked PIN rows. The
+ *              password row and the confirm row share one eye
+ *              toggle (so toggling once reveals/hides both).
+ *              A live match hint flips between "✓ 一致" (green)
+ *              and "两次输入不一致" (red) as the user types.
+ *              Next fires `onSubmit` when both are 8 chars and
+ *              equal.
+ *
+ * Implementation notes:
+ *   - Title 4 chars × 120ms stagger (auth-char-rise).
+ *   - Subtitle 2-line, 2s fade carousel — per-screen content.
+ *   - PASSWORD_LENGTH = 8 to match backend min_length=8 and
+ *     login's PIN length (kept in lockstep).
+ *   - Success: dissolve + refresh auth context + nav to
+ *     redirectTo (the ?from= value, or '/' if absent). The
+ *     legacy /history hard-code is dropped.
+ *   - Reduced-motion: all motion disabled.
  *
  * API:
- *   POST /api/auth/signup { email, password, display_name? } →
- *   UserPublic + Set-Cookie. On success, refresh() the AuthProvider
- *   so the top chrome swaps login pill → avatar before the route
- *   changes.
+ *   POST /api/auth/signup { email, password } → UserPublic + Set-Cookie.
+ *   On success, refresh() the AuthProvider so the top chrome swaps
+ *   login pill → avatar before the route changes.
  */
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Suspense,
+  ChangeEvent,
+  FocusEvent,
   FormEvent,
+  RefObject,
+  useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -40,29 +56,12 @@ interface FieldErrors {
   confirm?: string;
 }
 
-// UI hint, not a real strength gate. Backend enforces 8+ chars length
-// only. See design-auth.md §7.
-function calcPasswordStrength(pw: string): 0 | 1 | 2 | 3 | 4 | 5 {
-  if (!pw) return 0;
-  let score = 0;
-  if (pw.length >= 8) score++;
-  const hasLower = /[a-z]/.test(pw);
-  const hasUpper = /[A-Z]/.test(pw);
-  const hasLetter = hasLower || hasUpper;
-  const hasDigit = /\d/.test(pw);
-  if (score >= 1 && hasLetter && hasDigit) score++;
-  if (score >= 2 && /[^A-Za-z0-9]/.test(pw)) score++;
-  if (pw.length >= 12) score++;
-  if (pw.length >= 16) score++;
-  return Math.min(score, 5) as 0 | 1 | 2 | 3 | 4 | 5;
-}
-
 /**
  * Suspense shell — required by Next.js 14 for any page that calls
  * useSearchParams(). Without this, the page bails to the not-found
  * boundary during the initial render. The fallback is a thin
- * placeholder card so there's no flash between hydration and the
- * signup form appearing.
+ * placeholder with the same card-rise animation so there's no flash
+ * between hydration and the form appearing.
  */
 export default function SignupPage() {
   return (
@@ -83,7 +82,8 @@ function SignupForm() {
   const searchParams = useSearchParams();
   const { refresh } = useAuth();
   // Read ?from= once on mount. safeRedirectPath() defends against
-  // open-redirect attacks. Fallback to '/' when absent or invalid.
+  // open-redirect attacks. When absent or invalid, the fallback '/'
+  // kicks in. This replaces the legacy hard-coded '/history' redirect.
   const fromParam = searchParams?.get('from') ?? null;
   const redirectTo = safeRedirectPath(fromParam, '/');
   const [email, setEmail] = useState('');
@@ -94,51 +94,170 @@ function SignupForm() {
   const [submitting, setSubmitting] = useState(false);
   const [dissolving, setDissolving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // Bumped on every error event so the wrapper div re-mounts and
+  // re-triggers the shake animation. Form state is preserved because
+  // the wrapper is the parent — only its key changes, not the form's.
   const [shakeKey, setShakeKey] = useState(0);
+
+  // Step-by-screen flow state. 1 = email, 2 = password+confirm.
+  // No Screen 3 (signup commits directly from Screen 2).
+  const [screen, setScreen] = useState<1 | 2>(1);
+
+
+  // Subtitle carousel — per-screen CN+EN pair, 2s loop.
+  const SUBTITLE_LINES_BY_SCREEN: Record<1 | 2, readonly { lang: 'zh' | 'en'; text: string }[]> = {
+    1: [
+      { lang: 'zh', text: '请输入邮箱' },
+      { lang: 'en', text: 'Please enter your email' },
+    ],
+    2: [
+      { lang: 'zh', text: '请输入密码' },
+      { lang: 'en', text: 'Please enter your password' },
+    ],
+  };
+  const subtitleLines = SUBTITLE_LINES_BY_SCREEN[screen];
+  const [subtitleIndex, setSubtitleIndex] = useState(0);
+  useEffect(() => {
+    setSubtitleIndex(0);
+  }, [screen]);
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setSubtitleIndex((i) => (i + 1) % subtitleLines.length);
+    }, 2000);
+    return () => window.clearInterval(id);
+  }, [subtitleLines]);
 
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const confirmRef = useRef<HTMLInputElement>(null);
 
-  const strength = useMemo(() => calcPasswordStrength(password), [password]);
+  // Tracks which PIN row currently holds the caret. Only the focused
+  // row renders its caret + dark underline so the user can tell at
+  // a glance which row they're editing. 'null' = no row focused (a
+  // brief gap before the user clicks, OR after a blur; either way
+  // neither row shows the caret).
+  const [focusedRow, setFocusedRow] = useState<'password' | 'confirm' | null>(
+    null,
+  );
 
-  const validateEmail = (value: string): string | null => {
+  const validateEmail = useCallback((value: string): string | null => {
     if (!value) return null;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
       return '邮箱格式不正确';
     }
     return null;
-  };
+  }, []);
 
+  // PASSWORD_LENGTH is the single source of truth — kept in lockstep
+  // with the login page (8) and the backend's min_length=8.
+  const PASSWORD_LENGTH = 8;
+
+  // Screen 1 advance gate — non-empty + valid email.
+  const canAdvanceFromScreen1 =
+    email.length > 0 && emailFormatError === null;
+
+  // Screen 2 advance gate — both PIN rows are full AND match.
+  // Backend enforces length-only on the password; the match check
+  // is purely client-side (the backend has no "confirm" field).
+  const canAdvanceFromScreen2 =
+    password.length === PASSWORD_LENGTH &&
+    confirm.length === PASSWORD_LENGTH &&
+    password === confirm;
+
+  // Live match hint state — drives the .auth-screen__match-hint
+  // node below the two PIN rows. Four states:
+  //   - empty (both inputs untouched — no message)
+  //   - incomplete (at least one row has fewer than PASSWORD_LENGTH
+  //     chars — soft warning: "Password needs 8 digits")
+  //   - match (both full + equal — green check)
+  //   - mismatch (both full + differ — red)
+  const matchHint: {
+    tone: 'empty' | 'incomplete' | 'match' | 'mismatch';
+    zh: string;
+    en: string;
+  } = (() => {
+    if (password.length === 0 && confirm.length === 0) {
+      return { tone: 'empty', zh: '', en: '' };
+    }
+    if (password.length === PASSWORD_LENGTH && confirm.length === PASSWORD_LENGTH) {
+      if (password === confirm) {
+        // Leading ✓ comes from CSS ::before — don't duplicate here.
+        return { tone: 'match', zh: '一致', en: 'match' };
+      }
+      // Leading ⚠ comes from CSS ::before — don't duplicate here.
+      return { tone: 'mismatch', zh: '两次输入不一致', en: "Doesn't match" };
+    }
+    // At least one row is partial — soft warning.
+    return { tone: 'incomplete', zh: '密码需要 8 位', en: 'Password needs 8 digits' };
+  })();
+
+  // Trigger card shake + bounce the user to the offending screen
+  // whenever a new error arrives. Matches login's pattern; field
+  // errors route to the screen that owns the field.
   useEffect(() => {
     const hasErrors = Object.values(errors).some(Boolean);
-    if (hasErrors) {
-      setShakeKey((k) => k + 1);
-      const order: (keyof FieldErrors)[] = ['email', 'password', 'confirm'];
-      const firstInvalid = order.find((k) => errors[k]);
-      if (firstInvalid === 'email') emailRef.current?.focus();
-      else if (firstInvalid === 'password') passwordRef.current?.focus();
-      else if (firstInvalid === 'confirm') confirmRef.current?.focus();
+    if (!hasErrors) return;
+    setShakeKey((k) => k + 1);
+    if (errors.email) {
+      setScreen(1);
+      requestAnimationFrame(() => emailRef.current?.focus());
+    } else if (errors.password || errors.confirm) {
+      setScreen(2);
+      // Prefer focusing password (the field the user most likely
+      // needs to fix); the confirm ref is the secondary target.
+      requestAnimationFrame(() => passwordRef.current?.focus());
     }
   }, [errors]);
 
+  // Auto-focus the password row when the user lands on Screen 2.
+  // Without this, focusedRow stays null and neither row shows the
+  // caret until the user clicks — first-impression "nothing's
+  // happening" is the worst state. The onFocus handler on the
+  // hidden input picks up from here and sets focusedRow to
+  // 'password', so the caret appears in the right slot.
+  useEffect(() => {
+    if (screen === 2) {
+      const id = window.setTimeout(
+        () => passwordRef.current?.focus(),
+        80,
+      );
+      return () => window.clearTimeout(id);
+    }
+    return undefined;
+  }, [screen]);
+
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // Only Screen 2's Next button (type="submit") should ever reach
+    // here. A stray Enter on the email input on Screen 1 must NOT
+    // hit the API.
+    if (screen !== 2) return;
     if (submitting || dissolving) return;
 
-    const localEmailError = validateEmail(email);
+    // Client-side validation gate. canAdvanceFromScreen2 already
+    // checks length + match; we re-run the email check too in case
+    // the user advanced with a valid email then it became invalid
+    // (it can't, but defense in depth).
     const localErrors: FieldErrors = {};
+    const localEmailError = validateEmail(email);
     if (localEmailError) localErrors.email = localEmailError;
-    if (password.length < 8) localErrors.password = '密码至少 8 个字符';
-    if (confirm !== password) localErrors.confirm = '两次输入的密码不一致';
-
-    if (Object.keys(localErrors).length > 0) {
+    if (password.length < PASSWORD_LENGTH) {
+      localErrors.password = `密码至少 ${PASSWORD_LENGTH} 个字符`;
+    }
+    if (confirm !== password) {
+      localErrors.confirm = '两次输入的密码不一致';
+    }
+    if (Object.values(localErrors).some(Boolean)) {
       setErrors(localErrors);
-      setEmailFormatError(localEmailError);
+      if (localEmailError) setEmailFormatError(localEmailError);
       setShakeKey((k) => k + 1);
-      if (localErrors.email) emailRef.current?.focus();
-      else if (localErrors.password) passwordRef.current?.focus();
-      else if (localErrors.confirm) confirmRef.current?.focus();
+      if (localErrors.email) {
+        setScreen(1);
+        requestAnimationFrame(() => emailRef.current?.focus());
+      } else {
+        // password or confirm error — stay on Screen 2, focus pw.
+        requestAnimationFrame(() => passwordRef.current?.focus());
+      }
       return;
     }
 
@@ -150,28 +269,102 @@ function SignupForm() {
       setDissolving(true);
       await new Promise((r) => setTimeout(r, 200));
       await refresh();
-      router.replace('/history');
+      // Land on the page the user came from (/?lib=X if they were
+      // practicing), or `/` if no `?from=` was supplied. Replaces
+      // the legacy hard-coded '/history' redirect.
+      router.replace(redirectTo);
     } catch (err) {
       const apiErr = err as ApiError;
       if (apiErr.fieldErrors) {
         setErrors(apiErr.fieldErrors as FieldErrors);
+        if (apiErr.fieldErrors.email) setScreen(1);
+        else if (apiErr.fieldErrors.password || apiErr.fieldErrors.confirm) {
+          setScreen(2);
+        }
       } else {
+        // Backend 409 "该邮箱已注册" lands here (no field_errors
+        // envelope). Surface on the email slot — it IS an email
+        // problem even though the backend didn't tag it as one.
         setErrors({ email: apiErr.message ?? '注册失败' });
+        setScreen(1);
       }
     } finally {
       setSubmitting(false);
     }
   }
 
+  // Email error precedence: server field error wins over client
+  // format error (the server has the final say on whether this
+  // email exists).
   const emailError = errors.email || emailFormatError;
-  const passwordError = errors.password;
-  const confirmError = errors.confirm;
+
+  // Screen 1 event handlers. Typed buffer mirrors email on Screen 1
+  // and feeds the per-char highlight on the small EN hint below the
+  // hero CN word.
+  const TARGET_WORD = 'email';
+
+  function onEmailChange(e: ChangeEvent<HTMLInputElement>) {
+    const next = e.target.value;
+    setEmail(next);
+    if (errors.email) setErrors((p) => ({ ...p, email: undefined }));
+    if (emailFormatError) setEmailFormatError(validateEmail(next));
+  }
+
+  function onEmailFocus() {
+    // No-op on Screen 1.
+  }
+
+  function onEmailBlur(e: FocusEvent<HTMLInputElement>) {
+    setEmailFormatError(validateEmail(e.target.value));
+  }
+
+  function onPasswordChange(e: ChangeEvent<HTMLInputElement>) {
+    const next = e.target.value;
+    setPassword(next);
+    if (errors.password) {
+      setErrors((p) => ({ ...p, password: undefined }));
+    }
+    // Live-clear confirm mismatch as soon as the password side is
+    // edited and matches the confirm side again.
+    if (errors.confirm && next === confirm) {
+      setErrors((p) => ({ ...p, confirm: undefined }));
+    }
+  }
+
+  function onConfirmChange(e: ChangeEvent<HTMLInputElement>) {
+    const next = e.target.value;
+    setConfirm(next);
+    if (errors.confirm && next === password) {
+      setErrors((p) => ({ ...p, confirm: undefined }));
+    }
+  }
+
+  function onNext() {
+    if (screen === 1) {
+      if (!canAdvanceFromScreen1) return;
+      setScreen(2);
+      // Soft-focus the password input on the next frame, after
+      // React commits the screen-2 JSX.
+      requestAnimationFrame(() => passwordRef.current?.focus());
+      return;
+    }
+    if (screen === 2 && !canAdvanceFromScreen2) return;
+    // (Screen 2's Next button is type="submit" — no explicit
+    // submit call needed.)
+  }
+
+  function onPrev() {
+    if (screen === 2) {
+      setScreen(1);
+      requestAnimationFrame(() => emailRef.current?.focus());
+    }
+  }
 
   return (
     <div key={`shake-${shakeKey}`} className="auth-form-shake-wrap">
       <form
         onSubmit={onSubmit}
-        className={`auth-form${dissolving ? ' auth-form--dissolving' : ''}`}
+        className={`auth-screen${dissolving ? ' auth-screen--dissolving' : ''}`}
         noValidate
       >
         <h1 className="auth-title">
@@ -186,230 +379,315 @@ function SignupForm() {
           ))}
         </h1>
 
-        <p className="auth-form__subtitle">几秒钟创建账号</p>
-
-        <label className="auth-field auth-field-1">
-          <span className="auth-field__label">邮箱</span>
-          <span className="auth-field__input-wrap">
-            <svg
-              className="auth-field__icon"
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
+        <div className="auth-screen__subtitle" aria-live="polite">
+          {subtitleLines.map((line, i) => (
+            <span
+              key={`${screen}-${line.lang}`}
+              className="auth-screen__subtitle-line"
+              data-active={i === subtitleIndex ? 'true' : 'false'}
+              lang={line.lang}
             >
-              <rect x="2" y="3.5" width="12" height="9" rx="1" />
-              <path d="M2.5 4.5 L8 9 L13.5 4.5" />
-            </svg>
+              {line.text}
+            </span>
+          ))}
+        </div>
+
+        {/* All panes are mounted simultaneously; only one has
+            data-active="true" and contributes height. The cross-fade
+            is via the auth-screen__pane transition (240ms). */}
+        <div className="auth-screen__pane" data-active={screen === 1 ? 'true' : 'false'}>
+          <div className="auth-screen__stage" data-screen="1">
+            <p className="auth-screen__zh-large" aria-hidden="true">
+              邮箱
+            </p>
+
+            <p className="auth-screen__en-hint" aria-hidden="true">
+              email
+            </p>
+
             <input
               ref={emailRef}
               type="email"
               inputMode="email"
               autoComplete="email"
               required
+              aria-label="邮箱"
               aria-invalid={emailError ? true : undefined}
               value={email}
-              onChange={(ev) => {
-                setEmail(ev.target.value);
-                if (errors.email) {
-                  setErrors((prev) => ({ ...prev, email: undefined }));
-                }
-                if (emailFormatError) {
-                  setEmailFormatError(validateEmail(ev.target.value));
-                }
-              }}
-              onBlur={(ev) => setEmailFormatError(validateEmail(ev.target.value))}
-              className={`auth-field__input auth-field__input--with-icon${emailError ? ' auth-field__input--error' : ''}`}
+              onChange={onEmailChange}
+              onFocus={onEmailFocus}
+              onBlur={onEmailBlur}
+              className="auth-screen__input"
             />
-          </span>
-          {emailError ? (
-            <span className="auth-field__error" role="alert">{emailError}</span>
-          ) : null}
-        </label>
 
-        <label className="auth-field auth-field-2">
-          <span className="auth-field__label">密码</span>
-          <span className="auth-field__input-wrap">
-            <svg
-              className="auth-field__icon"
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
+            {emailError ? (
+              <span className="auth-field__error" role="alert">
+                {emailError}
+              </span>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={onNext}
+              disabled={!canAdvanceFromScreen1}
+              className="auth-screen__next"
+              aria-label="下一步"
             >
-              <rect x="3" y="7" width="10" height="7" rx="1" />
-              <path d="M5 7 V5 a3 3 0 0 1 6 0 V7" />
-            </svg>
+              <span className="auth-screen__next-arrow" aria-hidden="true">
+                →
+              </span>
+            </button>
+
+            <div className="auth-screen__progress" aria-hidden="true">
+              <span className="auth-screen__dot" data-active="true" />
+              <span className="auth-screen__dot" data-active="false" />
+            </div>
+          </div>
+        </div>
+
+        <div className="auth-screen__pane" data-active={screen === 2 ? 'true' : 'false'}>
+          <div className="auth-screen__stage" data-screen="2">
+            {/* Back button — top-left, returns to Screen 1. */}
+            <button
+              type="button"
+              onClick={onPrev}
+              className="auth-screen__back"
+              aria-label="返回上一步"
+            >
+              <span aria-hidden="true">←</span>
+            </button>
+
+            <p className="auth-screen__zh-large" aria-hidden="true">
+              密码
+            </p>
+            <p className="auth-screen__en-hint" aria-hidden="true">
+              password
+            </p>
+
+            {/* Row A — "设个密码". Hidden input captures keystrokes;
+                the dots are derived from password.length. */}
+            <div
+              className="auth-screen__pin-row"
+              onClick={() => passwordRef.current?.focus()}
+            >
+              <span className="auth-screen__pin-row-label">设个密码</span>
+              <div className="auth-screen__pin">
+                {Array.from({ length: PASSWORD_LENGTH }).map((_, i) => {
+                  // Caret only renders when THIS row is focused AND
+                  // has an empty slot to anchor to. The filled/shown
+                  // states are focus-independent — the user can always
+                  // see what they've typed.
+                  const isCursor =
+                    focusedRow === 'password' &&
+                    i === password.length &&
+                    password.length < PASSWORD_LENGTH;
+                  const isFilled = i < password.length;
+                  const isShown = isFilled && showPassword;
+                  const stateClass = isCursor
+                    ? 'auth-screen__pin-dot--cursor'
+                    : isFilled
+                      ? 'auth-screen__pin-dot--filled'
+                      : '';
+                  return (
+                    <span
+                      key={i}
+                      className={`auth-screen__pin-dot ${stateClass}`.trim()}
+                      data-state={isCursor ? 'cursor' : isFilled ? 'filled' : 'empty'}
+                    >
+                      {isShown ? password[i] : isFilled ? '•' : ''}
+                    </span>
+                  );
+                })}
+              </div>
+
+              {/* Eye toggle — single button for the password row
+                  only (the confirm row below has no toggle). The
+                  toggle controls BOTH row A and row B via the
+                  shared showPassword state, but visually lives
+                  next to row A's dots because the user typed the
+                  password here. tabIndex=-1 keeps keyboard focus
+                  on the hidden input. */}
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  // Prevent the button from grabbing focus on
+                  // click (some browsers like Safari ignore this,
+                  // so we also force focus back via onClick below).
+                  e.preventDefault();
+                }}
+                onClick={() => {
+                  setShowPassword((v) => !v);
+                  // Force focus back to whichever hidden input is
+                  // active, with caret at the end. setTimeout(..., 0)
+                  // schedules the focus call on the next tick, after
+                  // React has committed the type-attribute change.
+                  // Without this, some browsers (notably Safari)
+                  // leave the focus on the button even with the
+                  // mousedown preventDefault above — and the
+                  // button's :focus state then captures the next
+                  // backspace keypress, leaving the password value
+                  // untouched. The setTimeout covers the
+                  // mousedown-doesn't-help case.
+                  const target =
+                    focusedRow === 'confirm'
+                      ? confirmRef.current
+                      : passwordRef.current;
+                  setTimeout(() => {
+                    if (target) {
+                      target.focus();
+                      const end = target.value.length;
+                      try {
+                        target.setSelectionRange(end, end);
+                      } catch {
+                        /* setSelectionRange can throw on
+                           type=password inputs in some browsers */
+                      }
+                    }
+                  }, 0);
+                }}
+                className="auth-screen__show-toggle"
+                aria-label={showPassword ? '隐藏密码' : '显示密码'}
+                tabIndex={-1}
+              >
+                {showPassword ? (
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M2 8 C3.5 4.5 5.5 3 8 3 s4.5 1.5 6 5 c-1.5 3.5 -3.5 5 -6 5 s-4.5 -1.5 -6 -5 z" />
+                    <circle cx="8" cy="8" r="2" />
+                    <path d="M2 2 L14 14" />
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M2 8 C3.5 4.5 5.5 3 8 3 s4.5 1.5 6 5 c-1.5 3.5 -3.5 5 -6 5 s-4.5 -1.5 -6 -5 z" />
+                    <circle cx="8" cy="8" r="2" />
+                  </svg>
+                )}
+              </button>
+            </div>
+
+            {/* Row B — "再输一次". The eye toggle on row A above
+                controls showPassword for both rows. */}
+            <div
+              className="auth-screen__pin-row"
+              onClick={() => confirmRef.current?.focus()}
+            >
+              <span className="auth-screen__pin-row-label">再输一次</span>
+              <div className="auth-screen__pin">
+                {Array.from({ length: PASSWORD_LENGTH }).map((_, i) => {
+                  // See row A note — caret only on focused row.
+                  const isCursor =
+                    focusedRow === 'confirm' &&
+                    i === confirm.length &&
+                    confirm.length < PASSWORD_LENGTH;
+                  const isFilled = i < confirm.length;
+                  const isShown = isFilled && showPassword;
+                  const stateClass = isCursor
+                    ? 'auth-screen__pin-dot--cursor'
+                    : isFilled
+                      ? 'auth-screen__pin-dot--filled'
+                      : '';
+                  return (
+                    <span
+                      key={i}
+                      className={`auth-screen__pin-dot ${stateClass}`.trim()}
+                      data-state={isCursor ? 'cursor' : isFilled ? 'filled' : 'empty'}
+                    >
+                      {isShown ? confirm[i] : isFilled ? '•' : ''}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+
+            
+            {/* Hidden inputs — the capture surfaces. maxLength caps
+                the value at PASSWORD_LENGTH on both, so neither
+                row can overflow. type toggles between password /
+                text via showPassword. onFocus/onBlur drive
+                `focusedRow` so only the active row renders its
+                caret + dark underline. */}
             <input
               ref={passwordRef}
               type={showPassword ? 'text' : 'password'}
+              inputMode="text"
               autoComplete="new-password"
-              required
-              minLength={8}
-              maxLength={72}
-              aria-invalid={passwordError ? true : undefined}
+              maxLength={PASSWORD_LENGTH}
+              aria-label="密码"
               value={password}
-              onChange={(ev) => {
-                setPassword(ev.target.value);
-                if (errors.password) {
-                  setErrors((prev) => ({ ...prev, password: undefined }));
-                }
-                // also clear confirm mismatch live as user edits password
-                if (errors.confirm && ev.target.value === confirm) {
-                  setErrors((prev) => ({ ...prev, confirm: undefined }));
-                }
-              }}
-              className={`auth-field__input auth-field__input--with-icon auth-field__input--with-toggle${passwordError ? ' auth-field__input--error' : ''}`}
+              onChange={onPasswordChange}
+              onFocus={() => setFocusedRow('password')}
+              onBlur={() => setFocusedRow((cur) => (cur === 'password' ? null : cur))}
+              className="auth-screen__pin-input"
             />
-            <button
-              type="button"
-              className="auth-field__toggle"
-              onClick={() => setShowPassword((v) => !v)}
-              aria-label={showPassword ? '隐藏密码' : '显示密码'}
-              tabIndex={-1}
-            >
-              {showPassword ? (
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M2 8 C3.5 4.5 5.5 3 8 3 s4.5 1.5 6 5 c-1.5 3.5 -3.5 5 -6 5 s-4.5 -1.5 -6 -5 z" />
-                  <circle cx="8" cy="8" r="2" />
-                  <path d="M2 2 L14 14" />
-                </svg>
-              ) : (
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M2 8 C3.5 4.5 5.5 3 8 3 s4.5 1.5 6 5 c-1.5 3.5 -3.5 5 -6 5 s-4.5 -1.5 -6 -5 z" />
-                  <circle cx="8" cy="8" r="2" />
-                </svg>
-              )}
-            </button>
-          </span>
-
-          {password.length > 0 ? (
-            <>
-              <div
-                className="auth-field__strength"
-                data-score={strength}
-                role="meter"
-                aria-label="密码强度"
-                aria-valuemin={0}
-                aria-valuemax={5}
-                aria-valuenow={strength}
-              >
-                <div className="auth-field__strength-bar" />
-              </div>
-              {password.length > 0 && (
-                <p
-                  className="auth-field__hint"
-                  data-score={strength}
-                  aria-live="polite"
-                >
-                  {strength <= 1 && '至少 8 个字符'}
-                  {strength === 2 && '可以再长一点 + 加个数字'}
-                  {strength === 3 && '不错 — 再加个特殊字符会更稳'}
-                  {strength >= 4 && '强密码 ✓'}
-                </p>
-              )}
-            </>
-          ) : null}
-
-          {passwordError ? (
-            <span className="auth-field__error" role="alert">{passwordError}</span>
-          ) : null}
-        </label>
-
-        <label className="auth-field auth-field-3">
-          <span className="auth-field__label">确认密码</span>
-          <span className="auth-field__input-wrap">
-            <svg
-              className="auth-field__icon"
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <rect x="3" y="7" width="10" height="7" rx="1" />
-              <path d="M5 7 V5 a3 3 0 0 1 6 0 V7" />
-              <path d="M6 11 l1.5 1.5 L11 9" />
-            </svg>
             <input
               ref={confirmRef}
               type={showPassword ? 'text' : 'password'}
+              inputMode="text"
               autoComplete="new-password"
-              required
-              minLength={8}
-              maxLength={72}
-              aria-invalid={confirmError ? true : undefined}
+              maxLength={PASSWORD_LENGTH}
+              aria-label="确认密码"
               value={confirm}
-              onChange={(ev) => {
-                const v = ev.target.value;
-                setConfirm(v);
-                if (errors.confirm && v === password) {
-                  setErrors((prev) => ({ ...prev, confirm: undefined }));
-                }
-              }}
-              className={`auth-field__input auth-field__input--with-icon${confirmError ? ' auth-field__input--error' : ''}`}
+              onChange={onConfirmChange}
+              onFocus={() => setFocusedRow('confirm')}
+              onBlur={() => setFocusedRow((cur) => (cur === 'confirm' ? null : cur))}
+              className="auth-screen__pin-input"
             />
-          </span>
-          {confirmError ? (
-            <span className="auth-field__error" role="alert">{confirmError}</span>
-          ) : null}
-        </label>
 
-        <button type="submit" disabled={submitting || dissolving} className="auth-form__submit">
-          {submitting ? (
-            <>
-              <svg
-                className="auth-form__spinner"
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                aria-hidden
+            {/* Live match hint — flips between idle / match /
+                mismatch as the user types. aria-live=polite so
+                screen readers announce the state change. */}
+            {matchHint.tone !== 'empty' || matchHint.zh ? (
+              <span
+                className={`auth-screen__match-hint auth-screen__match-hint--${matchHint.tone}`}
+                aria-live="polite"
+                lang="zh"
               >
-                <circle
-                  cx="8"
-                  cy="8"
-                  r="6"
-                  stroke="currentColor"
-                  strokeWidth="1.75"
-                  strokeLinecap="round"
-                  strokeDasharray="28 60"
-                />
-              </svg>
-              <span>注册中…</span>
-            </>
-          ) : (
-            <span>注册</span>
-          )}
-        </button>
+                {matchHint.zh}
+              </span>
+            ) : null}
+
+            {errors.password || errors.confirm ? (
+              <span className="auth-field__error" role="alert">
+                {errors.password ?? errors.confirm}
+              </span>
+            ) : null}
+
+            <button
+              type="submit"
+              disabled={!canAdvanceFromScreen2}
+              className="auth-screen__next"
+              aria-label="注册"
+            >
+              <span className="auth-screen__next-arrow" aria-hidden="true">
+                →
+              </span>
+            </button>
+
+            <div className="auth-screen__progress" aria-hidden="true">
+              <span className="auth-screen__dot" data-active="false" />
+              <span className="auth-screen__dot" data-active="true" />
+            </div>
+          </div>
+        </div>
 
         <p className="auth-form__alt">
-          已有账号？<Link href="/login">登录</Link>
+          已有账号？
+          <Link
+            href={
+              fromParam
+                ? `/login?from=${encodeURIComponent(fromParam)}`
+                : '/login'
+            }
+          >
+            登录
+          </Link>
         </p>
 
-        {/* CSS lives here (not in globals.css) so it ships only on the
-            auth pages — keeps the read-layer's main bundle small and
-            lets us iterate on auth visuals without touching the
-            design system.
-
-            Using dangerouslySetInnerHTML is intentional: with
-            `<style>{css}</style>` the JSX child gets re-stringified
-            at hydration time and any whitespace difference between
-            server and client blows up with "Text content does not
+        {/* CSS lives here (not in globals.css) so it ships only on
+            the auth pages. Using dangerouslySetInnerHTML is
+            intentional: with `<style>{css}</style>` the JSX child
+            gets re-stringified at hydration time and any whitespace
+            difference between server and client (e.g. trailing
+            newline handling) blows up with "Text content does not
             match server-rendered HTML". dangerouslySetInnerHTML
             passes the bytes through verbatim — no re-stringification,
             no mismatch. */}
@@ -424,128 +702,10 @@ function SignupForm() {
             60%      { /* transform: translateX(-4px); */ }
             80%      { /* transform: translateX(4px); */ }
           }
-          .auth-form {
-            display: flex;
-            flex-direction: column;
-            gap: var(--space-4);
-            transition: opacity 200ms var(--ease-standard),
-                        transform 200ms var(--ease-standard);
-          }
           .auth-form--dissolving {
             opacity: 0;
             transform: scale(0.96);
             pointer-events: none;
-          }
-          .auth-field {
-            display: flex;
-            flex-direction: column;
-            gap: var(--space-2);
-            /* Slow fade-in: 4px translateY over 400ms, ease-standard.
-               Single shared animation, no stagger — fields appear
-               together to read as one "form reveal". */
-            animation: auth-field-rise 400ms var(--ease-standard) both;
-          }
-          /* (.auth-field-1/2/3 animation-delay rules removed — fields
-             share one animation now. Class names kept on JSX for
-             future per-field tweaks.) */
-          .auth-field__label {
-            font-size: var(--type-caption);
-            color: var(--label-tertiary);
-            letter-spacing: 0.02em;
-          }
-          .auth-field__input-wrap {
-            position: relative;
-            display: flex;
-            align-items: center;
-          }
-          .auth-field__icon {
-            position: absolute;
-            left: var(--space-3);
-            color: var(--label-quaternary);
-            pointer-events: none;
-            transition: color var(--duration-fast) var(--ease-standard);
-          }
-          .auth-field__input-wrap:focus-within .auth-field__icon {
-            color: var(--label-secondary);
-          }
-          .auth-field__input-wrap:focus-within .auth-field__input--error ~ .auth-field__icon,
-          .auth-field__input--error ~ .auth-field__icon {
-            color: var(--accent);
-          }
-          .auth-field__input {
-            width: 100%;
-            height: 44px;
-            padding: 0 var(--space-4);
-            font-family: inherit;
-            font-size: var(--type-body);
-            color: var(--label-primary);
-            background: rgba(255, 255, 255, 0.7);
-            border: 1px solid rgba(0, 0, 0, 0.08);
-            border-radius: var(--radius-sm);
-            transition: background var(--duration-fast) var(--ease-standard),
-                        border-color var(--duration-fast) var(--ease-standard),
-                        box-shadow var(--duration-fast) var(--ease-standard);
-          }
-          .auth-field__input--with-icon { padding-left: 36px; }
-          .auth-field__input--with-toggle { padding-right: 40px; }
-          .auth-field__input::placeholder { color: var(--label-quaternary); }
-          .auth-field__input:hover {
-            background: rgba(255, 255, 255, 0.85);
-            border-color: rgba(0, 0, 0, 0.12);
-          }
-          .auth-field__input:focus {
-            outline: none;
-            background: rgba(255, 255, 255, 0.95);
-            border-color: var(--label-primary);
-            box-shadow: 0 0 0 3px rgba(28, 28, 30, 0.08);
-          }
-          .auth-field__input--error {
-            border-color: var(--accent);
-            background: rgba(251, 233, 235, 0.7);
-          }
-          .auth-field__input--error:focus {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(215, 0, 21, 0.12);
-          }
-          .auth-field__input-wrap:focus-within .auth-field__input {
-            border-color: var(--label-secondary);
-            box-shadow: 0 0 0 4px rgba(28, 28, 30, 0.08);
-          }
-          .auth-field__input--error,
-          .auth-field__input-wrap:focus-within .auth-field__input--error {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 4px rgba(215, 0, 21, 0.10);
-            /* disabled per user: */ /* animation: auth-field-error-attn 240ms var(--ease-standard) both; */
-          }
-          @keyframes auth-field-error-attn {
-            0%, 100% { /* transform: translateX(0); */ }
-            30%      { /* transform: translateX(-2px); */ }
-            70%      { /* transform: translateX(2px); */ }
-          }
-          .auth-field__toggle {
-            position: absolute;
-            right: var(--space-2);
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 28px;
-            height: 28px;
-            background: transparent;
-            border: 0;
-            border-radius: var(--radius-sm);
-            color: var(--label-quaternary);
-            cursor: pointer;
-            padding: 0;
-            transition: color var(--duration-fast) var(--ease-standard),
-                        background var(--duration-fast) var(--ease-standard);
-          }
-          .auth-field__toggle:hover {
-            color: var(--label-secondary);
-            background: rgba(0, 0, 0, 0.04);
-          }
-          .auth-field__toggle:focus-visible {
-            outline: 2px solid var(--label-primary);
-            outline-offset: 1px;
           }
           .auth-field__error {
             display: flex;
@@ -560,113 +720,499 @@ function SignupForm() {
             font-size: 11px;
             flex-shrink: 0;
           }
-
-          /* Password strength meter (signup-only) */
-          .auth-field__strength {
-            position: relative;
-            width: 100%;
-            height: 4px;
-            background: rgba(0, 0, 0, 0.06);
-            border-radius: var(--radius-circle);
-            overflow: hidden;
-          }
-          .auth-field__strength-bar {
-            height: 100%;
-            width: 0%;
-            border-radius: var(--radius-circle);
-            background: var(--accent);
-            transition: width var(--duration-fast) var(--ease-standard),
-                        background var(--duration-fast) var(--ease-standard);
-          }
-          .auth-field__strength[data-score="0"] .auth-field__strength-bar { width: 0%; }
-          .auth-field__strength[data-score="1"] .auth-field__strength-bar { width: 20%; background: var(--accent); }
-          .auth-field__strength[data-score="2"] .auth-field__strength-bar { width: 40%; background: #F5A623; }
-          .auth-field__strength[data-score="3"] .auth-field__strength-bar { width: 60%; background: #F5A623; }
-          .auth-field__strength[data-score="4"] .auth-field__strength-bar { width: 80%; background: #34C759; }
-          .auth-field__strength[data-score="5"] .auth-field__strength-bar { width: 100%; background: #34C759; }
-
-          /* Single-line password hint — NOT a 4-item checklist.
-             A checklist reads as "you must do all 4" (mandatory feel);
-             one short line reads as a friendly suggestion. The
-             underlying rule is the same (length ≥ 8) but the user
-             only sees one sentence, not a scoreboard.
-
-             Color tracks strength (data-score) for an at-a-glance
-             hint without screaming "warning!" — just a tonal shift. */
-          .auth-field__hint {
-            margin: 0;
-            font-size: var(--type-caption);
-            color: var(--label-tertiary);
-            transition: color 200ms var(--ease-standard);
-          }
-          .auth-field__hint[data-score="1"] { color: var(--label-quaternary); }
-          .auth-field__hint[data-score="2"] { color: var(--label-tertiary); }
-          .auth-field__hint[data-score="3"] { color: var(--label-secondary); }
-          .auth-field__hint[data-score="4"],
-          .auth-field__hint[data-score="5"] { color: var(--correct); }
-
-          .auth-form__submit {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: var(--space-2);
-            height: 48px;
-            margin-top: var(--space-2);
-            font-family: inherit;
-            font-size: var(--type-body);
-            font-weight: var(--type-body-emphasis-weight);
-            color: var(--surface);
-            background: linear-gradient(180deg, #2C2C2E 0%, #1C1C1E 100%);
-            border: 0;
-            border-radius: var(--radius-md);
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-            transition: transform var(--duration-fast) var(--ease-standard),
-                        box-shadow var(--duration-fast) var(--ease-standard);
-          }
-          .auth-form__submit:hover:not(:disabled) {
-            /* No translateY on hover — that reads as "the button is
-               bouncing". Instead we lift the shadow for a raised feel. */
-            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.20);
-          }
-          /* .auth-form__submit:active translateY removed — no position
-             change on click, keeps shadow elevated. */
-          .auth-form__submit:disabled { opacity: 0.7; cursor: progress; }
-          .auth-form__spinner {
-            animation: auth-form-spin 800ms linear infinite;
-          }
-          @keyframes auth-form-spin {
-            to { transform: rotate(360deg); }
-          }
           .auth-form__alt {
             text-align: center;
             font-size: var(--type-caption);
             color: var(--label-tertiary);
-            margin-top: var(--space-3);
+            margin: 0;
           }
           .auth-form__alt a {
             color: var(--accent);
             text-decoration: none;
             font-weight: var(--type-body-emphasis-weight);
+            position: relative;
+            display: inline-block;
           }
-          .auth-form__alt a:hover { text-decoration: underline; }
+          .auth-form__alt a::after,
+          .auth-form__alt a::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: -2px;
+            height: 1px;
+            background: currentColor;
+            transform: scaleX(0);
+            transform-origin: center;
+            transition: transform 200ms var(--ease-standard);
+          }
+          .auth-form__alt a::before { transform-origin: left; }
+          .auth-form__alt a::after  { transform-origin: right; }
+          .auth-form__alt a:hover::before { transform: scaleX(1); height: 2px; bottom: -3px; }
+          .auth-form__alt a:hover::after  { transform: scaleX(1); height: 2px; bottom: -3px; }
 
-          .auth-form__subtitle {
+          /* -------------------------------------------------------------
+             auth-screen (Screen 1 — email)
+             ------------------------------------------------------------- */
+          .auth-screen {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-4);
+            transition: opacity 200ms var(--ease-standard),
+                        transform 200ms var(--ease-standard);
+          }
+          .auth-screen__stage {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+            position: relative;
+          }
+          .auth-screen__subtitle {
+            position: relative;
+            display: block;
+            min-height: 1.6em;
             font-size: var(--type-body);
             color: var(--label-tertiary);
             margin: 0;
             margin-top: calc(var(--space-4) * -1 + var(--space-1));
-            animation-delay: 110ms;
+            animation: auth-subtitle-fade 200ms var(--ease-standard) 700ms both;
+          }
+          .auth-screen__subtitle-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 0;
+            opacity: 0;
+            transform: translateY(4px);
+            transition: opacity 400ms var(--ease-standard),
+                        transform 400ms var(--ease-standard);
+          }
+          .auth-screen__subtitle-line[data-active="true"] {
+            opacity: 1;
+            transform: translateY(0);
+          }
+          .auth-screen__zh-large {
+            font-family: var(--font-body);
+            font-size: clamp(32px, 5vw, 42px);
+            font-weight: 700;
+            color: var(--label-primary);
+            text-align: center;
+            letter-spacing: -0.01em;
+            line-height: 1.2;
+            margin: var(--space-1) auto var(--space-2);
+            opacity: 0;
+            animation: auth-screen-zh-large-fade-in 480ms var(--ease-emphasized) 1300ms both;
+          }
+          .auth-screen__en-hint {
+            display: inline-flex;
+            justify-content: center;
+            align-items: baseline;
+            gap: 0.04em;
+            font-family: var(--font-mono);
+            font-size: clamp(18px, 2vw, 22px);
+            font-weight: 500;
+            color: var(--label-tertiary);
+            letter-spacing: 0.02em;
+            line-height: 1.2;
+            margin: 0 auto var(--space-4);
+            opacity: 0;
+            animation: auth-screen-en-hint-fade-in 320ms var(--ease-standard) 1700ms both;
+          }
+          .auth-screen__input {
+            width: 100%;
+            height: 44px;
+            padding: 0 var(--space-2);
+            font-family: var(--font-mono);
+            font-size: var(--type-body);
+            font-weight: 500;
+            color: var(--label-primary);
+            background: transparent;
+            border: 0;
+            border-bottom: 1px solid var(--label-tertiary);
+            border-radius: 0;
+            letter-spacing: 0.02em;
+            caret-color: var(--label-primary);
+            transition: border-bottom-color var(--duration-fast) var(--ease-standard);
+            position: relative;
+          }
+          .auth-screen__input::placeholder {
+            color: var(--label-quaternary);
+            font-family: var(--font-body);
+          }
+          .auth-screen__input:hover {
+            border-bottom-color: var(--label-secondary);
+          }
+          .auth-screen__input:focus {
+            outline: none;
+            border-bottom-color: var(--label-secondary);
+          }
+          .auth-screen__input::after {
+            content: "";
+            position: absolute;
+            left: var(--space-2);
+            right: var(--space-2);
+            bottom: -1px;
+            height: 2px;
+            background: var(--label-primary);
+            transform: scaleX(0);
+            transform-origin: left center;
+          }
+          .auth-screen__input:focus::after {
+            animation: auth-screen-underline-grow var(--duration-base) var(--ease-emphasized) forwards;
+          }
+          .auth-screen__next {
+            align-self: flex-end;
+            margin-top: var(--space-2);
+            width: 56px;
+            height: 56px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-body);
+            font-size: 22px;
+            font-weight: 500;
+            line-height: 1;
+            color: var(--label-primary);
+            background: rgba(0, 0, 0, 0.04);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: var(--radius-md);
+            padding: 0;
+            cursor: pointer;
+            transition: background var(--duration-fast) var(--ease-standard),
+                        border-color var(--duration-fast) var(--ease-standard),
+                        transform var(--duration-fast) var(--ease-standard),
+                        opacity var(--duration-fast) var(--ease-standard);
+          }
+          .auth-screen__next-arrow {
+            display: inline-block;
+            transform: translateX(0);
+            transition: transform var(--duration-fast) var(--ease-standard);
+          }
+          .auth-screen__next:hover:not([disabled]) {
+            background: rgba(0, 0, 0, 0.08);
+            border-color: rgba(0, 0, 0, 0.16);
+          }
+          .auth-screen__next:hover:not([disabled]) .auth-screen__next-arrow {
+            transform: translateX(2px);
+          }
+          .auth-screen__next:active:not([disabled]) {
+            transform: scale(0.96);
+          }
+          .auth-screen__next:focus-visible {
+            outline: 2px solid var(--label-primary);
+            outline-offset: 3px;
+          }
+          .auth-screen__next[disabled] {
+            opacity: 0.3;
+            pointer-events: none;
+          }
+          .auth-screen__progress {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: var(--space-2);
+            margin: 0;
+            animation: auth-screen-fade-in 240ms var(--ease-standard) 1500ms both;
+          }
+          .auth-screen__dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--label-quaternary);
+            opacity: 0.5;
+            transition: background var(--duration-fast) var(--ease-standard),
+                        opacity var(--duration-fast) var(--ease-standard),
+                        transform var(--duration-fast) var(--ease-standard);
+          }
+          .auth-screen__dot[data-active="true"] {
+            background: var(--label-primary);
+            opacity: 1;
+            transform: scale(1.15);
+            animation: auth-screen-dot-fill var(--duration-base) var(--ease-emphasized) both;
+          }
+
+          /* -------------------------------------------------------------
+             Screen 2 — password + confirm: back button + 2 PIN rows +
+             show/hide toggle + match hint.
+             ------------------------------------------------------------- */
+          .auth-screen__back {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 36px;
+            height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            line-height: 1;
+            color: var(--label-tertiary);
+            background: transparent;
+            border: 0;
+            border-radius: var(--radius-sm);
+            padding: 0;
+            cursor: pointer;
+            transition: color var(--duration-fast) var(--ease-standard),
+                        background var(--duration-fast) var(--ease-standard),
+                        transform var(--duration-fast) var(--ease-standard);
+          }
+          .auth-screen__back:hover {
+            color: var(--label-primary);
+            background: rgba(0, 0, 0, 0.04);
+          }
+          .auth-screen__back:active {
+            transform: scale(0.94);
+          }
+          .auth-screen__back:focus-visible {
+            outline: 2px solid var(--label-primary);
+            outline-offset: 2px;
+          }
+
+          /* PIN row — labeled wrapper for one of the two PIN rows on
+             Screen 2. Holds the row label + the dots. Clicks focus
+             the matching hidden input. */
+          .auth-screen__pin-row {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            /* Negative 2px gap overlaps the label and the dot row by
+               2px. The label's bottom padding is 0, so the label
+               sits 2px inside the dot row's top. */
+            gap: -2px;
+            padding: 8px 0 var(--space-1);
+            cursor: text;
+            user-select: none;
+            /* Anchor for the absolutely-positioned eye toggle (row A
+               only — row B has no toggle). */
+            position: relative;
+          }
+          .auth-screen__pin-row-label {
+            font-size: var(--type-caption);
+            color: var(--label-tertiary);
+            letter-spacing: 0.02em;
+            /* No bottom padding — the label-to-dots gap is purely
+               the -2px flex gap. Horizontal padding keeps the
+               label text from touching the screen edge. */
+            padding: var(--space-1) var(--space-3) 0;
+            text-align: center;
+          }
+          .auth-screen__pin {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: var(--space-3);
+            padding: var(--space-2) 0;
+            /* Right padding reserves space for the absolute-positioned
+               eye toggle on the right edge of row A's wrapper. */
+            padding-right: 44px;
+            /* Anchor for the absolutely-positioned eye toggle. */
+            position: relative;
+          }
+          .auth-screen__pin-dot {
+            display: inline-flex;
+            align-items: flex-end;
+            justify-content: center;
+            width: 24px;
+            height: 28px;
+            border: 0;
+            border-bottom: 1px solid var(--label-quaternary);
+            border-radius: 0;
+            background: transparent;
+            opacity: 0.5;
+            padding-bottom: 1px;
+            font-size: 16px;
+            font-family: var(--font-mono);
+            color: var(--label-primary);
+            transition: border-bottom-color var(--duration-fast) var(--ease-standard),
+                        border-bottom-width var(--duration-fast) var(--ease-standard),
+                        opacity var(--duration-fast) var(--ease-standard);
+          }
+          .auth-screen__pin-dot--filled {
+            border-bottom: 2px solid var(--label-primary);
+            opacity: 1;
+          }
+          .auth-screen__pin-dot--shown {
+            border-bottom: 2px solid var(--label-primary);
+            opacity: 1;
+          }
+
+          /* Caret slot — the next empty position. Underline stays
+             in the empty-state 1px gray, but a thin vertical bar
+             (1.5×18px) sits centered above the underline, blinking
+             at 1s period via the auth-screen-caret-blink keyframe.
+             The bar is rendered as a ::after pseudo-element because
+             the slot's own content slot is reserved for the mask
+             char (a black bullet, U+2022) or the real char in
+             shown mode. */
+          .auth-screen__pin-dot--cursor {
+            border-bottom: 1px solid var(--label-quaternary);
+            opacity: 1;
+          }
+          .auth-screen__pin-dot--cursor::after {
+            content: "";
+            display: block;
+            width: 1.5px;
+            height: 18px;
+            background: var(--label-primary);
+            margin-bottom: 4px;
+            animation: auth-screen-caret-blink 1s steps(2, end) infinite;
+          }
+          @keyframes auth-screen-caret-blink {
+            0%, 50%       { opacity: 1; }
+            50.01%, 100%  { opacity: 0; }
+          }
+
+          /* Hidden text inputs — capture surfaces for the two PIN
+             rows. Visually invisible but focusable. */
+          .auth-screen__pin-input {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+            left: -9999px;
+            top: -9999px;
+          }
+
+          /* Show/hide toggle — single button for the password row only
+             (the confirm row has no toggle). Anchored to the right
+             edge of row A's .auth-screen__pin-row, vertically
+             centered. Absolute so it doesn't disrupt the dots'
+             flex layout. The .auth-screen__pin row reserves 44px of
+             right padding so the dots never overlap the toggle. */
+          .auth-screen__show-toggle {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            background: transparent;
+            border: 0;
+            border-radius: var(--radius-sm);
+            color: var(--label-quaternary);
+            padding: 0;
+            cursor: pointer;
+            transition: color var(--duration-fast) var(--ease-standard),
+                        background var(--duration-fast) var(--ease-standard);
+          }
+          .auth-screen__show-toggle:hover {
+            color: var(--label-secondary);
+            background: rgba(0, 0, 0, 0.04);
+          }
+          .auth-screen__show-toggle:focus-visible {
+            outline: 2px solid var(--label-primary);
+            outline-offset: 1px;
+          }
+
+          /* Live match hint — flips between empty / incomplete /
+             match / mismatch as the user types both rows. The
+             incomplete and mismatch tones use var(--accent) (warm
+             red) with a leading ⚠ glyph for visual weight. The
+             match tone uses var(--correct) (sage green) with a ✓
+             glyph. */
+          .auth-screen__match-hint {
+            display: inline-flex;
+            align-self: center;
+            align-items: center;
+            gap: 6px;
+            font-size: var(--type-caption);
+            color: var(--label-tertiary);
+            letter-spacing: 0.02em;
+            min-height: 1.4em;
+            transition: color var(--duration-fast) var(--ease-standard);
+          }
+          .auth-screen__match-hint--incomplete,
+          .auth-screen__match-hint--mismatch {
+            color: var(--accent);
+          }
+          .auth-screen__match-hint--match {
+            color: var(--correct);
+          }
+          /* Leading glyph: ⚠ for incomplete/mismatch, ✓ for match.
+             Rendered via ::before on the span so the JSX stays a
+             single text node. */
+          .auth-screen__match-hint--incomplete::before {
+            content: "⚠";
+            font-size: 13px;
+          }
+          .auth-screen__match-hint--mismatch::before {
+            content: "⚠";
+            font-size: 13px;
+          }
+          .auth-screen__match-hint--match::before {
+            content: "✓";
+            font-size: 13px;
+          }
+
+          /* Per-screen pane — see login's identical block. */
+          .auth-screen__pane {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            transform: translateY(0);
+            pointer-events: none;
+            transition: opacity 240ms var(--ease-standard);
+          }
+          .auth-screen__pane[data-active="true"] {
+            position: static;
+            opacity: 1;
+            pointer-events: auto;
+            animation: auth-screen-pane-enter 320ms var(--ease-emphasized) 100ms both;
+          }
+
+          @keyframes auth-subtitle-fade {
+            from { opacity: 0; transform: translateY(4px); }
+            to   { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes auth-screen-zh-large-fade-in {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 0.85; transform: translateY(0); }
+          }
+          @keyframes auth-screen-en-hint-fade-in {
+            from { opacity: 0; transform: translateY(4px); }
+            to   { opacity: 0.55; transform: translateY(0); }
+          }
+          @keyframes auth-screen-pane-enter {
+            from { opacity: 0; transform: translateY(8px); }
+            to   { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes auth-screen-underline-grow {
+            from { transform: scaleX(0); }
+            to   { transform: scaleX(1); }
+          }
+          @keyframes auth-screen-dot-fill {
+            from { transform: scale(0.6); opacity: 0; }
+            to   { transform: scale(1.15); opacity: 1; }
+          }
+          @keyframes auth-screen-fade-in {
+            from { opacity: 0; }
+            to   { opacity: 1; }
           }
 
           @media (prefers-reduced-motion: reduce) {
             .auth-form-shake-wrap { animation: none !important; }
-            .auth-form { transition: none !important; }
-            .auth-field { animation: none !important; opacity: 1; transform: none; }
-            .auth-form__subtitle { animation: none !important; opacity: 1; transform: none; }
-            .auth-field__input--error { animation: none !important; }
-            .auth-form__spinner { animation: none !important; }
-            .auth-field__strength-bar { transition: none !important; }
+            .auth-screen { transition: none !important; }
+            .auth-screen__subtitle { animation: none !important; opacity: 1; transform: none; }
+            .auth-screen__zh-large { animation: none !important; opacity: 0.85; transform: none; }
+            .auth-screen__en-hint { animation: none !important; opacity: 0.55; transform: none; }
+            .auth-screen__pane { transition: none !important; }
+            .auth-screen__pane[data-active="true"] { animation: none !important; transform: none; }
+            .auth-screen__input::after { animation: none !important; transform: scaleX(1); }
+            .auth-screen__next { transition: none !important; }
+            .auth-screen__next-arrow { transition: none !important; }
+            .auth-screen__dot { transition: none !important; }
+            .auth-screen__dot[data-active="true"] { animation: none !important; transform: scale(1); }
+            .auth-screen__progress { animation: none !important; opacity: 1; }
+            .auth-screen__back { transition: none !important; }
+            .auth-screen__pin-dot { transition: none !important; }
+            .auth-screen__show-toggle { transition: none !important; }
+            .auth-screen__pin-dot--cursor::after { animation: none !important; opacity: 1; }
+            .auth-screen__match-hint { transition: none !important; }
           }
         ` }} />
       </form>
