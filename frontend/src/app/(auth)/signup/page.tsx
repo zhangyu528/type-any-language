@@ -165,24 +165,30 @@ function SignupForm() {
     password === confirm;
 
   // Live match hint state — drives the .auth-screen__match-hint
-  // node below the two PIN rows. Three states: idle (both empty),
-  // match (both full + equal), mismatch (both have content but
-  // differ, OR one is full and the other isn't yet).
-  const matchHint: { tone: 'idle' | 'match' | 'mismatch'; zh: string; en: string } = (() => {
+  // node below the two PIN rows. Four states:
+  //   - empty (both inputs untouched — no message)
+  //   - incomplete (at least one row has fewer than PASSWORD_LENGTH
+  //     chars — soft warning: "Password needs 8 digits")
+  //   - match (both full + equal — green check)
+  //   - mismatch (both full + differ — red)
+  const matchHint: {
+    tone: 'empty' | 'incomplete' | 'match' | 'mismatch';
+    zh: string;
+    en: string;
+  } = (() => {
     if (password.length === 0 && confirm.length === 0) {
-      return { tone: 'idle', zh: '', en: '' };
+      return { tone: 'empty', zh: '', en: '' };
     }
     if (password.length === PASSWORD_LENGTH && confirm.length === PASSWORD_LENGTH) {
       if (password === confirm) {
-        return { tone: 'match', zh: '✓ 一致', en: '✓ match' };
+        // Leading ✓ comes from CSS ::before — don't duplicate here.
+        return { tone: 'match', zh: '一致', en: 'match' };
       }
+      // Leading ⚠ comes from CSS ::before — don't duplicate here.
       return { tone: 'mismatch', zh: '两次输入不一致', en: "Doesn't match" };
     }
-    // At least one is partial — show a soft idle prompt, not an error.
-    if (password.length !== PASSWORD_LENGTH || confirm.length !== PASSWORD_LENGTH) {
-      return { tone: 'idle', zh: '继续输入', en: 'Keep going' };
-    }
-    return { tone: 'idle', zh: '', en: '' };
+    // At least one row is partial — soft warning.
+    return { tone: 'incomplete', zh: '密码需要 8 位', en: 'Password needs 8 digits' };
   })();
 
   // Trigger card shake + bounce the user to the offending screen
@@ -629,7 +635,7 @@ function SignupForm() {
             {/* Live match hint — flips between idle / match /
                 mismatch as the user types. aria-live=polite so
                 screen readers announce the state change. */}
-            {matchHint.tone !== 'idle' || matchHint.zh ? (
+            {matchHint.tone !== 'empty' || matchHint.zh ? (
               <span
                 className={`auth-screen__match-hint auth-screen__match-hint--${matchHint.tone}`}
                 aria-live="polite"
@@ -970,8 +976,11 @@ function SignupForm() {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: var(--space-2);
-            padding: var(--space-2) 0;
+            /* Negative 2px gap overlaps the label and the dot row by
+               2px. The label's bottom padding is 0, so the label
+               sits 2px inside the dot row's top. */
+            gap: -2px;
+            padding: 8px 0 var(--space-1);
             cursor: text;
             user-select: none;
             /* Anchor for the absolutely-positioned eye toggle (row A
@@ -982,6 +991,11 @@ function SignupForm() {
             font-size: var(--type-caption);
             color: var(--label-tertiary);
             letter-spacing: 0.02em;
+            /* No bottom padding — the label-to-dots gap is purely
+               the -2px flex gap. Horizontal padding keeps the
+               label text from touching the screen edge. */
+            padding: var(--space-1) var(--space-3) 0;
+            text-align: center;
           }
           .auth-screen__pin {
             display: flex;
@@ -992,6 +1006,8 @@ function SignupForm() {
             /* Right padding reserves space for the absolute-positioned
                eye toggle on the right edge of row A's wrapper. */
             padding-right: 44px;
+            /* Anchor for the absolutely-positioned eye toggle. */
+            position: relative;
           }
           .auth-screen__pin-dot {
             display: inline-flex;
@@ -1093,22 +1109,44 @@ function SignupForm() {
             outline-offset: 1px;
           }
 
-          /* Live match hint — flips between idle / match / mismatch
-             as the user types both rows. */
+          /* Live match hint — flips between empty / incomplete /
+             match / mismatch as the user types both rows. The
+             incomplete and mismatch tones use var(--accent) (warm
+             red) with a leading ⚠ glyph for visual weight. The
+             match tone uses var(--correct) (sage green) with a ✓
+             glyph. */
           .auth-screen__match-hint {
             display: inline-flex;
             align-self: center;
+            align-items: center;
+            gap: 6px;
             font-size: var(--type-caption);
             color: var(--label-tertiary);
             letter-spacing: 0.02em;
             min-height: 1.4em;
             transition: color var(--duration-fast) var(--ease-standard);
           }
+          .auth-screen__match-hint--incomplete,
+          .auth-screen__match-hint--mismatch {
+            color: var(--accent);
+          }
           .auth-screen__match-hint--match {
             color: var(--correct);
           }
-          .auth-screen__match-hint--mismatch {
-            color: var(--accent);
+          /* Leading glyph: ⚠ for incomplete/mismatch, ✓ for match.
+             Rendered via ::before on the span so the JSX stays a
+             single text node. */
+          .auth-screen__match-hint--incomplete::before {
+            content: "⚠";
+            font-size: 13px;
+          }
+          .auth-screen__match-hint--mismatch::before {
+            content: "⚠";
+            font-size: 13px;
+          }
+          .auth-screen__match-hint--match::before {
+            content: "✓";
+            font-size: 13px;
           }
 
           /* Per-screen pane — see login's identical block. */
