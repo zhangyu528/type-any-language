@@ -143,4 +143,21 @@ test.describe('LandingPage — Hero CTA + Footer', () => {
     // And it's the "Type Any Language" brand label, not an old label.
     await expect(markSvg).toHaveAttribute('aria-label', 'Type Any Language');
   });
+
+  test('Hero 显示 BrandMark（72px，pulse 模式）', async ({ page }) => {
+    await freshPage(page);
+    // Hero's BrandMark is the only 72×72 SVG inside the hero section.
+    const heroMark = page.locator('section[aria-label="产品介绍"] svg').first();
+    await expect(heroMark).toBeVisible();
+    await expect(heroMark).toHaveAttribute('width', '72');
+    await expect(heroMark).toHaveAttribute('height', '72');
+    // Same 3×3 structure (9 circles), labelled "Type Any Language".
+    const circleCount = await heroMark.locator('circle').count();
+    expect(circleCount).toBe(9);
+    await expect(heroMark).toHaveAttribute('aria-label', 'Type Any Language');
+    // Pulse: when pulse=true the centre circle has an <animate> child.
+    // The centre circle is the 5th (index 4) of the 9.
+    const centre = heroMark.locator('circle').nth(4);
+    await expect(centre.locator('animate')).toHaveCount(1);
+  });
 });
