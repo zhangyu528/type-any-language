@@ -74,12 +74,16 @@
 **触发条件**：
 
 ```text
-上一题结果不是 correct（wrong / skipped / null）
+本会话存在「上一题」（previousResult != null）
+且
+上一题结果不是 correct（wrong / skipped）
 且
 本题结果 = correct
 且
 本会话尚未触发过任何卡片
 ```
+
+**注意**：会话的**第一题**不算「改进」——没有「上一题」可对比，单纯答对不触发本卡。
 
 **文案**：
 

@@ -216,10 +216,23 @@ export default function TranslationSession({
           !cardState.rateCardShown &&
           !cardState.dismissedThisSession;
 
-        if (cardAvailable && previousResult !== 'correct' && correct) {
+        // "改进" card only fires when there IS a previous result and
+        // it was not correct. The very first answer of a session has
+        // previousResult=null; that's not "improvement", that's just
+        // a first answer.
+        if (
+          cardAvailable &&
+          previousResult != null &&
+          previousResult !== 'correct' &&
+          correct
+        ) {
           setActiveHint('improved');
           setCardState((prev) => ({ ...prev, improvedCardShown: true }));
-        } else if (cardAvailable && newTotal >= 5 && newCorrect / newTotal >= 0.8) {
+        } else if (
+          cardAvailable &&
+          newTotal >= 5 &&
+          newCorrect / newTotal >= 0.8
+        ) {
           setActiveHint('rate');
           setCardState((prev) => ({ ...prev, rateCardShown: true }));
         }
