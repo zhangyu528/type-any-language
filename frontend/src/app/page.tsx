@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   getContentCatalog,
   Catalog,
   loadTranslationProgress,
   TranslationProgress,
 } from './api';
+import { useAuth } from './lib/auth';
 import LandingPage from './landing';
 import TranslationSession from './TranslationSession';
 
@@ -33,6 +35,8 @@ export default function PracticePage() {
     useState<TranslationProgress>({});
   const [error, setError] = useState('');
   const [selectedLibId, setSelectedLibId] = useState<string | null>(null);
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
 
   // Read ?lib from the URL. Default: no lib → null (Landing renders).
   const readUrl = useCallback(() => {
@@ -160,6 +164,25 @@ export default function PracticePage() {
         <p className="practice__empty-hint">
           请检查 <code>db/cms/manifest.yaml</code> 与对应 CSV 文件
         </p>
+      </div>
+    );
+  }
+
+  // LandingPage is the unauth-only home surface. Once auth resolves
+  // and we have a user, bounce them to /history (the dashboard). We
+  // wait for authLoading to finish so we don't flash LandingPage at
+  // a logged-in user for one frame.
+  if (!authLoading && user) {
+    if (typeof window !== 'undefined' && window.location.pathname === '/') {
+      router.replace('/history');
+    }
+    return (
+      <div className="practice practice--loading">
+        <div className="practice__loader" aria-hidden>
+          <span></span><span></span><span></span><span></span>
+          <span></span><span></span><span></span>
+        </div>
+        <p className="practice__loader-text">Loading…</p>
       </div>
     );
   }

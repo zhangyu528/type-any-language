@@ -20,6 +20,30 @@ async function freshPage(page: Page) {
   await page.reload();
 }
 
+/**
+ * Stub /api/auth/me so useAuth() hydrates a logged-in user on first
+ * render. Must be installed BEFORE goto('/'). The response shape must
+ * match backend auth.py::me exactly: { user: { ... } } — and the
+ * inner object must include `display_name` because AppHeader reads
+ * `user.display_name.charAt(0)` and crashes on undefined.
+ */
+async function stubLoggedInUser(page: Page) {
+  await page.route('**/api/auth/me', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        user: {
+          id: 'test-user',
+          email: 'tester@example.com',
+          username: 'tester',
+          display_name: 'Tester',
+        },
+      }),
+    }),
+  );
+}
+
 test.describe('LandingPage — Hero CTA + Footer', () => {
   test('未登录：看到「登录后开始练习」，点击跳 /login?from=/', async ({
     page,
@@ -31,95 +55,39 @@ test.describe('LandingPage — Hero CTA + Footer', () => {
     await expect(page).toHaveURL(/\/login\?from=%2F/);
   });
 
-  test('已登录 + 无 prefs.libId：按钮文案是「开始今日练习 · {libs[0].name}」', async ({
-    page,
-  }) => {
-    await page.route('**/api/auth/me', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          user: {
-            id: 'test-user',
-            email: 'tester@example.com',
-            username: 'tester',
-            display_name: 'Tester',
-          },
-        }),
-      }),
-    );
+  test('已登录 + 无 prefs.libId：URL 重定向到 /history', async ({ page }) => {
+    await stubLoggedInUser(page);
     await page.goto('/');
-    // No prefs.libId is set.
-    const cta = page.getByRole('button', { name: /开始今日练习 · / });
-    await expect(cta).toBeVisible();
-    // Click should land on libs[0].
-    await cta.click();
-    await expect(page).toHaveURL(/\?lib=[a-f0-9-]+/);
+    // LandingPage is guest-only; logged-in users should land on /history.
+    await expect(page).toHaveURL(/\/history/);
   });
 
-  test('已登录 + prefs.libId 在 catalog：按钮文案是「继续练习 · {name}」，点击进该 lib', async ({
+  test('已登录 + prefs.libId 在 catalog：仍然跳 /history（prefs.libId 不影响 landing）', async ({
     page,
   }) => {
-    // Seed prefs.libId with the second lib's id (not libs[0]) so we
-    // can distinguish "继续" from "开始今日". The catalog has 4 libs;
-    // we resolve the second id at runtime via /api/content/catalog.
-    await page.route('**/api/auth/me', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          user: {
-            id: 'test-user',
-            email: 'tester@example.com',
-            username: 'tester',
-            display_name: 'Tester',
-          },
-        }),
-      }),
-    );
+    await stubLoggedInUser(page);
+    // Seed prefs.libId with libs[1] so we can verify it doesn't keep
+    // the user on / — LandingPage is not the auth surface.
     const catalogRes = await page.request.get(
       'http://localhost:8000/api/content/catalog',
     );
     expect(catalogRes.ok()).toBeTruthy();
-    const catalog = (await catalogRes.json()) as {
-      libs: Array<{ id: string; name: string }>;
-    };
+    const catalog = (await catalogRes.json()) as { libs: Array<{ id: string }> };
     expect(catalog.libs.length).toBeGreaterThanOrEqual(2);
-    const target = catalog.libs[1];
 
     await page.goto('/');
     await page.evaluate((libId) => {
       window.localStorage.setItem('prefs.libId', libId);
-    }, target.id);
+    }, catalog.libs[1].id);
     await page.reload();
 
-    const cta = page.getByRole('button', {
-      name: new RegExp(`继续练习 · ${target.name}`),
-    });
-    await expect(cta).toBeVisible();
-    await cta.click();
-    await expect(page).toHaveURL(
-      new RegExp(`\\?lib=${target.id.replace(/-/g, '[-]')}`),
-    );
+    await expect(page).toHaveURL(/\/history/);
   });
 
-  test('已登录 + prefs.libId 已被 catalog 移除：fallback 到 libs[0]', async ({
+  test('已登录 + prefs.libId 已被 catalog 移除：仍然跳 /history', async ({
     page,
   }) => {
-    await page.route('**/api/auth/me', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          user: {
-            id: 'test-user',
-            email: 'tester@example.com',
-            username: 'tester',
-            display_name: 'Tester',
-          },
-        }),
-      }),
-    );
+    await stubLoggedInUser(page);
     await page.goto('/');
     // Seed an obviously-stale libId; the catalog has none matching it.
     await page.evaluate(() => {
@@ -130,8 +98,7 @@ test.describe('LandingPage — Hero CTA + Footer', () => {
     });
     await page.reload();
 
-    const cta = page.getByRole('button', { name: /开始今日练习 · / });
-    await expect(cta).toBeVisible();
+    await expect(page).toHaveURL(/\/history/);
   });
 
   test('Footer GitHub 链接指向仓库 URL（不是 github.com 首页）', async ({
