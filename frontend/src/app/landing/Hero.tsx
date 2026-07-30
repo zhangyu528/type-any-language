@@ -35,7 +35,7 @@ export default function Hero({ libs, onPickLib }: HeroProps) {
     };
   }, []);
 
-// CTA: pick the first lib. Logged-out users go straight into
+  // CTA: pick the first lib. Logged-out users go straight into
   // practice (LandingPage is guest-only; logged-in users are bounced
   // to /history by page.tsx before this component ever renders, so
   // we never need to branch on `user` here — but we still label the
