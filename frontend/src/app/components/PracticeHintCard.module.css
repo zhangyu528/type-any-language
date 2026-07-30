@@ -1,0 +1,93 @@
+.root {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  margin-top: 16px;
+  border-radius: 10px;
+  background: rgba(63, 209, 122, 0.08);
+  border: 1px solid rgba(45, 90, 63, 0.14);
+  color: var(--cm-ink, #2D5A3F);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.login {
+  appearance: none;
+  background: var(--cm-mint-deep, #16A35E);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+.login:hover {
+  background: #128a4f;
+  transform: translateY(-1px);
+}
+.login:active {
+  transform: translateY(0);
+}
+.login:focus-visible {
+  outline: 2px solid var(--cm-mint-deep, #16A35E);
+  outline-offset: 2px;
+}
+
+.close {
+  appearance: none;
+  background: transparent;
+  color: var(--cm-ink, #2D5A3F);
+  border: none;
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+.close:hover {
+  background: rgba(45, 90, 63, 0.08);
+  color: var(--cm-mint-deep, #16A35E);
+}
+.close:focus-visible {
+  outline: 2px solid var(--cm-mint-deep, #16A35E);
+  outline-offset: 2px;
+}
+
+/* Dark mode */
+[data-theme="dark"] .root {
+  background: rgba(93, 232, 154, 0.10);
+  border-color: rgba(232, 244, 236, 0.20);
+  color: var(--cm-ink, #E8F4EC);
+}
+[data-theme="dark"] .close {
+  color: var(--cm-ink, #E8F4EC);
+}
+[data-theme="dark"] .close:hover {
+  background: rgba(232, 244, 236, 0.08);
+  color: var(--cm-mint, #5DE89A);
+}
