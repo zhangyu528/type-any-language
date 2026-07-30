@@ -45,14 +45,17 @@ async function stubLoggedInUser(page: Page) {
 }
 
 test.describe('LandingPage — Hero CTA + Footer', () => {
-  test('未登录：看到「登录后开始练习」，点击跳 /login?from=/', async ({
+  test('未登录：CTA 显示「立即开始练习」，点击直进练习页（不再跳 /login）', async ({
     page,
   }) => {
     await freshPage(page);
-    const cta = page.getByRole('button', { name: /登录后开始练习/ });
+    const cta = page.getByRole('button', { name: /立即开始练习/ });
     await expect(cta).toBeVisible();
     await cta.click();
-    await expect(page).toHaveURL(/\/login\?from=%2F/);
+    // Lands on /?lib=<libs[0].id> — the practice page itself, with
+    // no /login detour.
+    await expect(page).toHaveURL(/\?lib=[a-f0-9-]+/);
+    expect(page.url()).not.toContain('/login');
   });
 
   test('已登录 + 无 prefs.libId：URL 重定向到 /history', async ({ page }) => {
