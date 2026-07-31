@@ -1,5 +1,7 @@
 'use client';
 
+import styles from './practice/SunkenShortcutBar.module.css';
+
 interface AutoPlayToggle {
   active: boolean;
   onToggle: () => void;
@@ -64,25 +66,25 @@ export default function SunkenShortcutBar({
   const active = new Set((activeKeys ?? []).map(normalize));
 
   return (
-    <section className="shortcuts-bar" aria-label="快捷键参考">
-      <div className="shortcuts-bar__list">
+    <section className={styles.root} aria-label="快捷键参考">
+      <div className={styles.list}>
         {hints.map((sc) => {
           const anyActive = sc.keys.some((k) => active.has(normalize(k)));
           return (
             <div
               key={sc.label}
               className={
-                'shortcuts-bar__row' + (anyActive ? ' shortcuts-bar__row--active' : '')
+                styles.row + (anyActive ? ` ${styles.rowActive}` : '')
               }
             >
-              <span className="shortcuts-bar__keys">
+              <span className={styles.keys}>
                 {sc.keys.map((k, i) => {
                   const isLit = active.has(normalize(k));
                   return (
                     <kbd
                       key={i}
                       className={
-                        'shortcuts-bar__kbd' + (isLit ? ' shortcuts-bar__kbd--active' : '')
+                        styles.kbd + (isLit ? ` ${styles.kbdActive}` : '')
                       }
                     >
                       {k}
@@ -90,20 +92,19 @@ export default function SunkenShortcutBar({
                   );
                 })}
               </span>
-              <span className="shortcuts-bar__label">{sc.label}</span>
+              <span className={styles.label}>{sc.label}</span>
             </div>
           );
         })}
         {autoPlay && (
           <div
-            className="shortcuts-bar__row shortcuts-bar__row--toggle"
+            className={`${styles.row} ${styles.rowToggle}`}
             role="button"
             tabIndex={0}
             aria-pressed={autoPlay.active}
             aria-label={`自动播放${autoPlay.active ? ' · 开' : '关'},点击切换`}
             onClick={autoPlay.onToggle}
             onKeyDown={(e) => {
-              // Enter 触发切换;Space 不拦截 — 让全局 Space=播放/暂停 继续生效。
               if (e.key === 'Enter') {
                 e.preventDefault();
                 e.stopPropagation();
@@ -111,15 +112,14 @@ export default function SunkenShortcutBar({
               }
             }}
           >
-            <span className="shortcuts-bar__keys">
-              <kbd className="shortcuts-bar__kbd">A</kbd>
+            <span className={styles.keys}>
+              <kbd className={styles.kbd}>A</kbd>
             </span>
-            <span className="shortcuts-bar__label">
+            <span className={styles.label}>
               自动播放
               <span
                 className={
-                  'shortcuts-bar__state shortcuts-bar__state--' +
-                  (autoPlay.active ? 'on' : 'off')
+                  autoPlay.active ? styles.stateOn : styles.stateOff
                 }
               >
                 {autoPlay.active ? '· 开' : '· 关'}

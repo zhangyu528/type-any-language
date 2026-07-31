@@ -1,17 +1,16 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   getContentCatalog,
   Catalog,
   loadTranslationProgress,
   TranslationProgress,
 } from './api';
-import { useAuth } from './lib/auth';
 import LandingPage from './landing';
 import LoadingMark from './components/LoadingMark';
 import TranslationSession from './TranslationSession';
+import styles from './practice/Practice.module.css';
 
 /**
  * Practice page — top-level router for the translation drill.
@@ -36,8 +35,6 @@ export default function PracticePage() {
     useState<TranslationProgress>({});
   const [error, setError] = useState('');
   const [selectedLibId, setSelectedLibId] = useState<string | null>(null);
-  const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
 
   // Read ?lib from the URL. Default: no lib → null (Landing renders).
   const readUrl = useCallback(() => {
@@ -134,17 +131,17 @@ export default function PracticePage() {
   // ---- Render ----
   if (error) {
     return (
-      <div className="practice practice--error">
-        <p className="practice__error-text">{error}</p>
+      <div className={`${styles.root} practice--cm ${styles.error}`}>
+        <p className={styles.errorText}>{error}</p>
       </div>
     );
   }
 
   if (!catalog) {
     return (
-      <div className="practice practice--loading">
+      <div className={`${styles.root} practice--cm ${styles.loading}`}>
         <LoadingMark />
-        <p className="practice__loader-text">Loading…</p>
+        <p className={styles.loaderText}>Loading…</p>
       </div>
     );
   }
@@ -152,30 +149,19 @@ export default function PracticePage() {
   // Empty catalog — manifest shipped no libs (or all CSVs missing).
   if (catalog.libs.length === 0) {
     return (
-      <div className="practice practice--empty">
-        <p className="practice__empty-text">暂无课程</p>
-        <p className="practice__empty-hint">
+      <div className={`${styles.root} practice--cm ${styles.empty}`}>
+        <p className={styles.emptyText}>暂无课程</p>
+        <p className={styles.emptyHint}>
           请检查 <code>db/cms/manifest.yaml</code> 与对应 CSV 文件
         </p>
       </div>
     );
   }
 
-  // LandingPage is the unauth-only home surface. Once auth resolves
-  // and we have a user, bounce them to /history (the dashboard). We
-  // wait for authLoading to finish so we don't flash LandingPage at
-  // a logged-in user for one frame.
-  if (!authLoading && user) {
-    if (typeof window !== 'undefined' && window.location.pathname === '/') {
-      router.replace('/history');
-    }
-    return (
-      <div className="practice practice--loading">
-        <LoadingMark />
-        <p className="practice__loader-text">Loading…</p>
-      </div>
-    );
-  }
+  // Logged-in users see the same Landing as anonymous visitors —
+  // they pick a lib and dive into the drill. No dedicated dashboard
+  // route exists anymore (the historical /history placeholder was
+  // removed 2026-07-31; this page IS the home for everyone).
 
   // No lib selected → render LandingPage (the new content-driven home).
   if (!selectedLibId) {
@@ -189,11 +175,11 @@ export default function PracticePage() {
   }
 
   return (
-    <div className="practice">
-      <div className="practice__content">
-        <header className="masthead" aria-label="page header">
+    <div className={`${styles.root} practice--cm`}>
+      <div className={styles.content}>
+        <header className={styles.masthead} aria-label="page header">
           <a
-            className="masthead__brand"
+            className={styles.mastheadBrand}
             href="/"
             onClick={(e) => {
               e.preventDefault();

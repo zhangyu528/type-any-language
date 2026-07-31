@@ -1,0 +1,223 @@
+/* ============================================================
+   Home — course picker (lib cards grid)
+   ------------------------------------------------------------
+   Migrated from globals.css on 2026-07-31. Token references
+   resolve via .practice--cm container scope in globals.css.
+   ============================================================ */
+
+.home {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  width: 100%;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+}
+
+.caption {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  font-weight: var(--type-body-weight);
+  color: var(--label-tertiary);
+  letter-spacing: 0.06em;
+  line-height: var(--type-caption-lh);
+  user-select: none;
+}
+
+.title {
+  font-family: var(--font-body);
+  font-size: var(--type-title-1);
+  font-weight: var(--type-title-1-weight);
+  color: var(--label-primary);
+  letter-spacing: -0.01em;
+  line-height: var(--type-title-1-lh);
+  margin: 0;
+}
+
+.meta {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  font-weight: var(--type-body-weight);
+  color: var(--label-tertiary);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+.progress {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  font-weight: var(--type-body-weight);
+  color: var(--label-secondary);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+  padding-top: var(--space-1);
+}
+
+/* Tiles — 3-column on desktop, 2 on tablet, 1 on mobile. */
+.tiles {
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+  padding: 0;
+  margin: 0;
+  width: 100%;
+}
+
+@media (min-width: 560px) {
+  .tiles {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+  }
+}
+
+.tileItem {
+  margin: 0;
+  padding: 0;
+  display: flex;
+}
+
+/* Card */
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 168px;
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface-elevated);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  color: var(--label-primary);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+.tile:hover {
+  background: var(--surface-secondary);
+  border-color: var(--label-quaternary);
+}
+
+.tile:active {
+  transform: scale(0.98);
+  background: var(--surface-tertiary);
+}
+
+.tileHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.tileName {
+  font-size: var(--type-title-3);
+  font-weight: var(--type-title-3-weight);
+  color: var(--label-primary);
+  letter-spacing: -0.01em;
+  line-height: var(--type-title-3-lh);
+}
+
+.tileLevel {
+  font-family: var(--font-mono);
+  font-size: var(--type-caption);
+  font-weight: 500;
+  color: var(--label-tertiary);
+  letter-spacing: 0.04em;
+  padding: var(--space-1) var(--space-2);
+  background: var(--surface-secondary);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  text-transform: lowercase;
+}
+
+.tileDesc {
+  font-size: var(--type-body);
+  color: var(--label-secondary);
+  line-height: var(--type-body-lh);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Progress bar + recent chip — both use Citrus Mint tokens. */
+.tile {
+  position: relative;
+  padding-bottom: calc(var(--space-4) + 3px);
+}
+
+.tileProgress {
+  position: absolute;
+  left: var(--space-5);
+  right: var(--space-5);
+  bottom: calc(var(--space-3) - 2px);
+  height: 3px;
+  background: var(--cm-line);
+  border-radius: var(--radius-circle);
+  overflow: hidden;
+}
+
+.tileProgressFill {
+  display: block;
+  height: 100%;
+  background: var(--cm-sage);
+  transition: width var(--duration-base) var(--ease-standard);
+}
+
+.tileRecent {
+  border-color: var(--cm-sage);
+}
+
+.tileRecent:hover {
+  border-color: var(--cm-sage-soft);
+}
+
+.tileChip {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 var(--space-2);
+  background: var(--cm-sage);
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  border-radius: var(--radius-sm);
+  z-index: 1;
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 640px) {
+  .title {
+    font-size: var(--type-title-2);
+  }
+
+  .tiles {
+    gap: var(--space-3);
+  }
+
+  .tile {
+    min-height: 0;
+    padding: var(--space-4);
+  }
+}

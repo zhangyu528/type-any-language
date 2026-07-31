@@ -15,6 +15,10 @@
 }
 /* chip removed — was "live drill · sample", redundant with the
    demo's own visible animation. */
+/* 中文题目 —— 颜色跟练习页 .prompt 完全一致(都是 cm-ink / #2D5A3F),
+   不再走 0.65 opacity 弱化 —— 中文在 Landing 里已经用更小字号
+   (18-22px vs 练习页 24-36px) 跟英文标题做视觉层次区分,不需要
+   透明度再降一档。 */
 .zh {
   margin: 0 0 var(--space-5);
   display: block;
@@ -23,7 +27,6 @@
   line-height: 1.5;
   font-size: clamp(18px, 1.7vw, 22px);
   color: var(--cm-ink);
-  opacity: 0.65;
   min-height: 1.5em;
   font-family: var(--font-body-zh), var(--font-body), sans-serif;
 }
@@ -62,17 +65,26 @@
    keyframe 内部在 settle 完成 / 字符染朱砂 / 修正完成 三个时刻切换
    border-bottom-color。整句跨字时通过 inline keyframe 的百分比点位对齐
    到每个词各自的绝对时间。
-   默认下划线 2px,色为 --cm-ink 的 22% —— 在白底上明显可读但不抢词。
-   切色后(--cm-mint-deep / --cm-accent)完全不透明,色阶对比清晰。 */
+   静态下划线 2px,色 = var(--cm-rule) —— placeholder 阶段(该词
+   任何 keyframe 还没启动)跟 practice 页 .cell 占位下划线一致
+   (后者用 var(--separator) → var(--cm-rule))。
+   三个状态的边界:
+     - placeholder(animation-delay 之前): 22% 灰透明,此规则提供
+     - 输入中(0% → 字符 settle 完成): inline keyframe 接管,色 = ink
+     - 正常词 settle 完成: 下划线 → transparent
+     - 错改词 judgeAt:  → 朱砂(--cm-accent);
+                backspaceDoneAt: → ink(退格完成,作为重输占位)
+                retypeEndAt: → transparent
+   字符颜色 inherit 自 .word,默认 --cm-ink;输入过程中字符和
+   下划线同色(--cm-ink),settle 完成后字符变 mint-deep、下划线
+   消失,视觉上"输入完成 → 笔缩回去"。 */
 .word {
   position: relative;
   display: inline-block;
   padding: 0 4px 8px;
   min-width: 1.2em;
   white-space: nowrap;
-  border-bottom: 2px solid color-mix(in srgb, var(--cm-ink) 22%, transparent);
-  /* 字符颜色 inherit 自 .word;inline keyframe 在整词 settle 完成那一刻
-     把 color 从 --cm-ink 切到 --cm-mint-deep(整词同步)。 */
+  border-bottom: 2px solid var(--cm-rule);
   color: var(--cm-ink);
 }
 
@@ -193,7 +205,8 @@
   .enChar,
   .enCharErr,
   .enCharOk { animation: none; opacity: 1; filter: none; transform: none; }
-  /* reduced-motion 用户:跳过下划线染色动画,直接落到 mint-deep,
-     保留"输入正确"的视觉确认,但移除朱砂闪烁和缓动。 */
-  .word { animation: none !important; border-bottom-color: var(--cm-mint-deep); }
+  /* reduced-motion 用户:跳过下划线动画,直接落到 transparent(下划线消失),
+     保留"输入正确"的视觉在字符颜色上(.word color 落到 mint-deep),
+     移除朱砂闪烁和缓动。 */
+  .word { animation: none !important; border-bottom-color: transparent; }
 }
