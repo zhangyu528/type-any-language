@@ -15,8 +15,9 @@ import TranslationStage from './TranslationStage';
 import { useAuth } from './lib/auth';
 import PracticeHintCard, {
   type PracticeHintCardKind,
-} from './components/PracticeHintCard';
+} from './practice/PracticeHintCard';
 import LoadingMark from './components/LoadingMark';
+import styles from './practice/TranslationStage.module.css';
 
 interface TranslationSessionProps {
   libId: string;
@@ -294,18 +295,18 @@ export default function TranslationSession({
 
   if (sessionState === 'loading' || !lesson) {
     return (
-      <div className="translation translation--loading">
+      <div className={`${styles.translation} ${styles.loading}`}>
         <LoadingMark />
-        <p className="translation__loader-text">Loading…</p>
+        <p className={styles.loaderText}>Loading…</p>
       </div>
     );
   }
 
   if (sessionState === 'error') {
     return (
-      <div className="translation translation--error">
-        <p className="translation__error-text">{error}</p>
-        <button type="button" className="translation__btn translation__btn--ghost" onClick={onBack}>
+      <div className={`${styles.translation} ${styles.errorVariant}`}>
+        <p className={styles.errorText}>{error}</p>
+        <button type="button" className={`${styles.btn} ${styles.btnGhost}`} onClick={onBack}>
           返回
         </button>
       </div>
@@ -314,13 +315,13 @@ export default function TranslationSession({
 
   if (sessionState === 'empty-lib' || !currentStep) {
     return (
-      <div className="translation translation--empty-step">
-        <p className="translation__caption">本词库</p>
-        <p className="translation__empty-text">
+      <div className={`${styles.translation} ${styles.emptyStep}`}>
+        <p className={styles.caption}>本词库</p>
+        <p className={styles.emptyText}>
           该词库暂无可练习的句子
         </p>
-        <div className="translation__actions">
-          <button type="button" className="translation__btn translation__btn--primary" onClick={onBack}>
+        <div className={styles.actions}>
+          <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={onBack}>
             返回词库列表
           </button>
         </div>
@@ -336,7 +337,7 @@ export default function TranslationSession({
         onComplete={handleStepComplete}
       />
       {stats && (
-        <p className="translation__meta" aria-label="练习进度">
+        <p className={styles.meta} aria-label="练习进度">
           已答 {stats.correct} / {stats.total} 句 ({stats.percent}%)
           {' · '}
           本词 {currentWordAnswered} 句

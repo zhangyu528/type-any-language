@@ -57,7 +57,7 @@ export default function AppHeader() {
     return null;
   }
 
-  // On the public routes (/, /?lib=X, /history, etc.). Append ?from=<current>
+  // On the public routes (/, /?lib=X, etc.). Append ?from=<current>
   // so a successful login returns the user to where they clicked from.
   const here = currentPathWithQuery(pathname, searchParams?.toString() ?? null);
   const loginHref = here === '/' ? '/login' : `/login?from=${encodeURIComponent(here)}`;
@@ -88,10 +88,10 @@ export default function AppHeader() {
           <>
             <ThemeToggle />
             <Link
-              href="/history"
+              href="/"
               className="app-header__avatar"
-              aria-label={`${user.display_name} — 我的历史`}
-              title={`${user.display_name} · 我的历史`}
+              aria-label={`${user.display_name} — 返回首页`}
+              title={`${user.display_name} · 返回首页`}
             >
               {user.display_name.charAt(0).toUpperCase()}
             </Link>

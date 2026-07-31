@@ -43,7 +43,7 @@ const CURSOR_BLINK = 80;           // 退格完成后,代表"回想正确字符"
 const RETYPE_STAGGER = 150;        // 重输字符间的级联(与初次输入 EN_CHAR_STAGGER 一致)
 const RETYPE_DURATION = 380;       // 重输 settle 持续
 const RECOVERY_PAUSE = 200;        // 修正后停顿("反应过来")
-const WORD_HOLD_TAIL = 400;        // 整词 settle 完成后下划线维持 mint-deep 的尾巴时间
+const WORD_HOLD_TAIL = 400;        // 整词 settle 完成后下划线保持透明的尾巴时间(防止瞬态跳变)
 const DWELL_AFTER_FULL = 1600;     // 整句完成后停留(用户能看清)
 const LOOP_PAUSE = 320;            // 切下一句前的间隔
 
@@ -56,7 +56,7 @@ interface WordMeta {
   wrongCharIdx: number | null;
   /** 当前词的 settle 起始时刻(基于上一个词的 endAt + 词间停顿算出) */
   startSettleAt: number;
-  /** 整词最后一个字符 settle 完成的时刻(下划线由 --cm-rule 切到 --cm-mint-deep 的时刻) */
+  /** 整词最后一个字符 settle 完成的时刻(下划线由 --cm-ink 切到 transparent、字符颜色切到 mint-deep 的时刻) */
   settleEnd: number;
   /** "判断时刻" = 该词最后字符 settle 完成 + WRONG_HOLD */
   judgeAt: number;
@@ -254,9 +254,12 @@ export default function TypefallDemo() {
             /* 每词独一无二的 keyframe —— 名字按 index+wi 拼,
                保证 SSR / 切句 / 热重载 时 keyframe 不撞车。
                下划线跟"整词"状态同步:
-                 - 正常词:整词 settleEnd 切到 mint-deep,之后维持 WORD_HOLD_TAIL
+                 - 正常词:整词 settleEnd 切到 transparent(下划线消失),
+                   character color 切到 mint-deep(由 .word 继承,
+                   整词同步变绿),之后维持 WORD_HOLD_TAIL
                  - 错改词:judgeAt(整词 settle + WRONG_HOLD = "看着刚输错")切到
-                   朱砂,retypeEndAt(整词重输 settle 完)切回 mint-deep
+                   朱砂,retypeEndAt(整词重输 settle 完)切到 transparent
+                   (下划线消失,字符色保持 mint-deep)
                animation-delay = startSettleAt —— 让 keyframe 在该词字符
                settle 真正开始时启动(关键!否则所有 keyframe 在 mount 0ms
                同时跑,跨词时序全错)。
@@ -266,7 +269,12 @@ export default function TypefallDemo() {
                0% 起色必须与 .word 默认 border-bottom-color 完全一致,
                否则 mount 时会出现瞬态跳变。 */
             const ruleAnimName = `kf-rule-${index}-${wi}`;
-            const ruleStartColor = 'color-mix(in srgb, var(--cm-ink) 22%, transparent)';
+            // 起始色 = var(--cm-ink),与该时间窗下字符 inherit 的 color
+            // 同源 —— 输入过程中下划线跟字符同色,看上去是"笔尖正在描的线"。
+            // 注意:这跟 .word 静态 border-bottom-color (22% 灰透明)
+            // 不一样 —— 静态色是 placeholder 阶段(该词 keyframe 还没启动),
+            // 跟 practice 页 .cell 占位下划线一致。两个颜色对应两个状态。
+            const ruleStartColor = 'var(--cm-ink)';
             const ruleDelay = `${word.startSettleAt}ms`;
             let ruleKeyframes: string;
             let ruleDur: string;
@@ -275,8 +283,9 @@ export default function TypefallDemo() {
               ruleDur = `${relErrDur}ms`;
               const pAccentOn = ((word.judgeAt - word.startSettleAt) / relErrDur) * 100;
               /* 退格完成 = backspaceDoneAt,字符已全部滑出,代表"字空了"。
-                 此时下划线切回灰透明(还没重输,不该是 mint 也不能是朱砂)。
-                 然后等 retypeEndAt(正确字符 fade-in 完成)再切 mint。 */
+                 此时下划线切回 ink(--cm-ink,与原字符色同,作为重输占位),
+                 然后等 retypeEndAt(正确字符 fade-in 完成)切到 transparent
+                 —— 与 practice .cellCorrect::after opacity:0 一致。 */
               const pAccentOff = ((word.backspaceDoneAt - word.startSettleAt) / relErrDur) * 100;
               const pMintOn = ((word.retypeEndAt - word.startSettleAt) / relErrDur) * 100;
               /* step 写法:每个色块前留 0.01% 锁住前色,避免 CSS 自动
@@ -284,6 +293,10 @@ export default function TypefallDemo() {
               const pBeforeAccent = Math.max(0, pAccentOn - 0.01);
               const pBeforeBack = Math.max(0, pAccentOff - 0.01);
               const pBeforeMint = Math.max(0, pMintOn - 0.01);
+              /* 错误→重输 settle 完成时,下划线应该彻底消失(透明),
+                 与 practice 页 .cellCorrect::after opacity:0 一致 —
+                 字符颜色(--cm-mint-deep)由 .enCharOk 接管,继续承担
+                 "输入正确"的视觉提示;下划线本身失去意义。 */
               ruleKeyframes =
                 `@keyframes ${ruleAnimName}{` +
                 `0%{border-bottom-color:${ruleStartColor};}` +
@@ -292,29 +305,29 @@ export default function TypefallDemo() {
                 `${pBeforeBack.toFixed(2)}%{border-bottom-color:var(--cm-accent);}` +
                 `${pAccentOff.toFixed(2)}%{border-bottom-color:${ruleStartColor};}` +
                 `${pBeforeMint.toFixed(2)}%{border-bottom-color:${ruleStartColor};}` +
-                `${pMintOn.toFixed(2)}%{border-bottom-color:var(--cm-mint-deep);}` +
-                `100%{border-bottom-color:var(--cm-mint-deep);}` +
+                `${pMintOn.toFixed(2)}%{border-bottom-color:transparent;}` +
+                `100%{border-bottom-color:transparent;}` +
                 `}`;
             } else {
               const relSettleDur = word.settleEnd - word.startSettleAt;
               const ruleTotal = relSettleDur + WORD_HOLD_TAIL;
               ruleDur = `${ruleTotal}ms`;
               const pMintOn = (relSettleDur / ruleTotal) * 100;
-              /* 整词同步切色:border-bottom 用 22% 透明度(柔和),color
-                 用不透明(清晰可读)。两套不同的"起始色"。下划线在整词
-                 settle 完成那一瞬切绿,字符颜色(inherit 自 .word)同一
-                 时刻切绿。
-                 关键:必须用 step 写法 —— 在 pMintOn 前一帧(67.99%)锁住
-                 起始色,否则 CSS 会在 0% → pMintOn 之间自动线性插值,
-                 视觉上「字符刚开始 settle 下划线就在渐变」。step 让切色
-                 严格发生在最后一个字符 100% 完成那一刻。 */
+              /* 整词同步切色:border-bottom 切到 transparent(下划线
+                 消失 —— 与 practice 页 .cellCorrect::after 一致),
+                 character color(--cm-mint-deep)由 .enChar fade-in 后
+                 的 stable state 接管,继续承担"输入正确"的视觉提示。
+                 关键:必须用 step 写法 —— 在 pMintOn 前一帧锁住前色,
+                 否则 CSS 会在 0% → pMintOn 之间自动线性插值,视觉上
+                 「字符刚开始 settle 下划线就在渐变」。step 让切色严格
+                 发生在最后一个字符 100% 完成那一刻。 */
               const pStepBefore = Math.max(0, pMintOn - 0.01);
               ruleKeyframes =
                 `@keyframes ${ruleAnimName}{` +
                 `0%{border-bottom-color:${ruleStartColor};color:var(--cm-ink);}` +
                 `${pStepBefore.toFixed(2)}%{border-bottom-color:${ruleStartColor};color:var(--cm-ink);}` +
-                `${pMintOn.toFixed(2)}%{border-bottom-color:var(--cm-mint-deep);color:var(--cm-mint-deep);}` +
-                `100%{border-bottom-color:var(--cm-mint-deep);color:var(--cm-mint-deep);}` +
+                `${pMintOn.toFixed(2)}%{border-bottom-color:transparent;color:var(--cm-mint-deep);}` +
+                `100%{border-bottom-color:transparent;color:var(--cm-mint-deep);}` +
                 `}`;
             }
 
