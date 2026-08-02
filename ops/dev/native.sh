@@ -16,6 +16,9 @@
 #   start              Start backend (uvicorn --reload :8000) + frontend
 #                      (next dev :3000) on the host. Ensure docker db is up
 #                      first (auto-start via ensure_dev_db_up).
+#   start-frontend     Start ONLY frontend (next dev :3000). Useful for
+#                      restart_frontend_dev.sh which kills orphans on :3000
+#                      and brings up a single service. Doesn't touch backend.
 #   stop               Stop both. Removes .pid files; logs are preserved.
 #   restart|reload     stop + start.
 #   status             Print pid + uptime + listening port + last log line.
@@ -341,6 +344,35 @@ _start_one() {
     ok "  $name PID=$(cat "$pid_file")"
 }
 
+cmd_start_frontend() {
+    if ! cmd_preflight >/dev/null; then
+        err "preflight 失败 — 跑 make dev-setup 修"
+        return 1
+    fi
+    _ensure_layout
+
+    # Ensure docker postgres is up (self-heal, same pattern as import_content.sh).
+    ensure_dev_db_up
+
+    # Export env — frontend doesn't read DATABASE_URL but NEXT_PUBLIC_API_URL
+    # is baked at first render, so the same defaults cmd_start uses apply.
+    export ALLOWED_ORIGINS="${ALLOWED_ORIGINS:-$DEFAULT_ALLOWED_ORIGINS}"
+    export DATABASE_URL="${DATABASE_URL:-$DEFAULT_DATABASE_URL}"
+    export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-$DEFAULT_NEXT_PUBLIC_API_URL}"
+
+    # MSYS-safe spawn: pass paths as $1 positional args inside `bash -c '...'`
+    # so Git Bash doesn't parse them as Windows paths (see project memory
+    # docker-windows-single-slash-translation).
+    _start_one "frontend" "$FRONTEND_PID_FILE" "$FRONTEND_LOG" \
+        bash -c 'cd "$1" && exec npm run dev -- --port "$2"' _ "$FRONTEND_DIR" "$FRONTEND_PORT"
+
+    echo ""
+    ok "frontend dev 已启动"
+    echo -e "  前端: ${_LIB_BLUE}http://localhost:${FRONTEND_PORT}${_LIB_NC}"
+    echo "  logs: tail -f $FRONTEND_LOG"
+    echo "        (or: make dev-logs frontend)"
+}
+
 cmd_start() {
     if ! cmd_preflight >/dev/null; then
         err "preflight 失败 — 跑 make dev-setup 修"
@@ -371,17 +403,8 @@ cmd_start() {
     fi
     _start_one "backend" "$BACKEND_PID_FILE" "$BACKEND_LOG" \
         bash -c 'cd "$1" && source "$2" && exec uvicorn app.main:app --reload --host 0.0.0.0 --port "$3"' _ "$BACKEND_DIR" "$venv_activate" "$BACKEND_PORT"
-    _start_one "frontend" "$FRONTEND_PID_FILE" "$FRONTEND_LOG" \
-        bash -c 'cd "$1" && exec npm run dev -- --port "$2"' _ "$FRONTEND_DIR" "$FRONTEND_PORT"
-
-    echo ""
-    ok "native dev 已启动"
-    echo -e "  前端: ${_LIB_BLUE}http://localhost:${FRONTEND_PORT}${_LIB_NC}"
-    echo -e "  后端: ${_LIB_BLUE}http://localhost:${BACKEND_PORT}${_LIB_NC}"
-    echo -e "  API:  ${_LIB_BLUE}http://localhost:${BACKEND_PORT}/docs${_LIB_NC}"
-    echo "  db:   localhost:5432 (仍在 docker)"
-    echo "  logs: tail -f $BACKEND_LOG  /  $FRONTEND_LOG"
-    echo "        (or: make dev-logs [backend|frontend])"
+    # Delegate to cmd_start_frontend so the frontend spawn path stays in one place.
+    cmd_start_frontend
 
     warn_if_db_empty  # reuses _common.sh helper
 }
@@ -487,6 +510,7 @@ EOF
 
 case "${1:-}" in
     start)            shift; cmd_start "$@" ;;
+    start-frontend)   shift; cmd_start_frontend "$@" ;;
     stop)             shift; cmd_stop "$@" ;;
     restart|reload)   shift; cmd_restart "$@" ;;
     status)           shift; cmd_status "$@" ;;

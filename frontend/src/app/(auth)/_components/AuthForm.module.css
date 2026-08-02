@@ -1,0 +1,311 @@
+/* ============================================================
+   AuthForm — 单页 auth 表单的 token 化样式
+   ------------------------------------------------------------
+   下划线-only 输入 + 左侧可选 mail 图标 + 右侧 IconButton bare 眼睛
+   + 字段下方 ⚠ 错误胶囊 + 提交 `Button primary lg` + alt-link。
+   全部 --ds-* / --space-* / --radius-* / --text-* / --dur-* / --ease-*。
+   标题 (.auth-title / .auth-title__char) 由 (auth)/layout.tsx 拥有,
+   不在本文件。
+   ============================================================ */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  /* 整张表单在卡片升起后整体淡入一帧,4px 抬起 — 跟 .auth-card-rise
+     500ms 错峰 80ms,让卡片先"入场"再"展开内容"。 */
+  animation: authForm-rise 400ms var(--ease-out) 80ms both;
+}
+
+@keyframes authForm-rise {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ------------------------------------------------------------
+   Subtitle(可选双语 caption)
+   静态单行,zh + bullet + en。不旋转、不动画、不 aria-live。
+   ------------------------------------------------------------ */
+.subtitle {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: var(--text-body);
+  color: var(--ds-ink-soft);
+  line-height: 1.5;
+  margin: 0;
+  user-select: none;
+}
+.subtitle__en {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  letter-spacing: 0.01em;
+  color: var(--ds-ink-faint);
+}
+.subtitle__sep {
+  color: var(--ds-ink-faint);
+  font-size: var(--text-caption);
+}
+
+/* ------------------------------------------------------------
+   Field — 一个字段列(label 可选,目前直接用 input 的 aria-label)
+   ------------------------------------------------------------ */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* 输入壳 — 容纳 left icon + 原生 input + 右侧眼睛 toggle。 */
+.inputWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* ------------------------------------------------------------
+   输入 — 下划线 only,符合站点极简节奏。
+   静态 1px --ds-ink-soft,聚焦时:
+     - 1px 静态线下移到 --ds-ink
+     - 2px --ds-action 覆盖条从左 scaleX(0)→scaleX(1)
+   错误时:
+     - 静态线改 --ds-error-line
+     - 文字短暂偏 --ds-error-ink
+     - 聚焦时整圈 box-shadow 0 0 0 3px --ds-error 18%
+   ------------------------------------------------------------ */
+.input {
+  width: 100%;
+  height: var(--control-input);
+  padding: 0 var(--space-4);
+  font-family: inherit;
+  font-size: var(--text-body);
+  font-weight: var(--weight-regular);
+  color: var(--ds-ink);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--ds-ink-soft);
+  border-radius: 0;
+  letter-spacing: 0.005em;
+  caret-color: var(--ds-caret);
+  position: relative;
+  transition:
+    border-bottom-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+.input::placeholder {
+  color: var(--ds-ink-faint);
+  font-family: var(--font-sans);
+  opacity: 1;
+}
+.input:hover {
+  border-bottom-color: var(--ds-ink);
+}
+.input:focus {
+  outline: none;
+  border-bottom-color: var(--ds-ink);
+}
+
+/* 2px 聚焦覆盖条 — bottom: -1px 让 2px 紧贴 1px 静态线下方,
+   视觉上"升起"一条更粗的薄荷线。 */
+.input::after {
+  content: "";
+  position: absolute;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: -1px;
+  height: 2px;
+  background: var(--ds-action);
+  transform: scaleX(0);
+  transform-origin: left center;
+  pointer-events: none;
+}
+.input:focus::after {
+  animation: authForm-underline-grow var(--dur-base) var(--ease-out) forwards;
+}
+@keyframes authForm-underline-grow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+/* 输入宽度变体 — 让位给左 icon / 右 toggle */
+.inputWithIcon {
+  padding-left: 36px;
+}
+.inputWithToggle {
+  padding-right: 44px;
+}
+
+/* 错误态 — 静态线变红,聚焦加红光圈 */
+.inputError {
+  border-bottom-color: var(--ds-error-line);
+  color: var(--ds-error-ink);
+}
+.inputError:hover {
+  border-bottom-color: var(--ds-error);
+}
+.inputError:focus {
+  border-bottom-color: var(--ds-error);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-error) 18%, transparent);
+}
+.inputError:focus::after {
+  background: var(--ds-error);
+}
+
+/* ------------------------------------------------------------
+   左侧 mail 图标 — 16×16 SVG,定位 absolute。
+   静态 --ds-ink-faint,焦点时跟随到 --ds-ink,错误时 --ds-error。
+   ------------------------------------------------------------ */
+.icon {
+  position: absolute;
+  left: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--ds-ink-faint);
+  pointer-events: none;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+.inputWrap:focus-within .icon {
+  color: var(--ds-ink);
+}
+.inputWrap[data-state="error"] .icon {
+  color: var(--ds-error);
+}
+
+/* ------------------------------------------------------------
+   右侧眼睛 toggle — 借助 IconButton 模块,但需要绝对定位到右边缘
+   并垂直居中。提供 absolute 定位 wrapper class 给 page。
+   ------------------------------------------------------------ */
+.toggleWrap {
+  position: absolute;
+  right: var(--space-2);
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ------------------------------------------------------------
+   错误胶囊 — ⚠ + text 错误消息
+   ------------------------------------------------------------ */
+.error {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-caption);
+  color: var(--ds-error-ink);
+  margin-top: var(--space-1);
+}
+.error::before {
+  content: "⚠";
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+/* ------------------------------------------------------------
+   注册实时匹配 hint — ✓/⚠ + zh
+   aria-live="polite" 已在外层设置,这里只管颜色 / glyph。
+   ------------------------------------------------------------ */
+.hint {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+  letter-spacing: 0.02em;
+  min-height: 1.4em;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+.hintIncomplete,
+.hintMismatch {
+  color: var(--ds-error-ink);
+}
+.hintMatch {
+  color: var(--ds-correct);
+}
+.hintIncomplete::before,
+.hintMismatch::before {
+  content: "⚠";
+  font-size: 13px;
+}
+.hintMatch::before {
+  content: "✓";
+  font-size: 13px;
+}
+
+/* ------------------------------------------------------------
+   Submit Button — 包裹让 Button 全宽,同时把间距拉大
+   ------------------------------------------------------------ */
+.submit {
+  display: flex;
+  margin-top: var(--space-6);
+  width: 100%;
+}
+.submit > * {
+  width: 100%;
+}
+
+/* ------------------------------------------------------------
+   Alt-link — "还没有账号?  注册"
+   ------------------------------------------------------------ */
+.alt {
+  text-align: center;
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+  margin: var(--space-4) 0 0;
+}
+.alt a,
+.alt .altCta {
+  color: var(--ds-action-deep);
+  text-decoration: none;
+  font-weight: var(--weight-medium);
+  position: relative;
+  display: inline-block;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+.alt a::before,
+.alt a::after,
+.alt .altCta::before,
+.alt .altCta::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 200ms var(--ease-out);
+}
+.alt a::before,
+.alt .altCta::before { transform-origin: left; }
+.alt a::after,
+.alt .altCta::after  { transform-origin: right; }
+.alt a:hover::before,
+.alt .altCta:hover::before { transform: scaleX(1); height: 2px; bottom: -3px; }
+.alt a:hover::after,
+.alt .altCta:hover::after  { transform: scaleX(1); height: 2px; bottom: -3px; }
+.alt .altCta:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ============================================================
+   Reduced-motion — 全部 converge 到 final state
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .form { animation: none !important; opacity: 1; transform: none; }
+  .input,
+  .icon,
+  .hint { transition: none !important; }
+  .input::after { animation: none !important; transform: scaleX(1); }
+}

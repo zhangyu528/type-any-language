@@ -24,35 +24,29 @@
  *     top would fight with the card's own "back to home" affordance.
  */
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '../lib/auth';
+import { useAuthModal } from '../lib/authModal';
 import BrandMark from '../landing/BrandMark';
 import ThemeToggle from './ThemeToggle';
 
 const HIDE_CHROME_PATHS = ['/login', '/signup'];
 
-/** Build a same-origin `?from=<current>` query for the auth pages.
- *  Used so a successful login/signup returns the user to where they
- *  came from. */
-function currentPathWithQuery(pathname: string | null, search: string | null): string {
-  const path = pathname || '/';
-  return search ? `${path}${search}` : path;
-}
-
+/**
+ * Why no `?from=<current>` here: the auth modal reads window.location
+ * itself, so the trigger just needs to say "open this mode". Deep
+ * links (e.g. /login?from=/me) still work because /login and /signup
+ * are full-page routes that mount the same useAuthFormState hook —
+ * the modal is the in-app shortcut, not the deep-link surface.
+ */
 export default function AppHeader() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { user, loading, logout } = useAuth();
+  const { open: openAuthModal } = useAuthModal();
 
   if (HIDE_CHROME_PATHS.some((p) => pathname === p || pathname?.startsWith(p + '/'))) {
     return null;
   }
-
-  // On the public routes (/, /?lib=X, etc.). Append ?from=<current>
-  // so a successful login returns the user to where they clicked from.
-  const here = currentPathWithQuery(pathname, searchParams?.toString() ?? null);
-  const loginHref = here === '/' ? '/login' : `/login?from=${encodeURIComponent(here)}`;
-  const signupHref = here === '/' ? '/signup' : `/signup?from=${encodeURIComponent(here)}`;
 
   // Landing page uses its own Citrus Mint palette — let the header sit
   // on top of it as a transparent layer instead of the default heal-bg
@@ -100,16 +94,22 @@ export default function AppHeader() {
         ) : (
           <>
             <ThemeToggle />
-            <Link
-              href={signupHref}
+            <button
+              type="button"
               className="app-header__signup"
               aria-label="注册"
+              onClick={() => openAuthModal('signup', { from: '/' })}
             >
               注册
-            </Link>
-            <Link href={loginHref} className="app-header__login" aria-label="登录">
+            </button>
+            <button
+              type="button"
+              className="app-header__login"
+              aria-label="登录"
+              onClick={() => openAuthModal('login', { from: '/' })}
+            >
               登录
-            </Link>
+            </button>
           </>
         )}
       </nav>

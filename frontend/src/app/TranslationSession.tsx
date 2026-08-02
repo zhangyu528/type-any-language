@@ -12,6 +12,7 @@ import {
   LessonDetail,
 } from './api';
 import { useAuth } from './lib/auth';
+import { useAuthModal } from './lib/authModal';
 import TranslationStage from './TranslationStage';
 import PracticeHintCard, {
   type PracticeHintCardKind,
@@ -126,6 +127,7 @@ export default function TranslationSession({
   onBack,
 }: TranslationSessionProps) {
   const { user } = useAuth();
+  const { open: openAuthModal } = useAuthModal();
   // Anonymous users share one bucket (ANONYMOUS_USER_ID); signed-in
   // users get a per-userId bucket. The localStorage key prefix is
   // derived from this in api.ts helpers.
@@ -356,8 +358,8 @@ export default function TranslationSession({
 
   const handleHintLogin = useCallback(() => {
     const from = `${window.location.pathname}${window.location.search}`;
-    window.location.href = `/login?from=${encodeURIComponent(from)}`;
-  }, []);
+    openAuthModal('login', { from });
+  }, [openAuthModal]);
 
   const handleHintDismiss = useCallback(() => {
     setActiveHint(null);

@@ -2,6 +2,8 @@ import { Fraunces, JetBrains_Mono, Noto_Sans_SC } from 'next/font/google';
 import AppHeader from './components/AppHeader';
 import ThemeProvider from './components/ThemeProvider';
 import { AuthProvider } from './lib/auth';
+import { AuthModalProvider } from './lib/authModal';
+import AuthModal from './(auth)/_components/AuthModal';
 import './globals.css';
 
 const fraunces = Fraunces({
@@ -59,8 +61,11 @@ export default function RootLayout({
       <body>
         <ThemeProvider>
           <AuthProvider>
-            <AppHeader />
-            {children}
+            <AuthModalProvider>
+              <AppHeader />
+              {children}
+              <AuthModal />
+            </AuthModalProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

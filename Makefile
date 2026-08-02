@@ -42,6 +42,10 @@ dev-stop:
 dev-restart:
 	@bash ops/dev/native.sh restart
 
+## dev-restart-frontend: kill frontend (pid file + port fallback for orphans) + start (does NOT touch backend)
+dev-restart-frontend:
+	@bash ops/dev/restart_frontend_dev.sh
+
 ## dev-status: pid + uptime + port for native backend/frontend + docker db health
 dev-status:
 	@bash ops/dev/native.sh status
