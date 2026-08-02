@@ -11,6 +11,8 @@
   --ds-bg:            var(--mint-50);
   --ds-surface:       var(--white);        /* 白卡片浮于薄荷底上 */
   --ds-tint:          var(--mint-100);     /* chip / 轨道 / 次级底 */
+  --ds-tint-deep:     var(--mint-200);     /* section 切色块(HowItWorks / FinalCTA 内部) */
+  --ds-on-tint:       var(--ink-900);      /* tint-deep 上的字色 */
   --ds-border:        var(--mint-200);
   --ds-border-strong: var(--mint-300);
 
@@ -21,6 +23,7 @@
 
   /* 主行动(薄荷) */
   --ds-action:        var(--mint-400);     /* 填充专用(禁小字) */
+  --ds-action-soft:   var(--mint-200);     /* 浅底:hover / ghost border,比 --ds-tint 更绿一点 */
   --ds-action-deep:   var(--mint-600);     /* 文字级:链接/小字/hover */
   --ds-action-ink:    var(--mint-800);     /* 标题级 */
   --ds-on-action:     var(--white);
@@ -58,6 +61,8 @@
   --ds-bg:            #0F1A15;
   --ds-surface:       #18281F;
   --ds-tint:          #1F3227;
+  --ds-tint-deep:     #2E4A3B;            /* 比 --ds-tint 深一档,对应 mint-200 */
+  --ds-on-tint:       #E8F4EC;
   --ds-border:        #2E4A3B;
   --ds-border-strong: #3FD17A;
 
@@ -66,6 +71,7 @@
   --ds-ink-faint:     #5F7A6B;
 
   --ds-action:        #3FD17A;
+  --ds-action-soft:   #2E4A3B;
   --ds-action-deep:   #5DE89A;
   --ds-action-ink:    #9FE1CB;
   --ds-on-action:     #04342C;

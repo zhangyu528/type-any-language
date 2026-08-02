@@ -28,7 +28,7 @@
   font-size: clamp(18px, 1.7vw, 22px);
   color: var(--ds-ink);
   min-height: 1.5em;
-  font-family: var(--font-sans-zh), var(--font-sans), sans-serif;
+  font-family: var(--font-sans), sans-serif;
 }
 /* 中文题目直接渲染 —— 不走逐字 fade-in。一个词一个读音,不要给眼睛
    "中文字正在打" 的错觉(中文字符不像英文单词能"逐个 settle")。 */
@@ -53,7 +53,7 @@
   font-size: clamp(20px, 2.2vw, 26px);
   font-weight: 500;
   color: var(--ds-ink);
-  font-family: var(--font-display), var(--font-sans-zh), serif;
+  font-family: var(--font-display);
   min-height: 1.5em;
   gap: 0.32em;
   flex: 1 1 auto;
@@ -106,7 +106,7 @@
   bottom: 0;
   display: flex;
   align-items: center;
-  font-family: var(--font-mono-web), var(--font-mono), monospace;
+  font-family: var(--font-mono), monospace;
   font-weight: 300;
   font-size: 1.1em;
   line-height: 1;

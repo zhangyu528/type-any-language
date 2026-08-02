@@ -4,7 +4,7 @@
   width: 100%;
   background: var(--ds-bg);
   color: var(--ds-ink);
-  font-family: var(--font-sans-zh), var(--font-sans), sans-serif;
+  font-family: var(--font-sans);
 }
 
 .footer {
@@ -46,7 +46,7 @@
   color: var(--ds-action-deep);
 }
 .footerYear {
-  font-family: var(--font-mono-web), var(--font-mono), monospace;
+  font-family: var(--font-mono), monospace;
   font-size: 11px;
   letter-spacing: 0.04em;
   color: var(--ds-ink-soft);

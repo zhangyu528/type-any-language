@@ -48,6 +48,7 @@
   --space-5: 24px;   /* 卡片组 */
   --space-6: 40px;   /* 段落间 */
   --space-7: 64px;   /* 幕间距 */
+  --space-12: 96px;  /* landing section 上下间距(对齐 hero clamp 下限) */
 
   /* ----- radius/ · 气泡圆角 ----- */
   --radius-sm: 8px;
@@ -81,10 +82,12 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);  /* Q 弹 overshoot */
 
-  /* ----- 字体栈(next/font 变量由 layout.tsx 注入) ----- */
-  --font-sans: var(--font-sans-zh), -apple-system, BlinkMacSystemFont,
+  /* ----- 字体栈(next/font 变量由 layout.tsx 注入;
+     未注入时,使用系统回退,不让 var() 解算失败) ----- */
+  --font-sans: var(--font-sans-zh, -apple-system), BlinkMacSystemFont,
     "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
-  --font-display: var(--font-display), var(--font-sans-zh), Georgia, serif;
-  --font-mono: var(--font-mono-web), 'JetBrains Mono', 'IBM Plex Mono',
+  --font-display: var(--font-display, Georgia), "Songti SC", "Source Han Serif",
+    "Noto Serif SC", Georgia, serif;
+  --font-mono: var(--font-mono-web, 'JetBrains Mono'), 'IBM Plex Mono',
     ui-monospace, "SF Mono", monospace;
 }
