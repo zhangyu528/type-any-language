@@ -1,0 +1,62 @@
+/* CalendarHeader — title + monthly goal bar */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.titleRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-h1);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink);
+}
+
+.status {
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+}
+
+.status-onTrack { color: var(--ds-correct); }
+.status-behind  { color: var(--ds-error-ink); }
+.status-achieved { color: var(--ds-cta-deep); }
+
+.goal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.barTrack {
+  height: 8px;
+  background: var(--ds-tint);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  transition: width var(--dur-base) var(--ease-out);
+}
+
+.barFill-onTrack { background: var(--ds-correct-fill); }
+.barFill-behind  { background: var(--ds-error); }
+.barFill-achieved { background: var(--ds-cta); }
+
+.goalText {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+  font-variant-numeric: tabular-nums;
+}

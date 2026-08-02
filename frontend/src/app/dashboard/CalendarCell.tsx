@@ -1,0 +1,80 @@
+'use client';
+
+/**
+ * CalendarCell — one day's box in the 4-week grid.
+ *
+ * Cell tone is decided by sentences_count vs the (passed-in) daily
+ * goal. Today gets a coral outline; future days render muted and
+ * non-interactive. Streak nodes get a small 🔥 indicator (using the
+ * unicode glyph — no icon library installed).
+ *
+ * The cell surfaces a screen-reader label that bundles date +
+ * activity + goal status, so the grid is navigable without sighted
+ * context.
+ */
+
+import { CalendarDay } from '../api';
+import styles from './CalendarCell.module.css';
+
+export type Tone = 'empty' | 'under' | 'hit' | 'over' | 'future';
+
+function pickTone(day: CalendarDay, dailyGoalTarget: number): Tone {
+  if (day.is_future) return 'future';
+  if (day.sentences_count === 0) return 'empty';
+  const ratio = day.sentences_count / Math.max(1, dailyGoalTarget);
+  if (ratio >= 1.5) return 'over';
+  if (day.goal_hit || ratio >= 1) return 'hit';
+  return 'under';
+}
+
+function formatDayNum(iso: string): string {
+  // ISO YYYY-MM-DD → "16". Defensive against malformed input.
+  const parts = iso.split('-');
+  return parts[2] ?? '';
+}
+
+function isToday(iso: string): boolean {
+  const today = new Date().toISOString().slice(0, 10);
+  return iso === today;
+}
+
+export interface CalendarCellProps {
+  day: CalendarDay;
+  // Daily goal target — owned by the parent so tone mapping is
+  // consistent across the grid.
+  dailyGoalTarget?: number;
+  onClick?: (date: string) => void;
+}
+
+export default function CalendarCell({ day, dailyGoalTarget = 20, onClick }: CalendarCellProps) {
+  const tone = pickTone(day, dailyGoalTarget);
+  const dayNum = formatDayNum(day.date);
+  const today = isToday(day.date);
+  const interactive = !day.is_future;
+
+  const ariaLabel = [
+    day.date,
+    interactive ? `${day.sentences_count} 句` : '未来',
+    interactive && day.accuracy != null ? `准确率 ${Math.round(day.accuracy * 100)}%` : null,
+    day.goal_hit ? '达标' : null,
+    day.is_streak_node ? 'streak 节点' : null,
+  ]
+    .filter(Boolean)
+    .join(', ');
+
+  return (
+    <button
+      type="button"
+      className={`${styles.cell} ${styles[tone]} ${today ? styles.today : ''}`}
+      onClick={interactive && onClick ? () => onClick(day.date) : undefined}
+      disabled={!interactive}
+      aria-label={ariaLabel}
+      role="gridcell"
+    >
+      <span className={styles.num}>{dayNum}</span>
+      {day.is_streak_node && !day.is_future ? (
+        <span className={styles.streakIcon} aria-hidden>🔥</span>
+      ) : null}
+    </button>
+  );
+}

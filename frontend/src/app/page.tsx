@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   getContentCatalog,
   Catalog,
@@ -10,6 +11,7 @@ import {
 import LandingPage from './landing';
 import LoadingMark from './components/LoadingMark';
 import TranslationSession from './TranslationSession';
+import { useAuth } from './lib/auth';
 import styles from './practice/Practice.module.css';
 
 /**
@@ -18,18 +20,45 @@ import styles from './practice/Practice.module.css';
  * URL conventions (single-route + query-string state machine, so
  * refreshing on a lesson page takes the user straight back):
  *
- *   /            → LandingPage (the content-driven home)
+ *   /            → LandingPage (anonymous) or /dashboard (logged in)
  *   /?lib=X      → TranslationSession for lib X (random-step drill)
  *
- * The landing page is the canonical `/` surface. It hosts the hero,
- * daily plan, lib market, and daily word/sentence cards. The
- * TranslationSession is reachable via any `?lib=X` param.
+ * Auth-aware `/`:
+ *   - Anonymous users see LandingPage — the content-driven marketing
+ *     surface that introduces the lib market and daily plan.
+ *   - Logged-in users get redirected to /dashboard (their working
+ *     bench). Landing's "marketing surface" is not the post-login
+ *     home; /dashboard is.
+ *   - `?lib=X` is always honored regardless of auth state — it's a
+ *     deep link into a specific lesson. Login redirect would feel
+ *     hostile here ("I clicked a lib card and got bounced").
  *
  * Persistence: `prefs.libId` is still written to localStorage on
  * selection, but NOT read back on init — LandingPage reads it on
  * its own to drive the "继续上次" CTA card.
  */
 export default function PracticePage() {
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+
+  // Auth-aware root redirect: logged-in users see /dashboard, not
+  // the marketing Landing. Wait for `authLoading` to resolve first
+  // so we don't flash Landing at a signed-in user during the
+  // initial /api/auth/me round-trip.
+  useEffect(() => {
+    if (authLoading) return;
+    // `?lib=X` always wins — a deep link into a lesson should not
+    // get bounced through /dashboard.
+    const params =
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search)
+        : null;
+    if (params?.get('lib')) return;
+    if (user) {
+      router.replace('/dashboard');
+    }
+  }, [authLoading, user, router]);
+
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [translationProgress, setTranslationProgress] =
     useState<TranslationProgress>({});
@@ -129,6 +158,34 @@ export default function PracticePage() {
   }, [readUrl]);
 
   // ---- Render ----
+  // Auth-aware root: while the auth state is hydrating, show a
+  // loader instead of Landing to avoid flashing the marketing page
+  // at a signed-in user. Once we know they're anonymous, fall
+  // through to the normal Landing render.
+  if (authLoading) {
+    return (
+      <div className={`${styles.root} ${styles.loading}`}>
+        <LoadingMark />
+        <p className={styles.loaderText}>Loading…</p>
+      </div>
+    );
+  }
+  // Logged-in + no `?lib=X` → /dashboard. Render nothing in the
+  // window between the auth check and router.replace firing; the
+  // route swap is effectively immediate but we don't want Landing
+  // to paint underneath.
+  const hasLibParam =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('lib') !== null;
+  if (user && !hasLibParam) {
+    return (
+      <div className={`${styles.root} ${styles.loading}`}>
+        <LoadingMark />
+        <p className={styles.loaderText}>Loading…</p>
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <div className={`${styles.root} ${styles.error}`}>

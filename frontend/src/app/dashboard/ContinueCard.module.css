@@ -1,0 +1,70 @@
+/* ContinueCard — Resume CTA */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  background: var(--ds-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--ds-border);
+  box-shadow: var(--elev-1);
+  min-height: 160px;
+}
+
+.caption {
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.preview {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-h1);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink);
+  line-height: 1.25;
+}
+
+.position {
+  margin: 0;
+  font-size: var(--text-body);
+  color: var(--ds-action-deep);
+  font-weight: var(--weight-medium);
+}
+
+.cta {
+  appearance: none;
+  background: var(--ds-cta);
+  color: var(--ds-on-cta);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-5);
+  font: inherit;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  align-self: flex-start;
+  margin-top: auto;
+  transition: transform var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
+  box-shadow: var(--elev-0);
+}
+
+.cta:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--elev-1);
+}
+
+.cta:active {
+  transform: translateY(0);
+}
+
+.cta:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}

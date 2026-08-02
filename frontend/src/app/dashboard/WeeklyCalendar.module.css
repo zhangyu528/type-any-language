@@ -1,0 +1,77 @@
+/* WeeklyCalendar — 4-week grid + legend */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--ds-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--ds-border);
+  box-shadow: var(--elev-1);
+}
+
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.weekday {
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink-soft);
+  text-align: center;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-2);
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  flex-wrap: wrap;
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+}
+
+.legendSwatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.legendLabel {
+  margin-right: var(--space-2);
+}
+
+.legendEmpty { background: var(--cal-empty); }
+.legendUnder { background: var(--cal-under); }
+.legendHit   { background: var(--cal-hit); }
+.legendOver  { background: var(--cal-over); }
+
+/* Mobile: shrink the cells. The cell itself owns its size; this is
+   just the gap layout, which already collapses cleanly via the
+   grid gap. */
+@media (max-width: 639px) {
+  .weekdays,
+  .row {
+    gap: var(--space-1);
+  }
+  .legend {
+    font-size: 10px;
+  }
+}

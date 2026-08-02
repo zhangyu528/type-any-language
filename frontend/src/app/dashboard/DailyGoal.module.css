@@ -1,0 +1,87 @@
+/* DailyGoal — ring + count */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--ds-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--ds-border);
+  box-shadow: var(--elev-1);
+  min-height: 160px;
+}
+
+.caption {
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.numbers {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  font-family: var(--font-display);
+}
+
+.count {
+  font-size: var(--text-display);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.divider {
+  font-size: var(--text-h2);
+  color: var(--ds-ink-faint);
+}
+
+.target {
+  font-size: var(--text-h2);
+  color: var(--ds-ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.copy {
+  margin: 0;
+  font-size: var(--text-body);
+  color: var(--ds-action-deep);
+  font-weight: var(--weight-medium);
+}
+
+.cta {
+  appearance: none;
+  background: var(--ds-action);
+  color: var(--ds-on-action);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-5);
+  font: inherit;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  align-self: flex-start;
+  margin-top: auto;
+  transition: transform var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.cta:hover {
+  transform: translateY(-1px);
+}
+
+.cta:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}

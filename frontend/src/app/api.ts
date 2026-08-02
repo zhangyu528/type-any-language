@@ -502,3 +502,240 @@ export async function apiMe(): Promise<AuthUser | null> {
   const body = (await res.json()) as { user: AuthUser | null };
   return body.user;
 }
+
+// ---------------------------------------------------------------------------
+// Dashboard — login-required activity surface
+//
+// One round-trip (GET /api/dashboard) hydrates the whole page. The
+// `ContinueState.session_id` lets the Continue Card resume the user's
+// last unfinished session by routing to /practice?session=<id> — see
+// the small /practice hook in page.tsx that reads ?session= and
+// forwards to the drill.
+//
+// Field names mirror the backend Pydantic schemas (snake_case) so we
+// don't pay an alias layer in either direction.
+// ---------------------------------------------------------------------------
+
+export interface DashboardUser {
+  id: string;
+  email: string;
+  display_name: string;
+  created_at: string;
+}
+
+export interface ContinueState {
+  session_id: string | null;
+  lib_id: string | null;
+  lesson_index: number | null;
+  current_sentence_position: number;
+  sentences_attempted: number;
+  preview: string;
+  is_unfinished: boolean;
+}
+
+export interface DailyGoalState {
+  target: number;
+  today_count: number;
+  /** ISO date string (YYYY-MM-DD) from the backend. */
+  today_date: string;
+  pct: number;
+  completed: boolean;
+}
+
+export interface StreakInfo {
+  current: number;
+  longest: number;
+  today_done: boolean;
+  active_days: string[]; // ISO dates
+}
+
+export interface CalendarDay {
+  date: string; // ISO date
+  sentences_count: number;
+  accuracy: number | null;
+  goal_hit: boolean;
+  is_future: boolean;
+  is_streak_node: boolean;
+}
+
+export interface MonthlyGoalInfo {
+  target: number;
+  current: number;
+  year_month: string; // "2026-07"
+  achieved: boolean;
+  on_track: boolean;
+}
+
+export interface KpiStat {
+  value: number;
+  delta: number;
+  label: string;
+}
+
+export interface DashboardSnapshot {
+  user: DashboardUser;
+  /** Backend serializes the field as `continue` (a Python keyword
+   *  got aliased); we surface it under the same name to avoid a
+   *  mapping layer. */
+  continue: ContinueState;
+  daily_goal: DailyGoalState;
+  streak: StreakInfo;
+  calendar: CalendarDay[];
+  monthly_goal: MonthlyGoalInfo;
+  progress: Record<string, KpiStat>;
+  generated_at: string;
+}
+
+/**
+ * GET /api/dashboard — single round-trip the dashboard renders from.
+ * Requires auth (the backend returns 401 otherwise). The caller is
+ * expected to redirect anonymous users to /login before invoking this.
+ */
+export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
+  const res = await fetch(`${API_BASE_URL}/api/dashboard`, {
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    throw new Error(`获取 dashboard 失败 (HTTP ${res.status})`);
+  }
+  return res.json();
+}
+
+export interface DaySessionSummary {
+  session_id: string;
+  started_at: string;
+  ended_at: string | null;
+  sentences_attempted: number;
+  sentences_correct: number;
+  is_finished: boolean;
+}
+
+export interface DayDetail {
+  date: string;
+  sentences_count: number;
+  correct_count: number;
+  accuracy: number | null;
+  goal_hit: boolean;
+  sessions: DaySessionSummary[];
+}
+
+/** GET /api/dashboard/day/{date} — drawer payload for a clicked cell. */
+export async function getDayDetail(date: string): Promise<DayDetail> {
+  const res = await fetch(`${API_BASE_URL}/api/dashboard/day/${date}`, {
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    throw new Error(`获取当天详情失败 (HTTP ${res.status})`);
+  }
+  return res.json();
+}
+
+/** POST /api/dashboard/monthly-goal — set the user's monthly target. */
+export async function updateMonthlyGoal(target: number): Promise<MonthlyGoalInfo> {
+  const res = await fetch(`${API_BASE_URL}/api/dashboard/monthly-goal`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ target }),
+  });
+  if (!res.ok) {
+    throw new Error(`更新月度目标失败 (HTTP ${res.status})`);
+  }
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Practice session — write surface the /practice drill uses.
+//
+// Called from /practice on each step (best-effort) and once on
+// session end (authoritative). The dashboard's Continue Card reads
+// back via getDashboardSnapshot() — no separate "active session"
+// endpoint needed.
+// ---------------------------------------------------------------------------
+
+/**
+ * POST /api/practice/session/start — begin a new session.
+ *
+ * `lib_id` and `lesson_index` are optional — the homepage's free
+ * practice mode passes neither; a lib card passes lib_id; the future
+ * lesson surface passes both.
+ *
+ * Returns the new session_id; the drill then loads its sentence
+ * pool and starts calling recordPracticeStep().
+ */
+export async function startPracticeSession(input: {
+  lib_id?: string;
+  lesson_index?: number;
+}): Promise<{ session_id: string }> {
+  const res = await fetch(`${API_BASE_URL}/api/practice/session/start`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      ...(input.lib_id ? { lib_id: input.lib_id } : {}),
+      ...(input.lesson_index != null ? { lesson_index: input.lesson_index } : {}),
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`开始练习失败 (HTTP ${res.status})`);
+  }
+  return res.json();
+}
+
+/**
+ * POST /api/practice/session/{id}/step — fire-and-forget per-step
+ * telemetry. The endpoint returns 204; we treat any non-2xx as a
+ * silent failure (the /end call carries the authoritative totals).
+ */
+export async function recordPracticeStep(
+  sessionId: string,
+  correct: boolean,
+): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/api/practice/session/${sessionId}/step`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ correct }),
+    });
+  } catch {
+    // best-effort; the /end call is authoritative
+  }
+}
+
+/**
+ * POST /api/practice/session/{id}/end — close the session and trigger
+ * the daily_activity rollup + streak update server-side.
+ *
+ * `sentences_attempted` / `sentences_correct` are the totals the
+ * client has accumulated; the server replaces whatever the /step
+ * calls have bumped with these (so a lost step batch doesn't
+ * undercount). Returns a small envelope with today_count / target /
+ * streak so the dashboard can optimistically update.
+ */
+export async function endPracticeSession(
+  sessionId: string,
+  sentencesAttempted: number,
+  sentencesCorrect: number,
+): Promise<{
+  session_id: string;
+  is_finished: boolean;
+  today_count: number;
+  today_target: number;
+  today_completed: boolean;
+  current_streak: number;
+}> {
+  const res = await fetch(`${API_BASE_URL}/api/practice/session/${sessionId}/end`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      sentences_attempted: sentencesAttempted,
+      sentences_correct: sentencesCorrect,
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`结束练习失败 (HTTP ${res.status})`);
+  }
+  return res.json();
+}

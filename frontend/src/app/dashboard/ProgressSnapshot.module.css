@@ -1,0 +1,74 @@
+/* ProgressSnapshot — 3 KPI tiles */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--ds-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--ds-border);
+  box-shadow: var(--elev-1);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  background: var(--ds-tint);
+  border-radius: var(--radius-md);
+}
+
+.value {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-display);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.label {
+  margin: 0;
+  font-size: var(--text-body);
+  color: var(--ds-ink-soft);
+}
+
+.delta {
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+}
+
+.delta-up { color: var(--ds-correct); }
+.delta-down { color: var(--ds-error); }
+.delta-flat { color: var(--ds-ink-faint); }
+
+/* Tablet: still 3 across but tighter */
+@media (max-width: 1023px) {
+  .value { font-size: var(--text-h1); }
+}
+
+/* Mobile: stack vertically */
+@media (max-width: 639px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

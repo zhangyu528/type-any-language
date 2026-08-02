@@ -1,0 +1,73 @@
+/* ============================================================
+   Dashboard — page layout
+   ------------------------------------------------------------
+   Only page-level structure (grid, container, loading, error).
+   Each child component owns its own module CSS; this file is
+   intentionally minimal.
+   ============================================================ */
+
+.root {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  /* AppHeader is fixed 52px; every page owns its padding-top to
+     keep its first content from sitting under the chrome. /me / /
+     /login etc. each declare this themselves; dashboard matches. */
+  padding: calc(52px + var(--space-4)) var(--space-4) var(--space-7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  font-family: var(--font-sans);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+/* Tablet (640-1023): stack Continue + DailyGoal. */
+@media (max-width: 1023px) {
+  .row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.loading,
+.errorWrap {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-7) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--font-sans);
+}
+
+.loadingText,
+.errorText {
+  color: var(--ds-ink-soft);
+  font-size: var(--text-body);
+}
+
+.errorRetry {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--ds-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--ds-action-deep);
+  cursor: pointer;
+  font: inherit;
+  font-weight: var(--weight-medium);
+  padding: var(--space-2) var(--space-4);
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.errorRetry:hover {
+  background: var(--ds-action-soft);
+}
+
+.errorRetry:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}

@@ -137,3 +137,41 @@
     --elev-focus: 0 0 0 2px #0F1A15, 0 0 0 4px var(--ds-focus);
   }
 }
+
+/* ------------------------------------------------------------
+   Calendar surface — Dashboard 4-week grid
+
+   The dashboard's calendar grid uses 4 cell tones for one day's
+   activity level. Tuned to the mint palette so the grid reads as
+   "more practice = more mint", not "more practice = more blue"
+   (which would clash with the rest of the system).
+
+   Background tints are color-mix()s off the existing --ds-action
+   token, so any future palette tweak propagates automatically.
+
+   Used by:
+     frontend/src/app/dashboard/WeeklyCalendar.tsx
+   ------------------------------------------------------------ */
+:root {
+  /* Empty / future — neutral tint, no activity signal */
+  --cal-empty:        var(--ds-tint-deep);
+  /* Below today's daily_goal */
+  --cal-under:        color-mix(in srgb, var(--ds-action) 18%, var(--ds-surface));
+  /* Goal hit but not exceeded */
+  --cal-hit:          color-mix(in srgb, var(--ds-action) 50%, var(--ds-surface));
+  /* 1.5x goal or more — the "you crushed it" tone */
+  --cal-over:         color-mix(in srgb, var(--ds-action-deep) 88%, var(--ds-surface));
+  /* Today's outline — coral CTA, the strongest colour on the page */
+  --cal-today-border: var(--ds-cta);
+  /* Numbers inside cells. Default: ink. When the cell is darker
+     (--cal-over), flip to on-action for contrast. */
+  --cal-num:          var(--ds-ink);
+  --cal-num-strong:   var(--ds-on-action);
+}
+
+[data-theme="dark"] {
+  --cal-empty:        var(--ds-tint);
+  --cal-under:        color-mix(in srgb, var(--ds-action) 28%, var(--ds-surface));
+  --cal-hit:          color-mix(in srgb, var(--ds-action) 62%, var(--ds-surface));
+  --cal-over:         color-mix(in srgb, var(--ds-action-deep) 92%, var(--ds-surface));
+}

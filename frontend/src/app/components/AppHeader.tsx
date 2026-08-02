@@ -30,6 +30,16 @@ import { useAuthModal } from '../lib/authModal';
 import BrandMark from '../landing/BrandMark';
 import ThemeToggle from './ThemeToggle';
 
+/**
+ * HIDE_CHROME_PATHS — paths where the global chrome is hidden because
+ * the page provides its own header (login / signup have brand links
+ * inside the bubble card; AppHeader would fight with their "back to
+ * home" affordance).
+ *
+ * /dashboard keeps the global chrome — it acts as the brand +
+ * signout + theme switcher surface — and renders GreetingBar below
+ * it as the dashboard's own contextual header.
+ */
 const HIDE_CHROME_PATHS = ['/login', '/signup'];
 
 /**
