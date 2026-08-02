@@ -39,7 +39,7 @@ export default function LoadingMark({
 }: LoadingMarkProps) {
   const cell = size / MATRIX_SIZE;
   const dotR = (cell - cell * GAP_RATIO) / 2;
-  const fill = centerColor ?? 'var(--cm-mint-deep, #16A35E)';
+  const fill = centerColor ?? 'var(--ds-action-deep)';
 
   // Each dot gets a phase delay based on its row, so the pulse
   // sweeps outward from the centre in a wave. Phase order:

@@ -367,7 +367,7 @@ function SignupForm() {
         className={`auth-screen${dissolving ? ' auth-screen--dissolving' : ''}`}
         noValidate
       >
-        <h1 className="auth-title" style={{ color: '#16A35E' }}>
+        <h1 className="auth-title">
           {Array.from('创建账号').map((char, i) => (
             <span
               key={i}
@@ -379,7 +379,7 @@ function SignupForm() {
           ))}
         </h1>
 
-        <div className="auth-screen__subtitle" aria-live="polite" style={{ color: "#3FD17A" }}>
+        <div className="auth-screen__subtitle" aria-live="polite">
           {subtitleLines.map((line, i) => (
             <span
               key={`${screen}-${line.lang}`}
@@ -397,11 +397,11 @@ function SignupForm() {
             is via the auth-screen__pane transition (240ms). */}
         <div className="auth-screen__pane" data-active={screen === 1 ? 'true' : 'false'}>
           <div className="auth-screen__stage" data-screen="1">
-            <p className="auth-screen__zh-large" aria-hidden="true" style={{ color: "#16A35E" }}>
+            <p className="auth-screen__zh-large" aria-hidden="true">
               邮箱
             </p>
 
-            <p className="auth-screen__en-hint" aria-hidden="true" style={{ color: "#3FD17A" }}>
+            <p className="auth-screen__en-hint" aria-hidden="true">
               email
             </p>
 
@@ -418,11 +418,6 @@ function SignupForm() {
               onFocus={onEmailFocus}
               onBlur={onEmailBlur}
               className="auth-screen__input"
-              style={{
-                borderBottom: '2px solid #3FD17A',
-                caretColor: '#16A35E',
-                color: '#16A35E',
-              }}
             />
 
             {emailError ? (
@@ -462,10 +457,10 @@ function SignupForm() {
               <span aria-hidden="true">←</span>
             </button>
 
-            <p className="auth-screen__zh-large" aria-hidden="true" style={{ color: "#16A35E" }}>
+            <p className="auth-screen__zh-large" aria-hidden="true">
               密码
             </p>
-            <p className="auth-screen__en-hint" aria-hidden="true" style={{ color: "#3FD17A" }}>
+            <p className="auth-screen__en-hint" aria-hidden="true">
               password
             </p>
 
@@ -716,8 +711,8 @@ function SignupForm() {
             display: flex;
             align-items: center;
             gap: var(--space-2);
-            font-size: var(--type-caption);
-            color: var(--accent);
+            font-size: var(--text-caption);
+            color: var(--ds-error-ink);
             margin-top: var(--space-1);
           }
           .auth-field__error::before {
@@ -727,14 +722,14 @@ function SignupForm() {
           }
           .auth-form__alt {
             text-align: center;
-            font-size: var(--type-caption);
-            color: var(--auth-subheading);
+            font-size: var(--text-caption);
+            color: var(--ds-ink-soft);
             margin: 0;
           }
           .auth-form__alt a {
-            color: var(--accent);
+            color: var(--ds-action-deep);
             text-decoration: none;
-            font-weight: var(--type-body-emphasis-weight);
+            font-weight: var(--weight-medium);
             position: relative;
             display: inline-block;
           }
@@ -749,7 +744,7 @@ function SignupForm() {
             background: currentColor;
             transform: scaleX(0);
             transform-origin: center;
-            transition: transform 200ms var(--ease-standard);
+            transition: transform 200ms var(--ease-out);
           }
           .auth-form__alt a::before { transform-origin: left; }
           .auth-form__alt a::after  { transform-origin: right; }
@@ -763,8 +758,8 @@ function SignupForm() {
             display: flex;
             flex-direction: column;
             gap: var(--space-4);
-            transition: opacity 200ms var(--ease-standard),
-                        transform 200ms var(--ease-standard);
+            transition: opacity 200ms var(--ease-out),
+                        transform 200ms var(--ease-out);
           }
           .auth-screen__stage {
             display: flex;
@@ -776,11 +771,11 @@ function SignupForm() {
             position: relative;
             display: block;
             min-height: 1.6em;
-            font-size: var(--type-body);
-            color: var(--auth-subheading);
+            font-size: var(--text-body);
+            color: var(--ds-ink-soft);
             margin: 0;
             margin-top: calc(var(--space-4) * -1 + var(--space-1));
-            animation: auth-subtitle-fade 200ms var(--ease-standard) 700ms both;
+            animation: auth-subtitle-fade 200ms var(--ease-out) 700ms both;
           }
           .auth-screen__subtitle-line {
             position: absolute;
@@ -789,24 +784,24 @@ function SignupForm() {
             top: 0;
             opacity: 0;
             transform: translateY(4px);
-            transition: opacity 400ms var(--ease-standard),
-                        transform 400ms var(--ease-standard);
+            transition: opacity 400ms var(--ease-out),
+                        transform 400ms var(--ease-out);
           }
           .auth-screen__subtitle-line[data-active="true"] {
             opacity: 1;
             transform: translateY(0);
           }
           .auth-screen__zh-large {
-            font-family: var(--font-body);
+            font-family: var(--font-sans);
             font-size: clamp(32px, 5vw, 42px);
             font-weight: 700;
-            color: var(--auth-heading);
+            color: var(--ds-ink);
             text-align: center;
             letter-spacing: -0.01em;
             line-height: 1.2;
             margin: var(--space-1) auto var(--space-2);
             opacity: 0;
-            animation: auth-screen-zh-large-fade-in 480ms var(--ease-emphasized) 1300ms both;
+            animation: auth-screen-zh-large-fade-in 480ms var(--ease-out) 1300ms both;
           }
           .auth-screen__en-hint {
             display: inline-flex;
@@ -816,54 +811,54 @@ function SignupForm() {
             font-family: var(--font-mono);
             font-size: clamp(18px, 2vw, 22px);
             font-weight: 500;
-            color: var(--auth-subheading);
+            color: var(--ds-ink-soft);
             letter-spacing: 0.02em;
             line-height: 1.2;
             margin: 0 auto var(--space-4);
             opacity: 0;
-            animation: auth-screen-en-hint-fade-in 320ms var(--ease-standard) 1700ms both;
+            animation: auth-screen-en-hint-fade-in 320ms var(--ease-out) 1700ms both;
           }
           .auth-screen__input {
             width: 100%;
             height: 44px;
-            padding: 0 var(--space-3);
+            padding: 0 var(--space-2);
             font-family: var(--font-mono);
-            font-size: var(--type-body);
+            font-size: var(--text-body);
             font-weight: 500;
-            color: var(--auth-heading);
-            background: var(--auth-input-bg);
+            color: var(--ds-ink);
+            background: transparent;
             border: 0;
-            border-bottom: 2px solid var(--auth-input-border);
+            border-bottom: 1px solid var(--ds-ink-soft);
             border-radius: 0;
             letter-spacing: 0.02em;
-            caret-color: var(--cm-mint-deep);
-            transition: border-bottom-color var(--duration-fast) var(--ease-standard);
+            caret-color: var(--ds-ink);
+            transition: border-bottom-color var(--dur-fast) var(--ease-out);
             position: relative;
           }
           .auth-screen__input::placeholder {
-            color: var(--cm-ink-soft);
-            font-family: var(--font-body);
+            color: var(--ds-ink-faint);
+            font-family: var(--font-sans);
           }
           .auth-screen__input:hover {
-            border-bottom-color: var(--auth-input-border-focus);
+            border-bottom-color: var(--ds-ink);
           }
           .auth-screen__input:focus {
             outline: none;
-            border-bottom-color: var(--auth-input-border-focus);
+            border-bottom-color: var(--ds-action-deep);
           }
           .auth-screen__input::after {
             content: "";
             position: absolute;
-            left: var(--space-3);
-            right: var(--space-3);
+            left: var(--space-2);
+            right: var(--space-2);
             bottom: -1px;
             height: 2px;
-            background: var(--auth-input-border-focus);
+            background: var(--ds-action);
             transform: scaleX(0);
             transform-origin: left center;
           }
           .auth-screen__input:focus::after {
-            animation: auth-screen-underline-grow var(--duration-base) var(--ease-emphasized) forwards;
+            animation: auth-screen-underline-grow var(--dur-base) var(--ease-out) forwards;
           }
           .auth-screen__next {
             align-self: flex-end;
@@ -873,29 +868,29 @@ function SignupForm() {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-family: var(--font-body);
+            font-family: var(--font-sans);
             font-size: 22px;
             font-weight: 500;
             line-height: 1;
-            color: var(--auth-heading);
-            background: rgba(63, 209, 122, 0.10);
-            border: 1px solid rgba(0, 0, 0, 0.08);
+            color: var(--ds-ink);
+            background: var(--ds-tint);
+            border: 1px solid var(--ds-border);
             border-radius: var(--radius-md);
             padding: 0;
             cursor: pointer;
-            transition: background var(--duration-fast) var(--ease-standard),
-                        border-color var(--duration-fast) var(--ease-standard),
-                        transform var(--duration-fast) var(--ease-standard),
-                        opacity var(--duration-fast) var(--ease-standard);
+            transition: background var(--dur-fast) var(--ease-out),
+                        border-color var(--dur-fast) var(--ease-out),
+                        transform var(--dur-fast) var(--ease-out),
+                        opacity var(--dur-fast) var(--ease-out);
           }
           .auth-screen__next-arrow {
             display: inline-block;
             transform: translateX(0);
-            transition: transform var(--duration-fast) var(--ease-standard);
+            transition: transform var(--dur-fast) var(--ease-out);
           }
           .auth-screen__next:hover:not([disabled]) {
-            background: var(--auth-cta-bg);
-            border-color: rgba(0, 0, 0, 0.16);
+            background: var(--ds-border);
+            border-color: var(--ds-border-strong);
           }
           .auth-screen__next:hover:not([disabled]) .auth-screen__next-arrow {
             transform: translateX(2px);
@@ -904,21 +899,38 @@ function SignupForm() {
             transform: scale(0.96);
           }
           .auth-screen__next:focus-visible {
-            outline: 2px solid var(--auth-heading);
+            outline: 2px solid var(--ds-focus);
             outline-offset: 3px;
           }
           .auth-screen__next[disabled] {
             opacity: 0.3;
             pointer-events: none;
           }
-          /* .auth-screen__progress + .auth-screen__dot + data-active
-             moved to globals.css. Inline <style> var() resolution
-             failed in Next.js dev mode (same root cause as the PIN
-             underline issue documented in design-auth.md §5) — the
-             token var() resolved to rgba(0,0,0,0), leaving the dots
-             transparent. The external stylesheet applies the rule
-             reliably, with hardcoded mint colors so var() isn't
-             needed. */
+          .auth-screen__progress {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: var(--space-2);
+            margin: 0;
+            animation: auth-screen-fade-in 240ms var(--ease-out) 1500ms both;
+          }
+          .auth-screen__dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--ds-ink-faint);
+            opacity: 0.5;
+            transition: background var(--dur-fast) var(--ease-out),
+                        opacity var(--dur-fast) var(--ease-out),
+                        transform var(--dur-fast) var(--ease-out);
+          }
+          .auth-screen__dot[data-active="true"] {
+            background: var(--ds-action);
+            opacity: 1;
+            transform: scale(1.15);
+            animation: auth-screen-dot-fill var(--dur-base) var(--ease-out) both;
+          }
 
           /* -------------------------------------------------------------
              Screen 2 — password + confirm: back button + 2 PIN rows +
@@ -935,25 +947,25 @@ function SignupForm() {
             justify-content: center;
             font-size: 18px;
             line-height: 1;
-            color: var(--auth-subheading);
+            color: var(--ds-ink-soft);
             background: transparent;
             border: 0;
             border-radius: var(--radius-sm);
             padding: 0;
             cursor: pointer;
-            transition: color var(--duration-fast) var(--ease-standard),
-                        background var(--duration-fast) var(--ease-standard),
-                        transform var(--duration-fast) var(--ease-standard);
+            transition: color var(--dur-fast) var(--ease-out),
+                        background var(--dur-fast) var(--ease-out),
+                        transform var(--dur-fast) var(--ease-out);
           }
           .auth-screen__back:hover {
-            color: var(--auth-heading);
-            background: rgba(63, 209, 122, 0.10);
+            color: var(--ds-ink);
+            background: var(--ds-tint);
           }
           .auth-screen__back:active {
             transform: scale(0.94);
           }
           .auth-screen__back:focus-visible {
-            outline: 2px solid var(--auth-heading);
+            outline: 2px solid var(--ds-focus);
             outline-offset: 2px;
           }
 
@@ -976,8 +988,8 @@ function SignupForm() {
             position: relative;
           }
           .auth-screen__pin-row-label {
-            font-size: var(--type-caption);
-            color: var(--auth-subheading);
+            font-size: var(--text-caption);
+            color: var(--ds-ink-soft);
             letter-spacing: 0.02em;
             /* No bottom padding — the label-to-dots gap is purely
                the -2px flex gap. Horizontal padding keeps the
@@ -997,7 +1009,60 @@ function SignupForm() {
             /* Anchor for the absolutely-positioned eye toggle. */
             position: relative;
           }
-          /* .auth-screen__pin-dot + modifiers + ::after moved to globals.css */
+          .auth-screen__pin-dot {
+            display: inline-flex;
+            align-items: flex-end;
+            justify-content: center;
+            width: 24px;
+            height: 28px;
+            border: 0;
+            border-bottom: 1px solid var(--ds-ink-faint);
+            border-radius: 0;
+            background: transparent;
+            opacity: 0.5;
+            padding-bottom: 1px;
+            font-size: 16px;
+            font-family: var(--font-mono);
+            color: var(--ds-ink);
+            transition: border-bottom-color var(--dur-fast) var(--ease-out),
+                        border-bottom-width var(--dur-fast) var(--ease-out),
+                        opacity var(--dur-fast) var(--ease-out);
+          }
+          .auth-screen__pin-dot--filled {
+            border-bottom: 2px solid var(--ds-ink);
+            opacity: 1;
+          }
+          .auth-screen__pin-dot--shown {
+            border-bottom: 2px solid var(--ds-ink);
+            opacity: 1;
+          }
+
+          /* Caret slot — the next empty position. Underline stays
+             in the empty-state 1px gray, but a thin vertical bar
+             (1.5×18px) sits centered above the underline, blinking
+             at 1s period via the auth-screen-caret-blink keyframe.
+             The bar is rendered as a ::after pseudo-element because
+             the slot's own content slot is reserved for the mask
+             char (a black bullet, U+2022) or the real char in
+             shown mode. */
+          .auth-screen__pin-dot--cursor {
+            border-bottom: 1px solid var(--ds-ink-faint);
+            opacity: 1;
+          }
+          .auth-screen__pin-dot--cursor::after {
+            content: "";
+            display: block;
+            width: 1.5px;
+            height: 18px;
+            background: var(--ds-caret);
+            margin-bottom: 4px;
+            animation: auth-screen-caret-blink 1s steps(2, end) infinite;
+          }
+          @keyframes auth-screen-caret-blink {
+            0%, 50%       { opacity: 1; }
+            50.01%, 100%  { opacity: 0; }
+          }
+
           /* Hidden text inputs — capture surfaces for the two PIN
              rows. Visually invisible but focusable. */
           .auth-screen__pin-input {
@@ -1029,44 +1094,44 @@ function SignupForm() {
             background: transparent;
             border: 0;
             border-radius: var(--radius-sm);
-            color: var(--cm-ink-soft);
+            color: var(--ds-ink-faint);
             padding: 0;
             cursor: pointer;
-            transition: color var(--duration-fast) var(--ease-standard),
-                        background var(--duration-fast) var(--ease-standard);
+            transition: color var(--dur-fast) var(--ease-out),
+                        background var(--dur-fast) var(--ease-out);
           }
           .auth-screen__show-toggle:hover {
-            color: var(--auth-input-border-focus);
-            background: rgba(63, 209, 122, 0.10);
+            color: var(--ds-ink);
+            background: var(--ds-tint);
           }
           .auth-screen__show-toggle:focus-visible {
-            outline: 2px solid var(--auth-heading);
+            outline: 2px solid var(--ds-focus);
             outline-offset: 1px;
           }
 
           /* Live match hint — flips between empty / incomplete /
              match / mismatch as the user types both rows. The
-             incomplete and mismatch tones use var(--accent) (warm
+             incomplete and mismatch tones use var(--ds-error) (warm
              red) with a leading ⚠ glyph for visual weight. The
-             match tone uses var(--correct) (sage green) with a ✓
+             match tone uses var(--ds-correct) (sage green) with a ✓
              glyph. */
           .auth-screen__match-hint {
             display: inline-flex;
             align-self: center;
             align-items: center;
             gap: 6px;
-            font-size: var(--type-caption);
-            color: var(--auth-subheading);
+            font-size: var(--text-caption);
+            color: var(--ds-ink-soft);
             letter-spacing: 0.02em;
             min-height: 1.4em;
-            transition: color var(--duration-fast) var(--ease-standard);
+            transition: color var(--dur-fast) var(--ease-out);
           }
           .auth-screen__match-hint--incomplete,
           .auth-screen__match-hint--mismatch {
-            color: var(--accent);
+            color: var(--ds-error-ink);
           }
           .auth-screen__match-hint--match {
-            color: var(--correct);
+            color: var(--ds-correct);
           }
           /* Leading glyph: ⚠ for incomplete/mismatch, ✓ for match.
              Rendered via ::before on the span so the JSX stays a
@@ -1091,13 +1156,13 @@ function SignupForm() {
             opacity: 0;
             transform: translateY(0);
             pointer-events: none;
-            transition: opacity 240ms var(--ease-standard);
+            transition: opacity 240ms var(--ease-out);
           }
           .auth-screen__pane[data-active="true"] {
             position: static;
             opacity: 1;
             pointer-events: auto;
-            animation: auth-screen-pane-enter 320ms var(--ease-emphasized) 100ms both;
+            animation: auth-screen-pane-enter 320ms var(--ease-out) 100ms both;
           }
 
           @keyframes auth-subtitle-fade {
@@ -1120,8 +1185,14 @@ function SignupForm() {
             from { transform: scaleX(0); }
             to   { transform: scaleX(1); }
           }
-          /* @keyframes auth-screen-dot-fill + auth-screen-fade-in moved to
-             globals.css alongside the dot rule. */
+          @keyframes auth-screen-dot-fill {
+            from { transform: scale(0.6); opacity: 0; }
+            to   { transform: scale(1.15); opacity: 1; }
+          }
+          @keyframes auth-screen-fade-in {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+          }
 
           @media (prefers-reduced-motion: reduce) {
             .auth-form-shake-wrap { animation: none !important; }

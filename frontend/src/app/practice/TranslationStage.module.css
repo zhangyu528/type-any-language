@@ -1,8 +1,8 @@
 /* ============================================================
    Translation stage + sentence cells
    ------------------------------------------------------------
-   Migrated from globals.css on 2026-07-31. Token references
-   resolve via .practice--cm container scope in globals.css.
+   Token references resolve via TAL Mint semantic tokens (--ds-*)
+   from ds/themes.css. Old token system retired 2026-08-02.
    ============================================================ */
 
 .translation {
@@ -11,7 +11,7 @@
   align-items: stretch;
   gap: var(--space-5);
   width: 100%;
-  animation: practice-rise var(--duration-base) var(--ease-standard);
+  animation: practice-rise var(--dur-base) var(--ease-out);
 }
 
 .header {
@@ -23,10 +23,10 @@
 }
 
 .caption {
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  font-weight: var(--type-body-weight);
-  color: var(--label-tertiary);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-regular);
+  color: var(--ds-ink-soft);
   letter-spacing: 0.06em;
   user-select: none;
   font-variant-numeric: tabular-nums;
@@ -43,12 +43,12 @@
 }
 
 .wordCardWord {
-  font-family: var(--font-body);
-  font-size: var(--type-large-title);
-  font-weight: var(--type-large-title-weight);
-  color: var(--label-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-display);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink);
   letter-spacing: -0.02em;
-  line-height: var(--type-large-title-lh);
+  line-height: var(--text-display-lh);
   margin: 0;
   word-wrap: break-word;
   text-align: center;
@@ -56,18 +56,18 @@
 
 .wordCardPhonetic {
   font-family: var(--font-mono);
-  font-size: var(--type-body);
-  color: var(--label-tertiary);
+  font-size: var(--text-body);
+  color: var(--ds-ink-soft);
   letter-spacing: 0.02em;
   line-height: 1.3;
 }
 
 .wordCardTranslation {
-  font-family: var(--font-body);
-  font-size: var(--type-body);
-  color: var(--label-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  color: var(--ds-ink);
   letter-spacing: 0.005em;
-  line-height: var(--type-body-lh);
+  line-height: var(--text-body-lh);
   margin: 0;
   text-align: center;
   max-width: 480px;
@@ -89,10 +89,10 @@
 
 /* Prompt — large centered text, the sentence being translated. */
 .prompt {
-  font-family: var(--font-body);
+  font-family: var(--font-sans);
   font-size: clamp(1.5rem, 5vw, 2.25rem);
   font-weight: 500;
-  color: var(--label-primary);
+  color: var(--ds-ink);
   text-align: center;
   letter-spacing: -0.005em;
   line-height: 1.4;
@@ -206,27 +206,27 @@
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-4) var(--space-5);
-  background: var(--surface-secondary);
+  background: var(--ds-tint);
   border-radius: var(--radius-md);
   max-width: 560px;
   margin: 0 auto;
   width: 100%;
-  animation: practice-rise var(--duration-fast) var(--ease-standard);
+  animation: practice-rise var(--dur-fast) var(--ease-out);
 }
 
 .answerLabel {
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  color: var(--label-tertiary);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
   letter-spacing: 0.06em;
   margin: 0;
   user-select: none;
 }
 
 .answerText {
-  font-family: var(--font-body);
-  font-size: var(--type-body-emphasis);
-  color: var(--label-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  color: var(--ds-ink);
   line-height: 1.5;
   margin: 0;
   word-wrap: break-word;
@@ -237,19 +237,19 @@
   width: 100%;
   max-width: 560px;
   margin: 0 auto;
-  font-family: var(--font-body);
-  font-size: var(--type-body-emphasis);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
   line-height: 1.6;
-  color: var(--label-primary);
-  background: var(--surface-elevated);
-  border: 1px solid var(--separator);
+  color: var(--ds-ink);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
   border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-4);
   resize: vertical;
   min-height: 4em;
   transition:
-    border-color var(--duration-fast) var(--ease-standard),
-    background   var(--duration-fast) var(--ease-standard);
+    border-color var(--dur-fast) var(--ease-out),
+    background   var(--dur-fast) var(--ease-out);
   letter-spacing: -0.005em;
   word-wrap: break-word;
   overflow-wrap: anywhere;
@@ -257,19 +257,19 @@
 
 .textarea:focus {
   outline: none;
-  border-color: var(--label-primary);
+  border-color: var(--ds-action-deep);
 }
 
 .textareaError {
-  border-color: var(--label-tertiary);
+  border-color: var(--ds-ink-soft);
 }
 
 /* Bottom meta — sentence progress + per-word answer count. */
 .meta {
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  font-weight: var(--type-body-weight);
-  color: var(--label-tertiary);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-regular);
+  color: var(--ds-ink-soft);
   letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
   text-align: center;
@@ -293,43 +293,44 @@
   justify-content: center;
   min-height: 44px;
   padding: 0 var(--space-5);
-  font-family: var(--font-body);
-  font-size: var(--type-body);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
   font-weight: 600;
   letter-spacing: 0.005em;
   border-radius: var(--radius-md);
   cursor: pointer;
   transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    color            var(--duration-fast) var(--ease-standard),
-    border-color     var(--duration-fast) var(--ease-standard);
+    background-color var(--dur-fast) var(--ease-out),
+    color            var(--dur-fast) var(--ease-out),
+    border-color     var(--dur-fast) var(--ease-out);
   white-space: nowrap;
 }
 
 .btn:focus-visible {
-  outline: 2px solid var(--label-primary);
+  outline: 2px solid var(--ds-focus);
   outline-offset: 2px;
 }
 
 .btnPrimary {
-  background: var(--label-primary);
-  color: var(--surface);
-  border: 1px solid var(--label-primary);
+  background: var(--ds-action);
+  color: var(--ds-on-action);
+  border: 1px solid var(--ds-action);
 }
 
 .btnPrimary:hover {
-  opacity: 0.85;
+  background: var(--ds-action-deep);
+  border-color: var(--ds-action-deep);
 }
 
 .btnGhost {
   background: transparent;
-  color: var(--label-secondary);
-  border: 1px solid var(--separator);
+  color: var(--ds-ink);
+  border: 1px solid var(--ds-border);
 }
 
 .btnGhost:hover {
-  border-color: var(--label-quaternary);
-  color: var(--label-primary);
+  border-color: var(--ds-ink-faint);
+  color: var(--ds-ink);
 }
 
 /* Empty / loading / error / finished / empty-step variants */
@@ -343,9 +344,9 @@
 }
 
 .loaderText {
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  color: var(--label-tertiary);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
   letter-spacing: 0.04em;
   user-select: none;
 }
@@ -358,33 +359,33 @@
   align-items: center;
   gap: var(--space-5);
   margin: auto;
-  padding: var(--space-9) var(--space-5);
+  padding: var(--space-6) var(--space-5);
   text-align: center;
 }
 
 .errorText,
 .emptyText {
-  font-family: var(--font-body);
-  font-size: var(--type-body);
-  color: var(--label-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  color: var(--ds-ink);
   margin: 0;
   max-width: 360px;
 }
 
 .endTitle {
-  font-family: var(--font-body);
-  font-size: var(--type-title-1);
-  font-weight: var(--type-title-1-weight);
-  color: var(--label-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-display);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink);
   letter-spacing: -0.01em;
-  line-height: var(--type-title-1-lh);
+  line-height: var(--text-display-lh);
   margin: 0;
 }
 
 .endMeta {
-  font-family: var(--font-body);
-  font-size: var(--type-body);
-  color: var(--label-tertiary);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  color: var(--ds-ink-soft);
   margin: 0;
 }
 
@@ -449,16 +450,16 @@
   position: relative;
   text-align: center;
   letter-spacing: -0.005em;
-  font-family: var(--font-body);
+  font-family: var(--font-sans);
   font-size: clamp(2rem, 6vw, 2.75rem);
   line-height: 1;
   font-weight: 500;
-  color: var(--label-tertiary);
+  color: var(--ds-ink-soft);
 }
 
 .cellGhost {
   visibility: hidden;
-  font-family: var(--font-body);
+  font-family: var(--font-sans);
   font-size: clamp(2rem, 6vw, 2.75rem);
   line-height: 1;
   font-weight: 500;
@@ -473,12 +474,12 @@
   display: block;
   width: 100%;
   height: 1px;
-  background: var(--separator);
+  background: var(--ds-border);
   margin-top: 10px;
   transform-origin: left center;
   transition:
-    transform var(--duration-base) var(--ease-standard),
-    opacity   var(--duration-base) var(--ease-standard);
+    transform var(--dur-base) var(--ease-out),
+    opacity   var(--dur-base) var(--ease-out);
 }
 
 .cellCorrect .cellText,
@@ -494,17 +495,17 @@
 }
 
 .cellActive .cellTextPeek {
-  color: var(--correct);
+  color: var(--ds-correct);
   font-weight: 600;
 }
 
 .cellCorrect {
-  color: var(--correct);
+  color: var(--ds-correct);
   font-weight: 600;
 }
 
 .cellCorrect .cellText {
-  color: var(--correct);
+  color: var(--ds-correct);
 }
 
 .cellCorrect::after {
@@ -518,14 +519,14 @@
 }
 
 .cellActive {
-  color: var(--label-primary);
+  color: var(--ds-ink);
 }
 
 .cellActive::after {
   height: 1.5px;
-  background: var(--label-primary);
+  background: var(--ds-action);
   transform: scaleX(1);
-  animation: cell-underline-in var(--duration-base) var(--ease-standard) forwards;
+  animation: cell-underline-in var(--dur-base) var(--ease-out) forwards;
 }
 
 @keyframes cell-underline-in {
@@ -539,7 +540,7 @@
   justify-content: flex-start;
   width: 100%;
   padding: 0 4px;
-  font-family: var(--font-body);
+  font-family: var(--font-sans);
   font-size: clamp(2rem, 6vw, 2.75rem);
   line-height: 1;
   font-weight: 500;
@@ -552,29 +553,29 @@
 
 .cellChar {
   display: inline-block;
-  font-family: var(--font-body);
+  font-family: var(--font-sans);
   font-size: clamp(2rem, 6vw, 2.75rem);
   line-height: 1;
   width: 0.625em;
   text-align: center;
   font-weight: 500;
-  transition: color var(--duration-fast) var(--ease-standard);
+  transition: color var(--dur-fast) var(--ease-out);
 }
 
 .cellCharCorrect {
-  color: var(--label-primary);
+  color: var(--ds-ink);
 }
 
 .cellCharWrong {
-  color: var(--label-tertiary);
+  color: var(--ds-ink-soft);
   text-decoration: line-through;
-  text-decoration-color: var(--label-tertiary);
+  text-decoration-color: var(--ds-ink-soft);
   text-decoration-thickness: 1.5px;
   text-decoration-skip-ink: none;
 }
 
 .cellCharPending {
-  color: var(--label-quaternary);
+  color: var(--ds-ink-faint);
   opacity: 0.6;
 }
 
@@ -582,8 +583,8 @@
   display: inline-block;
   width: 1.5px;
   height: 0.95em;
-  background: var(--label-primary);
-  animation: cell-cursor-blink 1.4s var(--ease-standard) infinite;
+  background: var(--ds-caret);
+  animation: cell-cursor-blink 1.4s var(--ease-out) infinite;
   margin-right: 2px;
 }
 
@@ -617,7 +618,7 @@
   }
 
   .textarea {
-    font-size: var(--type-body);
+    font-size: var(--text-body);
   }
 
   .actions {
@@ -627,12 +628,12 @@
   .btn {
     flex: 1 1 40%;
     min-height: 40px;
-    font-size: var(--type-caption);
+    font-size: var(--text-caption);
   }
 
   .wordCardWord {
-    font-size: var(--type-title-1);
-    line-height: var(--type-title-1-lh);
+    font-size: var(--text-display);
+    line-height: var(--text-display-lh);
   }
 }
 /* Reduced-motion — star pop + particles snap to final state.

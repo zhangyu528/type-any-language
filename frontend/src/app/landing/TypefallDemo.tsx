@@ -56,7 +56,7 @@ interface WordMeta {
   wrongCharIdx: number | null;
   /** 当前词的 settle 起始时刻(基于上一个词的 endAt + 词间停顿算出) */
   startSettleAt: number;
-  /** 整词最后一个字符 settle 完成的时刻(下划线由 --cm-ink 切到 transparent、字符颜色切到 mint-deep 的时刻) */
+  /** 整词最后一个字符 settle 完成的时刻(下划线由 --ds-ink 切到 transparent、字符颜色切到 mint-deep 的时刻) */
   settleEnd: number;
   /** "判断时刻" = 该词最后字符 settle 完成 + WRONG_HOLD */
   judgeAt: number;
@@ -269,12 +269,12 @@ export default function TypefallDemo() {
                0% 起色必须与 .word 默认 border-bottom-color 完全一致,
                否则 mount 时会出现瞬态跳变。 */
             const ruleAnimName = `kf-rule-${index}-${wi}`;
-            // 起始色 = var(--cm-ink),与该时间窗下字符 inherit 的 color
+            // 起始色 = var(--ds-ink),与该时间窗下字符 inherit 的 color
             // 同源 —— 输入过程中下划线跟字符同色,看上去是"笔尖正在描的线"。
             // 注意:这跟 .word 静态 border-bottom-color (22% 灰透明)
             // 不一样 —— 静态色是 placeholder 阶段(该词 keyframe 还没启动),
             // 跟 practice 页 .cell 占位下划线一致。两个颜色对应两个状态。
-            const ruleStartColor = 'var(--cm-ink)';
+            const ruleStartColor = 'var(--ds-ink)';
             const ruleDelay = `${word.startSettleAt}ms`;
             let ruleKeyframes: string;
             let ruleDur: string;
@@ -283,7 +283,7 @@ export default function TypefallDemo() {
               ruleDur = `${relErrDur}ms`;
               const pAccentOn = ((word.judgeAt - word.startSettleAt) / relErrDur) * 100;
               /* 退格完成 = backspaceDoneAt,字符已全部滑出,代表"字空了"。
-                 此时下划线切回 ink(--cm-ink,与原字符色同,作为重输占位),
+                 此时下划线切回 ink(--ds-ink,与原字符色同,作为重输占位),
                  然后等 retypeEndAt(正确字符 fade-in 完成)切到 transparent
                  —— 与 practice .cellCorrect::after opacity:0 一致。 */
               const pAccentOff = ((word.backspaceDoneAt - word.startSettleAt) / relErrDur) * 100;
@@ -295,14 +295,14 @@ export default function TypefallDemo() {
               const pBeforeMint = Math.max(0, pMintOn - 0.01);
               /* 错误→重输 settle 完成时,下划线应该彻底消失(透明),
                  与 practice 页 .cellCorrect::after opacity:0 一致 —
-                 字符颜色(--cm-mint-deep)由 .enCharOk 接管,继续承担
+                 字符颜色(--ds-action-deep)由 .enCharOk 接管,继续承担
                  "输入正确"的视觉提示;下划线本身失去意义。 */
               ruleKeyframes =
                 `@keyframes ${ruleAnimName}{` +
                 `0%{border-bottom-color:${ruleStartColor};}` +
                 `${pBeforeAccent.toFixed(2)}%{border-bottom-color:${ruleStartColor};}` +
-                `${pAccentOn.toFixed(2)}%{border-bottom-color:var(--cm-accent);}` +
-                `${pBeforeBack.toFixed(2)}%{border-bottom-color:var(--cm-accent);}` +
+                `${pAccentOn.toFixed(2)}%{border-bottom-color:var(--ds-error);}` +
+                `${pBeforeBack.toFixed(2)}%{border-bottom-color:var(--ds-error);}` +
                 `${pAccentOff.toFixed(2)}%{border-bottom-color:${ruleStartColor};}` +
                 `${pBeforeMint.toFixed(2)}%{border-bottom-color:${ruleStartColor};}` +
                 `${pMintOn.toFixed(2)}%{border-bottom-color:transparent;}` +
@@ -315,7 +315,7 @@ export default function TypefallDemo() {
               const pMintOn = (relSettleDur / ruleTotal) * 100;
               /* 整词同步切色:border-bottom 切到 transparent(下划线
                  消失 —— 与 practice 页 .cellCorrect::after 一致),
-                 character color(--cm-mint-deep)由 .enChar fade-in 后
+                 character color(--ds-action-deep)由 .enChar fade-in 后
                  的 stable state 接管,继续承担"输入正确"的视觉提示。
                  关键:必须用 step 写法 —— 在 pMintOn 前一帧锁住前色,
                  否则 CSS 会在 0% → pMintOn 之间自动线性插值,视觉上
@@ -324,10 +324,10 @@ export default function TypefallDemo() {
               const pStepBefore = Math.max(0, pMintOn - 0.01);
               ruleKeyframes =
                 `@keyframes ${ruleAnimName}{` +
-                `0%{border-bottom-color:${ruleStartColor};color:var(--cm-ink);}` +
-                `${pStepBefore.toFixed(2)}%{border-bottom-color:${ruleStartColor};color:var(--cm-ink);}` +
-                `${pMintOn.toFixed(2)}%{border-bottom-color:transparent;color:var(--cm-mint-deep);}` +
-                `100%{border-bottom-color:transparent;color:var(--cm-mint-deep);}` +
+                `0%{border-bottom-color:${ruleStartColor};color:var(--ds-ink);}` +
+                `${pStepBefore.toFixed(2)}%{border-bottom-color:${ruleStartColor};color:var(--ds-ink);}` +
+                `${pMintOn.toFixed(2)}%{border-bottom-color:transparent;color:var(--ds-action-deep);}` +
+                `100%{border-bottom-color:transparent;color:var(--ds-action-deep);}` +
                 `}`;
             }
 

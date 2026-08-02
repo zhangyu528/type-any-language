@@ -1,12 +1,9 @@
 /* ============================================================
    Practice — page container, single column, generous whitespace
    ------------------------------------------------------------
-   Migrated from globals.css on 2026-07-31. Token references
-   resolve via the .practice--cm container scope in globals.css.
+   Token references resolve via TAL Mint semantic tokens (--ds-*)
+   from ds/themes.css. Old token system retired 2026-08-02.
 
-   Usage: page.tsx applies styles.root on the outer div, plus the
-   global `practice--cm` class to enable the Citrus Mint token
-   remap defined in globals.css.
    ============================================================ */
 
 .root {
@@ -17,7 +14,7 @@
   align-items: center;
   padding: clamp(40px, 8vh, 96px) clamp(24px, 5vw, 80px);
   position: relative;
-  background: var(--cm-bg);
+  background: var(--ds-bg);
 }
 
 /* Feedback wash — kept for visual continuity, but a quiet neutral tint. */
@@ -28,15 +25,15 @@
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  animation: practice-bleed 1.2s var(--ease-standard);
+  animation: practice-bleed 1.2s var(--ease-out);
 }
 
 .rootFeedbackCorrect::after {
-  background: radial-gradient(circle at 50% 50%, var(--correct-tint) 0%, transparent 55%);
+  background: radial-gradient(circle at 50% 50%, var(--ds-correct-tint) 0%, transparent 55%);
 }
 
 .rootFeedbackIncorrect::after {
-  background: radial-gradient(circle at 50% 50%, var(--surface-secondary) 0%, transparent 55%);
+  background: radial-gradient(circle at 50% 50%, var(--ds-tint) 0%, transparent 55%);
 }
 
 @keyframes practice-bleed {
@@ -53,14 +50,14 @@
   justify-content: center;
   gap: var(--space-5);
   margin: auto;
-  color: var(--label-tertiary);
+  color: var(--ds-ink-soft);
 }
 
 .loaderText {
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  font-weight: var(--type-body-weight);
-  color: var(--label-tertiary);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-regular);
+  color: var(--ds-ink-soft);
   letter-spacing: 0.04em;
   user-select: none;
 }
@@ -76,10 +73,10 @@
 }
 
 .errorText {
-  font-family: var(--font-body);
-  font-size: var(--type-body);
-  font-weight: var(--type-body-weight);
-  color: var(--label-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  font-weight: var(--weight-regular);
+  color: var(--ds-ink);
   letter-spacing: 0.01em;
   text-align: center;
 }
@@ -94,7 +91,7 @@
   gap: clamp(48px, 10vh, 96px);
   position: relative;
   z-index: 2;
-  animation: practice-rise var(--duration-slow) var(--ease-standard);
+  animation: practice-rise var(--dur-slow) var(--ease-out);
 }
 
 @keyframes practice-rise {
@@ -116,10 +113,10 @@
 }
 
 .mastheadBrand {
-  font-family: var(--font-body);
-  font-size: var(--type-body-emphasis);
-  font-weight: var(--type-body-emphasis-weight);
-  color: var(--label-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink);
   letter-spacing: -0.01em;
   line-height: 1;
   text-decoration: none;
@@ -131,16 +128,16 @@
 }
 
 .mastheadBrand:focus-visible {
-  outline: 2px solid var(--label-primary);
+  outline: 2px solid var(--ds-focus);
   outline-offset: 4px;
   border-radius: 2px;
 }
 
 .mastheadSub {
   font-family: var(--font-mono);
-  font-size: var(--type-caption);
+  font-size: var(--text-caption);
   font-weight: 500;
-  color: var(--label-tertiary);
+  color: var(--ds-ink-soft);
   letter-spacing: 0.02em;
   text-align: right;
   white-space: nowrap;
@@ -157,29 +154,29 @@
   align-items: center;
   justify-content: center;
   margin: auto;
-  padding: var(--space-9) var(--space-5);
+  padding: var(--space-6) var(--space-5);
   gap: var(--space-3);
   text-align: center;
 }
 
 .emptyText {
-  font-family: var(--font-body);
-  font-size: var(--type-title-3);
-  font-weight: var(--type-title-3-weight);
-  color: var(--label-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-h1);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink);
   margin: 0;
 }
 
 .emptyHint {
   font-family: var(--font-mono);
-  font-size: var(--type-caption);
-  color: var(--label-tertiary);
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
   margin: 0;
   max-width: 32em;
 }
 
 .emptyHint code {
-  background: var(--surface-secondary);
+  background: var(--ds-tint);
   padding: 2px 6px;
   border-radius: var(--radius-sm);
   font-size: 1em;
@@ -204,6 +201,6 @@
   }
 
   .content {
-    gap: var(--space-9);
+    gap: var(--space-6);
   }
 }

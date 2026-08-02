@@ -1,8 +1,8 @@
 /* ============================================================
    Home — course picker (lib cards grid)
    ------------------------------------------------------------
-   Migrated from globals.css on 2026-07-31. Token references
-   resolve via .practice--cm container scope in globals.css.
+   Token references resolve via TAL Mint semantic tokens (--ds-*)
+   from ds/themes.css. Old token system retired 2026-08-02.
    ============================================================ */
 
 .home {
@@ -20,40 +20,40 @@
 }
 
 .caption {
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  font-weight: var(--type-body-weight);
-  color: var(--label-tertiary);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-regular);
+  color: var(--ds-ink-soft);
   letter-spacing: 0.06em;
-  line-height: var(--type-caption-lh);
+  line-height: var(--text-caption-lh);
   user-select: none;
 }
 
 .title {
-  font-family: var(--font-body);
-  font-size: var(--type-title-1);
-  font-weight: var(--type-title-1-weight);
-  color: var(--label-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-display);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink);
   letter-spacing: -0.01em;
-  line-height: var(--type-title-1-lh);
+  line-height: var(--text-display-lh);
   margin: 0;
 }
 
 .meta {
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  font-weight: var(--type-body-weight);
-  color: var(--label-tertiary);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-regular);
+  color: var(--ds-ink-soft);
   letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
   margin: 0;
 }
 
 .progress {
-  font-family: var(--font-body);
-  font-size: var(--type-caption);
-  font-weight: var(--type-body-weight);
-  color: var(--label-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-regular);
+  color: var(--ds-ink);
   letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
   margin: 0;
@@ -93,27 +93,27 @@
   width: 100%;
   min-height: 168px;
   padding: var(--space-4) var(--space-5);
-  background: var(--surface-elevated);
-  border: 1px solid var(--separator);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
   border-radius: var(--radius-md);
-  font-family: var(--font-body);
-  color: var(--label-primary);
+  font-family: var(--font-sans);
+  color: var(--ds-ink);
   text-align: left;
   cursor: pointer;
   transition:
-    background var(--duration-fast) var(--ease-standard),
-    border-color var(--duration-fast) var(--ease-standard),
-    transform var(--duration-fast) var(--ease-standard);
+    background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 
 .tile:hover {
-  background: var(--surface-secondary);
-  border-color: var(--label-quaternary);
+  background: var(--ds-tint);
+  border-color: var(--ds-ink-faint);
 }
 
 .tile:active {
   transform: scale(0.98);
-  background: var(--surface-tertiary);
+  background: var(--ds-tint);
 }
 
 .tileHead {
@@ -124,30 +124,30 @@
 }
 
 .tileName {
-  font-size: var(--type-title-3);
-  font-weight: var(--type-title-3-weight);
-  color: var(--label-primary);
+  font-size: var(--text-h1);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink);
   letter-spacing: -0.01em;
-  line-height: var(--type-title-3-lh);
+  line-height: var(--text-h1-lh);
 }
 
 .tileLevel {
   font-family: var(--font-mono);
-  font-size: var(--type-caption);
+  font-size: var(--text-caption);
   font-weight: 500;
-  color: var(--label-tertiary);
+  color: var(--ds-ink-soft);
   letter-spacing: 0.04em;
   padding: var(--space-1) var(--space-2);
-  background: var(--surface-secondary);
+  background: var(--ds-tint);
   border-radius: var(--radius-sm);
   flex-shrink: 0;
   text-transform: lowercase;
 }
 
 .tileDesc {
-  font-size: var(--type-body);
-  color: var(--label-secondary);
-  line-height: var(--type-body-lh);
+  font-size: var(--text-body);
+  color: var(--ds-ink);
+  line-height: var(--text-body-lh);
   margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -167,24 +167,24 @@
   right: var(--space-5);
   bottom: calc(var(--space-3) - 2px);
   height: 3px;
-  background: var(--cm-line);
-  border-radius: var(--radius-circle);
+  background: var(--ds-border);
+  border-radius: var(--radius-pill);
   overflow: hidden;
 }
 
 .tileProgressFill {
   display: block;
   height: 100%;
-  background: var(--cm-sage);
-  transition: width var(--duration-base) var(--ease-standard);
+  background: var(--ds-correct-fill);
+  transition: width var(--dur-base) var(--ease-out);
 }
 
 .tileRecent {
-  border-color: var(--cm-sage);
+  border-color: var(--ds-border-strong);
 }
 
 .tileRecent:hover {
-  border-color: var(--cm-sage-soft);
+  border-color: var(--ds-action-deep);
 }
 
 .tileChip {
@@ -195,10 +195,10 @@
   align-items: center;
   height: 22px;
   padding: 0 var(--space-2);
-  background: var(--cm-sage);
-  color: #FFFFFF;
+  background: var(--ds-action);
+  color: var(--ds-on-action);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: var(--weight-medium);
   letter-spacing: 0.04em;
   border-radius: var(--radius-sm);
   z-index: 1;
@@ -209,7 +209,7 @@
    ============================================================ */
 @media (max-width: 640px) {
   .title {
-    font-size: var(--type-title-2);
+    font-size: var(--text-h1);
   }
 
   .tiles {

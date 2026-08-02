@@ -1,24 +1,14 @@
 'use client';
 
 /**
- * ThemeProvider — 着陆页 light/dark 切换
+ * ThemeProvider — 全站 light/dark 切换(TAL Mint)
  *
  * 工作方式:
- *   - 在 <html> 上写 `data-theme="light" | "dark"`,CSS 用
- *     `[data-theme="dark"] .app-header--landing` 等选择器覆盖
- *     --cm-* token
- *   - 持久化到 localStorage.theme (默认 light,**不**跟随系统)
- *   - 首屏在 SSR 阶段不会闪——client mount 后立即读 localStorage
- *     并同步到 <html>
- *
- * 范围:只管着陆页。--heal-* / --surface-* 等后端 token 不动,
- * 后端页面在 dark 下保持原亮色(它们没配 dark 覆盖)。
- *
- * Why client component:
- *   - 需要读 localStorage
- *   - 需要直接动 <html> 属性(不是 React state)
- *   - 它的 children 通常是 layout 的子树,所以放在 <html> 之外
- *     也可以,但为了 SSR 干净,我们让它跑在 <body> 顶层
+ *   - 在 <html> 上写 `data-theme="light" | "dark"`,ds/themes.css 用
+ *     `[data-theme="dark"]` 选择器整组切换 --ds-* 语义 token
+ *   - 持久化到 localStorage['landing.theme'];未手动选择时跟随系统
+ *   - 首屏不闪:layout.tsx <head> 里的 bootstrap 脚本在 React
+ *     hydration 前同步写入 data-theme
  */
 
 import { createContext, useContext, useEffect, useState } from 'react';

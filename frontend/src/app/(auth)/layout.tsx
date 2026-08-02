@@ -1,20 +1,17 @@
 /**
- * (auth) route group layout — glassmorphism card on aurora gradient.
+ * (auth) route group layout — TAL Mint 气泡卡 + 单词流背景。
  *
- * Design intent (see design-auth.md §1, §3):
- *   Auth is a distinct mental state from "casual practice" — it
- *   deserves a visual context shift. Aurora gradient + frosted glass
- *   card signals "you're entering a private space" without being
- *   heavy or corporate. Sits in deliberate contrast to the neutral
- *   Apple-HIG rest of the app.
+ * 设计意图:auth 是"进入私密空间"的仪式,但视觉语言与全站一致
+ * (TAL Mint 设计系统)。背景是漂移的英→中单词对(产品语义的
+ * 第一眼识别),卡片是标准 BubbleCard 加大圆角。
  *
- * Back-to-home affordance: the enso brand mark at the top of the
+ * Back-to-home affordance: the brand mark at the top of the
  * card is a Link to `/`. Replaces the chrome's "home" link, which
  * would otherwise sit in the top-left.
  *
  * Implementation note: we use a single <style> tag (NOT styled-jsx)
  * because (1) styled-jsx hashes don't reach <Link>'s inner <a>, and
- * (2) the auth-card / auth-aurora classes are owned by the page +
+ * (2) the auth-card / auth-wordstream classes are owned by the page +
  * layout and don't need component-scoped isolation.
  */
 import Link from 'next/link';
@@ -96,15 +93,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      <div
-        className="auth-card"
-        style={{
-          background: '#FFFFFF',
-          borderColor: 'rgba(22, 163, 94, 0.45)',
-          borderWidth: '1.5px',
-          borderStyle: 'solid',
-        }}
-      >
+      <div className="auth-card">
         <Link
           href="/"
           className="auth-card__brand"
@@ -118,64 +107,108 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
-        /* .auth-shell + .auth-card rules moved to globals.css —
-           inline <style> rendered after the element didn't reliably
-           cascade in Next.js dev mode (getComputedStyle returned
-           rgba(0,0,0,0) instead of the token value). External
-           stylesheet is bulletproof. Kept here the rest of the
-           per-page chrome (aurora, word stream, brand mark) since
-           those DO work inline. */
-        .auth-aurora {
-          position: absolute;
-          inset: 0;
+        .auth-shell {
+          position: relative;
+          /* 100dvh accounts for mobile browser chrome (URL bar) so the
+             card stays centered as the bar collapses on scroll. Falls
+             back to 100vh on browsers that don't support dvh. */
+          min-height: 100vh;
+          min-height: 100dvh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: var(--space-6) var(--space-4);
           overflow: hidden;
-          pointer-events: none;
+          background: var(--ds-bg);
         }
-        .auth-aurora__blob {
-          position: absolute;
-          border-radius: 50%;
-          /* 40px blur + saturated colors so motion is visibly
-             perceivable. Earlier 56px blur with pastel colors was
-             nearly invisible. See design-auth.md §10. */
-          filter: blur(40px);
-          opacity: 0.75;
-          will-change: transform;
+        .auth-card {
+          position: relative;
+          z-index: 1;
+          width: 100%;
+          max-width: 380px;
+          padding: var(--space-6) var(--space-6);
+          background: var(--ds-surface);
+          border: 0.5px solid var(--ds-border);
+          border-radius: var(--radius-xl);
+          box-shadow: var(--elev-1);
+          /* Entrance: card scales up from 0.94 (centered, no translate).
+             Scale reads as "the card opens up" — distinct from the
+             "the page is shaking" feel that any translateY/Y on the
+             card gives. 500ms is slow enough to feel cinematic without
+             dragging. */
+          animation: auth-card-rise 500ms var(--ease-out) both;
         }
-        .auth-aurora__blob--a {
-          top: -10%;
-          left: -15%;
-          width: 42vw;
-          height: 42vw;
-          background: var(--auth-shell-blob-a);
-          animation: auth-blob-drift-a 18s ease-in-out infinite;
+        .auth-card__brand {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: var(--space-2);
+          margin: 0 auto var(--space-5);
+          padding: var(--space-1) var(--space-2);
+          color: var(--ds-ink);
+          text-decoration: none;
+          font-size: var(--text-body);
+          font-weight: var(--weight-medium);
+          letter-spacing: -0.01em;
+          border-radius: var(--radius-sm);
+          transition: background var(--dur-fast) var(--ease-out);
         }
-        .auth-aurora__blob--b {
-          bottom: -10%;
-          right: -15%;
-          width: 40vw;
-          height: 40vw;
-          background: var(--auth-shell-blob-b);
-          animation: auth-blob-drift-b 20s ease-in-out infinite -6s;
+        .auth-card__brand:hover {
+          background: var(--ds-tint);
         }
-        .auth-aurora__blob--c {
-          /* Centered behind the card so the frosted glass shows the
-             color shifting underneath as the blob drifts. */
-          top: 25%;
-          left: 30%;
-          width: 44vw;
-          height: 44vw;
-          background: var(--auth-shell-blob-c);
-          animation: auth-blob-drift-c 16s ease-in-out infinite -10s;
+        .auth-card__brand:focus-visible {
+          outline: 2px solid var(--ds-focus);
+          outline-offset: 4px;
         }
-        /* .auth-card, .auth-card__brand, .auth-card__brand-name, .auth-title,
-   .auth-title__char, @keyframes auth-char-rise — all moved to
-   globals.css. Inline style var() resolution failed in Next.js dev
-   mode (getComputedStyle returned black instead of mint-deep), so
-   every color rule that uses var(--auth-*) needs to live in the
-   external stylesheet. Inline <style> below keeps aurora + word
-   stream only, which don't use the auth color tokens. */
+        .auth-card__brand-mark {
+          font-size: 26px;
+          color: var(--ds-action-deep);
+          line-height: 1;
+          transition: transform var(--dur-fast) var(--ease-spring);
+        }
+        .auth-card__brand:hover .auth-card__brand-mark {
+          transform: scale(1.08);
+        }
+        .auth-card__brand-name {
+          font-size: var(--text-body);
+          font-weight: var(--weight-medium);
+          color: var(--ds-ink);
+        }
 
-        /* aurora background blobs drift slowly to give the page ambient
+        /* Title char-level fade — each <span class="auth-title__char">
+           inside the h1 gets a 50ms-staggered fade + Y rise via inline
+           style with animationDelay set per character. */
+        .auth-title {
+          display: block;
+          font-size: var(--text-h1);
+          font-weight: var(--weight-medium);
+          line-height: var(--text-h1-lh);
+          color: var(--ds-ink);
+          margin-bottom: var(--space-6);
+          text-align: center;
+        }
+        .auth-title__char {
+          display: inline-block;
+          opacity: 0;
+          /* Each char rises 8px from below with a 120ms stagger
+             between chars (4 chars × 120ms = 480ms cascade, each
+             char animates over 380ms). Total: 860ms — slow, cinematic
+             "welcome" reveal. translateY(8px) is small enough to
+             read as "settling into place" rather than "the card
+             bounced". */
+          animation: auth-char-rise 380ms var(--ease-out) both;
+        }
+        @keyframes auth-char-rise {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes auth-card-rise {
+          from { opacity: 0; transform: scale(0.94); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+        @keyframes auth-field-rise {
+          from { opacity: 0; transform: translateY(4px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
         /* aurora background blobs drift slowly to give the page ambient
            depth. NOT entrance motion — these are infinite loops that
@@ -199,8 +232,8 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           font-family: var(--font-mono);
           font-size: clamp(20px, 2.4vw, 36px);
           font-weight: 500;
-          color: var(--auth-heading);   /* Citrus Mint ink */
-          opacity: 0.18;                /* slightly higher than before — mint ink reads softer than charcoal */
+          color: var(--ds-ink);
+          opacity: 0.14;
           white-space: nowrap;
           cursor: default;
           /* Two animations: drift (large position loop, ~28s) +
@@ -209,14 +242,14 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
              motion reads as "alive" rather than "static". */
           animation: auth-word-drift 28s ease-in-out infinite,
                      auth-word-breathe 7s ease-in-out infinite;
-          transition: opacity 400ms var(--ease-standard),
-                      transform 600ms var(--ease-standard);
+          transition: opacity 400ms var(--ease-out),
+                      transform 600ms var(--ease-out);
         }
         .auth-word-pair__zh-hover {
           font-family: var(--font-sans);
           font-size: clamp(16px, 1.6vw, 24px);
           font-weight: 400;
-          color: var(--auth-subheading);   /* Citrus Mint */
+          color: var(--ds-ink-soft);
           opacity: 0;
           white-space: nowrap;
           /* Position absolutely to the LEFT of the leader so hover
@@ -229,8 +262,8 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           right: 100%;
           margin-right: 12px;
           transform: translateX(6px);
-          transition: opacity 400ms var(--ease-standard),
-                      transform 400ms var(--ease-standard);
+          transition: opacity 400ms var(--ease-out),
+                      transform 400ms var(--ease-out);
         }
         /* Inline secondary meaning — sits inside the primary span,
            prefixed by a Chinese comma. Same weight + size as the

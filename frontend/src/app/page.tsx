@@ -131,7 +131,7 @@ export default function PracticePage() {
   // ---- Render ----
   if (error) {
     return (
-      <div className={`${styles.root} practice--cm ${styles.error}`}>
+      <div className={`${styles.root} ${styles.error}`}>
         <p className={styles.errorText}>{error}</p>
       </div>
     );
@@ -139,7 +139,7 @@ export default function PracticePage() {
 
   if (!catalog) {
     return (
-      <div className={`${styles.root} practice--cm ${styles.loading}`}>
+      <div className={`${styles.root} ${styles.loading}`}>
         <LoadingMark />
         <p className={styles.loaderText}>Loading…</p>
       </div>
@@ -149,7 +149,7 @@ export default function PracticePage() {
   // Empty catalog — manifest shipped no libs (or all CSVs missing).
   if (catalog.libs.length === 0) {
     return (
-      <div className={`${styles.root} practice--cm ${styles.empty}`}>
+      <div className={`${styles.root} ${styles.empty}`}>
         <p className={styles.emptyText}>暂无课程</p>
         <p className={styles.emptyHint}>
           请检查 <code>db/cms/manifest.yaml</code> 与对应 CSV 文件
@@ -175,7 +175,7 @@ export default function PracticePage() {
   }
 
   return (
-    <div className={`${styles.root} practice--cm`}>
+    <div className={styles.root}>
       <div className={styles.content}>
         <header className={styles.masthead} aria-label="page header">
           <a

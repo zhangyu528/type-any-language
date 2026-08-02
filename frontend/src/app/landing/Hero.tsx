@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react';
 import { VocabularyLib, TranslationProgress } from '../api';
 import { useAuth } from '../lib/auth';
 import styles from './Hero.module.css';
-import PaperGrain from './PaperGrain';
 import TypefallDemo from './TypefallDemo';
 
 interface HeroProps {
@@ -57,9 +56,6 @@ export default function Hero({ libs, onPickLib }: HeroProps) {
 
   return (
     <section className={styles.root} aria-label="产品介绍">
-      {/* 背景层 —— 顶部薄荷光 + 纸纹颗粒,z-index 0,demo 在 z-index 1 之上 */}
-      <PaperGrain />
-
       <div className={styles.inner}>
         {/* Stage 1: demo — the hero's centerpiece, fades in first */}
         <motion.div

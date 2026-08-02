@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * AppHeader — 36px frosted glass top chrome, fixed-position.
+ * AppHeader — 52px 全局顶部 chrome,fixed-position(TAL Mint)。
  *
  * Why a top chrome: master has no global nav today (Home is the landing
  * page, TranslationStage is the only destination). The auth surface
@@ -12,25 +12,16 @@
  *   - matches modern SaaS convention (Linear / Notion / Vercel)
  *   - gives us a future home for tabs, avatar menu, settings, etc.
  *
- * Visual:
- *   - 36px tall, full-width, z-index 50 (above content, below modals)
- *   - Frosted: rgba(255,255,255,0.78) + backdrop blur(20px) — the
- *     page bg bleeds through subtly, matching the macOS Big Sur
- *     nav-bar feel
- *   - Hairline border-bottom (1px rgba(0,0,0,0.06)) for the
- *     "elevated above content" cue
- *   - Brand mark on the left (enso ◯ + name) — clickable, returns
- *     to `/`
- *   - Right side: in the anonymous state, two pills "登录" (primary)
- *     + "注册" (ghost); once signed in, swaps to the avatar + 登出
- *     pair.
+ * Visual(TAL Mint,样式唯一出处 = globals.css .app-header*):
+ *   - 薄荷底半透 + backdrop blur,底部 1px --ds-border
+ *   - 左:BrandMark 3×3 点阵 + 名称
+ *   - 右:匿名时 "登录"(薄荷填充 pill)+ "注册"(ghost pill);
+ *     登录后换为头像 + 登出
  *
  * Route-aware:
  *   - Renders null on /login and /signup. Those pages have their own
- *     brand link inside the aurora glass card; a global chrome on
+ *     brand link inside the bubble card; a global chrome on
  *     top would fight with the card's own "back to home" affordance.
- *     Keeping the chrome out of the auth flow preserves the "you're
- *     entering a private space" visual context shift.
  */
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';

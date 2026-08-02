@@ -20,7 +20,7 @@ interface BrandMarkProps {
   size?: number;
   /** Whether the centre dot pulses. Use only on large/hero surfaces. */
   pulse?: boolean;
-  /** Override centre-dot colour. Defaults to var(--cm-mint-deep). */
+  /** Override centre-dot colour. Defaults to var(--ds-action-deep). */
   centerColor?: string;
 }
 
@@ -39,7 +39,7 @@ export default function BrandMark({
 }: BrandMarkProps) {
   const cell = size / MATRIX_SIZE;
   const dotR = (cell - cell * GAP_RATIO) / 2; // dot radius
-  const fill = centerColor ?? 'var(--cm-mint-deep, #16A35E)';
+  const fill = centerColor ?? 'var(--ds-action-deep)';
 
   const dots: Array<{ cx: number; cy: number; r: number; op: number }> = [];
   for (let row = 0; row < MATRIX_SIZE; row++) {

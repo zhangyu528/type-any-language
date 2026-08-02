@@ -11,7 +11,7 @@ import styles from './ThemeToggle.module.css';
  *
  * 视觉:
  *   - 默认 fill 透明,描边 ink-soft 0.3
- *   - hover fill 用 --cm-mint 淡底 + ink
+ *   - hover fill 用 --ds-action 淡底 + ink
  *   - 图标旋转过渡 200ms
  */
 export default function ThemeToggle() {

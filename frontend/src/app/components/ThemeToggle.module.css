@@ -1,54 +1,41 @@
+/* ThemeToggle — 28×28 圆形 light/dark 切换,仅 --ds-* 语义 token */
+
 .root {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: 50%;
+  border-radius: var(--radius-pill);
   background: transparent;
-  border: 1px solid rgba(45, 90, 63, 0.18);
-  color: var(--cm-ink, #2D5A3F);
+  border: 1px solid var(--ds-border);
+  color: var(--ds-ink);
   cursor: pointer;
   transition:
-    background var(--duration-fast) var(--ease-standard),
-    border-color var(--duration-fast) var(--ease-standard),
-    color var(--duration-fast) var(--ease-standard),
-    transform var(--duration-fast) var(--ease-standard);
+    background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-spring);
 }
 .root:hover {
-  background: rgba(63, 209, 122, 0.12);
-  border-color: var(--cm-mint-deep, #16A35E);
-  color: var(--cm-mint-deep, #16A35E);
+  background: var(--ds-tint);
+  border-color: var(--ds-action-deep);
+  color: var(--ds-action-deep);
   transform: translateY(-1px);
 }
 .root:active {
   transform: translateY(0);
-}
-.root:focus-visible {
-  outline: 2px solid var(--cm-mint-deep, #16A35E);
-  outline-offset: 2px;
 }
 
 .icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: transform var(--duration-base) var(--cm-spring, cubic-bezier(0.34, 1.56, 0.64, 1));
+  transition: transform var(--dur-base) var(--ease-spring);
 }
 .iconMoon {
   transform: rotate(-12deg);
 }
 .iconSun {
   transform: rotate(0deg);
-}
-
-/* Dark mode variants — pick up the token-inverted colours */
-[data-theme="dark"] .root {
-  border-color: rgba(232, 244, 236, 0.22);
-  color: var(--cm-ink, #E8F4EC);
-}
-[data-theme="dark"] .root:hover {
-  background: rgba(93, 232, 154, 0.14);
-  border-color: var(--cm-mint, #5DE89A);
-  color: var(--cm-mint, #5DE89A);
 }

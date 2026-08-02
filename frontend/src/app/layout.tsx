@@ -14,7 +14,7 @@ const fraunces = Fraunces({
 const notoSansSC = Noto_Sans_SC({
   subsets: ['latin'],
   weight: ['400', '500', '600'],
-  variable: '--font-body-zh',
+  variable: '--font-sans-zh',
   display: 'swap',
 });
 
@@ -40,7 +40,7 @@ export default function RootLayout({
         <title>Type Any Language</title>
         {/*
           All webfonts are loaded via next/font/google (above). The
-          resulting CSS variables --font-display, --font-body-zh,
+          resulting CSS variables --font-display, --font-sans-zh,
           --font-mono-web are exposed on <html> and consumed inside
           globals.css / per-component stylesheets.
 
