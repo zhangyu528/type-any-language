@@ -6,6 +6,7 @@ import Badge from '../ds/components/Badge';
 import Stat from '../ds/components/Stat';
 import TypedText from '../ds/components/TypedText';
 import Waveform from '../ds/components/Waveform';
+import IconButton from '../ds/components/IconButton';
 import styles from './page.module.css';
 
 export const metadata: Metadata = { title: 'TAL Mint · 设计系统' };
@@ -210,6 +211,34 @@ export default function DesignSystemPage() {
           <Button variant="primary" disabled>
             disabled
           </Button>
+        </div>
+
+        <h3 className={styles.h3}>IconButton</h3>
+        <div className={styles.compRow}>
+          <IconButton variant="ghost" size="sm" shape="circle" aria-label="ghost sm circle">
+            ✦
+          </IconButton>
+          <IconButton variant="ghost" size="md" shape="circle" aria-label="ghost md circle">
+            ✦
+          </IconButton>
+          <IconButton variant="ghost" size="lg" shape="circle" aria-label="ghost lg circle">
+            ✦
+          </IconButton>
+          <IconButton variant="primary" size="md" shape="circle" aria-label="primary md circle">
+            ✦
+          </IconButton>
+          <IconButton variant="ghost" size="md" shape="square" aria-label="ghost md square">
+            ▦
+          </IconButton>
+          <IconButton variant="bare" size="md" shape="circle" aria-label="bare md circle">
+            ✦
+          </IconButton>
+          <IconButton variant="primary" size="md" shape="circle" loading aria-label="loading">
+            ✦
+          </IconButton>
+          <IconButton variant="ghost" size="md" shape="circle" disabled aria-label="disabled">
+            ✦
+          </IconButton>
         </div>
 
         <h3 className={styles.h3}>TypedText · 字符五态</h3>

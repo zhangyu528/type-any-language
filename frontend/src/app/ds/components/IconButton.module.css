@@ -1,0 +1,106 @@
+/* IconButton — 图标按钮(sm/md/lg × circle/square × primary/ghost/bare) */
+
+/* base */
+.root {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  font-family: inherit;
+  font-weight: inherit;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ds-ink);
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-spring),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+.root:focus-visible {
+  outline: none;
+  box-shadow: var(--elev-focus);
+}
+.root:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+/* sizes — width == height 让图标正居中 */
+.sm { width: 28px; height: 28px; }
+.md { width: var(--control-md); height: var(--control-md); }
+.lg { width: var(--control-lg); height: var(--control-lg); }
+
+/* Icon children: scale to ~50% of the button. Children pass svg/element
+   with their own viewBox; we just clip the painted size so the icon
+   sits centered without overflowing. Buttons that want exact pixel
+   control can override with className. */
+.root > svg,
+.root > img {
+  width: 50%;
+  height: 50%;
+  display: block;
+  flex-shrink: 0;
+}
+
+/* shapes */
+.circle { border-radius: var(--radius-pill); }
+.square { border-radius: var(--radius-md); }
+
+/* primary */
+.primary {
+  background: var(--ds-action);
+  border-color: var(--ds-action);
+  color: var(--ds-on-action);
+}
+.primary:hover:not(:disabled) {
+  background: var(--ds-action-deep);
+  border-color: var(--ds-action-deep);
+  transform: translateY(-1px);
+  box-shadow: var(--elev-1);
+}
+.primary:active:not(:disabled) { transform: translateY(0); box-shadow: var(--elev-0); }
+
+/* ghost */
+.ghost {
+  background: transparent;
+  border-color: var(--ds-border);
+  color: var(--ds-ink);
+}
+.ghost:hover:not(:disabled) {
+  background: var(--ds-tint);
+  border-color: var(--ds-action-deep);
+  color: var(--ds-action-deep);
+  transform: translateY(-1px);
+}
+.ghost:active:not(:disabled) { transform: translateY(0); }
+
+/* bare — 装饰物上的浮动按钮:无背景无描边,只 hover 出现 */
+.bare {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ds-ink-soft);
+}
+.bare:hover:not(:disabled) {
+  background: var(--ds-tint);
+  color: var(--ds-action-deep);
+}
+.bare:active:not(:disabled) { transform: translateY(0); }
+
+/* loading */
+.loading { pointer-events: none; }
+.spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-pill);
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: ds-iconbtn-spin 800ms linear infinite;
+}
+@keyframes ds-iconbtn-spin {
+  to { transform: rotate(360deg); }
+}
