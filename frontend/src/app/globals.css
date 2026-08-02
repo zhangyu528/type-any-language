@@ -117,7 +117,10 @@ a:focus-visible {
   gap: var(--space-2);
 }
 
-/* 主按钮:薄荷填充 pill(登录) */
+/* 登录:降级为 ghost 描边。让 hero CTA(立即开始练习)成为
+   唯一的视觉焦点 —— header 上不应该出现第二颗 primary 填充。
+   Landing 页主流程是"试一下再决定注册",所以入口应该是
+   "登录"而不是"立即注册"。 */
 .app-header__login {
   display: inline-flex;
   align-items: center;
@@ -128,20 +131,22 @@ a:focus-visible {
   font-size: 13px;
   font-weight: var(--weight-medium);
   letter-spacing: 0.005em;
-  color: var(--ds-on-action);
-  background: var(--ds-action);
-  border: 1px solid var(--ds-action);
+  color: var(--ds-ink);
+  background: transparent;
+  border: 1px solid var(--ds-border-strong);
   border-radius: var(--radius-pill);
   text-decoration: none;
   cursor: pointer;
   transition:
     background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
     border-color var(--dur-fast) var(--ease-out),
     transform var(--dur-fast) var(--ease-spring),
     box-shadow var(--dur-fast) var(--ease-out);
 }
 .app-header__login:hover {
-  background: var(--ds-action-deep);
+  background: var(--ds-tint);
+  color: var(--ds-action-deep);
   border-color: var(--ds-action-deep);
   transform: translateY(-1px);
   box-shadow: var(--elev-1);
@@ -219,12 +224,15 @@ a:focus-visible {
   background: var(--ds-tint);
 }
 
-/* Landing 变体:透明浮于页面上 */
+/* Landing 变体:依然浮于 hero 上,但保留半透底 + 细 hairline,
+   避免 header 与 hero bg 撞色(裸透明会让登录按钮看起来像悬浮塑料)。
+   color-mix 64% 比默认的 78% 更轻,hero 透过来仍能隐约读到底色,
+   但能跟下面的 hero bg 拉开一个层级。 */
 .app-header--landing {
-  background: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border-bottom-color: transparent;
+  background: color-mix(in srgb, var(--ds-bg) 64%, transparent);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border-bottom-color: color-mix(in srgb, var(--ds-border) 60%, transparent);
 }
 
 /* ============================================================
