@@ -35,21 +35,25 @@ export default function Hero({ libs, onPickLib }: HeroProps) {
     };
   }, []);
 
-  // CTA: pick the first lib if logged in, else go to login
-  const canStart = !!user && libs.length > 0;
+  // CTA: pick the first lib. Logged-out users go straight into
+  // practice (LandingPage is guest-only; logged-in users are bounced
+  // to /history by page.tsx before this component ever renders, so
+  // we never need to branch on `user` here — but we still label the
+  // CTA "开始今日练习 · X" when logged in, in case the redirect
+  // hasn't landed yet during the first paint).
   const firstLib = libs[0];
+  const canStart = !!firstLib;
 
   const handleStart = () => {
-    if (canStart && firstLib) {
-      onPickLib(firstLib.id);
-    } else {
-      window.location.href = '/login?from=' + encodeURIComponent('/');
-    }
+    if (!canStart) return;
+    onPickLib(firstLib.id);
   };
 
-  const startLabel = canStart && firstLib
-    ? `开始今日练习 · ${firstLib.name}`
-    : '登录后开始练习';
+  const startLabel = firstLib
+    ? user
+      ? `开始今日练习 · ${firstLib.name}`
+      : '立即开始练习'
+    : '暂无课程';
 
   return (
     <section className={styles.root} aria-label="产品介绍">

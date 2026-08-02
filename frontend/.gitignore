@@ -26,6 +26,12 @@ npm-debug.log*
 tsconfig.tsbuildinfo
 *.tsbuildinfo
 
+# Playwright test output (HTML reports, screenshots, traces).
+# Never commit; regenerated on every `npx playwright test`.
+test-results/
+playwright-report/
+playwright/.cache/
+
 # Native dev runtime artifact — written by ops/dev/setup.sh so the
 # hash-aware npm install can skip on no-op restarts. Always generated
 # next to the frontend's package-lock.json.

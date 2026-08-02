@@ -104,14 +104,6 @@
   --radius-xl:     16px;
   --radius-circle: 9999px;
 
-  /* ----- Shadow: Apple-style thin, layered neutrals ----- */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04),
-               0 1px 3px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.04),
-               0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.04),
-               0 12px 24px rgba(0, 0, 0, 0.10);
-
   /* ----- Motion ----- */
   --ease-standard:    cubic-bezier(0.25, 0.1, 0.25, 1);
   --ease-emphasized:  cubic-bezier(0.16, 1, 0.3, 1);
@@ -764,16 +756,44 @@ select:focus-visible {
 }
 
 /* ============================================================
-   Practice — page container, single column, generous whitespace
+   Practice page — Citrus Mint scope
+   ------------------------------------------------------------
+   Container-level token remap. When <body class="practice--cm">
+   is applied (see page.tsx Practice.module.css root), every
+   var(--surface) / var(--label-*) / var(--correct) / var(--accent)
+   inside the practice subtree resolves to the Citrus Mint token
+   set, so the practice page reads as a continuation of the
+   Landing hero rather than the Apple HIG cool palette.
+
+   All actual component styling lives in practice/*.module.css —
+   this block ONLY maps token names, never adds component rules.
    ============================================================ */
-.practice {
-  min-height: 100vh;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: clamp(40px, 8vh, 96px) clamp(24px, 5vw, 80px);
-  position: relative;
+.practice--cm {
+  --surface:               var(--cm-bg);
+  --surface-elevated:      var(--cm-card);
+  --surface-secondary:     rgba(63, 209, 122, 0.06);
+  --surface-tertiary:      rgba(63, 209, 122, 0.12);
+  --label-primary:         var(--cm-ink);
+  --label-secondary:       var(--cm-ink);
+  --label-tertiary:        var(--cm-ink-soft);
+  --label-quaternary:      rgba(45, 90, 63, 0.36);
+  --label-mist:            rgba(232, 244, 236, 0.85);
+  --separator:             var(--cm-rule);
+  --on-primary:            #FFFFFF;
+  --correct:               var(--cm-mint-deep);
+  --correct-tint:          rgba(63, 209, 122, 0.10);
+}
+
+[data-theme="dark"] .practice--cm {
+  /* Inherit --cm-* dark values automatically (defined under
+     [data-theme="dark"] and :root:not([data-theme]) at the top
+     of this file). Only override the practice-specific mappings
+     that need extra contrast for the dark paper. */
+  --surface-secondary:     rgba(93, 232, 154, 0.08);
+  --surface-tertiary:      rgba(93, 232, 154, 0.14);
+  --label-mist:            rgba(232, 244, 236, 0.75);
+  --label-quaternary:      rgba(232, 244, 236, 0.30);
+}
   background: var(--surface);
 }
 
@@ -1966,7 +1986,8 @@ select:focus-visible {
    The default frosted-glass heal-bg tint would read as a green band
    cutting the hero in half; here the chrome just floats on the page
    bg with a thin mint hairline. Brand mark colour and sizing also
-   adapt so the EnsoMark SVG (not the legacy ◯ glyph) fits cleanly. */
+   adapt so the BrandMark SVG (3×3 dot matrix, "muscle memory"
+   silhouette) fits cleanly. */
 .app-header--landing {
   background: transparent;
   backdrop-filter: none;
@@ -2040,21 +2061,11 @@ select:focus-visible {
   border-radius: var(--radius-sm);
   color: var(--label-primary);
   text-decoration: none;
-  transition:
-    background var(--duration-fast) var(--ease-standard),
-    transform var(--duration-fast) var(--ease-standard);
+  cursor: default;
+  user-select: none;
 }
-.app-header__brand:hover {
-  background: var(--surface-secondary);
-  transform: translateY(-1px);
-}
-.app-header__brand:active {
-  transform: translateY(0);
-}
-.app-header__brand:focus-visible {
-  outline: 2px solid var(--label-primary);
-  outline-offset: 2px;
-}
+/* Brand is a static brand mark — not a clickable link — so no
+   hover / active / focus-visible affordance. */
 .app-header__brand-mark {
   font-size: 18px;
   color: var(--accent);
@@ -2223,49 +2234,6 @@ select:focus-visible {
   max-width: 56ch;
 }
 
-/* Add progress bar + recent chip to existing home tiles. */
-.home__tile {
-  position: relative;
-  padding-bottom: calc(var(--space-4) + 3px); /* leave room for the bar */
-}
-.home__tile-progress {
-  position: absolute;
-  left: var(--space-5);
-  right: var(--space-5);
-  bottom: calc(var(--space-3) - 2px);
-  height: 3px;
-  background: var(--heal-line);
-  border-radius: var(--radius-circle);
-  overflow: hidden;
-}
-.home__tile-progress-fill {
-  display: block;
-  height: 100%;
-  background: var(--heal-sage);
-  transition: width var(--duration-base) var(--ease-standard);
-}
-.home__tile--recent {
-  border-color: var(--heal-sage);
-}
-.home__tile--recent:hover {
-  border-color: var(--heal-sage-soft);
-}
-.home__tile-chip {
-  position: absolute;
-  top: var(--space-3);
-  right: var(--space-3);
-  display: inline-flex;
-  align-items: center;
-  height: 22px;
-  padding: 0 var(--space-2);
-  background: var(--heal-sage);
-  color: #FFFFFF;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  border-radius: var(--radius-sm);
-  z-index: 1;
-}
 /* ============================================================
    AppHeader anonymous state — Sign up (ghost) + Log in (primary)
    ------------------------------------------------------------
@@ -3217,13 +3185,15 @@ select:focus-visible {
   .me-accuracy__fill {
     transition: none !important;
   }
-  /* New Anim-1/2/4/5 entries — snap to final state. */
+  /* New Anim-1/2/4/5 entries — snap to final state.
+     .translation__star moved to TranslationStage.module.css when
+     the practice migration took it out of globals; its reduced-
+     motion rule lives next to it there. */
   .me-page__content > .me-page__title,
   .me-page__content > .me-page__caption,
   .me-page__content > .me-account-card,
   .me-page__content > .me-tabs,
   .me-tab-panel,
-  .translation__star,
   .me-kpi::after {
     animation: none !important;
     opacity: 1 !important;

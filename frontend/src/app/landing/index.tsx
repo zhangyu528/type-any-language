@@ -30,7 +30,7 @@ export default function LandingPage({
         <ul className={styles.footerLinks}>
           <li>
             <a
-              href="https://github.com/"
+              href="https://github.com/zhangyu528/type-any-language"
               target="_blank"
               rel="noopener noreferrer"
             >

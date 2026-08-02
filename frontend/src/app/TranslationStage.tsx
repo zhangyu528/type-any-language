@@ -11,6 +11,7 @@ import {
 } from './api';
 import { useAuth } from './lib/auth';
 import SunkenShortcutBar from './SunkenShortcutBar';
+import styles from './practice/TranslationStage.module.css';
 
 interface TranslationStageProps {
   /** The sentence being practiced — `chinese_text` is the prompt (what
@@ -366,29 +367,29 @@ export default function TranslationStage({
   }, [currentWordIndex, expectedWords, playAudio, sentence.audio_url]);
 
   return (
-    <div className="translation">
-      <header className="translation__header">
-        <div className="translation__word-card">
-          <h2 className="translation__word-card-word">{targetWord.word}</h2>
+    <div className={styles.translation}>
+      <header className={styles.header}>
+        <div className={styles.wordCard}>
+          <h2 className={styles.wordCardWord}>{targetWord.word}</h2>
           {targetWord.phonetic && (
-            <span className="translation__word-card-phonetic">{targetWord.phonetic}</span>
+            <span className={styles.wordCardPhonetic}>{targetWord.phonetic}</span>
           )}
           {targetWord.translation && (
-            <p className="translation__word-card-translation">{targetWord.translation}</p>
+            <p className={styles.wordCardTranslation}>{targetWord.translation}</p>
           )}
         </div>
-        <p className="translation__caption">看中文写英文</p>
+        <p className={styles.caption}>看中文写英文</p>
       </header>
 
-      <div className="sentence">
+      <div className={styles.sentence}>
         {sentence.chinese_text && (
-          <div className="translation__prompt-row">
-            <p className="translation__prompt" lang="zh">
+          <div className={styles.promptRow}>
+            <p className={styles.prompt} lang="zh">
               {sentence.chinese_text}
             </p>
             <button
               type="button"
-              className="translation__star"
+              className={styles.star}
               data-active={isCollected ? 'true' : 'false'}
               data-popping={popping ? 'true' : 'false'}
               onClick={toggleCollected}
@@ -401,8 +402,8 @@ export default function TranslationStage({
           </div>
         )}
 
-        <div className="sentence__display">
-          <div className="sentence__cells">
+        <div className={styles.sentenceDisplay}>
+          <div className={styles.sentenceCells}>
             {expectedWords.map((word, index) => {
               const isCorrectWord = wordResults[index];
               const isActive = currentWordIndex === index;
@@ -410,30 +411,30 @@ export default function TranslationStage({
               const showPeek = isPeeking && isActive;
 
               return (
-                <span key={`cell-${index}`} className="cells__item">
+                <span key={`cell-${index}`} className={styles.cellsItem}>
                   <span
                     className={
-                      'cell' +
-                      (isCorrectWord ? ' cell--correct' : '') +
-                      (isActive ? ' cell--active' : '') +
-                      (justErred && isActive ? ' cell--shake' : '')
+                      styles.cell +
+                      (isCorrectWord ? ` ${styles.cellCorrect}` : '') +
+                      (isActive ? ` ${styles.cellActive}` : '') +
+                      (justErred && isActive ? ` ${styles.cellShake}` : '')
                     }
                   >
-                    <span className="cell__ghost" aria-hidden>{word}</span>
+                    <span className={styles.cellGhost} aria-hidden>{word}</span>
                     {showPeek ? (
-                      <span className="cell__text cell__text--peek">{word}</span>
+                      <span className={`${styles.cellText} ${styles.cellTextPeek}`}>{word}</span>
                     ) : isCorrectWord ? (
-                      <span className="cell__text">{word}</span>
+                      <span className={styles.cellText}>{word}</span>
                     ) : isActive ? (
-                      <span className="cell__input">
+                      <span className={styles.cellInput}>
                         {input.split('').map((char, i) => {
                           const status = char?.toLowerCase() === word[i]?.toLowerCase() ? 'correct' : 'wrong';
-                          return <span key={i} className={`cell__char cell__char--${status}`}>{char}</span>;
+                          return <span key={i} className={`${styles.cellChar} ${status === 'correct' ? styles.cellCharCorrect : styles.cellCharWrong}`}>{char}</span>;
                         })}
-                        <span className="cell__cursor" aria-hidden>|</span>
+                        <span className={styles.cellCursor} aria-hidden>|</span>
                       </span>
                     ) : (
-                      <span className="cell__placeholder"></span>
+                      <span className={styles.cellPlaceholder}></span>
                     )}
                   </span>
                 </span>
@@ -444,7 +445,7 @@ export default function TranslationStage({
           <input
             ref={inputRef}
             type="text"
-            className="typewriter-input"
+            className={styles.typewriterInput}
             value={userInputs[currentWordIndex] || ''}
             onChange={(e) => handleWordChange(currentWordIndex, e.target.value)}
             onKeyDown={handleTypewriterKeyDown}
@@ -490,8 +491,8 @@ export default function TranslationStage({
         activeKeys={activeKeys}
       />
 
-      <div className="translation__actions">
-        <button type="button" className="translation__btn translation__btn--ghost" onClick={skip}>
+      <div className={styles.actions}>
+        <button type="button" className={`${styles.btn} ${styles.btnGhost}`} onClick={skip}>
           跳过 ⏭
         </button>
       </div>
