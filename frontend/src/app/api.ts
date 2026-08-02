@@ -147,6 +147,12 @@ export async function getPhonetics(words: string[]): Promise<Record<string, stri
 export type TranslationSentenceProgress = {
   /** 该句子的中文→英文翻译是否通过 */
   correct: boolean;
+  /** 该句子累计错误次数。答对后保留作历史记录,不再清零。
+   *  旧 blob(无此字段)UI 降级为按 1 次展示。 */
+  wrongCount?: number;
+  /** 最近一次错误的时间戳(Date.now())。同上的兼容性处理:
+   *  undefined 时 UI 不显示相对时间,只显示"错题"。 */
+  lastWrongAt?: number;
 };
 
 /** @deprecated Use TranslationSentenceProgress. Kept as a type alias
@@ -181,11 +187,24 @@ export type TranslationProgress = {
   [libId: string]: TranslationLibProgress;
 };
 
-const TRANSLATION_PROGRESS_KEY = 'translationProgress';
+/**
+ * Sentinel user id for users who haven't logged in. Drill data
+ * written under this key is shared across all anonymous visitors
+ * on the same device — fine for a stateless device demo, and
+ * matches the pre-fix behaviour (everything shared). The moment a
+ * user signs in, their data lives under their own userId key and
+ * stays isolated even if they sign out and sign in as someone else.
+ */
+export const ANONYMOUS_USER_ID = 'anonymous';
 
-export function loadTranslationProgress(): TranslationProgress {
+/** Per-user localStorage key for the drill progress blob. */
+export function getTranslationProgressKey(userId: string): string {
+  return `translationProgress:${userId}`;
+}
+
+export function loadTranslationProgress(userId: string = ANONYMOUS_USER_ID): TranslationProgress {
   try {
-    const raw = window.localStorage.getItem(TRANSLATION_PROGRESS_KEY);
+    const raw = window.localStorage.getItem(getTranslationProgressKey(userId));
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     // Two-step normalisation:
@@ -230,15 +249,139 @@ export function loadTranslationProgress(): TranslationProgress {
   }
 }
 
-export function saveTranslationProgress(progress: TranslationProgress): void {
+export function saveTranslationProgress(
+  progress: TranslationProgress,
+  userId: string = ANONYMOUS_USER_ID,
+): void {
   try {
     window.localStorage.setItem(
-      TRANSLATION_PROGRESS_KEY,
-      JSON.stringify(progress)
+      getTranslationProgressKey(userId),
+      JSON.stringify(progress),
     );
   } catch {
     /* 隐私模式静默 */
   }
+}
+
+// ---------------------------------------------------------------------------
+// Collection — 用户主动收藏 (sentence + word)
+//
+// Phase X 设计转变:从"自动记录错题"改成"用户主动收藏"。
+// Collection 与 drill progress 完全独立 — 一个句子可以"答错但值得收藏",
+// 也可以"答对但不想收藏"。drill 数据继续保留供 StatsTab 用(统计),
+// 但不再驱动任何 UI 行为。
+//
+// 存储策略:
+//   - 单一 localStorage key (me.collection),JSON 序列化整个对象
+//   - 句子的 key = sentence.id (UUID);单词的 key = word 文本小写
+//     (因为同一单词在不同 lib 里 id 不同,但作为收藏我们想跨 lib 去重)
+//   - 单词 key 用文本而非 id 是有意的:用户对"star 这个词"的认知
+//     与具体 lib 无关,跨词库聚合后才像"生词本"该有的样子
+// ---------------------------------------------------------------------------
+
+export interface CollectionEntry {
+  /** 加入时间戳,排序用 */
+  addedAt: number;
+  /** 句子来源的 libId(只对 sentences 有意义,words 不存)。用
+   *  于 Me 页筛选"按词库" + 课程内跳转。 */
+  libId?: string;
+}
+
+export interface Collection {
+  sentences: Record<string, CollectionEntry>;
+  words: Record<string, CollectionEntry>;
+}
+
+/** Per-user localStorage key for the collection blob. */
+export function getCollectionKey(userId: string): string {
+  return `me.collection:${userId}`;
+}
+
+const EMPTY_COLLECTION: Collection = { sentences: {}, words: {} };
+
+export function loadCollection(userId: string = ANONYMOUS_USER_ID): Collection {
+  if (typeof window === 'undefined') return EMPTY_COLLECTION;
+  try {
+    const raw = window.localStorage.getItem(getCollectionKey(userId));
+    if (!raw) return EMPTY_COLLECTION;
+    const parsed = JSON.parse(raw) as Partial<Collection>;
+    return {
+      sentences: parsed.sentences ?? {},
+      words: parsed.words ?? {},
+    };
+  } catch {
+    /* 损坏数据当作空集合 */
+    return EMPTY_COLLECTION;
+  }
+}
+
+export function saveCollection(
+  collection: Collection,
+  userId: string = ANONYMOUS_USER_ID,
+): void {
+  try {
+    window.localStorage.setItem(getCollectionKey(userId), JSON.stringify(collection));
+  } catch {
+    /* 隐私模式静默 */
+  }
+}
+
+/**
+ * 收藏一个句子 + 该句对应的单词。一次调用两边都加。
+ * 设计取舍:1:1 关系(一个 drill 句子对应一个目标单词),所以
+ * 收藏句子和收藏单词原子绑定。要支持单独收藏单词/句子时,
+ * 改成两个独立的 API。
+ *
+ * 重复添加是 no-op(updatedAt 不变);重复移除也是 no-op。
+ */
+export function addToCollection(
+  sentenceId: string,
+  word: string,
+  userId: string = ANONYMOUS_USER_ID,
+  libId?: string,
+): Collection {
+  const c = loadCollection(userId);
+  const now = Date.now();
+  // 已存在就不覆盖 addedAt(保留原始收藏时间,排序更稳定)
+  if (!c.sentences[sentenceId]) {
+    c.sentences[sentenceId] = { addedAt: now, libId };
+  }
+  const wordKey = word.trim().toLowerCase();
+  if (wordKey && !c.words[wordKey]) {
+    c.words[wordKey] = { addedAt: now };
+  }
+  saveCollection(c, userId);
+  return c;
+}
+
+/**
+ * Remove a sentence from the collection. With the current 1:1
+ * binding (one drill sentence ↔ one target word), removing the
+ * sentence also drops ALL word entries — the words tab and the
+ * sentence tab stay in lockstep. If we ever support separate
+ * word/sentence collection (granularity split), this helper will
+ * need an optional keepWords flag.
+ */
+export function removeFromCollection(
+  sentenceId: string,
+  userId: string = ANONYMOUS_USER_ID,
+): Collection {
+  const c = loadCollection(userId);
+  delete c.sentences[sentenceId];
+  // Drop every word entry — they were only there because they were
+  // bound to a now-removed sentence. Cheap (the words map is tiny)
+  // and keeps the 1:1 invariant honest.
+  c.words = {};
+  saveCollection(c, userId);
+  return c;
+}
+
+export function isSentenceCollected(
+  sentenceId: string,
+  userId: string = ANONYMOUS_USER_ID,
+): boolean {
+  const c = loadCollection(userId);
+  return sentenceId in c.sentences;
 }
 
 // ---------------------------------------------------------------------------

@@ -11,6 +11,7 @@ import {
   WordInLesson,
   LessonDetail,
 } from './api';
+import { useAuth } from './lib/auth';
 import TranslationStage from './TranslationStage';
 
 interface TranslationSessionProps {
@@ -87,10 +88,37 @@ function pickNextStep(
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
+/**
+ * Look up a specific (word, sentence) pair by sentence id. Used by
+ * Phase 3.1: when /?lib=X&sentence=Y arrives, the session skips
+ * pickNextStep and renders this exact step. Returns null if the id
+ * is not in the loaded lib — caller should fall back to pickNextStep
+ * so a hand-typed bad URL doesn't render an empty screen.
+ */
+function pickStepBySentenceId(
+  lesson: LessonDetail,
+  sentenceId: string,
+): PickedStep | null {
+  for (const w of lesson.words) {
+    const sentences = lesson.sentences_by_word[w.word.toLowerCase()] ?? [];
+    for (const s of sentences) {
+      if (s.id === sentenceId) {
+        return { word: w, sentence: s };
+      }
+    }
+  }
+  return null;
+}
+
 export default function TranslationSession({
   libId,
   onBack,
 }: TranslationSessionProps) {
+  const { user } = useAuth();
+  // Anonymous users share one bucket (ANONYMOUS_USER_ID); signed-in
+  // users get a per-userId bucket. The localStorage key prefix is
+  // derived from this in api.ts helpers.
+  const userId = user?.id ?? 'anonymous';
   const [sessionState, setSessionState] = useState<SessionState>('loading');
   const [error, setError] = useState('');
   const [lesson, setLesson] = useState<LessonDetail | null>(null);
@@ -98,23 +126,61 @@ export default function TranslationSession({
   const [currentStep, setCurrentStep] = useState<PickedStep | null>(null);
 
   // Initial load: lesson + progress + first pick.
+  //
+  // Phase 3.1: if ?sentence=Y is present and matches a sentence in
+  // the loaded lib, render that exact step instead of drawing from
+  // pickNextStep. The `?sentence=` query param is then scrubbed via
+  // history.replaceState so a refresh doesn't lock the user on the
+  // same sentence (the user is in a drill loop, not a deep-link
+  // context). `?lib=` is preserved — reloading in the same lib is
+  // an honest thing to do, unlike reloading on the same sentence.
+  //
+  // If ?sentence=Y doesn't match anything in the lib (hand-typed URL,
+  // stale link, etc.) we silently fall through to pickNextStep
+  // instead of bailing — the URL is informational, the drill should
+  // still work.
   useEffect(() => {
     let cancelled = false;
+    const readUrlSentence = (): string | null => {
+      if (typeof window === 'undefined') return null;
+      const params = new URLSearchParams(window.location.search);
+      return params.get('sentence');
+    };
+    const scrubUrlSentence = () => {
+      if (typeof window === 'undefined') return;
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('sentence')) {
+        url.searchParams.delete('sentence');
+        const next = url.pathname + (url.searchParams.toString() ? `?${url.searchParams.toString()}` : '') + url.hash;
+        window.history.replaceState({}, '', next);
+      }
+    };
     (async () => {
       try {
         const [l, p] = await Promise.all([
           getLib(libId),
-          Promise.resolve(loadTranslationProgress()),
+          Promise.resolve(loadTranslationProgress(userId)),
         ]);
         if (cancelled) return;
         setLesson(l);
         setProgress(p);
-        const first = pickNextStep(l, p, libId);
+
+        const targetSentenceId = readUrlSentence();
+        const first =
+          (targetSentenceId && pickStepBySentenceId(l, targetSentenceId)) ||
+          pickNextStep(l, p, libId);
+
         if (!first) {
           setSessionState('empty-lib');
         } else {
           setCurrentStep(first);
           setSessionState('running');
+          // Scrub AFTER setCurrentStep so a re-render in the same
+          // tick still sees the correct step. The user has now
+          // landed on a real drill screen; the URL should reflect
+          // that ("I'm in lib X") rather than the navigation intent
+          // ("go to sentence Y").
+          if (targetSentenceId) scrubUrlSentence();
         }
       } catch (e: unknown) {
         if (!cancelled) {
@@ -126,9 +192,12 @@ export default function TranslationSession({
     return () => {
       cancelled = true;
     };
-    // libId is the only meaningful dependency; pickNextStep is stable
-    // and reads from the latest lesson/progress via closure on `l`/`p`.
-  }, [libId]);
+    // libId + userId are the meaningful deps; pickNextStep /
+    // pickStepBySentenceId are stable and read from the latest
+    // lesson/progress via closure on `l`/`p`. userId matters when
+    // the user signs out + signs in as a different account: the
+    // next mount needs to load the new account's progress.
+  }, [libId, userId]);
 
   /**
    * Record the answer for the current step's sentence and draw the
@@ -144,9 +213,32 @@ export default function TranslationSession({
       // Write progress atomically. The blob is per-LIB now (no
       // lessonIndex grouping), so we just merge the new entry into
       // the lib's sentences map.
+      //
+      // Wrong-book fields (Phase 2): on a wrong answer, bump
+      // wrongCount (init to 1) and stamp lastWrongAt = Date.now().
+      // On a correct answer we PRESERVE wrongCount / lastWrongAt —
+      // they live as history even after the sentence leaves the
+      // "wrong" bucket, so a future Me-page error book can show
+      // "错了 N 次" and "最近错 2 小时前" for a sentence the user
+      // has since mastered. The wrong bucket itself is governed
+      // solely by `correct` (see bucketFor below).
       const libBucket = progress[libId] ?? { sentences: {} };
       const sentencesBucket = libBucket.sentences ?? {};
-      const updatedSentence: TranslationSentenceProgress = { correct };
+      const prev = sentencesBucket[sentenceId];
+      const now = Date.now();
+      const updatedSentence: TranslationSentenceProgress = correct
+        ? {
+            correct: true,
+            // Carry forward the wrong-history if any. First-ever
+            // answer being correct has no prior, so fall back to 0.
+            wrongCount: prev?.wrongCount ?? 0,
+            lastWrongAt: prev?.lastWrongAt,
+          }
+        : {
+            correct: false,
+            wrongCount: (prev?.wrongCount ?? 0) + 1,
+            lastWrongAt: now,
+          };
       const nextProgress: TranslationProgress = {
         ...progress,
         [libId]: {
@@ -155,7 +247,23 @@ export default function TranslationSession({
         },
       };
       setProgress(nextProgress);
-      saveTranslationProgress(nextProgress);
+      saveTranslationProgress(nextProgress, userId);
+
+      // Notify same-tab listeners that progress changed. The native
+      // `storage` event only fires across tabs/windows — same-tab
+      // writes don't trigger it. MePage listens for this event so
+      // its "错题本 N" tab badge updates the moment the user
+      // answers, even if they stay on the practice page and come
+      // back via the avatar later. Bubbling is irrelevant (this
+      // fires on window) but cancelable=true lets a future test
+      // or middleware swallow the notification.
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('translation-progress-changed', {
+            detail: { libId, sentenceId, correct },
+          }),
+        );
+      }
 
       // Draw the next step using the freshly-written progress so a
       // self-corrected step doesn't immediately re-surface.
@@ -243,6 +351,7 @@ export default function TranslationSession({
       <TranslationStage
         sentence={currentStep.sentence}
         targetWord={currentStep.word}
+        libId={libId}
         onComplete={handleStepComplete}
       />
       {stats && (
