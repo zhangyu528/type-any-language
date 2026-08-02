@@ -1,0 +1,90 @@
+/* ============================================================
+   TAL Mint · Design System — Layer 1: RAW TOKENS
+   ------------------------------------------------------------
+   全站唯一允许出现 hex / 裸数值的文件。
+   业务组件与页面禁止直接引用本文件变量(--mint-* / --coral-* …),
+   只能使用 themes.css 暴露的 --ds-* 语义 token。
+   分组:color / type / space / radius / elevate / size / motion
+   ============================================================ */
+
+:root {
+  /* ----- color/mint —— 主色:正确、前进、填充 ----- */
+  --mint-50:   #F4FAF7;   /* 页面底(仅 bg 用途) */
+  --mint-100:  #E1F5EE;   /* tint 卡片底、chip 底 */
+  --mint-200:  #9FE1CB;   /* 描边、键帽边、进度环轨道 */
+  --mint-300:  #5DCAA5;   /* focus 环专用(2px + 2px offset) */
+  --mint-400:  #1D9E75;   /* 主填充 · 对比度 ~3:1 → 禁小字,只填充/图标/大字 */
+  --mint-600:  #0F6E56;   /* 文字级薄荷(≈5.9:1)· 小字/链接/hover 加深 */
+  --mint-800:  #085041;   /* 标题级深色 */
+  --mint-900:  #04342C;
+
+  /* ----- color/coral —— 点缀:批改、CTA 强调 ----- */
+  --coral-200: #F5C4B3;
+  --coral-300: #F0997B;   /* 错误下划线、图形点缀 */
+  --coral-400: #D85A30;   /* CTA 填充 / 大字错误(≈3.6:1,禁小字) */
+  --coral-600: #993C1D;   /* 小字错误文本(≈7:1) */
+
+  /* ----- color/neutral —— 带绿底的墨 ----- */
+  --ink-900:   #1C2B26;   /* 正文主色 */
+  --ink-500:   #5F6B66;   /* 次要文字 */
+  --ink-300:   #9AA8A1;   /* 占位 / untyped 字符 */
+  --white:     #FFFFFF;
+
+  /* ----- type/ ----- */
+  --text-display: 28px;   --text-display-lh: 1.2;  --text-display-ls: -0.5px;
+  --text-h1: 20px;        --text-h1-lh: 1.3;
+  --text-h2: 16px;        --text-h2-lh: 1.4;
+  --text-body: 14px;      --text-body-lh: 1.6;
+  --text-caption: 12px;   --text-caption-lh: 1.5;
+  --text-typing: 16px;    --text-typing-lh: 1.8;   /* 练习英文 mono */
+  --weight-regular: 400;
+  --weight-medium: 500;   /* 全站只有两档字重 */
+
+  /* ----- space/ · 4px 基网 ----- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;   /* 卡片内边距基准 */
+  --space-5: 24px;   /* 卡片组 */
+  --space-6: 40px;   /* 段落间 */
+  --space-7: 64px;   /* 幕间距 */
+
+  /* ----- radius/ · 气泡圆角 ----- */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-pill: 999px;
+
+  /* ----- elevate/ · 薄荷底投影(不用黑影) ----- */
+  --elev-0: 0 1px 0 rgba(8, 80, 65, 0.06);
+  --elev-1: 0 1px 0 rgba(8, 80, 65, 0.06), 0 8px 24px rgba(8, 80, 65, 0.10);
+  --elev-focus: 0 0 0 2px var(--mint-50), 0 0 0 4px var(--mint-300);
+
+  /* ----- size/ · 控件(触控目标 ≥44) ----- */
+  --control-sm: 32px;
+  --control-md: 40px;
+  --control-lg: 48px;   /* CTA */
+  --control-input: 44px;
+  --icon-sm: 16px;  --icon-md: 20px;  --icon-lg: 24px;
+  --avatar-sm: 32px; --avatar-md: 44px;
+
+  /* ----- layout(断点无法变量化,记录于此,JS 侧见 motion.ts) ----- */
+  --content-max: 1080px;
+  /* breakpoints: 640px / 1024px */
+
+  /* ----- motion/ ----- */
+  --dur-instant: 80ms;
+  --dur-fast: 150ms;
+  --dur-base: 250ms;
+  --dur-slow: 400ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);  /* Q 弹 overshoot */
+
+  /* ----- 字体栈(next/font 变量由 layout.tsx 注入) ----- */
+  --font-sans: var(--font-sans-zh), -apple-system, BlinkMacSystemFont,
+    "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+  --font-display: var(--font-display), var(--font-sans-zh), Georgia, serif;
+  --font-mono: var(--font-mono-web), 'JetBrains Mono', 'IBM Plex Mono',
+    ui-monospace, "SF Mono", monospace;
+}

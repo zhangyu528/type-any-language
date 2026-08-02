@@ -1,0 +1,19 @@
+/* KeyCap — 2.5px 薄荷底边模拟键程 */
+
+.root {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  padding: 2px var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  color: var(--ds-action-deep);
+  background: var(--ds-surface);
+  border: 0.5px solid var(--ds-border);
+  border-bottom: 2.5px solid var(--ds-border-strong);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  user-select: none;
+}

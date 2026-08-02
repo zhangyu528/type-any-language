@@ -1,0 +1,20 @@
+/* Badge — chip,两色调 */
+
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 3px var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--ds-action-deep);
+  background: var(--ds-tint);
+  white-space: nowrap;
+}
+
+.coral {
+  color: var(--ds-error-ink);
+  background: var(--ds-correct-tint);
+  border: 0.5px solid var(--ds-error-line);
+}

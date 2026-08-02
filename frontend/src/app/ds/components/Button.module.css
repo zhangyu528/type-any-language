@@ -1,0 +1,86 @@
+/* Button — pill 形,五态齐全,仅 --ds-* */
+
+.root {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-pill);
+  font-family: inherit;
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.005em;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-spring),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+.root:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+/* sizes */
+.sm { height: var(--control-sm); padding: 0 var(--space-4); font-size: var(--text-caption); }
+.md { height: var(--control-md); padding: 0 var(--space-5); font-size: var(--text-body); }
+.lg { height: var(--control-lg); padding: 0 var(--space-5); font-size: var(--text-h2); }
+
+/* primary:薄荷填充 */
+.primary {
+  color: var(--ds-on-action);
+  background: var(--ds-action);
+  border-color: var(--ds-action);
+}
+.primary:hover:not(:disabled) {
+  background: var(--ds-action-deep);
+  border-color: var(--ds-action-deep);
+  transform: translateY(-1px);
+  box-shadow: var(--elev-1);
+}
+.primary:active:not(:disabled) { transform: translateY(0); box-shadow: var(--elev-0); }
+
+/* cta:珊瑚填充,一页至多一处 */
+.cta {
+  color: var(--ds-on-cta);
+  background: var(--ds-cta);
+  border-color: var(--ds-cta);
+}
+.cta:hover:not(:disabled) {
+  background: var(--ds-cta-deep);
+  border-color: var(--ds-cta-deep);
+  transform: translateY(-1px);
+  box-shadow: var(--elev-1);
+}
+.cta:active:not(:disabled) { transform: translateY(0); box-shadow: var(--elev-0); }
+
+/* ghost:薄荷描边 */
+.ghost {
+  color: var(--ds-action-deep);
+  background: transparent;
+  border-color: var(--ds-border-strong);
+}
+.ghost:hover:not(:disabled) {
+  background: var(--ds-tint);
+  transform: translateY(-1px);
+  box-shadow: var(--elev-1);
+}
+.ghost:active:not(:disabled) { transform: translateY(0); box-shadow: var(--elev-0); }
+
+/* loading */
+.loading { pointer-events: none; }
+.spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-pill);
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: ds-btn-spin 800ms linear infinite;
+}
+@keyframes ds-btn-spin {
+  to { transform: rotate(360deg); }
+}

@@ -1,0 +1,35 @@
+/* TypedText — 打字字符五态,仅 --ds-* 语义 token */
+
+.root {
+  font-family: var(--font-mono);
+  font-size: var(--text-typing);
+  line-height: var(--text-typing-lh);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.slot { position: relative; display: inline; }
+
+.untyped { color: var(--ds-char-untyped); }
+.current { color: var(--ds-ink); }
+.correct { color: var(--ds-char-correct); }
+.error {
+  color: var(--ds-char-error);
+  border-bottom: 2px solid var(--ds-char-error-line);
+}
+
+.caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  border-radius: 2px;
+  background: var(--ds-caret);
+  vertical-align: -0.12em;
+  margin-right: 1px;
+  animation: typedtext-caret-blink 1.06s step-end infinite;
+}
+
+@keyframes typedtext-caret-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}

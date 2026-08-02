@@ -1,0 +1,23 @@
+/* BubbleCard — 白卡 + 薄荷描边,interactive 时 hover 浮起 */
+
+.root {
+  background: var(--ds-surface);
+  border: 0.5px solid var(--ds-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  box-shadow: var(--elev-0);
+}
+
+.interactive {
+  cursor: pointer;
+  transition:
+    transform var(--dur-fast) var(--ease-spring),
+    box-shadow var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+.interactive:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--elev-1);
+  border-color: var(--ds-border-strong);
+}
+.interactive:active { transform: translateY(0); }

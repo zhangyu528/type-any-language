@@ -1,0 +1,22 @@
+/* Stat — mono 数字 + caption 标签 */
+
+.root {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.value {
+  font-family: var(--font-mono);
+  font-size: var(--text-h1);
+  line-height: var(--text-h1-lh);
+  font-weight: var(--weight-medium);
+}
+.ink { color: var(--ds-ink); }
+.mint { color: var(--ds-action-deep); }
+.coral { color: var(--ds-error-ink); }
+
+.label {
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+}

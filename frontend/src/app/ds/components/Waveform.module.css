@@ -1,0 +1,31 @@
+/* Waveform — 薄荷声波条 */
+
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 32px;
+}
+
+.bar {
+  width: 3px;
+  height: 18%;
+  border-radius: 2px;
+  background: var(--ds-action);
+  transition: height var(--dur-instant) linear;
+}
+
+.root[data-playing='true'] .bar {
+  animation: ds-wave-bounce 900ms var(--ease-out) infinite alternate;
+}
+.root[data-playing='true'] .bar:nth-child(2n) { animation-duration: 720ms; }
+.root[data-playing='true'] .bar:nth-child(3n) { animation-duration: 1050ms; }
+
+@keyframes ds-wave-bounce {
+  0% { height: 14%; }
+  100% { height: 92%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root[data-playing='true'] .bar { animation: none; height: 40%; }
+}
