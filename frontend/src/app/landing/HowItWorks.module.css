@@ -9,6 +9,7 @@
   margin: 0 auto;
   padding: var(--space-12) var(--space-5);
   box-sizing: border-box;
+  scroll-snap-align: start;
 }
 
 /* ---------- 头部 ---------- */

@@ -13,6 +13,7 @@
   isolation: isolate;
   background: var(--ds-bg);
   color: var(--ds-ink);
+  scroll-snap-align: start;
 }
 
 /* Paper grain removed — was barely-visible mint noise (opacity 0.06)

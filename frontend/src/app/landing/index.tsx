@@ -14,21 +14,22 @@ interface LandingPageProps {
   onPickLib: (libId: string) => void;
 }
 
-const SCROLL_OFFSET = 80; // 顶部 nav 留出的偏移
-
 export default function LandingPage({
   libs,
   translationProgress,
   onPickLib,
 }: LandingPageProps): ReactElement {
-  // 跨段滚动辅助:从 02 / 05 跳到 04 词库
+  // 跨段滚动辅助:从 02 / 05 跳到 04 词库。
+  // scrollIntoView({ block: 'start' }) 会自动 honored <html> 上的
+  // scroll-padding-top: 52px,目标顶部落到 header 下方。
+  // behavior: 'smooth' 是 JS API,不会被 prefers-reduced-motion 的
+  // scroll-behavior: auto !important 覆盖 —— 按钮点击仍然 smooth 是
+  // 有意的 UX(reduced-motion 只抑制装饰动画,不影响 CTA 反馈)。
   const jumpToLibs = useCallback(() => {
     if (typeof document === 'undefined') return;
     const target = document.getElementById('lib-showcase');
     if (!target) return;
-    const top =
-      target.getBoundingClientRect().top + window.scrollY - SCROLL_OFFSET;
-    window.scrollTo({ top, behavior: 'smooth' });
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
   // 收尾 CTA 的"立即开始"——取第一份词库
