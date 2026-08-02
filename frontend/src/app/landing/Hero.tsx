@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { VocabularyLib, TranslationProgress } from '../api';
 import { useAuth } from '../lib/auth';
+import Button from '../ds/components/Button';
 import styles from './Hero.module.css';
 import TypefallDemo from './TypefallDemo';
 
@@ -111,21 +112,38 @@ export default function Hero({ libs, onPickLib }: HeroProps) {
           {HERO_SUBTITLE}
         </p>
 
-        {/* Stage 4: CTA + foot */}
-        <motion.button
-          type="button"
-          className={styles.start}
-          onClick={handleStart}
+        {/* Stage 4: CTA + meta
+           整个 hero 只此一处主行动。CTA 走 ds Button primary lg,
+           下方一行 meta 文字(30 秒开始第一句 · lib 词数)给用户
+           "试一下成本很低"的预期,让 CTA 从 hero bg 里"浮"出来
+           —— 不是靠颜色对比,而是靠 meta 行提供的上下文锚点。 */}
+        <motion.div
+          className={styles.ctaStage}
           aria-hidden={stage < 4}
           initial={{ opacity: 0, y: 8 }}
           animate={stage >= 4 ? { opacity: 1, y: 0 } : { opacity: 0, y: 8 }}
           transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
-          whileHover={{ y: -2 }}
-          whileTap={{ y: 0 }}
         >
-          <span className={styles.startLabel}>{startLabel}</span>
-          <span className={styles.startArrow} aria-hidden>→</span>
-        </motion.button>
+          <motion.div
+            whileHover={{ y: -2 }}
+            whileTap={{ y: 0 }}
+            style={{ display: 'inline-block' }}
+          >
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={handleStart}
+              disabled={!canStart}
+            >
+              {startLabel}
+            </Button>
+          </motion.div>
+          {firstLib ? (
+            <p className={styles.ctaMeta}>
+              30 秒开始第一句 · {firstLib.name} {firstLib.word_count.toLocaleString()} 词
+            </p>
+          ) : null}
+        </motion.div>
       </div>
     </section>
   );

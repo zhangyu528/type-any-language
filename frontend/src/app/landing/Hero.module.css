@@ -4,7 +4,7 @@
   position: relative;
   width: 100%;
   min-height: calc(100vh - 52px);
-  padding: clamp(72px, 12vh, 140px) var(--space-5) clamp(96px, 16vh, 160px);
+  padding: clamp(var(--space-12), 12vh, 140px) var(--space-5) clamp(var(--space-12), 14vh, 128px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -148,59 +148,9 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* CTA — pill,薄荷填充 + 白字(TAL Mint primary)。全站 CTA 语义统一:
-   --ds-action 填充,hover 加深到 --ds-action-ink。 */
-.start {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  margin-top: var(--space-6);
-  height: var(--control-lg);
-  padding: 0 var(--space-6);
-  font-family: var(--font-sans);
-  font-size: var(--text-h2);
-  font-weight: var(--weight-medium);
-  letter-spacing: 0.01em;
-  color: var(--ds-on-action);
-  background: var(--ds-action);
-  border: 1px solid var(--ds-action);
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-  user-select: none;
-  white-space: nowrap;
-  box-shadow: var(--elev-0);
-  transition:
-    background var(--dur-fast) var(--ease-out),
-    border-color var(--dur-fast) var(--ease-out),
-    box-shadow var(--dur-fast) var(--ease-out),
-    transform var(--dur-fast) var(--ease-spring);
-}
-.start:focus-visible {
-  outline: 2px solid var(--ds-focus);
-  outline-offset: 3px;
-}
-.start:hover {
-  background: var(--ds-action-ink);
-  border-color: var(--ds-action-ink);
-  box-shadow: var(--elev-1);
-  /* Y-shift is handled by motion.button whileHover to keep
-     spring + transform in one place. */
-}
-.startArrow {
-  display: inline-flex;
-  font-family: var(--font-mono);
-  font-size: 15px;
-  line-height: 1;
-  transition: transform var(--dur-base) var(--ease-out);
-}
-.start:hover .startArrow {
-  transform: translateX(3px);
-}
-
-/* Foot removed — was "small quiet practice · for everyone who
-   learns by typing"; overlapped in tone with the brand caption and
-   the footer line. The hero is now demo → title → subtitle → CTA. */
+/* CTA — 由 ds/components/Button 提供(variant="primary" size="lg"),
+   薄荷填充,全页唯一主行动;FinalCTA 是次级,走另外的视觉。
+   这一行只占位,真正的样式改下一轮(Plan B 视觉修饰)再加。 */
 
 @media (prefers-reduced-motion: reduce) {
   .char { animation: none; opacity: 1; transform: none; }
