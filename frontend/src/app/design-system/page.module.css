@@ -1,0 +1,197 @@
+/* /design-system 陈列页样式 — 只允许 --ds-* 语义 token */
+
+.root {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: calc(52px + var(--space-6)) var(--space-5) var(--space-7);
+  font-family: var(--font-sans);
+  color: var(--ds-ink);
+}
+
+.head { margin-bottom: var(--space-6); }
+.kicker {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--ds-action-deep);
+  letter-spacing: 0.08em;
+  margin-bottom: var(--space-2);
+}
+.title {
+  font-size: var(--text-display);
+  line-height: var(--text-display-lh);
+  letter-spacing: var(--text-display-ls);
+  font-weight: var(--weight-medium);
+}
+.hint {
+  margin-top: var(--space-2);
+  font-size: var(--text-body);
+  color: var(--ds-ink-soft);
+  max-width: 64ch;
+}
+
+.section {
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--ds-border);
+}
+.h2 {
+  font-family: var(--font-mono);
+  font-size: var(--text-h2);
+  font-weight: var(--weight-medium);
+  color: var(--ds-action-deep);
+  margin-bottom: var(--space-4);
+}
+.rule {
+  margin-top: var(--space-3);
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+  max-width: 72ch;
+  line-height: var(--text-caption-lh);
+}
+
+/* color swatches */
+.swatchGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: var(--space-3);
+}
+.swatch { display: flex; flex-direction: column; gap: 4px; }
+.swatchChip {
+  display: block;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  border: 0.5px solid var(--ds-border);
+}
+.swatchName {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--ds-ink);
+}
+.swatchNote {
+  font-size: 11px;
+  color: var(--ds-ink-soft);
+}
+
+/* type rows */
+.typeList { display: flex; flex-direction: column; gap: var(--space-3); }
+.typeRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.typeSample { color: var(--ds-ink); }
+.typeSpec {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--ds-action-deep);
+  white-space: nowrap;
+}
+.tDisplay { font-size: var(--text-display); line-height: var(--text-display-lh); letter-spacing: var(--text-display-ls); font-weight: var(--weight-medium); }
+.tH1 { font-size: var(--text-h1); line-height: var(--text-h1-lh); font-weight: var(--weight-medium); }
+.tH2 { font-size: var(--text-h2); line-height: var(--text-h2-lh); font-weight: var(--weight-medium); }
+.tBody { font-size: var(--text-body); line-height: var(--text-body-lh); }
+.tCaption { font-size: var(--text-caption); line-height: var(--text-caption-lh); color: var(--ds-ink-soft); }
+.tTyping { font-family: var(--font-mono); font-size: var(--text-typing); line-height: var(--text-typing-lh); color: var(--ds-correct); }
+
+/* space rows */
+.spaceList { display: flex; flex-direction: column; gap: var(--space-2); }
+.spaceRow { display: flex; align-items: center; gap: var(--space-3); }
+.spaceBar {
+  display: block;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--ds-action);
+  flex: none;
+}
+
+/* radius */
+.radiusRow { display: flex; gap: var(--space-4); flex-wrap: wrap; }
+.radiusItem { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.radiusBox {
+  display: block;
+  width: 48px;
+  height: 36px;
+  background: var(--ds-tint);
+  border: 1.5px solid var(--ds-action);
+}
+
+/* elevate */
+.elevRow { display: flex; gap: var(--space-4); flex-wrap: wrap; }
+.elevCard {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background: var(--ds-surface);
+  border: 0.5px solid var(--ds-border);
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+  box-shadow: var(--elev-0);
+}
+
+/* char states */
+.charDemo {
+  font-family: var(--font-mono);
+  font-size: var(--text-typing);
+  line-height: var(--text-typing-lh);
+}
+.caret {
+  display: inline-block;
+  width: 8px;
+  height: 15px;
+  margin-left: 2px;
+  border-radius: 2px;
+  background: var(--ds-caret);
+  vertical-align: -2px;
+}
+
+/* sizes */
+.sizeRow { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
+.btnSm, .btnMd, .btnLg {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-pill);
+  color: var(--ds-on-action);
+  background: var(--ds-action);
+  font-weight: var(--weight-medium);
+}
+.btnSm { height: var(--control-sm); padding: 0 var(--space-4); font-size: var(--text-caption); }
+.btnMd { height: var(--control-md); padding: 0 var(--space-5); font-size: var(--text-body); }
+.btnLg {
+  height: var(--control-lg);
+  padding: 0 var(--space-5);
+  font-size: var(--text-h2);
+  background: var(--ds-cta);
+  color: var(--ds-on-cta);
+}
+.inputDemo {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-input);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--ds-border);
+  background: var(--ds-surface);
+  color: var(--ds-ink-soft);
+  font-size: var(--text-body);
+}
+
+/* components section */
+.h3 {
+  font-size: var(--text-h2);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink);
+  margin: var(--space-4) 0 var(--space-3);
+}
+.compRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.compCard {
+  min-width: 200px;
+}
