@@ -794,8 +794,6 @@ select:focus-visible {
   --label-mist:            rgba(232, 244, 236, 0.75);
   --label-quaternary:      rgba(232, 244, 236, 0.30);
 }
-  background: var(--surface);
-}
 
 /* Feedback wash — kept for visual continuity, but a quiet neutral tint. */
 .practice--feedback-correct::after,
