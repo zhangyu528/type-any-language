@@ -25,14 +25,6 @@ html {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  /* Landing page section snap — proximity 只在用户接近 snap point 时吸附,
-     短 section 不强制卡死。doc scroller 是 <html> 而非 body;其他页面
-     没有 scroll-snap-align 子元素,这条属性对它们 inert。 */
-  scroll-snap-type: y proximity;
-  /* 一次性 header-aware offset:任何 scroll-snap target / scrollIntoView /
-     :focus 跳转,顶部都会落到 header 下方 52px,无需在每个 section 单独
-     加 scroll-margin-top。 */
-  scroll-padding-top: 52px;
 }
 
 body {
@@ -47,6 +39,12 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--ds-bg);
   transition: background-color var(--dur-base) var(--ease-out);
+  /* Landing page section snap — proximity 只在用户接近 snap point 时吸附,
+     短 section 不强制卡死。 */
+  scroll-snap-type: y proximity;
+  /* 一次性 header-aware offset:任何 scroll-snap target / scrollIntoView /
+     :focus 跳转,顶部都会落到 header 下方 52px。 */
+  scroll-padding-top: 52px;
 }
 
 ::selection {
