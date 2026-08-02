@@ -85,7 +85,7 @@ ensure_dev_db_up() {
         return 1
     fi
     for i in 1 2 3 4 5 6 7 8 9 10; do
-        sleep 3
+        python -c "import time; time.sleep(3)"
         status="$(docker inspect "$cid" --format '{{.State.Health.Status}}' 2>/dev/null || echo "")"
         if [ "$status" = "healthy" ]; then
             ok "  db 容器已 healthy"

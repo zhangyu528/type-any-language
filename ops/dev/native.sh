@@ -83,19 +83,39 @@ DEFAULT_NEXT_PUBLIC_API_URL="http://localhost:${BACKEND_PORT}"
 # ─── Helpers ────────────────────────────────────────────────────────────────
 
 # _alive <pid_file> — returns 0 if the pid in $1 is still running.
+#
+# On Git Bash on Windows the bundled `kill` is MSYS's and `kill -0 $pid`
+# returns success for any positive integer (it doesn't actually query the
+# host process table). With a stale .pid file that would let us stop a
+# *different* live process or refuse to start a new one. Fall back to
+# `tasklist` so a real Windows PID lookup is the source of truth.
 _alive() {
     local pid_file="$1"
     [ -f "$pid_file" ] || return 1
     local pid
     pid="$(cat "$pid_file" 2>/dev/null || echo "")"
-    [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
+    [ -n "$pid" ] || return 1
+    if command -v tasklist >/dev/null 2>&1; then
+        # Anchor the PID with surrounding whitespace so suffix collisions
+        # (e.g. 1234 vs 12340) don't false-positive.
+        local matches
+        matches="$(tasklist //NH 2>/dev/null | grep -E "(^|[[:space:]])${pid}([[:space:]]|$)" || true)"
+        [ -n "$matches" ] && return 0
+        return 1
+    fi
+    kill -0 "$pid" 2>/dev/null
 }
 
 # _uptime_for <pid> — returns "XmYs" if the pid is alive, "n/a" otherwise.
-# Uses `ps -o etime=` which works on Linux, macOS, and Git Bash on Windows
-# (where /proc doesn't exist).
+# On Git Bash on Windows the bundled `ps` is MSYS and doesn't support
+# `-o etime=`, and there's no `/proc` to read from. We fall back to "n/a"
+# on the Windows path — the alive/dead signal is `_alive`'s job.
 _uptime_for() {
     local pid="$1"
+    if command -v tasklist >/dev/null 2>&1; then
+        echo "n/a"
+        return 0
+    fi
     local etime
     etime="$(ps -o etime= -p "$pid" 2>/dev/null | tr -d ' ' || echo "")"
     if [ -z "$etime" ]; then
@@ -236,6 +256,11 @@ cmd_preflight() {
 # Foreground-style spawn. Truncates log on (re)start. Verifies the child
 # still lives 0.5s after spawn. The subshell + `&` + `disown` pattern is
 # the same one used by start_compose_watch in _common.sh.
+#
+# On Windows Git Bash, `$!` returns the MSYS fake-PID of the bash subshell,
+# not the real Windows PID of the spawned process — so a PID written from
+# `$!` will not match anything in `tasklist`. We resolve the real PID
+# afterward by image-name match (uvicorn -> python.exe, next dev -> node.exe).
 _start_one() {
     local name="$1" pid_file="$2" log_file="$3"
     shift 3
@@ -252,6 +277,63 @@ _start_one() {
         echo $! > "$pid_file"
     )
     sleep 0.5
+    if command -v tasklist >/dev/null 2>&1; then
+        # On Windows Git Bash, `$!` is the MSYS fake-PID of the bash subshell,
+        # not the real Windows PID, so the value we just wrote won't match
+        # anything in `tasklist`. Resolve the real PID by port + image-name
+        # pairing: backend listens on 8000 / python.exe, frontend on 3000 /
+        # node.exe. Prefer the port lookup (it picks the listener, not any
+        # random node.exe), fall back to image newest if the port isn't
+        # bound yet (e.g. slow first-compile).
+        local port="$BACKEND_PORT"
+        local image="python.exe"
+        if [[ "$name" == "frontend" ]]; then port="$FRONTEND_PORT"; image="node.exe"; fi
+        local real_pid=""
+        # netstat -ano on Windows: column 5 is the PID for LISTENING rows.
+        # Use the IPv4 0.0.0.0:port row to dodge the [::] IPv6 duplicate.
+        if command -v netstat >/dev/null 2>&1; then
+            real_pid="$(
+                netstat -ano 2>/dev/null \
+                    | grep -E "TCP[[:space:]]+0\.0\.0\.0:${port}:" \
+                    | grep LISTENING \
+                    | awk '{print $NF}' | head -n 1
+            )"
+        fi
+        if [ -z "$real_pid" ] || ! [[ "$real_pid" =~ ^[0-9]+$ ]]; then
+            # Fallback: newest process matching $image. `tasklist` returns
+            # rows in process-creation order (oldest first), so `tail -n 1`
+            # is the youngest. Good enough — the launch we just made is the
+            # only new image of that name in the typical single-tenant box.
+            real_pid="$(
+                tasklist //FI "IMAGENAME eq $image" //NH //FO CSV 2>/dev/null \
+                    | awk -F'","' '{print $2}' | tr -d '"' \
+                    | tail -n 1
+            )"
+        fi
+        if [ -n "$real_pid" ] && [[ "$real_pid" =~ ^[0-9]+$ ]]; then
+            echo "$real_pid" > "$pid_file"
+        fi
+    fi
+    # Second-pass PID correction: if the pid we captured (via image-name
+    # fallback) was the shim — e.g. `npm run dev` exits after spawning the
+    # real `next dev` — the listener PID is the one we want, and the shim
+    # is dead. Poll one more time for the port listener before failing.
+    if command -v tasklist >/dev/null 2>&1 && command -v netstat >/dev/null 2>&1; then
+        local port="$BACKEND_PORT"
+        if [[ "$name" == "frontend" ]]; then port="$FRONTEND_PORT"; fi
+        local listener_pid
+        listener_pid="$(
+            netstat -ano 2>/dev/null \
+                | grep -E "TCP[[:space:]]+0\.0\.0\.0:${port}:" \
+                | grep LISTENING \
+                | awk '{print $NF}' | head -n 1
+        )"
+        if [ -n "$listener_pid" ] && [[ "$listener_pid" =~ ^[0-9]+$ ]]; then
+            if ! _alive "$pid_file" || [ "$(cat "$pid_file")" != "$listener_pid" ]; then
+                echo "$listener_pid" > "$pid_file"
+            fi
+        fi
+    fi
     if ! _alive "$pid_file"; then
         err "  $name 启动后立刻退出 — tail $log_file 看错"
         return 1
@@ -320,8 +402,10 @@ cmd_stop() {
                 sleep 0.3
             done
             if kill -0 "$pid" 2>/dev/null; then
-                warn "  $name 不响应 SIGTERM,送 SIGKILL"
-                kill -9 "$pid" 2>/dev/null || true
+                warn "  $name 不响应 SIGTERM,送 SIGKILL via taskkill"
+                # Git Bash's MSYS `kill` doesn't always reach Windows
+                # processes; taskkill is the reliable path.
+                taskkill //PID "$pid" //F 2>/dev/null || kill -9 "$pid" 2>/dev/null || true
             fi
             rm -f "$pid_file"
             killed=1

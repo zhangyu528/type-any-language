@@ -71,14 +71,17 @@ check_docker_installed() {
 # Desktop is launching). Bound the wait so that doctor / start don't appear
 # frozen. 5 seconds is plenty for a healthy daemon to respond.
 check_docker_daemon_running() {
-    if command -v timeout &> /dev/null; then
+    # Check for GNU timeout (Linux) not Windows timeout (Git Bash on Windows)
+    # Windows timeout returns error for --version, GNU timeout returns version info
+    if command -v timeout &> /dev/null && timeout --version 2>&1 | grep -q "^timeout"; then
         timeout 5 docker info &> /dev/null
     else
         # Fallback: run in background, kill after timeout.
+        # This works on macOS, Git Bash, and Windows
         docker info &> /dev/null &
         local pid=$!
         # shellcheck disable=SC2064
-        (sleep 5 && kill -0 $pid 2>/dev/null && kill $pid 2>/dev/null) &
+        (python -c "import time; time.sleep(5)" && kill -0 $pid 2>/dev/null && kill $pid 2>/dev/null) &
         local watchdog=$!
         wait $pid
         local rc=$?
