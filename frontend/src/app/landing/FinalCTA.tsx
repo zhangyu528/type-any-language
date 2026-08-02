@@ -79,7 +79,6 @@ export default function FinalCTA({ onStart, onJumpToLibs }: FinalCTAProps): Reac
                 type="button"
                 onClick={onJumpToLibs}
                 className={styles.altLink}
-                aria-label="先浏览词库,稍后开始"
               >
                 或者,先了解词库
                 <span className={styles.altArrow} aria-hidden>→</span>

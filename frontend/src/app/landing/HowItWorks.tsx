@@ -73,27 +73,29 @@ function TypingDemo({ active }: { active: boolean }): ReactElement {
 
   return (
     <div className={styles.demoBox} aria-hidden>
-      <div className={styles.kbRow}>
+      <div className={styles.kbRow} aria-hidden>
         {['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'].map((k) => (
           <KeyCap
             key={k}
             className={highlightKey === k ? styles.kbHit : undefined}
+            aria-hidden
           >
             {k}
           </KeyCap>
         ))}
       </div>
-      <div className={styles.kbRow}>
+      <div className={styles.kbRow} aria-hidden>
         {['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'].map((k) => (
           <KeyCap
             key={k}
             className={highlightKey === k ? styles.kbHit : undefined}
+            aria-hidden
           >
             {k}
           </KeyCap>
         ))}
       </div>
-      <div className={styles.typedLine}>
+      <div className={styles.typedLine} aria-hidden>
         <span className={styles.typedLabel}>type ›</span>
         <span className={styles.typedValue}>{typed || '\u00a0'}</span>
         <span className={styles.typedCaret} />
@@ -588,9 +590,10 @@ export default function HowItWorks({ onJumpToLibs }: HowItWorksProps) {
                   type="button"
                   className={styles.cardButton}
                   onClick={onJumpToLibs}
-                  aria-label={`${step.title}:${step.body}`}
                 >
-                  <span className={styles.badge}>{step.badge}</span>
+                  <span className={styles.badge} aria-hidden>
+                    {step.badge}
+                  </span>
                   <h3 className={styles.cardTitle}>
                     {step.title}
                     <span className={styles.cardSubtitle}>

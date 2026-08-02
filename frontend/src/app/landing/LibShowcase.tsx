@@ -76,14 +76,15 @@ export default function LibShowcase({ libs, onPickLib }: LibShowcaseProps) {
               type="button"
               className={styles.card}
               onClick={() => onPickLib(lib.id)}
-              aria-label={`开始 ${lib.name} 词库,${lib.word_count} 词 ${lib.level}`}
             >
-              <span className={styles.badge}>{lib.level.toUpperCase()}</span>
+              <span className={styles.badge} aria-hidden>
+                {lib.level.toUpperCase()}
+              </span>
 
               <h3 className={styles.libName}>{lib.name}</h3>
 
               <p className={styles.libMeta}>
-                <span className={styles.metaNum}>
+                <span className={styles.metaNum} aria-hidden>
                   {lib.word_count.toLocaleString()}
                 </span>{' '}
                 词
@@ -93,9 +94,11 @@ export default function LibShowcase({ libs, onPickLib }: LibShowcaseProps) {
                 {lib.description ?? '从这一份开始,逐字练。'}
               </p>
 
-              <span className={styles.cta} aria-hidden>
+              <span className={styles.cta}>
                 <span className={styles.ctaLabel}>开始这个词库</span>
-                <span className={styles.ctaArrow}>→</span>
+                <span className={styles.ctaArrow} aria-hidden>
+                  →
+                </span>
               </span>
             </button>
           </motion.li>

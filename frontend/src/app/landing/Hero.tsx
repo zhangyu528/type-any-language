@@ -56,7 +56,7 @@ export default function Hero({ libs, onPickLib }: HeroProps) {
     : '暂无课程';
 
   return (
-    <section className={styles.root} aria-label="产品介绍">
+    <section id="hero" className={styles.root} aria-label="产品介绍">
       <div className={styles.inner}>
         {/* Stage 1: demo — the hero's centerpiece, fades in first */}
         <motion.div

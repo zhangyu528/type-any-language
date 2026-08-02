@@ -8,11 +8,15 @@ import styles from './KeyCap.module.css';
 export interface KeyCapProps {
   children: React.ReactNode;
   className?: string;
+  'aria-hidden'?: boolean;
 }
 
-export default function KeyCap({ children, className }: KeyCapProps) {
+export default function KeyCap({ children, className, 'aria-hidden': ariaHidden }: KeyCapProps) {
   return (
-    <kbd className={`${styles.root}${className ? ` ${className}` : ''}`}>
+    <kbd
+      className={`${styles.root}${className ? ` ${className}` : ''}`}
+      aria-hidden={ariaHidden}
+    >
       {children}
     </kbd>
   );
