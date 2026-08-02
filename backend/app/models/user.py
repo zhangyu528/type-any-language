@@ -22,7 +22,7 @@ Add `email_verified_at` when SMTP lands (phase 5 of the product list).
 """
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Boolean
+from sqlalchemy import Boolean, Column, DateTime, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.database import Base
@@ -38,6 +38,11 @@ class User(Base):
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     last_login_at = Column(DateTime, nullable=True)
+    # Dashboard preferences — added in migration 0011. Defaults are
+    # conservative (20/day, 600/month) so a brand-new user has a
+    # concrete target before they touch /me/settings.
+    daily_goal = Column(Integer, nullable=False, default=20)
+    monthly_goal = Column(Integer, nullable=False, default=600)
 
 
 """
