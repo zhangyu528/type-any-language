@@ -1,0 +1,186 @@
+/* FinalCTA — 05 收尾 CTA
+   ------------------------------------------------------------
+   深色反色块(--ds-ink 底)+ 两个 mint glow blob 漂移。
+   整段 max-width 880px 居中,内边距 96px 上下。 */
+
+.root {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-12) var(--space-5);
+  box-sizing: border-box;
+}
+
+.block {
+  position: relative;
+  width: 100%;
+  min-height: 320px;
+  background: var(--ds-ink);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  isolation: isolate;
+  box-shadow: var(--ds-elevate-1);
+}
+
+.inner {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-5);
+  /* padding 由 .root 提供;.block 自带 min-height 撑出纵向空间。 */
+}
+
+/* ---------- 装饰光晕 ---------- */
+
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  z-index: 1;
+  pointer-events: none;
+  animation-play-state: var(--ds-blob-play, running);
+}
+
+.blobTL {
+  top: -80px;
+  left: -60px;
+  width: 280px;
+  height: 280px;
+  background: var(--ds-action);
+  opacity: 0.22;
+  animation: blob-drift-a 22s var(--ease-out) infinite;
+}
+
+.blobBR {
+  bottom: -60px;
+  right: -40px;
+  width: 220px;
+  height: 220px;
+  background: var(--ds-tint-deep);
+  opacity: 0.18;
+  animation: blob-drift-b 26s var(--ease-out) infinite;
+}
+
+@keyframes blob-drift-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(40px, 30px) scale(1.08); }
+}
+
+@keyframes blob-drift-b {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-30px, -20px) scale(1.1); }
+}
+
+/* ---------- 文字 ---------- */
+
+.title {
+  margin: 0;
+  font-family: var(--font-display), var(--font-sans), serif;
+  font-size: clamp(24px, 3.6vw, 36px);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: #FFFFFF;
+}
+
+.titleLine {
+  display: block;
+}
+
+.kicker {
+  margin: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: var(--text-caption);
+  letter-spacing: 0.06em;
+  color: var(--ds-tint);
+}
+
+/* ---------- 按钮区 ---------- */
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.start {
+  /* 沿用 Button 基础样式,只做尺寸/字重微调 */
+  min-width: 200px;
+  height: 52px !important;
+  font-size: 15px !important;
+}
+
+.altLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  color: var(--ds-tint);
+  letter-spacing: 0.02em;
+  border-radius: var(--radius-sm);
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.altLink:hover {
+  color: var(--ds-surface);
+}
+
+.altLink:focus-visible {
+  outline: 2px solid var(--ds-tint);
+  outline-offset: 2px;
+}
+
+.altArrow {
+  display: inline-block;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.altLink:hover .altArrow {
+  transform: translateX(3px);
+}
+
+/* ---------- a11y ---------- */
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- 响应式 ---------- */
+
+@media (max-width: 639px) {
+  .inner {
+    padding: var(--space-8) var(--space-5);
+  }
+  .start {
+    min-width: 180px;
+  }
+}
+
+/* ---------- reduced-motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .blob {
+    animation: none;
+  }
+  .altLink:hover .altArrow {
+    transform: none;
+  }
+}
