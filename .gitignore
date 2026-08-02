@@ -69,4 +69,8 @@ logs/
 # design tokens; never part of the app source.
 .stitch/
 
+# Workbuddy local scratch. Per-session notes / memory the workbuddy
+# helper writes alongside the working tree; never part of the app source.
+.workbuddy/
+
 .env.db
