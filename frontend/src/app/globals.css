@@ -125,43 +125,41 @@ a:focus-visible {
   gap: var(--space-2);
 }
 
-/* 登录:降级为 ghost 描边。让 hero CTA(立即开始练习)成为
-   唯一的视觉焦点 —— header 上不应该出现第二颗 primary 填充。
-   Landing 页主流程是"试一下再决定注册",所以入口应该是
-   "登录"而不是"立即注册"。 */
+/* 登录:ghost 文字链接 —— 把注册(primary mint)推为 header 上唯一的
+   主行动。Landing funnel 是新用户为主,老用户进登录走轻量入口。
+   颜色 resting 用 --ds-ink-soft(中性),hover 走 --ds-action-deep +
+   --ds-tint 软底 —— 跟 .app-header__logout 同 pattern。
+   不加 border / transform / shadow:那些是 CTA 形状的 affordance。 */
 .app-header__login {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   height: var(--control-sm);
-  padding: 0 var(--space-5);
+  padding: 0 var(--space-4);
   font-family: inherit;
   font-size: 13px;
   font-weight: var(--weight-medium);
   letter-spacing: 0.005em;
-  color: var(--ds-ink);
+  color: var(--ds-ink-soft);
   background: transparent;
-  border: 1px solid var(--ds-border-strong);
+  border: 0;
   border-radius: var(--radius-pill);
   text-decoration: none;
   cursor: pointer;
   transition:
     background var(--dur-fast) var(--ease-out),
-    color var(--dur-fast) var(--ease-out),
-    border-color var(--dur-fast) var(--ease-out),
-    transform var(--dur-fast) var(--ease-spring),
-    box-shadow var(--dur-fast) var(--ease-out);
+    color var(--dur-fast) var(--ease-out);
 }
 .app-header__login:hover {
   background: var(--ds-tint);
   color: var(--ds-action-deep);
-  border-color: var(--ds-action-deep);
-  transform: translateY(-1px);
-  box-shadow: var(--elev-1);
 }
-.app-header__login:active { transform: translateY(0); }
 
-/* 次按钮:描边 ghost pill(注册) */
+/* 注册:primary mint pill —— header 唯一主行动。
+   填充用 --ds-action-deep(mint-600),--ds-action(mint-400) 在 light
+   下白字对比度 3.05:1 不过 WCAG AA;deep 色 (mint-600) ≥ 5.5:1。
+   跟 HowItWorks.module.css 的 kbHit 模式一致(同一 deep + 白字)。
+   hover 不换色,只 translateY + shadow —— avatar pattern。 */
 .app-header__signup {
   display: inline-flex;
   align-items: center;
@@ -172,21 +170,17 @@ a:focus-visible {
   font-size: 13px;
   font-weight: var(--weight-medium);
   letter-spacing: 0.005em;
-  color: var(--ds-action-deep);
-  background: transparent;
-  border: 1px solid var(--ds-border-strong);
+  color: var(--ds-on-action);
+  background: var(--ds-action-deep);
+  border: 1px solid var(--ds-action-deep);
   border-radius: var(--radius-pill);
   text-decoration: none;
   cursor: pointer;
   transition:
-    background var(--dur-fast) var(--ease-out),
-    color var(--dur-fast) var(--ease-out),
-    border-color var(--dur-fast) var(--ease-out),
     transform var(--dur-fast) var(--ease-spring),
     box-shadow var(--dur-fast) var(--ease-out);
 }
 .app-header__signup:hover {
-  background: var(--ds-tint);
   transform: translateY(-1px);
   box-shadow: var(--elev-1);
 }
