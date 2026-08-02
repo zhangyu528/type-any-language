@@ -329,7 +329,7 @@ function LoginForm() {
         className={`auth-screen${dissolving ? ' auth-screen--dissolving' : ''}`}
         noValidate
       >
-        <h1 className="auth-title">
+        <h1 className="auth-title" style={{ color: '#16A35E' }}>
           {Array.from('欢迎回来').map((char, i) => (
             <span
               key={i}
@@ -347,7 +347,7 @@ function LoginForm() {
             layout reflow. Only the visible one has data-active="true"
             and gets opacity 1; the other is opacity 0. The cross-fade
             uses the same auth-subtitle-fade keyframe as before. */}
-        <div className="auth-screen__subtitle" aria-live="polite">
+        <div className="auth-screen__subtitle" aria-live="polite" style={{ color: '#3FD17A' }}>
           {subtitleLines.map((line, i) => (
             <span
               key={`${screen}-${line.lang}`}
@@ -479,7 +479,7 @@ function LoginForm() {
              tweaks can re-add per-field delay if needed.) */
           .auth-field__label {
             font-size: var(--type-caption);
-            color: var(--label-tertiary);
+            color: var(--auth-hint);
             letter-spacing: 0.02em;
           }
           .auth-field__input-wrap {
@@ -490,12 +490,12 @@ function LoginForm() {
           .auth-field__icon {
             position: absolute;
             left: var(--space-3);
-            color: var(--label-quaternary);
+            color: var(--cm-ink-soft);
             pointer-events: none;
             transition: color var(--duration-fast) var(--ease-standard);
           }
           .auth-field__input-wrap:focus-within .auth-field__icon {
-            color: var(--label-secondary);
+            color: var(--cm-mint-deep);
           }
           .auth-field__input-wrap:focus-within .auth-field__input--error ~ .auth-field__icon,
           .auth-field__input--error ~ .auth-field__icon {
@@ -507,9 +507,9 @@ function LoginForm() {
             padding: 0 var(--space-4);
             font-family: inherit;
             font-size: var(--type-body);
-            color: var(--label-primary);
+            color: var(--auth-heading);
             background: rgba(255, 255, 255, 0.7);
-            border: 1px solid rgba(0, 0, 0, 0.08);
+            border: 1px solid var(--auth-input-border);
             border-radius: var(--radius-sm);
             transition: background var(--duration-fast) var(--ease-standard),
                         border-color var(--duration-fast) var(--ease-standard),
@@ -517,16 +517,16 @@ function LoginForm() {
           }
           .auth-field__input--with-icon { padding-left: 36px; }
           .auth-field__input--with-toggle { padding-right: 40px; }
-          .auth-field__input::placeholder { color: var(--label-quaternary); }
+          .auth-field__input::placeholder { color: var(--cm-ink-soft); }
           .auth-field__input:hover {
             background: rgba(255, 255, 255, 0.85);
-            border-color: rgba(0, 0, 0, 0.12);
+            border-color: var(--auth-input-border-hover);
           }
           .auth-field__input:focus {
             outline: none;
             background: rgba(255, 255, 255, 0.95);
-            border-color: var(--label-primary);
-            box-shadow: 0 0 0 3px rgba(28, 28, 30, 0.08);
+            border-color: var(--auth-input-border-focus);
+            box-shadow: 0 0 0 3px var(--auth-input-focus-ring);
           }
           .auth-field__input--error {
             border-color: var(--accent);
@@ -537,8 +537,8 @@ function LoginForm() {
             box-shadow: 0 0 0 3px rgba(215, 0, 21, 0.12);
           }
           .auth-field__input-wrap:focus-within .auth-field__input {
-            border-color: var(--label-secondary);
-            box-shadow: 0 0 0 4px rgba(28, 28, 30, 0.08);
+            border-color: var(--auth-input-border-focus);
+            box-shadow: 0 0 0 4px var(--auth-input-focus-ring);
           }
           .auth-field__input--error,
           .auth-field__input-wrap:focus-within .auth-field__input--error,
@@ -572,18 +572,18 @@ function LoginForm() {
             background: transparent;
             border: 0;
             border-radius: var(--radius-sm);
-            color: var(--label-quaternary);
+            color: var(--auth-pin-toggle);
             cursor: pointer;
             padding: 0;
             transition: color var(--duration-fast) var(--ease-standard),
                         background var(--duration-fast) var(--ease-standard);
           }
           .auth-field__toggle:hover {
-            color: var(--label-secondary);
-            background: rgba(0, 0, 0, 0.04);
+            color: var(--auth-pin-toggle-hover);
+            background: rgba(63, 209, 122, 0.10);
           }
           .auth-field__toggle:focus-visible {
-            outline: 2px solid var(--label-primary);
+            outline: 2px solid var(--auth-input-border-focus);
             outline-offset: 1px;
           }
           .auth-field__error {
@@ -604,11 +604,11 @@ function LoginForm() {
           .auth-form__alt {
             text-align: center;
             font-size: var(--type-caption);
-            color: var(--label-tertiary);
+            color: var(--auth-subheading);
             margin: 0;
           }
           .auth-form__alt a {
-            color: var(--accent);
+            color: var(--auth-link);
             text-decoration: none;
             font-weight: var(--type-body-emphasis-weight);
             position: relative;
@@ -695,7 +695,7 @@ function LoginForm() {
             justify-content: center;
             font-size: 18px;
             line-height: 1;
-            color: var(--label-tertiary);
+            color: var(--auth-back);
             background: transparent;
             border: 0;
             border-radius: var(--radius-sm);
@@ -706,14 +706,14 @@ function LoginForm() {
                         transform var(--duration-fast) var(--ease-standard);
           }
           .auth-screen__back:hover {
-            color: var(--label-primary);
-            background: rgba(0, 0, 0, 0.04);
+            color: var(--auth-heading);
+            background: rgba(63, 209, 122, 0.10);
           }
           .auth-screen__back:active {
             transform: scale(0.94);
           }
           .auth-screen__back:focus-visible {
-            outline: 2px solid var(--label-primary);
+            outline: 2px solid var(--auth-input-border-focus);
             outline-offset: 2px;
           }
 
@@ -729,7 +729,7 @@ function LoginForm() {
             display: block;
             min-height: 1.6em;
             font-size: var(--type-body);
-            color: var(--label-tertiary);
+            color: var(--auth-subheading);
             margin: 0;
             margin-top: calc(var(--space-4) * -1 + var(--space-1));
             animation: auth-subtitle-fade 200ms var(--ease-standard) 700ms both;
@@ -758,7 +758,7 @@ function LoginForm() {
             font-family: var(--font-body);
             font-size: clamp(32px, 5vw, 42px);
             font-weight: 700;
-            color: var(--label-primary);
+            color: var(--auth-heading);
             text-align: center;
             letter-spacing: -0.01em;
             line-height: 1.2;
@@ -774,7 +774,7 @@ function LoginForm() {
             font-family: var(--font-mono);
             font-size: clamp(18px, 2vw, 22px);
             font-weight: 500;
-            color: var(--label-tertiary);
+            color: var(--auth-subheading);
             letter-spacing: 0.02em;
             line-height: 1.2;
             margin: 0 auto var(--space-4);
@@ -796,51 +796,57 @@ function LoginForm() {
           .auth-screen__input {
             width: 100%;
             height: 44px;
-            padding: 0 var(--space-2);
+            /* Slight horizontal padding so the input bg wash shows
+               around the text — the area reads as a distinct
+               cell against the card backdrop, not as a bare
+               underline. */
+            padding: 0 var(--space-3);
             font-family: var(--font-mono);
             font-size: var(--type-body);
             font-weight: 500;
-            color: var(--label-primary);
-            background: transparent;
+            color: var(--auth-heading);
+            background: var(--auth-input-bg);
             border: 0;
-            border-bottom: 1px solid var(--label-tertiary);
+            /* 2px thick resting underline in mint-line (NOT pure
+               black — landing has no pure black anywhere). Same
+               --cm-line color as landing's input borders. On focus
+               the underline shifts to mint-deep + the focus overlay
+               animates in. */
+            border-bottom: 2px solid var(--auth-input-border);
             border-radius: 0;
             letter-spacing: 0.02em;
-            caret-color: var(--label-primary);
+            caret-color: var(--cm-mint-deep);
             transition: border-bottom-color var(--duration-fast) var(--ease-standard);
             position: relative;
           }
           .auth-screen__input::placeholder {
-            color: var(--label-quaternary);
+            color: var(--cm-ink-soft);
             font-family: var(--font-body);
           }
-          /* Hover: nudge the underline slightly darker so the user
+          /* Hover: nudge the underline toward mint-deep so the user
              feels the field is interactive. */
           .auth-screen__input:hover {
-            border-bottom-color: var(--label-secondary);
+            border-bottom-color: var(--auth-input-border-hover);
           }
-          /* Focus: the resting 1px underline shifts toward black
-             while the 2px overlay animates in. Both visible —
-             no more "underline disappears on focus" surprise. */
+          /* Focus: underline locks to mint-deep, then the 2px mint
+             overlay animates in (same accent moment pattern). */
           .auth-screen__input:focus {
             outline: none;
-            border-bottom-color: var(--label-secondary);
+            border-bottom-color: var(--auth-input-border-focus);
           }
-          /* Focus overlay — a 2px black pseudo-element that animates
+          /* Focus overlay — 2px mint-deep pseudo-element that animates
              in from the left over 350ms when the input is focused.
              Sits 1px below the input's bottom edge (bottom: -1px)
-             so it lands right under the input's 1px underline,
-             forming a clear "taller, bold" focus state without
-             obscuring the resting underline. Resting state is
-             hidden by scaleX(0). */
+             so it lands right under the input's 2px underline,
+             forming a clear "taller, bold" focus state. */
           .auth-screen__input::after {
             content: "";
             position: absolute;
-            left: var(--space-2);
-            right: var(--space-2);
+            left: var(--space-3);
+            right: var(--space-3);
             bottom: -1px;
             height: 2px;
-            background: var(--label-primary);
+            background: var(--auth-input-border-focus);
             transform: scaleX(0);
             transform-origin: left center;
           }
@@ -863,14 +869,16 @@ function LoginForm() {
             font-size: 22px;
             font-weight: 500;
             line-height: 1;
-            color: var(--label-primary);
-            background: rgba(0, 0, 0, 0.04);
-            border: 1px solid rgba(0, 0, 0, 0.08);
+            color: var(--auth-cta-text);
+            background: var(--auth-cta-bg);
+            border: 0;
             border-radius: var(--radius-md);
             padding: 0;
             cursor: pointer;
+            box-shadow: 0 1px 2px rgba(31, 58, 43, 0.06),
+                        0 4px 12px rgba(22, 163, 94, 0.32);
             transition: background var(--duration-fast) var(--ease-standard),
-                        border-color var(--duration-fast) var(--ease-standard),
+                        box-shadow var(--duration-fast) var(--ease-standard),
                         transform var(--duration-fast) var(--ease-standard),
                         opacity var(--duration-fast) var(--ease-standard);
           }
@@ -880,8 +888,9 @@ function LoginForm() {
             transition: transform var(--duration-fast) var(--ease-standard);
           }
           .auth-screen__next:hover:not([disabled]) {
-            background: rgba(0, 0, 0, 0.08);
-            border-color: rgba(0, 0, 0, 0.16);
+            background: var(--auth-cta-bg-hover);
+            box-shadow: 0 3px 10px rgba(31, 58, 43, 0.10),
+                        0 8px 22px rgba(22, 163, 94, 0.42);
           }
           .auth-screen__next:hover:not([disabled]) .auth-screen__next-arrow {
             transform: translateX(2px);
@@ -890,45 +899,28 @@ function LoginForm() {
             transform: scale(0.96);
           }
           .auth-screen__next:focus-visible {
-            outline: 2px solid var(--label-primary);
+            outline: 2px solid var(--auth-input-border-focus);
             outline-offset: 3px;
           }
           .auth-screen__next[disabled] {
-            opacity: 0.3;
+            opacity: 0.35;
             pointer-events: none;
+            box-shadow: none;
           }
-          /* 3-dot progress indicator. Active dot scales up + fills
-             label-primary; inactive dots stay at label-quaternary. */
-          .auth-screen__progress {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: var(--space-2);
-            margin: 0;
-            animation: auth-screen-fade-in 240ms var(--ease-standard) 1500ms both;
-          }
-          .auth-screen__dot {
-            display: inline-block;
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: var(--label-quaternary);
-            opacity: 0.5;
-            transition: background var(--duration-fast) var(--ease-standard),
-                        opacity var(--duration-fast) var(--ease-standard),
-                        transform var(--duration-fast) var(--ease-standard);
-          }
-          .auth-screen__dot[data-active="true"] {
-            background: var(--label-primary);
-            opacity: 1;
-            transform: scale(1.15);
-            animation: auth-screen-dot-fill var(--duration-base) var(--ease-emphasized) both;
-          }
+          /* .auth-screen__progress + .auth-screen__dot + data-active
+             moved to globals.css. Inline <style> var() resolution
+             failed in Next.js dev mode (same root cause as the PIN
+             underline issue documented in design-auth.md §5) — the
+             token var() resolved to rgba(0,0,0,0), leaving the dots
+             transparent. The external stylesheet applies the rule
+             reliably, with hardcoded mint colors so var() isn't
+             needed. */
+          /* .auth-screen__dot[data-active="true"] same — globals.css */
           /* Screen 2 / 3 placeholders — centered muted text. */
           .auth-screen__placeholder {
             text-align: center;
             font-size: var(--type-body);
-            color: var(--label-tertiary);
+            color: var(--auth-subheading);
             padding: var(--space-5) 0;
           }
 
@@ -965,37 +957,15 @@ function LoginForm() {
              true): same filled underline + the character rendered
              above it. The flex-end layout pins the character to
              the bottom of the slot, just above the underline. */
-          .auth-screen__pin-dot {
-            display: inline-flex;
-            align-items: flex-end;
-            justify-content: center;
-            width: 24px;
-            height: 28px;
-            border: 0;
-            border-bottom: 1px solid var(--label-quaternary);
-            border-radius: 0;
-            background: transparent;
-            opacity: 0.5;
-            padding-bottom: 1px;
-            font-size: 16px;
-            font-family: var(--font-mono);
-            color: var(--label-primary);
-            transition: border-bottom-color var(--duration-fast) var(--ease-standard),
-                        border-bottom-width var(--duration-fast) var(--ease-standard),
-                        opacity var(--duration-fast) var(--ease-standard);
-          }
+          /* .auth-screen__pin-dot + modifiers moved to globals.css — inline
+             var() resolution failed in Next.js dev mode, so the rules
+             live in the external stylesheet where var() works. */
           /* Filled (hidden mode, default): thicker, opaque underline. */
-          .auth-screen__pin-dot--filled {
-            border-bottom: 2px solid var(--label-primary);
-            opacity: 1;
-          }
+          /* .auth-screen__pin-dot--filled — in globals.css */
           /* Shown mode (showPassword=true): same filled underline +
              the character is rendered above it (the existing JSX
              already produces the char when shown=true). */
-          .auth-screen__pin-dot--shown {
-            border-bottom: 2px solid var(--label-primary);
-            opacity: 1;
-          }
+          /* .auth-screen__pin-dot--shown — in globals.css */
 
           /* Caret slot — the next empty position. Underline stays
              in the empty-state 1px gray, but a thin vertical bar
@@ -1005,24 +975,8 @@ function LoginForm() {
              the slot's own content slot is reserved for the mask
              char (a black bullet, U+2022) or the real char in
              shown mode. */
-          .auth-screen__pin-dot--cursor {
-            border-bottom: 1px solid var(--label-quaternary);
-            opacity: 1;
-          }
-          .auth-screen__pin-dot--cursor::after {
-            content: "";
-            display: block;
-            width: 1.5px;
-            height: 18px;
-            background: var(--label-primary);
-            /* The slot is 28px tall. The 1px underline + 1px
-               padding-bottom + 18px caret = 20px, leaving 8px of
-               space above the caret. That space is split as ~4px
-               above the caret and ~4px from the caret to the
-               underline, which reads as visually centered. */
-            margin-bottom: 4px;
-            animation: auth-screen-caret-blink 1s steps(2, end) infinite;
-          }
+          /* .auth-screen__pin-dot--cursor + ::after — in globals.css */
+          /* @keyframes auth-screen-caret-blink moved to globals.css */
           @keyframes auth-screen-caret-blink {
             0%, 50%       { opacity: 1; }
             50.01%, 100%  { opacity: 0; }
@@ -1064,18 +1018,18 @@ function LoginForm() {
             background: transparent;
             border: 0;
             border-radius: var(--radius-sm);
-            color: var(--label-quaternary);
+            color: var(--auth-pin-toggle);
             padding: 0;
             cursor: pointer;
             transition: color var(--duration-fast) var(--ease-standard),
                         background var(--duration-fast) var(--ease-standard);
           }
           .auth-screen__show-toggle:hover {
-            color: var(--label-secondary);
-            background: rgba(0, 0, 0, 0.04);
+            color: var(--auth-pin-toggle-hover);
+            background: rgba(63, 209, 122, 0.10);
           }
           .auth-screen__show-toggle:focus-visible {
-            outline: 2px solid var(--label-primary);
+            outline: 2px solid var(--auth-input-border-focus);
             outline-offset: 1px;
           }
 
@@ -1138,17 +1092,8 @@ function LoginForm() {
             from { transform: scaleX(0); }
             to   { transform: scaleX(1); }
           }
-          /* Progress dot fill — scale + opacity from 0 to active state. */
-          @keyframes auth-screen-dot-fill {
-            from { transform: scale(0.6); opacity: 0; }
-            to   { transform: scale(1.15); opacity: 1; }
-          }
-          /* Generic fade-in (for the progress row, which has no other
-             per-element animation). */
-          @keyframes auth-screen-fade-in {
-            from { opacity: 0; }
-            to   { opacity: 1; }
-          }
+          /* @keyframes auth-screen-dot-fill + auth-screen-fade-in moved to
+             globals.css alongside the dot rule. */
 
           @media (prefers-reduced-motion: reduce) {
             .auth-form-shake-wrap { animation: none !important; }
@@ -1215,7 +1160,7 @@ function EmailScreen(props: {
       {/* Hero Chinese — the "see" half. Largest text on screen.
           aria-hidden because the visible word is decorative; the
           input below is the canonical element. */}
-      <p className="auth-screen__zh-large" aria-hidden="true">
+      <p className="auth-screen__zh-large" aria-hidden="true" style={{ color: "#16A35E" }}>
         邮箱
       </p>
 
@@ -1223,7 +1168,7 @@ function EmailScreen(props: {
           user's keystrokes are intentionally NOT matched against
           the hint — the field is just a form input, not an
           exercise. */}
-      <p className="auth-screen__en-hint" aria-hidden="true">
+      <p className="auth-screen__en-hint" aria-hidden="true" style={{ color: "#3FD17A" }}>
         email
       </p>
 
@@ -1240,6 +1185,11 @@ function EmailScreen(props: {
         onFocus={props.onFocus}
         onBlur={props.onBlur}
         className="auth-screen__input"
+        style={{
+          borderBottom: '2px solid #3FD17A',
+          caretColor: '#16A35E',
+          color: '#16A35E',
+        }}
       />
 
       {props.emailError ? (
@@ -1316,14 +1266,14 @@ function PasswordScreen(props: {
         <span aria-hidden="true">←</span>
       </button>
       {/* Hero CN — same scale/style as Screen 1 for visual continuity. */}
-      <p className="auth-screen__zh-large" aria-hidden="true">
+      <p className="auth-screen__zh-large" aria-hidden="true" style={{ color: "#16A35E" }}>
         密码
       </p>
 
       {/* EN hint — "password" in mono, dim. Static text, no per-char
           highlighting here (the PIN dots provide the dynamic feedback
           instead). */}
-      <p className="auth-screen__en-hint" aria-hidden="true">
+      <p className="auth-screen__en-hint" aria-hidden="true" style={{ color: "#3FD17A" }}>
         {TARGET_WORD}
       </p>
 

@@ -2,10 +2,14 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
+  addToCollection,
   getAudioUrl,
+  isSentenceCollected,
   LessonSentence,
+  removeFromCollection,
   WordInLesson,
 } from './api';
+import { useAuth } from './lib/auth';
 import SunkenShortcutBar from './SunkenShortcutBar';
 import styles from './practice/TranslationStage.module.css';
 
@@ -16,6 +20,9 @@ interface TranslationStageProps {
   sentence: LessonSentence;
   /** Target word for the word-card at the top of the stage. */
   targetWord: WordInLesson;
+  /** The lib this sentence came from — propagated down so the
+   *  collection entry can remember the source for Me-page filtering. */
+  libId: string;
   /** Called when the user finishes a step. `correct` is true on a clean
    *  check, false on "skip". */
   onComplete: (correct: boolean) => void;
@@ -48,8 +55,11 @@ interface TranslationStageProps {
 export default function TranslationStage({
   sentence,
   targetWord,
+  libId,
   onComplete,
 }: TranslationStageProps) {
+  const { user } = useAuth();
+  const userId = user?.id ?? 'anonymous';
   const expectedWords = sentence.text.split(/\s+/);
 
   const [userInputs, setUserInputs] = useState<string[]>([]);
@@ -61,6 +71,16 @@ export default function TranslationStage({
   // kbd badges in the shortcut bar light up. Strings are normalized
   // (lowercase) — see SunkenShortcutBar's matching logic.
   const [activeKeys, setActiveKeys] = useState<string[]>([]);
+  // Whether this (sentence, word) pair is in the user's collection.
+  // Initialized from localStorage on mount/sentence-change; the star
+  // button toggles it. Re-read after the collection-changed event so
+  // cross-tab updates / future programmatic mutations land here.
+  const [isCollected, setIsCollected] = useState<boolean>(false);
+  // Transient: set true right after a toggle so the star can run
+  // a one-shot pop animation + emit particles. Cleared after the
+  // animation duration (see useEffect below) so the next toggle
+  // can fire it again.
+  const [popping, setPopping] = useState<boolean>(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -86,6 +106,23 @@ export default function TranslationStage({
     const t = window.setTimeout(() => inputRef.current?.focus(), 80);
     return () => window.clearTimeout(t);
   }, [sentence.id]);
+
+  // Sync isCollected state with localStorage on mount / sentence
+  // change. The Me page listens for the collection-changed event
+  // to update its tab badge — we don't need to, since the star
+  // button IS the source of truth here.
+  useEffect(() => {
+    setIsCollected(isSentenceCollected(sentence.id, userId));
+  }, [sentence.id, userId]);
+
+  // Clear the popping flag once the CSS animation completes so the
+  // next toggle can fire it again. The 480ms matches the longest
+  // animation (particles fade) in the star CSS.
+  useEffect(() => {
+    if (!popping) return;
+    const t = window.setTimeout(() => setPopping(false), 480);
+    return () => window.clearTimeout(t);
+  }, [popping]);
 
   // Refocus the typewriter if a stray click lands somewhere outside
   // editable surfaces — same pattern DictationStage used. Without this,
@@ -119,6 +156,34 @@ export default function TranslationStage({
   const skip = () => {
     onComplete(false);
   };
+
+  // Toggle collection membership for this (sentence, word) pair.
+  // Atomic add/remove — collection helpers keep sentences + words
+  // in lockstep (1:1 relationship for drill pairs).
+  const toggleCollected = useCallback(() => {
+    if (isCollected) {
+      removeFromCollection(sentence.id, userId);
+      setIsCollected(false);
+      // No pop on un-favorite — the visual reward lives on the
+      // "I just saved this" beat, not the "I un-saved" beat.
+    } else {
+      addToCollection(sentence.id, targetWord.word, userId, libId);
+      setIsCollected(true);
+      // Trigger the one-shot pop animation. The useEffect clears
+      // the flag 480ms later (matching particle fade).
+      setPopping(true);
+    }
+    // Notify same-tab listeners (MePage badge) and storage event
+    // for cross-tab listeners. Same pattern as TranslationSession's
+    // progress-changed dispatch — the dual coverage is intentional.
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('collection-changed', {
+          detail: { sentenceId: sentence.id, added: !isCollected },
+        }),
+      );
+    }
+  }, [isCollected, sentence.id, targetWord.word, libId, userId]);
 
   const playCorrectChime = useCallback(() => {
     try {
@@ -318,9 +383,23 @@ export default function TranslationStage({
 
       <div className={styles.sentence}>
         {sentence.chinese_text && (
-          <p className={styles.prompt} lang="zh">
-            {sentence.chinese_text}
-          </p>
+          <div className={styles.promptRow}>
+            <p className={styles.prompt} lang="zh">
+              {sentence.chinese_text}
+            </p>
+            <button
+              type="button"
+              className={styles.star}
+              data-active={isCollected ? 'true' : 'false'}
+              data-popping={popping ? 'true' : 'false'}
+              onClick={toggleCollected}
+              aria-label={isCollected ? '从收藏移除' : '收藏这句'}
+              aria-pressed={isCollected ? 'true' : 'false'}
+              title={isCollected ? '从收藏移除' : '收藏这句'}
+            >
+              {isCollected ? '★' : '☆'}
+            </button>
+          </div>
         )}
 
         <div className={styles.sentenceDisplay}>

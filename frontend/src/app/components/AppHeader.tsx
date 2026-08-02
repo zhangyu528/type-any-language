@@ -88,10 +88,10 @@ export default function AppHeader() {
           <>
             <ThemeToggle />
             <Link
-              href="/"
+              href="/me"
               className="app-header__avatar"
-              aria-label={`${user.display_name} — 返回首页`}
-              title={`${user.display_name} · 返回首页`}
+              aria-label={`${user.display_name} — 我的主页`}
+              title={`${user.display_name} · 我的主页`}
             >
               {user.display_name.charAt(0).toUpperCase()}
             </Link>
