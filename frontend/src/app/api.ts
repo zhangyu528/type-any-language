@@ -197,6 +197,115 @@ export type TranslationProgress = {
  */
 export const ANONYMOUS_USER_ID = 'anonymous';
 
+// ---------------------------------------------------------------------------
+// Preferences — local-only user prefs (theme handled separately by
+// ThemeProvider; these are read by TranslationStage + landing).
+// ---------------------------------------------------------------------------
+
+/** Audio playback rate consumed by TranslationStage's <audio>. */
+export const STORAGE_AUDIO_RATE = 'prefs.audioRate';
+/** Optional override of catalog.defaults.difficulty for the landing /
+ *  practice entry. Empty string means "follow catalog default". */
+export const STORAGE_DEFAULT_DIFFICULTY = 'prefs.defaultDifficulty';
+/** Whether to show phonetic transcription in TranslationStage's word card. */
+export const STORAGE_SHOW_PHONETIC = 'prefs.showPhonetic';
+
+const AUDIO_RATE_VALUES = [0.75, 1, 1.25] as const;
+export type AudioRate = (typeof AUDIO_RATE_VALUES)[number];
+
+/** Read a JSON-safe preference value from localStorage. SSR-safe
+ *  (returns `fallback` when window is unavailable). */
+export function readPrefString(key: string, fallback: string): string {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const v = window.localStorage.getItem(key);
+    return v ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/** Read a boolean preference from localStorage. Strict 'true'/'false'
+ *  match only — anything else (including null) returns `fallback`. */
+export function readPrefBool(key: string, fallback: boolean): boolean {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const v = window.localStorage.getItem(key);
+    if (v === 'true') return true;
+    if (v === 'false') return false;
+  } catch {
+    /* 隐私模式静默 */
+  }
+  return fallback;
+}
+
+/** Read an audio-rate preference. Invalid stored values fall back to 1. */
+export function readPrefAudioRate(): AudioRate {
+  if (typeof window === 'undefined') return 1;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_AUDIO_RATE);
+    const n = raw == null ? NaN : Number(raw);
+    if (n === 0.75 || n === 1 || n === 1.25) return n;
+  } catch {
+    /* 隐私模式静默 */
+  }
+  return 1;
+}
+
+/** Write a string preference to localStorage. Silent failure on
+ *  private mode. */
+export function writePrefString(key: string, value: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    /* 隐私模式静默 */
+  }
+}
+
+/** Write a boolean preference to localStorage. */
+export function writePrefBool(key: string, value: boolean): void {
+  writePrefString(key, String(value));
+}
+
+/** Write an audio-rate preference. Caller-side type validation is
+ *  recommended (see AUDIO_RATE_VALUES). */
+export function writePrefAudioRate(value: AudioRate): void {
+  writePrefString(STORAGE_AUDIO_RATE, String(value));
+}
+
+/** Drop a preference key entirely. */
+export function removePref(key: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    /* 隐私模式静默 */
+  }
+}
+
+/**
+ * Clear all local data for a user — drill progress + collection +
+ * pref keys. Used by SettingsTab's "danger zone" reset.
+ *
+ * Idempotent — keys that don't exist are silently skipped.
+ */
+export function clearAllLocalUserData(userId: string): void {
+  if (typeof window === 'undefined') return;
+  const keys = [
+    getTranslationProgressKey(userId),
+    getCollectionKey(userId),
+    `me.displayNameFallback:${userId}`,
+  ];
+  for (const k of keys) removePref(k);
+  // Notify same-tab listeners (StatsTab / CollectionTab) so the
+  // refreshed storage event isn't the only thing that's seen.
+  window.dispatchEvent(new CustomEvent('collection-changed', { detail: { clear: true } }));
+  window.dispatchEvent(
+    new CustomEvent('translation-progress-changed', { detail: { cleared: true } }),
+  );
+}
+
 /** Per-user localStorage key for the drill progress blob. */
 export function getTranslationProgressKey(userId: string): string {
   return `translationProgress:${userId}`;
@@ -501,6 +610,26 @@ export async function apiMe(): Promise<AuthUser | null> {
   }
   const body = (await res.json()) as { user: AuthUser | null };
   return body.user;
+}
+
+/**
+ * PATCH /api/auth/me — update the current user's display_name.
+ *
+ * The backend may not expose this route yet (Phase 4 polish — flag
+ * the first time we wire it). The Me page's inline-edit catches the
+ * ApiError and falls back to a per-user localStorage cache so the
+ * surface still feels responsive. The next server-truth refetch
+ * (login or refresh) wins, as it should.
+ */
+export async function updateDisplayName(displayName: string): Promise<AuthUser> {
+  const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ display_name: displayName }),
+  });
+  const body = (await parseOrThrow(res)) as AuthUser;
+  return body;
 }
 
 // ---------------------------------------------------------------------------

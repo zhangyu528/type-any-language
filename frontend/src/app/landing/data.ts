@@ -132,6 +132,22 @@ export function readRecentLibId(): string | null {
   }
 }
 
+/**
+ * Read the user's preferred difficulty override (from
+ * `prefs.defaultDifficulty` in localStorage). Empty string means
+ * "no preference — follow the catalog default". Valid stored values
+ * are 'easy' / 'medium' / 'hard'; anything else (including empty)
+ * is treated as "no preference" by the composer.
+ */
+export function readDifficultyPref(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    return window.localStorage.getItem('prefs.defaultDifficulty') ?? '';
+  } catch {
+    return '';
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Static fallbacks — used only when /api/landing isn't reachable    */
 /* and we have no other data (cold start, no catalog).               */
@@ -192,7 +208,12 @@ export function composeLandingData(input: LandingInputs): LandingData {
         text: recommendedSentence.text,
         chinese_text: recommendedSentence.chinese_text || '',
         audio_url: recommendedSentence.audio_url || undefined,
-        difficulty: recommendedSentence.difficulty || 'B1',
+        // Surface the user's prefs.defaultDifficulty override on the
+        // daily sentence when it's set. The composer doesn't filter
+        // by difficulty here — that's the landing page's job (it
+        // exposes difficulty as a chip on the daily card). We just
+        // surface what the user picked so the UI badge stays honest.
+        difficulty: readDifficultyPref() || recommendedSentence.difficulty || 'B1',
       }
     : FALLBACK_DAILY_SENTENCE;
 

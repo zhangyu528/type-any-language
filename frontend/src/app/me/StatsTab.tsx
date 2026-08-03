@@ -3,31 +3,34 @@
 /**
  * StatsTab — aggregate stats + per-lib progress table.
  *
- * All data is local: derive everything from `loadTranslationProgress()`
- * and the `Catalog` passed down from /me. No fetch.
+ * All data is local + supplemental dashboard fetch:
+ *   - Drill progress is local (`loadTranslationProgress()`).
+ *   - Streak / daily-goal / monthly-goal come from the dashboard
+ *     endpoint (single round-trip on mount). They surface as KPI
+ *     cells so the user has a single "overview" surface here; the
+ *     dashboard page renders the same numbers richer (calendar +
+ *     detail drawer) but if the user only ever visits /me we still
+ *     show today's hint.
  *
- * KPIs (4-cell grid):
- *   - 已练词库  = number of libIds with any sentence progress
+ * KPIs (5-cell grid on wide screens, 2 cols on narrow):
+ *   - 已练词库  = libs with any sentence progress
  *   - 已判句子  = total sentence entries across all libs
  *   - 总正确率   = sum(correct) / sum(answered)
- *   - 连续天数   = 0 in Phase 4 (streak stamp lands in a future
- *                  phase; we don't want to touch TranslationSession
- *                  in this pass — see Me MVP checklist §6.1)
- *
- * Per-lib progress table — one row per lib in the catalog. Reads
- * word_count + a parallel /api/lessons/<libId>/all call to count
- * total sentences per lib. To avoid N round-trips on mount we
- * fetch lazily: each row triggers its own count when it scrolls
- * into view. Simpler MVP: skip the per-lib sentence totals and
- * just show answered / correct counts from the local blob.
+ *   - 今日已练  = from dashboard.daily_goal.today_count (or local
+ *                approximation if dashboard fetch failed)
+ *   - 连续天数   = from dashboard.streak.current
+ *                  (0  with "开始 7 天连击" CTA when not yet started)
  */
 import { useEffect, useState } from 'react';
 import {
   Catalog,
   loadTranslationProgress,
   TranslationProgress,
+  getDashboardSnapshot,
+  type DashboardSnapshot,
 } from '../api';
 import { useCountUp } from './useCountUp';
+import styles from '../me/me-page.module.css';
 
 interface StatsTabProps {
   catalog: Catalog | null;
@@ -39,20 +42,71 @@ interface StatsTabProps {
 export default function StatsTab({ catalog, catalogError, userId }: StatsTabProps) {
   const [progress, setProgress] = useState<TranslationProgress>({});
   const [hydrated, setHydrated] = useState(false);
+  const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
+  const [snapshotError, setSnapshotError] = useState<string | null>(null);
 
   // Progress lives in localStorage — re-read on mount (the user
-  // may have just finished a session in another tab).
+  // may have just finished a session in another tab) and whenever
+  // TranslationSession dispatches a progress-changed event.
   useEffect(() => {
     setProgress(loadTranslationProgress(userId));
     setHydrated(true);
+    const onProgressChanged = () => {
+      setProgress(loadTranslationProgress(userId));
+    };
+    window.addEventListener('translation-progress-changed', onProgressChanged);
+    return () => {
+      window.removeEventListener('translation-progress-changed', onProgressChanged);
+    };
   }, [userId]);
+
+  // Dashboard snapshot — best-effort fetch on mount. Failure is
+  // tolerated: we just show "—" for the streak / today KPIs. The
+  // `/dashboard` page renders these numbers richer if the user
+  // wants more.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await getDashboardSnapshot();
+        if (cancelled) return;
+        setSnapshot(s);
+      } catch (e) {
+        if (cancelled) return;
+        setSnapshotError(e instanceof Error ? e.message : '加载 dashboard 失败');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const kpis = computeKpis(progress);
   const libRows = catalog ? computeLibRows(progress, catalog) : [];
 
+  // Derived dashboard fields (with safe defaults when missing).
+  const todayCount = snapshot?.daily_goal?.today_count ?? null;
+  const todayTarget = snapshot?.daily_goal?.target ?? null;
+  const streakCurrent = snapshot?.streak?.current ?? 0;
+  const streakLongest = snapshot?.streak?.longest ?? 0;
+
+  const todayHint =
+    todayCount != null && todayTarget
+      ? todayCount >= todayTarget
+        ? '今日目标已达成'
+        : `今日目标 ${todayCount} / ${todayTarget}`
+      : null;
+
+  const streakHint =
+    streakCurrent === 0
+      ? '开始 7 天连击'
+      : streakLongest > streakCurrent
+        ? `历史最长 ${streakLongest} 天`
+        : `已连续 ${streakCurrent} 天`;
+
   return (
-    <div className="me-stats">
-      <section className="me-stats__kpis" aria-label="总览统计">
+    <div className={styles['me-stats']}>
+      <section className={styles['me-stats__kpis']} aria-label="总览统计">
         <KpiCell
           label="已练词库"
           value={hydrated ? kpis.libsCount : '—'}
@@ -69,42 +123,55 @@ export default function StatsTab({ catalog, catalogError, userId }: StatsTabProp
           animateFrom={0}
           skipCountUp
         />
-        <KpiCell label="连续天数" value={kpis.streakDays} hint="连续 7 天练习解锁" />
+        <KpiCell
+          label="今日已练"
+          value={todayCount != null ? todayCount : '—'}
+          animateFrom={todayCount != null ? todayCount : 0}
+          hint={snapshotError ? '需要 dashboard 数据' : todayHint ?? undefined}
+        />
+        <KpiCell
+          label="连续天数"
+          value={streakCurrent}
+          animateFrom={streakCurrent}
+          hint={streakHint}
+        />
       </section>
 
-      <section className="me-stats__libs" aria-label="词库进度">
-        <h2 className="me-section-title">词库进度</h2>
+      <section className={styles['me-stats__libs']} aria-label="词库进度">
+        <h2 className={styles['me-section-title']}>词库进度</h2>
         {!catalog ? (
-          <p className="me-empty">
+          <p className={styles['me-empty']}>
             {catalogError ? `加载词库失败:${catalogError}` : '加载词库中…'}
           </p>
         ) : libRows.length === 0 ? (
-          <p className="me-empty">还没有开始练习,先去挑个词库试试 →</p>
+          <p className={styles['me-empty']}>
+            还没有开始练习,先去挑个词库试试 →
+          </p>
         ) : (
-          <table className="me-lib-table">
+          <table className={styles['me-lib-table']}>
             <thead>
               <tr>
                 <th scope="col">词库</th>
-                <th scope="col" className="me-lib-table__num">已练</th>
-                <th scope="col" className="me-lib-table__num">正确率</th>
-                <th scope="col" className="me-lib-table__num">错题</th>
+                <th scope="col" className={styles['me-lib-table__num']}>已练</th>
+                <th scope="col" className={styles['me-lib-table__num']}>正确率</th>
+                <th scope="col" className={styles['me-lib-table__num']}>错题</th>
               </tr>
             </thead>
             <tbody>
               {libRows.map((row, i) => (
                 <tr key={row.libId}>
-                  <th scope="row" className="me-lib-table__name">
+                  <th scope="row" className={styles['me-lib-table__name']}>
                     {row.libName}
                   </th>
-                  <td className="me-lib-table__num">{row.answered}</td>
-                  <td className="me-lib-table__num">
+                  <td className={styles['me-lib-table__num']}>{row.answered}</td>
+                  <td className={styles['me-lib-table__num']}>
                     <AccuracyBar
                       accuracy={row.accuracy}
                       hint={row.accuracy != null ? `${row.accuracy}%` : '—'}
                       index={Math.min(i, 12)}
                     />
                   </td>
-                  <td className="me-lib-table__num">{row.wrong}</td>
+                  <td className={styles['me-lib-table__num']}>{row.wrong}</td>
                 </tr>
               ))}
             </tbody>
@@ -139,22 +206,19 @@ function KpiCell({
   // immediately when `to` is 0; we then display either the live count
   // or the supplied string value.
   const [counted, reached] = useCountUp(animateFrom ?? 0);
-  // Achievement glow triggers when the count lands on its target.
-  // Currently only wired for the accuracy card (passed via label
-  // marker); other cards use reached but the CSS doesn't act on it.
   const displayValue =
     skipCountUp || animateFrom == null ? value : counted;
   const isAchievement =
     !skipCountUp && animateFrom != null && animateFrom === 100 && reached;
   return (
     <div
-      className="me-kpi"
+      className={styles['me-kpi']}
       data-reached={reached ? 'true' : 'false'}
       data-achievement={isAchievement ? 'true' : 'false'}
     >
-      <div className="me-kpi__value">{displayValue}</div>
-      <div className="me-kpi__label">{label}</div>
-      {hint ? <div className="me-kpi__hint">{hint}</div> : null}
+      <div className={styles['me-kpi__value']}>{displayValue}</div>
+      <div className={styles['me-kpi__label']}>{label}</div>
+      {hint ? <div className={styles['me-kpi__hint']}>{hint}</div> : null}
     </div>
   );
 }
@@ -172,18 +236,10 @@ function AccuracyBar({
    *  min(index*20, 240)). */
   index: number;
 }) {
-  // Track width in state so we can transition from 0 → target. The
-  // initial render paints with width:0 (the .me-accuracy__fill CSS
-  // rule sets width:0 by default), then a rAF bump on mount flips
-  // to the target — which is what triggers the CSS transition.
   const [width, setWidth] = useState(0);
   const target = accuracy == null ? 0 : accuracy;
 
   useEffect(() => {
-    // Reduced-motion → jump straight to target. Otherwise the rAF
-    // ensures the initial 0 paint commits before the target value
-    // lands — without it the element would render with target width
-    // and the transition would never fire.
     const reduced =
       typeof window !== 'undefined' &&
       window.matchMedia &&
@@ -200,17 +256,17 @@ function AccuracyBar({
 
   return (
     <span
-      className="me-accuracy"
+      className={styles['me-accuracy']}
       aria-label={`正确率 ${hint}`}
       style={{ animationDelay: `${index * 20}ms` }}
     >
-      <span className="me-accuracy__track">
+      <span className={styles['me-accuracy__track']}>
         <span
-          className="me-accuracy__fill"
+          className={styles['me-accuracy__fill']}
           style={{ width: `${width}%` }}
         />
       </span>
-      <span className="me-accuracy__text">{hint}</span>
+      <span className={styles['me-accuracy__text']}>{hint}</span>
     </span>
   );
 }
@@ -222,8 +278,6 @@ interface Kpis {
   sentencesTotal: number;
   /** null when no answers exist (avoid "NaN%" / "0%" ambiguity). */
   accuracy: number | null;
-  /** Always 0 in Phase 4 — see Streak comment in StatsTab header. */
-  streakDays: number;
 }
 
 function computeKpis(progress: TranslationProgress): Kpis {
@@ -244,7 +298,6 @@ function computeKpis(progress: TranslationProgress): Kpis {
     libsCount,
     sentencesTotal: total,
     accuracy: total > 0 ? Math.round((correct / total) * 100) : null,
-    streakDays: 0,
   };
 }
 
@@ -261,10 +314,6 @@ function computeLibRows(progress: TranslationProgress, catalog: Catalog): LibRow
   const byId = new Map<string, VocabularyLibRowInput>(
     catalog.libs.map((l) => [l.id, l]),
   );
-  // Include libs that have progress but are no longer in the catalog
-  // (operator removed the CSV, blob still has entries). They show up
-  // with a "已下架" label so the user understands the count without
-  // us silently dropping the data.
   for (const libId in progress) {
     if (!byId.has(libId)) {
       byId.set(libId, {
@@ -297,7 +346,6 @@ function computeLibRows(progress: TranslationProgress, catalog: Catalog): LibRow
       accuracy: answered > 0 ? Math.round((correct / answered) * 100) : null,
     });
   }
-  // Most-practiced lib first.
   rows.sort((a, b) => b.answered - a.answered);
   return rows;
 }

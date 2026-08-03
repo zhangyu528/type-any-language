@@ -6,7 +6,10 @@ import {
   getAudioUrl,
   isSentenceCollected,
   LessonSentence,
+  readPrefAudioRate,
+  readPrefBool,
   removeFromCollection,
+  STORAGE_SHOW_PHONETIC,
   WordInLesson,
 } from './api';
 import { useAuth } from './lib/auth';
@@ -81,6 +84,16 @@ export default function TranslationStage({
   // animation duration (see useEffect below) so the next toggle
   // can fire it again.
   const [popping, setPopping] = useState<boolean>(false);
+  // User-driven audio playback rate (from /me SettingsTab). Read
+  // once on mount and refreshed whenever prefs.audioRate changes
+  // (cross-tab storage event). Applied to the <audio> via
+  // .playbackRate right before play(), and updated mid-playback
+  // when the user changes the setting on the /me page.
+  const [audioRate, setAudioRate] = useState(1);
+  // Whether to render the phonetic transcription under the target
+  // word. Defaults to true (Stage always showed it) but the user
+  // can switch it off via /me SettingsTab.
+  const [showPhonetic, setShowPhonetic] = useState(true);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -115,6 +128,24 @@ export default function TranslationStage({
     setIsCollected(isSentenceCollected(sentence.id, userId));
   }, [sentence.id, userId]);
 
+  // Read user-driven prefs on mount + subscribe to changes.
+  // - audioRate: Stage applies it on every play() and updates mid-playback
+  // - showPhonetic: controls whether the IPA transcription is rendered
+  // Same-tab updates come from /me's storage event; cross-tab too.
+  useEffect(() => {
+    setAudioRate(readPrefAudioRate());
+    setShowPhonetic(readPrefBool(STORAGE_SHOW_PHONETIC, true));
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'prefs.audioRate') {
+        setAudioRate(readPrefAudioRate());
+      } else if (e.key === 'prefs.showPhonetic') {
+        setShowPhonetic(readPrefBool(STORAGE_SHOW_PHONETIC, true));
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
   // Clear the popping flag once the CSS animation completes so the
   // next toggle can fire it again. The 480ms matches the longest
   // animation (particles fade) in the star CSS.
@@ -146,12 +177,18 @@ export default function TranslationStage({
       if (audioRef.current) {
         audioRef.current.src = getAudioUrl(sentence.audio_url);
         audioRef.current.currentTime = 0;
+        // Apply the user's audioRate preference. Setting
+        // playbackRate on the audio element controls rate without
+        // pitch-shift (HTMLAudioElement honors this in modern
+        // browsers). Changes from /me settings take effect on the
+        // very next space-bar press.
+        audioRef.current.playbackRate = audioRate;
         audioRef.current.play().catch(() => { /* 静默 */ });
       }
     } catch {
       /* 静默 */
     }
-  }, [sentence.audio_url]);
+  }, [sentence.audio_url, audioRate]);
 
   const skip = () => {
     onComplete(false);
@@ -371,7 +408,7 @@ export default function TranslationStage({
       <header className={styles.header}>
         <div className={styles.wordCard}>
           <h2 className={styles.wordCardWord}>{targetWord.word}</h2>
-          {targetWord.phonetic && (
+          {showPhonetic && targetWord.phonetic && (
             <span className={styles.wordCardPhonetic}>{targetWord.phonetic}</span>
           )}
           {targetWord.translation && (
