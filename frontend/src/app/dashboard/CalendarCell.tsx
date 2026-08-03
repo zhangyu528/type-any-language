@@ -14,6 +14,7 @@
  */
 
 import { CalendarDay } from '../api';
+import { parseIsoDate, formatFullCn, isFirstOfMonth } from './calendarDate';
 import styles from './CalendarCell.module.css';
 
 export type Tone = 'empty' | 'under' | 'hit' | 'over' | 'future';
@@ -28,9 +29,8 @@ function pickTone(day: CalendarDay, dailyGoalTarget: number): Tone {
 }
 
 function formatDayNum(iso: string): string {
-  // ISO YYYY-MM-DD → "16". Defensive against malformed input.
-  const parts = iso.split('-');
-  return parts[2] ?? '';
+  const p = parseIsoDate(iso);
+  return p ? String(p.day) : '';
 }
 
 function isToday(iso: string): boolean {
@@ -51,9 +51,17 @@ export default function CalendarCell({ day, dailyGoalTarget = 20, onClick }: Cal
   const dayNum = formatDayNum(day.date);
   const today = isToday(day.date);
   const interactive = !day.is_future;
+  // A 4-week window always straddles a month boundary; marking the
+  // 1st is what lets the user read "which month am I looking at"
+  // off the grid without cross-referencing the header range.
+  const monthStart = isFirstOfMonth(day.date);
+  const parts = parseIsoDate(day.date);
 
   const ariaLabel = [
-    day.date,
+    // Full 年月日 rather than the raw ISO — a screen reader spells
+    // "2026-08-04" out as digits and dashes.
+    formatFullCn(day.date),
+    today ? '今天' : null,
     interactive ? `${day.sentences_count} 句` : '未来',
     interactive && day.accuracy != null ? `准确率 ${Math.round(day.accuracy * 100)}%` : null,
     day.goal_hit ? '达标' : null,
@@ -65,12 +73,20 @@ export default function CalendarCell({ day, dailyGoalTarget = 20, onClick }: Cal
   return (
     <button
       type="button"
-      className={`${styles.cell} ${styles[tone]} ${today ? styles.today : ''}`}
+      className={`${styles.cell} ${styles[tone]} ${today ? styles.today : ''} ${
+        monthStart ? styles.monthStart : ''
+      }`}
       onClick={interactive && onClick ? () => onClick(day.date) : undefined}
       disabled={!interactive}
       aria-label={ariaLabel}
+      title={formatFullCn(day.date)}
       role="gridcell"
     >
+      {monthStart && parts ? (
+        <span className={styles.monthTag} aria-hidden>
+          {parts.month}月
+        </span>
+      ) : null}
       <span className={styles.num}>{dayNum}</span>
       {day.is_streak_node && !day.is_future ? (
         <span className={styles.streakIcon} aria-hidden>🔥</span>

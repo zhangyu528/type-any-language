@@ -1,0 +1,125 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elev-1);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.heading {
+  margin: 0;
+  color: var(--ds-ink-soft);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.count {
+  color: var(--ds-ink-soft);
+  font-size: var(--text-caption);
+  white-space: nowrap;
+}
+
+.list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3);
+  background: var(--ds-tint);
+  border-radius: var(--radius-md);
+}
+
+.cardTop,
+.meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.nameWrap {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+.level {
+  flex: 0 0 auto;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--ds-action-mint);
+  color: var(--ds-action-deep);
+  font-family: var(--font-mono), monospace;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+}
+
+.name {
+  overflow: hidden;
+  margin: 0;
+  color: var(--ds-ink);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.percent {
+  flex: 0 0 auto;
+  color: var(--ds-action-deep);
+  font-family: var(--font-mono), monospace;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+}
+
+.track {
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--ds-border);
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ds-action);
+  transition: width 400ms var(--ease-out);
+}
+
+.meta {
+  color: var(--ds-ink-soft);
+  font-size: var(--text-caption);
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-3) 0;
+  color: var(--ds-ink-soft);
+  font-size: var(--text-body);
+}
+
+@media (max-width: 639px) {
+  .list {
+    grid-template-columns: 1fr;
+  }
+}

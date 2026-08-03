@@ -78,7 +78,7 @@ export default function GreetingBar({ user, streak, dailyGoal }: GreetingBarProp
           warnings in stricter lint configs. The headline goal state is
           surfaced visually in the DailyGoal card below. */}
       <span className={styles.srOnly}>
-        Today's goal: {dailyGoal.today_count} of {dailyGoal.target}
+        Today&apos;s goal: {dailyGoal.today_count} of {dailyGoal.target}
       </span>
     </header>
   );

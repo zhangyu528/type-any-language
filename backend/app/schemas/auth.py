@@ -58,3 +58,10 @@ class ErrorResponse(BaseModel):
     # (not just raise) so it's part of the OpenAPI schema and the
     # frontend can codegen-derive the type.
     field_errors: Optional[dict[str, str]] = None
+
+
+# ---- Update display name ------------------------------------------------
+class UpdateDisplayNameRequest(BaseModel):
+    """PATCH /api/auth/me body. Same length cap as signup so a future
+    review / search surface never has to re-think bounds."""
+    display_name: str = Field(min_length=1, max_length=100)

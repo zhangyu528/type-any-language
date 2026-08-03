@@ -15,7 +15,10 @@
  *   1.5*goal+    → --cal-over
  *
  * Today always gets a coral outline (the strongest color on the page)
- * so the user knows where they are in the streak.
+ * so the user knows where they are in the streak. The 1st of a month
+ * gets a "N月" tag + left rule, and the header carries the window's
+ * full span ("2026年7月8日 – 8月4日"), so the grid is readable as a
+ * calendar rather than 35 anonymous squares.
  *
  * Click a non-future cell → open DayDetailDrawer on the right
  * (desktop) or bottom (mobile). Future cells are not interactive.
@@ -48,10 +51,18 @@ export default function WeeklyCalendar({ days, monthlyGoal }: WeeklyCalendarProp
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const rows = useMemo(() => buildRows(days), [days]);
+  // The header shows the window's real span. `days` arrives sorted
+  // oldest-first, so the ends are just the first / last entries.
+  const rangeStart = days.length > 0 ? days[0].date : undefined;
+  const rangeEnd = days.length > 0 ? days[days.length - 1].date : undefined;
 
   return (
     <section className={styles.root} aria-label="recent activity">
-      <CalendarHeader monthlyGoal={monthlyGoal} />
+      <CalendarHeader
+        monthlyGoal={monthlyGoal}
+        rangeStart={rangeStart}
+        rangeEnd={rangeEnd}
+      />
       <div className={styles.grid} role="grid" aria-label="4 week activity">
         {/* Weekday header row (Mon, Tue, ..., Sun) */}
         <div className={styles.weekdays} role="row">

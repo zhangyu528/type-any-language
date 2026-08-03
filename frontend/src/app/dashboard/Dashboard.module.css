@@ -19,6 +19,42 @@
   font-family: var(--font-sans);
 }
 
+/* Overview main grid — left stack (ContinueCard over DailyGoal)
+   beside the calendar. Pairing them keeps the calendar from
+   stretching to the full 1080px content width, which blew each day
+   cell up to ~145px (aspect-ratio 1/1) and made the grid ~725px
+   tall — taller than everything above it combined. At 1fr/1fr the
+   cells land around 60px, and the left stack's two 160px cards
+   roughly match the calendar's height. */
+.mainGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Let the two left cards divide whatever height the calendar column
+   ends up at, so the row reads as two balanced columns instead of a
+   short stack floating beside a tall calendar. `1 0 auto` grows but
+   never shrinks below each card's own min-height (160px); both cards
+   pin their CTA with margin-top:auto, so the extra height lands as
+   breathing room above the button rather than stretched text. */
+.stack > * {
+  flex: 1 0 auto;
+}
+
+/* Tablet (<=1023): calendar drops below the stack. */
+@media (max-width: 1023px) {
+  .mainGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -30,6 +66,26 @@
   .row {
     grid-template-columns: 1fr;
   }
+}
+
+/* In-session frame — TranslationSession renders inline under the
+   GreetingBar when practiceMode === 'in-session'. The session owns
+   its own internal layout; this wrapper only re-establishes the
+   vertical rhythm the dashboard grid would otherwise provide. */
+.sessionFrame {
+  display: flex;
+  flex-direction: column;
+  min-height: 60vh;
+}
+
+.modalState {
+  display: flex;
+  min-height: 180px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  text-align: center;
 }
 
 .loading,

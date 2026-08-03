@@ -20,22 +20,25 @@ import styles from './practice/Practice.module.css';
  * URL conventions (single-route + query-string state machine, so
  * refreshing on a lesson page takes the user straight back):
  *
- *   /            → LandingPage (anonymous) or /dashboard (logged in)
+ *   /            → LandingPage (anonymous) or /dashboard redirect (logged-in)
  *   /?lib=X      → TranslationSession for lib X (random-step drill)
  *
  * Auth-aware `/`:
  *   - Anonymous users see LandingPage — the content-driven marketing
  *     surface that introduces the lib market and daily plan.
  *   - Logged-in users get redirected to /dashboard (their working
- *     bench). Landing's "marketing surface" is not the post-login
- *     home; /dashboard is.
+ *     bench). The "landing page is for marketing visitors" split is
+ *     deliberate — selecting a lib is a dashboard action for signed-
+ *     in users (see dashboard/page.tsx::practiceMode), not a page-
+ *     routing decision at the root.
  *   - `?lib=X` is always honored regardless of auth state — it's a
- *     deep link into a specific lesson. Login redirect would feel
- *     hostile here ("I clicked a lib card and got bounced").
+ *     deep link into a specific lesson (e.g. /me's CollectionTab
+ *     "练这句" → /?lib=X&sentence=Y). Login redirect would feel
+ *     hostile here ("I clicked a sent link and got bounced").
  *
  * Persistence: `prefs.libId` is still written to localStorage on
- * selection, but NOT read back on init — LandingPage reads it on
- * its own to drive the "继续上次" CTA card.
+ * selection, but NOT read back on init — the dashboard reads it on
+ * its own to drive the "继续上次" affordance.
  */
 export default function PracticePage() {
   const router = useRouter();
@@ -215,12 +218,12 @@ export default function PracticePage() {
     );
   }
 
-  // Logged-in users see the same Landing as anonymous visitors —
-  // they pick a lib and dive into the drill. No dedicated dashboard
-  // route exists anymore (the historical /history placeholder was
-  // removed 2026-07-31; this page IS the home for everyone).
+  // Only anonymous visitors (or anyone following a `?lib=X` deep
+  // link) reach this point — logged-in users without `?lib` were
+  // already bounced to /dashboard above, where lib selection is an
+  // in-place dashboard action (dashboard/page.tsx::practiceMode).
 
-  // No lib selected → render LandingPage (the new content-driven home).
+  // No lib selected → render LandingPage (the content-driven home).
   if (!selectedLibId) {
     return (
       <LandingPage

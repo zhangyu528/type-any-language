@@ -15,6 +15,7 @@
 
 import { useEffect, useState } from 'react';
 import { DayDetail, getDayDetail } from '../api';
+import { formatFullCn } from './calendarDate';
 import styles from './DayDetailDrawer.module.css';
 
 export interface DayDetailDrawerProps {
@@ -66,10 +67,10 @@ export default function DayDetailDrawer({ date, onClose }: DayDetailDrawerProps)
       <aside
         className={styles.drawer}
         role="dialog"
-        aria-label={`${date} 当天详情`}
+        aria-label={`${formatFullCn(date)} 当天详情`}
       >
         <header className={styles.head}>
-          <p className={styles.date}>{date}</p>
+          <p className={styles.date}>{formatFullCn(date)}</p>
           <button
             type="button"
             className={styles.close}

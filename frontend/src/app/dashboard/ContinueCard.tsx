@@ -1,34 +1,37 @@
 'use client';
 
 /**
- * ContinueCard — "where did I leave off" surface.
+ * ContinueCard — "where did I left off" surface.
  *
  * Three states driven by ContinueState:
  *   - has-unfinished session → "Resume Practice" CTA
  *   - has-finished session (no unfinished) → "Practice again" CTA
- *   - no sessions yet → "Start your first lesson" + library picker
- *     (the picker falls through to /practice landing for v1 — the
- *     future lib-grid picker lives in a later phase)
+ *   - no sessions yet → "Start your first lesson" (opens the
+ *     dashboard's in-place lib picker)
  *
- * CTA target:
- *   - When lib_id is known: /?lib=<id> — the existing /practice page
- *     already supports this query param.
- *   - When lib_id is null (free practice): / (homepage).
+ * The card is now router-agnostic — its parent decides how to
+ * route the CTA. For the dashboard this means an in-place state
+ * transition (no Next Router push), because lib selection is a
+ * dashboard-local action for signed-in users. Anonymous visitors
+ * still go through `/practice?lib=X` via the page.tsx path, but
+ * that's the landing/LibShowcase flow — ContinueCard never runs
+ * there.
  */
 
-import { useRouter } from 'next/navigation';
 import { ContinueState } from '../api';
 import styles from './ContinueCard.module.css';
 
 export interface ContinueCardProps {
   state: ContinueState;
+  /** CTA handler when there's an existing session to resume. */
+  onResume: () => void;
+  /** CTA handler when the user needs to pick a lib (first-time / no last lib). */
+  onPickLib: () => void;
 }
 
-export default function ContinueCard({ state }: ContinueCardProps) {
-  const router = useRouter();
-
+export default function ContinueCard({ state, onResume, onPickLib }: ContinueCardProps) {
   const hasSession = state.session_id !== null;
-  const target = state.lib_id ? `/?lib=${encodeURIComponent(state.lib_id)}` : '/';
+  const handleClick = hasSession ? onResume : onPickLib;
 
   const cta = !hasSession
     ? 'Start your first lesson'
@@ -49,7 +52,7 @@ export default function ContinueCard({ state }: ContinueCardProps) {
       <button
         type="button"
         className={styles.cta}
-        onClick={() => router.push(target)}
+        onClick={handleClick}
       >
         {cta} →
       </button>

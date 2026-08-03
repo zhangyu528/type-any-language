@@ -217,7 +217,7 @@ export function useAuthFormState({ mode, redirectTo: _redirectTo }: UseAuthFormS
       return { tone: 'mismatch', zh: '两次输入不一致' };
     }
     return { tone: 'incomplete', zh: '密码需要 8 位' };
-  }, [mode, values.password, values.confirm]);
+  }, [mode, values]);
 
   const emailValid = values.email.length > 0 && emailFormatError === null;
   const passwordValid = values.password.length >= PASSWORD_LENGTH;

@@ -1,0 +1,130 @@
+/* ModalShell — 通用模态外壳
+   ------------------------------------------------------------
+   遮罩配方与 AuthModal.module.css 保持一致(frosted glass),
+   对话框比 auth 的 400px 宽,因为内容通常是网格而非表单。
+   高度上限 min(84vh, ...) + body 内滚,保证小屏不溢出。 */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: color-mix(in srgb, var(--ds-bg) 78%, transparent);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  animation: modalShell-overlayFade 250ms var(--ease-out) both;
+}
+
+.dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 640px;
+  max-height: 84vh;
+  background: var(--ds-surface);
+  border: 0.5px solid var(--ds-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--elev-1);
+  animation: modalShell-rise 400ms var(--ease-out) both;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--space-6) var(--space-4);
+  border-bottom: 1px solid var(--ds-border);
+}
+
+.headText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-h2);
+  font-weight: var(--weight-medium);
+  line-height: 1.25;
+  color: var(--ds-ink);
+}
+
+.subtitle {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: 1.5;
+  color: var(--ds-ink-soft);
+}
+
+.close {
+  flex-shrink: 0;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--ds-ink-soft);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.close:hover {
+  background: var(--ds-tint);
+  color: var(--ds-ink);
+}
+
+.close:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+
+/* 内容超高时在 body 内滚,head 固定 —— 关闭按钮永远可达。 */
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-5) var(--space-6) var(--space-6);
+}
+
+@keyframes modalShell-overlayFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes modalShell-rise {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .dialog {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+@media (max-width: 639px) {
+  .head {
+    padding: var(--space-5) var(--space-4) var(--space-3);
+  }
+  .body {
+    padding: var(--space-4);
+  }
+}

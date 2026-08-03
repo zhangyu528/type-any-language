@@ -11,7 +11,17 @@
   box-shadow: var(--elev-1);
 }
 
+/* Cells are `width:100%` + `aspect-ratio:1/1`, so left to a `1fr`
+   track they inflate to whatever the column is wide — that's what
+   made the calendar tower over the rest of the page. Cap the track
+   at --cal-cell instead, then center the resulting 7-column block:
+   the capped grid (7×40 + 6×8 = 328px) is narrower than the card,
+   and `justify-content: center` puts the leftover width on both
+   sides rather than dumping it all on the right edge. Weekday
+   header and day rows share the same template + justification, so
+   their columns stay in register. */
 .grid {
+  --cal-cell: 40px;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -19,7 +29,8 @@
 
 .weekdays {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, var(--cal-cell)));
+  justify-content: center;
   gap: var(--space-2);
   margin-bottom: var(--space-1);
 }
@@ -33,13 +44,17 @@
 
 .row {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, var(--cal-cell)));
+  justify-content: center;
   gap: var(--space-2);
 }
 
+/* Legend sits directly under the centered grid, so it centers too —
+   left-aligning it against a centered grid reads as a misalignment. */
 .legend {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-2);
   margin-top: var(--space-3);
   flex-wrap: wrap;
@@ -63,10 +78,12 @@
 .legendHit   { background: var(--cal-hit); }
 .legendOver  { background: var(--cal-over); }
 
-/* Mobile: shrink the cells. The cell itself owns its size; this is
-   just the gap layout, which already collapses cleanly via the
-   grid gap. */
+/* Mobile: tighten the gap and drop the cell cap a notch so all 7
+   columns clear a 320px viewport (7×34 + 6×4 = 262px + padding). */
 @media (max-width: 639px) {
+  .grid {
+    --cal-cell: 34px;
+  }
   .weekdays,
   .row {
     gap: var(--space-1);

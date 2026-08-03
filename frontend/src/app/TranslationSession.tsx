@@ -353,7 +353,7 @@ export default function TranslationSession({
       setCurrentStep(next);
       if (!next) setSessionState('empty-lib');
     },
-    [progress, libId, lesson, currentStep, isGuest, lastResult, sessionStats, cardState]
+    [progress, libId, lesson, currentStep, isGuest, lastResult, sessionStats, cardState, userId]
   );
 
   const handleHintLogin = useCallback(() => {

@@ -43,6 +43,7 @@ from app.models.user import User
 from app.schemas.auth import (
     LoginRequest,
     SignupRequest,
+    UpdateDisplayNameRequest,
     UserPublic,
 )
 from app.services import auth_service
@@ -151,6 +152,25 @@ def me(
     if user is None:
         return {"user": None}
     return {"user": UserPublic.from_model(user).model_dump(mode="json")}
+
+
+@router.patch("/me", response_model=UserPublic)
+def update_me(
+    payload: UpdateDisplayNameRequest,
+    current_user: User = Depends(get_current_user),
+    db: DbSession = Depends(get_db),
+) -> UserPublic:
+    """Update the current user's display_name.
+
+    Auth-required — anonymous callers get 401 from get_current_user.
+    Empty / over-length input is rejected at the Pydantic layer (422).
+    Returns the post-update UserPublic so the client can refresh its
+    cached projection in one round-trip.
+    """
+    current_user.display_name = payload.display_name.strip()
+    db.commit()
+    db.refresh(current_user)
+    return UserPublic.from_model(current_user)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

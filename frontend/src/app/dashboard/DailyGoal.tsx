@@ -11,7 +11,6 @@
  * ProgressRing stays at 100% fill (no clipping past the target).
  */
 
-import { useRouter } from 'next/navigation';
 import ProgressRing from '../ds/components/ProgressRing';
 import { DailyGoalState } from '../api';
 import { useCountUp } from '../me/useCountUp';
@@ -19,10 +18,15 @@ import styles from './DailyGoal.module.css';
 
 export interface DailyGoalProps {
   state: DailyGoalState;
+  /**
+   * CTA handler — opens the dashboard's in-place lib picker (or
+   * jumps straight into the last-used lib when prefs.libId is set).
+   * Parent owns routing so this card stays router-agnostic.
+   */
+  onStartPractice: () => void;
 }
 
-export default function DailyGoal({ state }: DailyGoalProps) {
-  const router = useRouter();
+export default function DailyGoal({ state, onStartPractice }: DailyGoalProps) {
   // Animate only today's count, not the target. Target is shown as
   // a static "/ 20" suffix so the user always sees the goal.
   const [shown] = useCountUp(state.today_count);
@@ -51,7 +55,7 @@ export default function DailyGoal({ state }: DailyGoalProps) {
         <button
           type="button"
           className={styles.cta}
-          onClick={() => router.push('/')}
+          onClick={onStartPractice}
         >
           Practice now
         </button>

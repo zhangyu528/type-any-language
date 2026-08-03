@@ -167,6 +167,18 @@ export const FALLBACK_DAILY_SENTENCE: DailySentence = {
   difficulty: 'B1',
 };
 
+/**
+ * Cold-start fallback lib id, used only by `composeLandingData()`.
+ *
+ * NOTE (dead in practice): composeLandingData is itself unused today
+ * — LandingPage renders LibShowcase off the live catalog and does not
+ * surface a "recommended" section. Even if it did, this constant is
+ * only reached when `recentLibId` is unset AND the catalog yields no
+ * `newLib`, i.e. an empty catalog — a state page.tsx already
+ * short-circuits with the "暂无课程" empty screen before Landing
+ * renders. Keep it as the composer's total-function guarantee; delete
+ * it if composeLandingData is ever removed.
+ */
 export const FALLBACK_RECOMMENDED_LIB_ID = 'cet4';
 
 /* ------------------------------------------------------------------ */
