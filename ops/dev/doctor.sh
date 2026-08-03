@@ -81,6 +81,10 @@ cmd_doctor() {
     fi
 
     # ─── Host-native dev deps (make dev-start needs these) ─────────────────
+    # Backend deps: python + .venv + uvicorn — kept inline here since
+    # backend has no self-preflight yet (mirror of frontend's npm run
+    # preflight). Once backend/scripts/preflight.mjs lands, this block
+    # shrinks to a single `cd backend && npm ...`-style invocation too.
     echo "--- host-native dev deps (make dev-start needs these) ---"
     local py_v=""
     if command -v python3 >/dev/null 2>&1; then
@@ -95,31 +99,26 @@ cmd_doctor() {
     else
         warn "  python3 / python 都不在 PATH — native backend 起不了"
     fi
-    if command -v node >/dev/null 2>&1; then
-        local node_v
-        node_v="$(node --version 2>/dev/null | sed 's/^v//' || echo unknown)"
-        ok "node: $node_v"
-        case "$node_v" in
-            2[0-9].*|1[8-9].*) ;;
-            *)                     warn "  node ≥ 20 推荐 (你: $node_v)";;
-        esac
-    else
-        warn "  node 不在 PATH — native frontend 起不了"
-    fi
-    if command -v npm >/dev/null 2>&1; then
-        ok "npm: $(npm --version 2>/dev/null)"
-    else
-        warn "  npm 不在 PATH"
-    fi
     if [ -d "./backend/.venv" ] && ([ -f "./backend/.venv/bin/uvicorn" ] || [ -f "./backend/.venv/Scripts/uvicorn.exe" ]); then
         ok "backend/.venv 存在 + uvicorn 可用"
     else
         warn "  backend/.venv 缺失或 uvicorn 未装 — 跑 make dev-setup"
     fi
-    if [ -d "./frontend/node_modules" ]; then
-        ok "frontend/node_modules 存在"
+
+    # Frontend deps: delegated to frontend's own preflight.
+    # The script exits non-zero on hard failures; we record but don't
+    # fail doctor — frontend may not be the operator's focus (e.g.
+    # they're only running the CMS importer or prod-only work).
+    echo "--- frontend preflight (npm run preflight) ---"
+    if command -v npm >/dev/null 2>&1 && [ -f "./frontend/package.json" ]; then
+        if (cd frontend && npm run preflight 2>&1); then
+            : # preflight already prints ok/warn/err itself
+        else
+            warn "  frontend preflight 返回非零 — 看上面"
+            failed=1
+        fi
     else
-        warn "  frontend/node_modules 缺失 — 跑 make dev-setup"
+        warn "  跳过 — npm 或 frontend/package.json 缺失"
     fi
 
     echo ""

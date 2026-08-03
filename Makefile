@@ -44,7 +44,7 @@ dev-restart:
 
 ## dev-restart-frontend: kill frontend (pid file + port fallback for orphans) + start (does NOT touch backend)
 dev-restart-frontend:
-	@bash ops/dev/restart_frontend_dev.sh
+	@cd frontend && npm run dev:restart
 
 ## dev-status: pid + uptime + port for native backend/frontend + docker db health
 dev-status:

@@ -156,30 +156,14 @@ native_setup_python() {
 }
 
 native_setup_node() {
-    local frontend_dir="$PROJECT_DIR/frontend"
-    local lock_hash_file="$frontend_dir/.package-lock.sha256"
-    local current_hash
-    current_hash="$(sha256sum "$frontend_dir/package-lock.json" 2>/dev/null | awk '{print $1}')"
-    local did_install=0
-    if [ -z "$current_hash" ]; then
-        err "  读 frontend/package-lock.json 失败"
+    # Hash-aware npm install — fully delegated to frontend's own entry
+    # point (frontend/scripts/install.mjs, invoked as `npm run install`).
+    # Cross-platform Node replaces the old sh sha256sum/awk/tr dance +
+    # the .package-lock.sha256 bookkeeping is owned by install.mjs now.
+    if ! (cd "$PROJECT_DIR/frontend" && npm run install); then
+        err "  npm run install 失败"
         return 1
     fi
-    local prior_hash=""
-    [ -f "$lock_hash_file" ] && prior_hash="$(cat "$lock_hash_file" 2>/dev/null || echo "")"
-    if [ ! -d "$frontend_dir/node_modules" ] || [ "$current_hash" != "$prior_hash" ]; then
-        info "  npm install (frontend/node_modules)..."
-        if ! (cd "$frontend_dir" && npm install --no-audit --no-fund); then
-            err "  npm install 失败"
-            return 1
-        fi
-        echo "$current_hash" > "$lock_hash_file"
-        did_install=1
-    else
-        info "  frontend node_modules 已存在 + lock hash 匹配 (skip)"
-    fi
-    # Suppress unused-var warning when no install happened
-    : "${did_install:=0}"
 }
 
 usage() {

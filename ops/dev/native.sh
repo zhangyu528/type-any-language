@@ -34,9 +34,11 @@
 #   DATABASE_URL          If set in env, uses that. Else defaults to
 #                          postgresql://english_dev:devpw@localhost:5432/english_dev
 #                          (matches what docker-compose's db service exposes).
-#   NEXT_PUBLIC_API_URL   Defaults to http://localhost:8000. Passed to next dev
-#                          (Next.js bakes NEXT_PUBLIC_* into the client JS at
-#                          first render in dev mode — export BEFORE `npm run dev`).
+#   NEXT_PUBLIC_API_URL   Frontend reads it via next.config.js (see
+#                          frontend/next.config.js). Defaults to
+#                          http://localhost:${BACKEND_PORT:-8000}. ops no
+#                          longer exports it — frontend self-resolves from
+#                          BACKEND_PORT at next dev boot.
 #   STRICT_PORT_CHECK=1   Make preflight fail on occupied :3000/:8000.
 #   BACKEND_PORT / FRONTEND_PORT  Override (defaults 8000 / 3000).
 #
@@ -81,7 +83,8 @@ FRONTEND_PORT="${FRONTEND_PORT:-3000}"
 
 DEFAULT_ALLOWED_ORIGINS="http://localhost,http://localhost:3000,http://localhost:54102,http://localhost:55407,http://localhost:55500"
 DEFAULT_DATABASE_URL="postgresql://english_dev:devpw@localhost:5432/english_dev"
-DEFAULT_NEXT_PUBLIC_API_URL="http://localhost:${BACKEND_PORT}"
+# NEXT_PUBLIC_API_URL is resolved by frontend/next.config.js from BACKEND_PORT.
+# ops no longer owns this default — see next.config.js for the source of truth.
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -354,15 +357,28 @@ cmd_start_frontend() {
     # Ensure docker postgres is up (self-heal, same pattern as import_content.sh).
     ensure_dev_db_up
 
-    # Export env — frontend doesn't read DATABASE_URL but NEXT_PUBLIC_API_URL
-    # is baked at first render, so the same defaults cmd_start uses apply.
+    # Export env — frontend doesn't read DATABASE_URL. NEXT_PUBLIC_API_URL
+    # is resolved by frontend/next.config.js from BACKEND_PORT, so ops
+    # only needs to make sure BACKEND_PORT (if operator overrode it) is in
+    # this process's env so the child npm run dev inherits it.
     export ALLOWED_ORIGINS="${ALLOWED_ORIGINS:-$DEFAULT_ALLOWED_ORIGINS}"
     export DATABASE_URL="${DATABASE_URL:-$DEFAULT_DATABASE_URL}"
-    export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-$DEFAULT_NEXT_PUBLIC_API_URL}"
+    # Pass-through: BACKEND_PORT → frontend dev inherits it.
+    # If operator did NOT set BACKEND_PORT, leave it unset; next.config.js
+    # defaults to 8000.
+    [ -n "${BACKEND_PORT:-}" ] && export BACKEND_PORT
 
     # MSYS-safe spawn: pass paths as $1 positional args inside `bash -c '...'`
     # so Git Bash doesn't parse them as Windows paths (see project memory
-    # docker-windows-single-slash-translation).
+    # docker-windows-single-slash-translation). The `cd` itself isn't a path-
+    # translation pain point; only `npm run` chokes on D:/path args when they
+    # land in the command string. Putting them in $1/$2 (positional args) keeps
+    # them as variables inside the subshell, where cd + exec picks them up
+    # without any path munging.
+    #
+    # `npm run dev` is the script defined in frontend/package.json ("dev":
+    # "next dev"). The `--` here is npm's argument separator; the trailing
+    # --port gets forwarded to `next dev` itself.
     _start_one "frontend" "$FRONTEND_PID_FILE" "$FRONTEND_LOG" \
         bash -c 'cd "$1" && exec npm run dev -- --port "$2"' _ "$FRONTEND_DIR" "$FRONTEND_PORT"
 
@@ -384,9 +400,12 @@ cmd_start() {
     ensure_dev_db_up
 
     # Export env for both processes. Both children inherit it.
+    # NEXT_PUBLIC_API_URL is resolved by frontend/next.config.js from
+    # BACKEND_PORT (see next.config.js for the source of truth) — ops
+    # only needs to pass BACKEND_PORT through if the operator set it.
     export ALLOWED_ORIGINS="${ALLOWED_ORIGINS:-$DEFAULT_ALLOWED_ORIGINS}"
     export DATABASE_URL="${DATABASE_URL:-$DEFAULT_DATABASE_URL}"
-    export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-$DEFAULT_NEXT_PUBLIC_API_URL}"
+    [ -n "${BACKEND_PORT:-}" ] && export BACKEND_PORT
 
     # MSYS-safe spawn: pass paths as $1 positional args inside `bash -c '...'`
     # so Git Bash doesn't parse them as Windows paths (see project memory
@@ -493,7 +512,7 @@ usage() {
 环境变量:
   ALLOWED_ORIGINS     默认 $DEFAULT_ALLOWED_ORIGINS
   DATABASE_URL        默认 $DEFAULT_DATABASE_URL
-  NEXT_PUBLIC_API_URL 默认 $DEFAULT_NEXT_PUBLIC_API_URL
+  NEXT_PUBLIC_API_URL 由 frontend/next.config.js 从 BACKEND_PORT 解析 (ops 不再 export)
   STRICT_PORT_CHECK=1 preflight 看到端口被占就 fail
   BACKEND_PORT / FRONTEND_PORT  覆盖
 
