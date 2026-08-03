@@ -102,56 +102,19 @@ cmd_setup() {
 }
 
 # ─── native_setup_python / native_setup_node ─────────────────────────────────
-# Install host-native deps for the new default dev path. Both functions are
-# idempotent: they short-circuit when nothing's changed by writing a SHA256 of
-# the relevant manifest file next to the install target. Same hash-aware
-# pattern the old container entrypoint.sh used, just on the host's filesystem.
-
-# _venv_bindir — returns the venv's binary directory name, OS-aware.
-# On Unix this is `bin`; on Windows (and Git Bash on Windows) the venv
-# module creates `Scripts/` instead. We detect at runtime by checking
-# which one exists.
-_venv_bindir() {
-    local venv_dir="$1"
-    if [ -d "$venv_dir/Scripts" ]; then
-        echo "Scripts"
-    else
-        echo "bin"
-    fi
-}
+# Install host-native deps. Both functions delegate to the segment-owned
+# entry points (backend/Makefile, frontend/package.json scripts); the
+# hash-aware skip / cross-platform venv detection / Windows MSYS work
+# all lives in Python + Node helpers, not in sh.
 
 native_setup_python() {
-    local backend_dir="$PROJECT_DIR/backend"
-    local venv_dir="$backend_dir/.venv"
-    local bindir
-    if [ ! -d "$venv_dir" ]; then
-        info "  建 python venv (backend/.venv)..."
-        if ! (cd "$backend_dir" && python3 -m venv .venv); then
-            err "  python3 -m venv 失败"
-            return 1
-        fi
-    else
-        info "  backend/.venv 已存在 (skip create)"
-    fi
-    bindir="$(_venv_bindir "$venv_dir")"
-    local req_hash_file="$backend_dir/.requirements.sha256"
-    local current_hash
-    current_hash="$(sha256sum "$backend_dir/requirements.txt" 2>/dev/null | awk '{print $1}')"
-    local prior_hash=""
-    [ -f "$req_hash_file" ] && prior_hash="$(cat "$req_hash_file" 2>/dev/null || echo "")"
-    if [ -z "$current_hash" ]; then
-        err "  读 backend/requirements.txt 失败"
+    # Smart pip install — fully delegated to backend's own entry point
+    # (backend/scripts/install.py). Python's hashlib + subprocess replaces
+    # the old sh sha256sum/awk/tr dance + the cross-platform
+    # `Scripts/activate vs bin/activate` probe.
+    if ! (cd "$PROJECT_DIR/backend" && python3 scripts/install.py); then
+        err "  python3 scripts/install.py 失败"
         return 1
-    fi
-    if [ "$current_hash" != "$prior_hash" ]; then
-        info "  pip install -r backend/requirements.txt ..."
-        if ! (cd "$backend_dir" && ".venv/$bindir/pip" install -r requirements.txt); then
-            err "  pip install 失败"
-            return 1
-        fi
-        echo "$current_hash" > "$req_hash_file"
-    else
-        info "  backend deps 已安装 (hash 匹配)"
     fi
 }
 

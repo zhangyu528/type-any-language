@@ -81,28 +81,19 @@ cmd_doctor() {
     fi
 
     # ─── Host-native dev deps (make dev-start needs these) ─────────────────
-    # Backend deps: python + .venv + uvicorn — kept inline here since
-    # backend has no self-preflight yet (mirror of frontend's npm run
-    # preflight). Once backend/scripts/preflight.mjs lands, this block
-    # shrinks to a single `cd backend && npm ...`-style invocation too.
-    echo "--- host-native dev deps (make dev-start needs these) ---"
-    local py_v=""
-    if command -v python3 >/dev/null 2>&1; then
-        py_v="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo unknown)"
-        ok "python3: $py_v"
-        case "$py_v" in
-            3.11|3.12|3.13|3.14) ;;
-            *)                       warn "  python ≥ 3.11 推荐 (你: $py_v)";;
-        esac
-    elif command -v python >/dev/null 2>&1; then
-        ok "python: $(python -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo unknown)"
+    # Backend deps: delegated to backend's own preflight
+    # (backend/scripts/preflight.py). Mirrors the frontend pattern: each
+    # segment owns its self-check.
+    echo "--- backend preflight (python3 scripts/preflight.py) ---"
+    if command -v python3 >/dev/null 2>&1 && [ -f "./backend/scripts/preflight.py" ]; then
+        if (cd backend && python3 scripts/preflight.py 2>&1); then
+            : # preflight already prints ok/warn/err itself
+        else
+            warn "  backend preflight 返回非零 — 看上面"
+            failed=1
+        fi
     else
-        warn "  python3 / python 都不在 PATH — native backend 起不了"
-    fi
-    if [ -d "./backend/.venv" ] && ([ -f "./backend/.venv/bin/uvicorn" ] || [ -f "./backend/.venv/Scripts/uvicorn.exe" ]); then
-        ok "backend/.venv 存在 + uvicorn 可用"
-    else
-        warn "  backend/.venv 缺失或 uvicorn 未装 — 跑 make dev-setup"
+        warn "  跳过 — python3 或 backend/scripts/preflight.py 缺失"
     fi
 
     # Frontend deps: delegated to frontend's own preflight.

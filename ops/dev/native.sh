@@ -210,29 +210,30 @@ cmd_preflight() {
         failed=1
     fi
 
-    # venv + deps
-    if [ ! -d "$VENV_DIR" ]; then
-        err "backend/.venv 不存在 — 跑 make dev-setup"
-        failed=1
-    elif [ ! -f "$VENV_DIR/bin/python" ] && [ ! -f "$VENV_DIR/Scripts/python.exe" ]; then
-        err "backend/.venv/bin/python (或 Scripts/python.exe) 缺失 — 重新跑 make dev-setup"
-        failed=1
+    # venv + deps (delegated to backend's own preflight)
+    if [ -f "$BACKEND_DIR/scripts/preflight.py" ] && command -v python3 >/dev/null 2>&1; then
+        if (cd "$BACKEND_DIR" && python3 scripts/preflight.py 2>&1); then
+            : # preflight already prints ok/warn/err
+        else
+            err "backend preflight 返回非零 — 看上面"
+            failed=1
+        fi
     else
-        ok "backend/.venv 存在"
-    fi
-    if [ -f "$VENV_DIR/bin/uvicorn" ] || [ -f "$VENV_DIR/Scripts/uvicorn.exe" ]; then
-        ok "uvicorn 已安装 (在 venv)"
-    else
-        err "uvicorn 不在 venv 里 — 跑 make dev-setup"
+        err "backend/scripts/preflight.py 或 python3 缺失 — 重新跑 make dev-setup"
         failed=1
     fi
 
-    # node_modules
-    if [ ! -d "$FRONTEND_DIR/node_modules" ]; then
-        err "frontend/node_modules 不存在 — 跑 make dev-setup"
-        failed=1
+    # node_modules (delegated to frontend's own preflight; see frontend/package.json)
+    if [ -f "$FRONTEND_DIR/package.json" ] && command -v npm >/dev/null 2>&1; then
+        if (cd "$FRONTEND_DIR" && npm run preflight 2>&1); then
+            : # preflight already prints ok/warn/err
+        else
+            err "frontend preflight 返回非零 — 看上面"
+            failed=1
+        fi
     else
-        ok "frontend/node_modules 存在"
+        err "frontend/package.json 或 npm 缺失 — 重新跑 make dev-setup"
+        failed=1
     fi
 
     # Docker (we still need it for the postgres container)
@@ -411,17 +412,12 @@ cmd_start() {
     # so Git Bash doesn't parse them as Windows paths (see project memory
     # docker-windows-single-slash-translation).
     #
-    # The venv `activate` script lives at Scripts/activate on Windows and
-    # bin/activate on Unix. Detect the right one at spawn time — the venv
-    # was created by `setup.sh` on the same host, so the layout is known.
-    local venv_activate
-    if [ -f "$VENV_DIR/Scripts/activate" ]; then
-        venv_activate="$VENV_DIR/Scripts/activate"
-    else
-        venv_activate="$VENV_DIR/bin/activate"
-    fi
+    # Backend dev is now `python3 scripts/dev.py` (delegates to dev.py
+    # which does self-heal install + os.execvp uvicorn). This replaces
+    # the old "source venv activate then exec uvicorn" pattern that
+    # needed per-host Scripts/activate vs bin/activate detection.
     _start_one "backend" "$BACKEND_PID_FILE" "$BACKEND_LOG" \
-        bash -c 'cd "$1" && source "$2" && exec uvicorn app.main:app --reload --host 0.0.0.0 --port "$3"' _ "$BACKEND_DIR" "$venv_activate" "$BACKEND_PORT"
+        bash -c 'cd "$1" && exec python3 scripts/dev.py --port "$2"' _ "$BACKEND_DIR" "$BACKEND_PORT"
     # Delegate to cmd_start_frontend so the frontend spawn path stays in one place.
     cmd_start_frontend
 

@@ -26,11 +26,12 @@ COPY . .
 
 EXPOSE 8000
 
-# ENTRYPOINT applies pending schema migrations before serving traffic.
-# Idempotent — re-runs are no-ops (runner skips already-applied versions
-# in schema_migrations). On every container start, the migrations from
-# the baked-in working tree are applied to the connected cloud db.
-# This eliminates the "code ≠ db" drift window: any new migration
-# in the image is applied before the first request.
-ENTRYPOINT ["/app/entrypoint.sh"]
+# Schema verification happens in-process at backend/app/main.py startup
+# (see _check_schema_at_startup). The check is read-only — it compares
+# schema_migrations.version against the latest known migration under
+# backend/migrations/versions/ and fail-fasts with a clear "Run:
+# ./db/scripts/migrate.sh" hint when the db is behind. Migrations are
+# applied host-side by the operator / CI, never at container boot
+# (avoids multi-replica races on schema_migrations INSERT and long-
+# running migrations blocking uvicorn startup).
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
