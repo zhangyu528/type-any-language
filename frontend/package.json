@@ -3,10 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "NEXT_DIST_DIR=.next-build next build",
+    "dev": "node scripts/dev.mjs",
+    "build": "node scripts/build.mjs",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "install": "node scripts/install.mjs",
+    "dev:restart": "node scripts/restart.mjs",
+    "preflight": "node scripts/preflight.mjs",
+    "test": "playwright test",
+    "e2e:snap": "node ../scripts/headless-scroll-snap-check.mjs",
+    "e2e:landing": "node ../scripts/landing-e2e.mjs"
   },
   "dependencies": {
     "motion": "^12.43.0",
