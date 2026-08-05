@@ -60,10 +60,13 @@ jobs:
        github.event.workflow_run.conclusion == 'success')
     steps:
       - name: Verify DOCKER_REGISTRY is set
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
         run: |
           if [ -z "$DOCKER_REGISTRY" ]; then
             echo "::error::GH Variable DOCKER_REGISTRY 未配置"
-            echo "  → GH repo → Settings → Variables → Actions → New: DOCKER_REGISTRY=ccr.ccs..."
+            echo "  → GH repo → Settings → Environments → prod → Variables → New"
+            echo "  → Name: DOCKER_REGISTRY, Value: ccr.ccs.tencentyun.com/<ns>"
             exit 1
           fi
           echo "DOCKER_REGISTRY=$DOCKER_REGISTRY (source=GH Variable)"
