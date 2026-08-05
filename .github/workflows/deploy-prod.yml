@@ -49,6 +49,9 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Use prod environment for access to CVM_HOST / CVM_SSH_KEY secrets
+    # AND for optional required-reviewer approval on manual deploys.
+    environment: prod
     # Auto-trigger: only fire when release-prod succeeded.
     # Manual trigger: always fire.
     if: >

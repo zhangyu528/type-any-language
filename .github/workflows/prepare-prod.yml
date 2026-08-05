@@ -59,6 +59,9 @@ concurrency:
 jobs:
   prepare:
     runs-on: ubuntu-latest
+    # Use prod environment for access to CVM_HOST / CVM_SSH_KEY secrets
+    # AND for optional required-reviewer approval on manual prepare.
+    environment: prod
     steps:
       # -------- Pre-check: GH Secrets --------
       - name: Verify required secrets
