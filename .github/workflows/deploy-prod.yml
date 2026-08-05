@@ -101,22 +101,3 @@ jobs:
             # THE go-live step. doctor pre + lifecycle restart + doctor post.
             echo "[deploy] running make prod-deploy"
             make prod-deploy
-          key: ${{ secrets.CVM_SSH_KEY }}
-          script: |
-            set -e
-            cd /opt/type-any-language
-
-            if [ -n "${{ inputs.version }}" ]; then
-              # Manual rollback: check out a specific version
-              echo "[deploy] checking out v${{ inputs.version }}"
-              git fetch --tags
-              git checkout "v${{ inputs.version }}"
-            else
-              # Normal deploy / re-deploy: pull the default branch head
-              echo "[deploy] pulling latest"
-              git pull
-            fi
-
-            # THE go-live step. doctor pre + lifecycle restart + doctor post.
-            echo "[deploy] running make prod-deploy"
-            make prod-deploy
