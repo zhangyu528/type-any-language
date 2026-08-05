@@ -74,9 +74,13 @@ dev-import-content:
 # prod target host — pre-built, no watch, registry-pulled
 # ---------------------------------------------------------------------------
 
-## prod-setup: first-time bootstrap (build prod app images; for prod docker postgres ROLE/DB bootstrap, use `make prod-db-bootstrap`)
-prod-setup:
-	@bash ops/prod/setup.sh
+## prod-prepare: host-level preparation on the RUN env (idempotent): preflight + generate .secrets/db_password + create /var/lib/type-any-language/postgres. Does NOT start containers, does NOT build images (build happens on the BUILD env via `make prod-build` / `make release-prod`).
+prod-prepare:
+	@bash ops/prod/prepare.sh
+
+## prod-deploy: THE go-live step. Works for both first-time and subsequent deploys. Pulls all 3 images, recreates db+backend+nginx, db image's entrypoint auto-applies migrations + imports content. Pre: `make prod-prepare` has been run on this host (one-time, for new CVMs).
+prod-deploy:
+	@bash ops/prod/deploy.sh
 
 ## prod-start: start prod containers (auto-pulls from registry)
 prod-start:
@@ -98,13 +102,17 @@ prod-doctor:
 prod-logs:
 	@bash ops/prod/logs.sh
 
-## prod-build: build english_backend + english_frontend prod images
+## prod-build: build 3 prod images (db + backend + frontend) (BUILD env)
 prod-build:
-	@bash ops/prod/build_image.sh
+	@bash ops/prod/build/image.sh
 
-## prod-push: push prod backend+frontend to $DOCKER_REGISTRY
+## prod-push: push 3 prod images to $DOCKER_REGISTRY (BUILD env)
 prod-push:
-	@bash ops/prod/push_image.sh
+	@bash ops/prod/build/push.sh
+
+## cms-fetch [auto|rsync|git|from PATH]: pull cms/content/ from CMS host (rsync if $CMS_HOST set) or git pull. Default = auto.
+cms-fetch:
+	@bash scripts/fetch_cms_content.sh $(filter-out $@,$(MAKECMDGOALS))
 
 # ---------------------------------------------------------------------------
 # cms — content production (OpenAI + Tencent TTS)
@@ -173,15 +181,25 @@ db-next-migration-prefix:
 
 ## release-show: print all per-segment VERSION files
 release-show:
-	@bash ops/release.sh show
+	@bash ops/prod/release.sh show
 
-## release-prod [X.Y.Z]: bump backend/VERSION + frontend/VERSION + build + push prod apps
+## release-prod [X.Y.Z]: bump backend/VERSION + frontend/VERSION + db/VERSION + build + push to registry. **Does NOT deploy** — for that run `make prod-deploy`. Pairs with .github/workflows/release-prod.yml.
 release-prod:
-	@bash ops/release.sh prod
+	@bash ops/prod/release.sh prod
+
+## prod-deploy: pull latest image + recreate containers. THE "go live" step. Run after `make release-prod`. Pairs with .github/workflows/deploy-prod.yml.
+prod-deploy:
+	@bash ops/prod/deploy.sh
+
+## publish-prod: legacy alias for release-prod (kept for backward compat)
+publish-prod: release-prod
+
+## publish-show: legacy alias for release-show
+publish-show: release-show
 
 ## build-prod-only: only build prod app images
 build-prod-only:
-	@bash ops/build.sh prod
+	@bash ops/prod/build.sh prod
 
 # ---------------------------------------------------------------------------
 # meta

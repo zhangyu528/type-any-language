@@ -1,6 +1,25 @@
 #!/bin/bash
 #
-# ops/release.sh — build (and optionally push) the project images.
+# ops/prod/release.sh — the "release" orchestrator (build + push prod images).
+#
+# This is the artifact-release step. It produces a new release of the prod
+# image set (db + backend + frontend, all tagged with the same vX.Y.Z)
+# and pushes it to the registry. It does NOT deploy / go-live / roll
+# out to users. The actual deployment is ops/prod/deploy.sh (which wraps
+# lifecycle.sh restart) — see that script for the "go live" step.
+#
+# Naming history: this script was previously called publish.sh. After
+# the release-vs-publish distinction was clarified (release = artifact,
+# publish = go-live), the script was renamed back to release.sh to
+# align with the workflow name (release-prod.yml) and the job name
+# (release). The technical action inside (docker push to registry) is
+# still called "publish" — the leaf tool at ops/prod/build/push.sh.
+#
+# This script does:
+#   1. Bump backend/VERSION + frontend/VERSION + db/VERSION (if vX.Y.Z given)
+#   2. Run build.sh to build the 3 prod images
+#   3. Run build/push.sh to tag + push the 3 images to DOCKER_REGISTRY
+#   4. (Optional) git commit the VERSION bumps
 #
 # Each segment owns one VERSION file (no dev/prod split — single file
 # gates the **prod** image tag for that segment):
@@ -40,23 +59,23 @@
 #   - DOCKER_REGISTRY=ns     → "remote" mode: builds + tags + pushes to
 #                              that namespace. Set it in the shell:
 #                                export DOCKER_REGISTRY=docker.io/you
-#                                ./ops/release.sh dev v0.3.0
-#                              Or commit it to ./REGISTRY at the repo root
-#                              (see REGISTRY file header for the rationale —
-#                              shared project config, not a personal secret).
+#                                ./ops/prod/release.sh dev v0.3.0
+#                              Or set the GitHub Variable DOCKER_REGISTRY
+#                              (single source of truth, see
+#                              ops/lib.sh::resolve_docker_registry).
 #
 # Architecture notes:
-#   - `dev` and `prod` both touch ONLY the app segments' VERSION files
-#     (backend/VERSION + frontend/VERSION). The cloud db has no
-#     version stamp; schema is tracked by schema_migrations row count,
-#     content is the latest db/scripts/import_staging.sh run.
+#   - `dev` and `prod` both touch the app segments' VERSION files
+#     (backend/VERSION + frontend/VERSION). Layer 3 also bumps
+#     db/VERSION (the db image is built with the same tag as backend
+#     and frontend — one publish = one release set of 3 images).
 #   - For multi-machine deployments, run each subcommand on its
 #     respective host. The script is self-contained per host.
 #
 # Examples:
-#   ops/release.sh show
-#   ops/release.sh prod                           # re-publish current prod versions
-#   ops/release.sh prod v0.3.0 -y                 # bump + build + push prod
+#   ops/prod/release.sh show
+#   ops/prod/release.sh prod                           # re-publish current prod versions
+#   ops/prod/release.sh prod v0.3.0 -y                 # bump + build + push prod
 #
 # Requires: shell + git + docker. NO python.
 
@@ -70,10 +89,12 @@ source "$SCRIPT_DIR/lib.sh"
 
 # Each release stream touches its own set of per-segment VERSION files.
 # One file per segment, gating prod image tags only:
-#   backend/VERSION, frontend/VERSION gate the prod images.
-# `cmd_show` lists the 3 per-segment VERSION files.
-PROD_VERSION_PATHS=(backend/VERSION frontend/VERSION)
-ALL_VERSION_PATHS=(cms/VERSION backend/VERSION frontend/VERSION)
+#   backend/VERSION  → english_backend:vX.Y.Z
+#   frontend/VERSION → english_frontend:vX.Y.Z
+#   db/VERSION       → english_db:vX.Y.Z  (custom image, has cms/content/ baked in)
+# All 3 share the same tag per release (one publish = one release set).
+PROD_VERSION_PATHS=(backend/VERSION frontend/VERSION db/VERSION)
+ALL_VERSION_PATHS=(cms/VERSION backend/VERSION frontend/VERSION db/VERSION)
 YES=0
 
 # Resolve DOCKER_REGISTRY once at startup. The chain is:
@@ -291,9 +312,9 @@ cmd_prod() {
     [ "${RELEASEd_BUMP:-0}" = "1" ] && touched_prod=1
 
     echo ""
-    publish_one "prod app images (backend + frontend)" \
-        "./ops/prod/build_image.sh" \
-        "./ops/prod/push_image.sh" \
+    publish_one "prod release set (db + backend + frontend — all tagged $tag)" \
+        "./ops/prod/build/image.sh" \
+        "./ops/prod/build/push.sh" \
         "$tag"
 
     if [ "$touched_prod" = "1" ]; then

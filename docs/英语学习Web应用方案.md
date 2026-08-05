@@ -8,9 +8,11 @@
 
 > ⚠️ **历史方案说明**:本文档描述的是 v3.0.0 时代的内容烤链架构
 > (CMS 主机 → `db/scripts/build.sh` 烤 db image → 目标机 `docker pull`)。
-> **当前架构已迁移到 TencentDB** — 运行时数据库在腾讯云 Postgres,
-> 目标机通过 `.secrets/database_url`(由 `ops/{dev,prod}/setup.sh bootstrap`
-> 一次性写入)直连云 db,不再有 db image / `db-data` 卷 / `bake_image.sh`。
+> **当前架构再次演进:本地 docker postgres** — 运行时数据库就是 prod compose
+> 里的 `db` 服务(`postgres:15-alpine`,绑 mount 到 `/var/lib/type-any-language/postgres`),
+> 目标机不再直连云 db,也不再需要 db image / `db-data` 卷 / `bake_image.sh` /
+> TencentDB。db 密码通过 `ops/prod/prepare.sh` 生成到 `.secrets/db_password`,
+> 由 compose 的 `secrets:` block 注入。
 > 完整当前架构见仓库根 `CLAUDE.md` 和 `db/README.md`。
 > 本文档保留作为**架构演进历史参考**,章节里具体到 bake / 烤 image /
 > `01-content.sql` / `db-data` / `content.version` label 的描述已与代码脱节。

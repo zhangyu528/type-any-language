@@ -1,34 +1,40 @@
 # ---------------------------------------------------------------------------
 # Production docker-compose for type-any-language.
 #
-# Runtime model: postgres runs in a container on the CVM. Three services:
+# Runtime model: 4 services, all on the CVM, on the same compose project.
+# Pulled/built as a unit and recreated together on `lifecycle.sh restart`.
 #
-#   db         — postgres:15-alpine, bind-mounted to a host directory
-#                for data persistence. Same instance lifetime as backend
-#                (compose project). One db per prod host — prod doesn't
-#                have per-branch or per-user db concepts (those are dev-
-#                only).
+# Custom db image (db/Dockerfile):
+#   The db service uses a LOCAL build (not the upstream postgres image
+#   anymore). The custom image bakes in:
+#     - backend/migrations/  (schema migrations)
+#     - db/importer.py       (UPSERT logic)
+#     - cms/content/         (vocab + sentences data)
+#   The custom entrypoint (db/image-entrypoint.sh) runs migrations +
+#   import on every container start, idempotently. So:
+#     - First start on a fresh /var/lib/postgresql/data: empty → apply
+#       ALL migrations → import ALL content → db ready
+#     - Subsequent starts with persisted data: schema is current →
+#       migrations.runner is a no-op → importer UPSERTs (also idempotent)
+#     - New image pulled (new VERSION): apply any new migrations +
+#       re-import any new content automatically
 #
-#   backend    — FastAPI / uvicorn. Connects to db via DATABASE_URL env
-#                (no secret-file indirection — simpler than the old
-#                TencentDB-mode setup which relied on .secrets/database_url).
-#
-#   nginx      — reverse proxy, exposes :80 to the world. Backend is on
-#                the internal network and NOT directly reachable.
-#
-# Migration flow:
-#   - db service comes up with empty schema (or whatever state
-#     /var/lib/postgresql/data holds — bind-mounted volume persists).
-#   - backend container's entrypoint.sh runs `python -m migrations.runner`
-#     on start → applies all pending migrations idempotently.
-#   - first-time content: run `./db/scripts/import_staging.sh all`
-#     on the CVM host (the host has python + the importer available).
+# Four services, all on the CVM:
+#   db       — english_db:${DB_IMAGE_TAG}, custom (see above)
+#   backend  — FastAPI / uvicorn, no reload. Connects to db via
+#              DATABASE_URL env. Does NOT run migrations (db handles it).
+#   frontend — Next.js standalone build, serves the UI on :3000.
+#              Static assets are served by nginx; SSR happens here.
+#              Browser hits nginx, which proxies / to this.
+#   nginx    — reverse proxy on :80. Routes:
+#                /api/  → backend:8000
+#                /      → frontend:3000
 #
 # Run via:  ALLOWED_ORIGINS=https://my.domain ./ops/prod/lifecycle.sh start
-# BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG are semver tags from the
-# version files (see ops/lib.sh::resolve_image_tag). Pull from registry
-# if DOCKER_REGISTRY is set; otherwise the build script must produce
-# the images locally first (ops/prod/build_image.sh).
+# All four image tags (DB / BACKEND / FRONTEND) come from the
+# corresponding per-segment VERSION files. Pull from DOCKER_REGISTRY
+# when set; otherwise the build script must produce the images locally
+# first (ops/prod/build/image.sh builds all four).
 # ---------------------------------------------------------------------------
 
 secrets:
@@ -44,10 +50,18 @@ secrets:
 
 services:
   # -------------------------------------------------------------------------
-  # db — local postgres for prod
+  # db — custom image, applies migrations + imports content on every start
   # -------------------------------------------------------------------------
   db:
-    image: postgres:15-alpine
+    image: english_db:${DB_IMAGE_TAG:-latest}
+    build:
+      # Build context is the repo root so we can COPY backend/, db/,
+      # cms/. See db/Dockerfile for the contents baked in.
+      context: .
+      dockerfile: db/Dockerfile
+      args:
+        APP_VERSION: ${DB_IMAGE_TAG:-latest}
+        GIT_SHA: ${GIT_SHA:-unknown}
     container_name: ${COMPOSE_PROJECT_NAME:-type-any-language}-db
     environment:
       POSTGRES_USER: english_prod
@@ -66,7 +80,8 @@ services:
     restart: unless-stopped
 
   # -------------------------------------------------------------------------
-  # Backend — FastAPI / uvicorn, runs migrations on entrypoint
+  # Backend — FastAPI / uvicorn. NO migrations, NO content import
+  # (db image's entrypoint handles those). Just serves API.
   # -------------------------------------------------------------------------
   backend:
     image: english_backend:${BACKEND_IMAGE_TAG:-latest}
@@ -83,7 +98,26 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost}
       # Internal compose network — backend dials the db service by name.
       DATABASE_URL: postgresql://english_prod:$(cat /run/secrets/db_password)@db:5432/english_prod
-    # entrypoint.sh runs migrations before exec-ing uvicorn.
+
+  # -------------------------------------------------------------------------
+  # Frontend — Next.js standalone build. Browser hits nginx, which
+  # proxies / to this service. NEXT_PUBLIC_API_URL is baked in at
+  # build time (it's the URL the browser uses to call backend).
+  # -------------------------------------------------------------------------
+  frontend:
+    image: english_frontend:${FRONTEND_IMAGE_TAG:-latest}
+    build:
+      context: ./frontend
+      args:
+        APP_VERSION: ${FRONTEND_IMAGE_TAG:-latest}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        # The browser's API base URL. /api is fine when nginx is the
+        # entrypoint (it routes /api/ to backend). Override for cross-
+        # origin setups (e.g. NEXT_PUBLIC_API_URL=https://api.example.com).
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
+    restart: unless-stopped
+    depends_on:
+      - backend
 
   # -------------------------------------------------------------------------
   # nginx — reverse proxy on :80
@@ -96,4 +130,4 @@ services:
     volumes:
       - ./ops/prod/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      - backend
+      - frontend

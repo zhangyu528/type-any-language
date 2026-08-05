@@ -55,92 +55,37 @@ app = FastAPI(
 
 
 @app.on_event("startup")
-def verify_schema_up_to_date() -> None:
-    """Fail-fast at boot when the database schema is behind the latest
-    migration shipped in this image.
+def verify_db_reachable() -> None:
+    """Sanity-check db connection at boot. Fails fast if db is unreachable.
 
-    Default: ENABLED. Set STRICT_MIGRATIONS=0 to opt out (dev workflow
-    that hot-reloads schema changes without rebooting; CI tests where
-    the runner does migrations itself before importing app.main).
-
-    What it checks:
-      - get_current_version() reads `schema_migrations.version`. We
-        compare it against the highest version discovered under
-        migrations/versions/.
-      - The check runs ONLY against the schema version table — we do
-        NOT introspect every column. That's the migration runner's
-        contract: applying a migration is the source of truth, and the
-        bookkeeping table records it.
-      - Rerunnable migrations (0007 / 0008 / 0011) are NOT applied here.
-        The check is "is the bookkeeping stamped at the latest version";
-        rerunnable's idempotent upgrade() runs from `migrate.sh`, not
-        from boot. So a fresh-import workflow needs:
-            ./db/scripts/migrate.sh && ./ops/dev/native.sh start
-        not the other order — otherwise this check fires.
-
-    Failure modes:
-      - DATABASE_URL unset / db unreachable → bubble up. A backend
-        that can't reach its db can't serve traffic; we shouldn't
-        pretend /health is OK and silently 5xx the real routes.
-      - schema_migrations table missing → get_current_version() returns
-        None, which is != latest → fail-fast. This is the right answer
-        for a freshly-created db: it needs migrate.sh, not create_all.
-
-    Why not just run upgrade_head() at boot:
-      - Multiple backend replicas could race on the schema_migrations
-        INSERT (PK conflict).
-      - Long-running migrations (table rewrites) would block boot and
-        cause cascading health-check failures.
-      - The migration owner is the operator / CI, not the application.
-        Keeping that boundary explicit matches the project's
-        "host-side runner, no sidecar container" rule.
-
-    Set STRICT_MIGRATIONS=0 to disable.
+    Schema migrations and content import are now handled by the db
+    image's custom entrypoint (db/Dockerfile + db/image-entrypoint.sh)
+    on every container start, idempotently. So the backend no longer
+    needs to verify migrations — that responsibility moved to the db
+    image. We keep just a connection sanity check here so the backend
+    fails fast at boot if db is somehow down (clearer error than
+    serving 500s on every request).
     """
-    if os.getenv("STRICT_MIGRATIONS", "1") == "0":
-        return
-
-    import psycopg2
-
-    from migrations.runner import (
-        _discover_versions,
-        ensure_schema_migrations_table,
-        get_current_version,
-    )
-
     db_url = settings.resolved_database_url()
     try:
+        import psycopg2
         with psycopg2.connect(db_url) as conn:
-            ensure_schema_migrations_table(conn)
-            current = get_current_version(conn)
+            # Just open + close — the connection itself is the proof
+            # of life. We don't query schema_migrations because the
+            # db image's entrypoint is now responsible for that.
+            pass
     except Exception as exc:
         raise RuntimeError(
-            f"[startup] cannot verify schema: failed to connect to "
-            f"the database ({type(exc).__name__}: {exc}). "
-            f"Check DATABASE_URL / docker-compose / cloud status."
+            f"[startup] cannot reach db ({type(exc).__name__}: {exc}). "
+            f"Check that the db service is running and DATABASE_URL is correct."
         ) from exc
 
-    known = _discover_versions()
-    if not known:
-        # No migrations shipped (shouldn't happen in this repo) — skip.
-        return
-    latest = known[-1].version
 
-    if current is None:
-        raise RuntimeError(
-            f"[startup] schema not initialised (schema_migrations is empty). "
-            f"Latest known version is {latest!r}. "
-            f"Run: ./db/scripts/migrate.sh"
-        )
-    if current != latest:
-        # Compute the gap so the operator can see what's pending.
-        pending = [m.version for m in known if m.version > current]
-        raise RuntimeError(
-            f"[startup] schema is behind the image: "
-            f"db has {current!r}, latest is {latest!r}. "
-            f"Pending: {', '.join(pending)}. "
-            f"Run: ./db/scripts/migrate.sh"
-        )
+# Note: previous `verify_schema_up_to_date` removed. With Layer 3
+# (custom db image with migrations + content baked in, see
+# db/Dockerfile + db/image-entrypoint.sh), the db image's entrypoint
+# is now the source of truth for schema state. The backend just
+# sanity-checks connectivity at boot via `verify_db_reachable` above.
 
 
 # CORS allowlist — comes from app.config (env ALLOWED_ORIGINS).

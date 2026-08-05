@@ -178,14 +178,18 @@ ALLOWED_ORIGINS=https://my.domain make prod-restart  # 自动从 TCR pull + 重�
 ## 生产环境
 
 ```bash
-# (一次性,首次) 在共享 docker postgres 上为 prod 创建 ROLE/DB + 写 DATABASE_URL
-./ops/prod/setup.sh bootstrap     # 等价于 make prod-bootstrap(若已配)
+# (一次性,首次) prod 目标机(RUN 端)
+make prod-prepare                 # 主机层:preflight + .secrets/db_password + /var/lib/.../postgres
+make prod-deploy                  # 首次 / 后续都跑这个 —— 拉 3 image + recreate,
+                                  # db image 的 entrypoint 自动 apply migrations + import content
 
-# 之后每次都跑
-make prod-setup                  # 验 docker postgres + build prod 应用镜像
+# 之后每次都跑(RUN 端)
 ALLOWED_ORIGINS=https://my.domain make prod-start
 make prod-doctor
 make prod-restart
+
+# 发版(BUILD 端,在 release 机 / CI 上)
+make release-prod v0.3.0          # bump + build + push 到 registry
 
 # 镜像发布(可选)
 export DOCKER_REGISTRY=docker.io/youruser

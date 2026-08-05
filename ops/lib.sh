@@ -19,13 +19,12 @@
 #   - port_in_use                (returns 0/1, no print)
 #   - warn_port_in_use           (prints warning if in use)
 #   - gen_secret                 (random URL-safe string)
-#   - detect_default_registry    (docker.io/$USER or empty)
 #   - find_repo_root             (walk up to .git or any VERSION* file; "" if neither)
 #   - read_version_file [path]   (echo first non-empty/non-comment line of path,
 #                                or any VERSION* under repo root; falls back to "v0.0.0")
 #   - resolve_image_tag VAR [path] (per-image env > IMAGE_TAG > version file > "v0.0.0")
 #   - warn_if_version_default    (one-shot warn when VERSION file is missing/empty)
-#   - resolve_docker_registry    (shell env > REGISTRY file > detect_default_registry())
+#   - resolve_docker_registry    (GitHub Variable via `gh`; fail loud; single source of truth)
 #   - sed_inplace                (portable sed -i; GNU vs BSD/macOS)
 #
 
@@ -211,22 +210,9 @@ gen_secret() {
     fi
 }
 
-# detect_default_registry  → prints "docker.io/<user>" (or "" if unknown).
-# Used as a best-effort guess for DOCKER_REGISTRY when the user hasn't
-# configured one. The user is expected to edit .env afterwards.
-detect_default_registry() {
-    local user="${USER:-}"
-    if [ -z "$user" ] && command -v whoami &> /dev/null; then
-        user=$(whoami 2>/dev/null || echo "")
-    fi
-    if [ -n "$user" ] && [ "$user" != "root" ]; then
-        echo "docker.io/${user}"
-    else
-        # No usable username (root, container, no whoami): leave empty so
-        # the user picks one explicitly. Empty = local-only mode.
-        echo ""
-    fi
-}
+# (Note: `detect_default_registry` was removed in the 2026-08-04 refactor.
+#  DOCKER_REGISTRY is single source of truth: GitHub Variable only.
+#  No auto-detect from $USER, no local-only mode.)
 
 # ---------------------------------------------------------------------------
 # Version resolution
@@ -337,6 +323,11 @@ read_version_file() {
 #       resolve_image_tag BACKEND_IMAGE_TAG  backend/VERSION
 #       resolve_image_tag FRONTEND_IMAGE_TAG frontend/VERSION
 resolve_image_tag() {
+    # Resolution order (highest priority first):
+    #   1. Per-image env var (e.g. BACKEND_IMAGE_TAG=v1.2.3)
+    #   2. Generic IMAGE_TAG env var (CI convenience — bumps all images at once)
+    #   3. The VERSION file path passed in
+    #   4. Fail loud (was: "v0.0.0" fallback — silent failure anti-pattern)
     local var="$1"
     local path="${2:-}"
     local cur="${!var:-}"
@@ -348,10 +339,25 @@ resolve_image_tag() {
         export "$var"
         return 0
     fi
+    if [ -z "$path" ]; then
+        err "resolve_image_tag: 缺 path,且 $var / IMAGE_TAG env var 都未设"
+        return 1
+    fi
+    if [ ! -f "$PROJECT_DIR/$path" ]; then
+        err "$path 不存在,且 $var / IMAGE_TAG env var 都未设"
+        err "  解决: 跑 ./ops/prod/release.sh prod vX.Y.Z(会自动创建)"
+        return 1
+    fi
     local resolved
     resolved="$(read_version_file "$path")"
+    if [ -z "$resolved" ]; then
+        err "$path 是空的,version 必填"
+        err "  解决: 跑 ./ops/prod/release.sh prod vX.Y.Z(自动写)"
+        return 1
+    fi
     printf -v "$var" '%s' "$resolved"
     export "$var"
+    return 0
 }
 
 # warn_if_version_default <tag> [path]  — prints a single warn line if the
@@ -375,97 +381,79 @@ warn_if_version_default() {
 # Registry resolution
 # ---------------------------------------------------------------------------
 # DOCKER_REGISTRY is the shared project-wide namespace prefix used for
-# `docker push` / `docker pull` (e.g. docker.io/zhangyu528, ghcr.io/myorg).
-# Unlike POSTGRES_PASSWORD or AI_API_KEY, it is NOT a personal secret — it
-# is project config that the whole team shares. It therefore lives in a
-# committed REGISTRY file at the repo root (symmetric with the per-segment
-# VERSION files like db/VERSION / backend/VERSION), not in a gitignored
-# .env (the historical cms/.env is gone; secrets now live in GH Environments
-# and are fetched via scripts/secrets/fetch_secrets.sh eval-cms).
+# `docker push` / `docker pull` (e.g. ccr.ccs.tencentyun.com/your-tcr-id,
+# docker.io/youruser, ghcr.io/yourname). Unlike POSTGRES_PASSWORD or
+# AI_API_KEY, it is NOT a personal secret — it is project config that the
+# whole team shares.
 #
-# Resolution order (highest priority first):
-#   1. Shell env:    export DOCKER_REGISTRY=docker.io/youruser
-#   2. REGISTRY file at repo root (first non-empty/non-comment DOCKER_REGISTRY= line)
-#   3. Auto-detect:  detect_default_registry() (docker.io/$USER or "")
-#   4. ""           (local-only mode — push is disabled)
+# **Single source of truth**: GitHub repo Variable "DOCKER_REGISTRY"
+# (Settings → Variables → Actions). The build side (GH Actions) reads
+# `${{ vars.DOCKER_REGISTRY }}` directly. The run side (CVM scripts)
+# reads the same Variable via `gh variable get`.
 #
-# An empty/unset result is NOT an error: target hosts in local-only mode
-# (no DOCKER_REGISTRY anywhere) work fine — they just skip the push /
-# skip the auto-pull. Push scripts treat empty as a hard fail (since
-# pushing with no namespace is meaningless), but the resolver itself
-# always succeeds.
-
-# read_registry_file [path]  → echoes the first non-empty/non-comment
-# DOCKER_REGISTRY= value found in $path (strips `DOCKER_REGISTRY=` prefix,
-# surrounding whitespace, CR, and any inline comment after a `#`).
-# Echoes "" if the file is missing or has no usable line.
-read_registry_file() {
-    local path="${1:-}"
-    if [ -z "$path" ] || [ ! -f "$path" ]; then
-        echo ""
-        return 0
-    fi
-    local v
-    v="$(awk 'NF && substr($0,1,1) != "#" {
-            if (match($0, /^[[:space:]]*DOCKER_REGISTRY[[:space:]]*=/)) {
-                val = substr($0, RSTART + RLENGTH);
-                gsub(/\r/, "", val);
-                sub(/[[:space:]]*#.*/, "", val);
-                gsub(/^[[:space:]]+|[[:space:]]+$/, "", val);
-                print val;
-                exit
-            }
-        }' "$path")"
-    echo "${v:-}"
-}
+# There is NO shell-env override, NO REGISTRY file fallback, NO auto-detect.
+# This is a deliberate design choice (2026-08-04): a single source means
+# a single point to fix when the namespace changes, and zero risk of
+# shell-env drift. To temporarily change the registry (e.g. for testing),
+# run `gh variable set DOCKER_REGISTRY=...` on the repo, run your
+# experiment, then `gh variable set DOCKER_REGISTRY=...` back.
+#
+# **NEW (2026-08-04)**: the workflow now reads DOCKER_REGISTRY from
+# `${{ vars.DOCKER_REGISTRY }}` and SSH-injects it to the CVM as an env
+# var. The CVM no longer needs gh CLI or any auth — it just reads
+# $DOCKER_REGISTRY from env. This eliminates:
+#   - 1 GH Secret (GITHUB_PAT)
+#   - 1 CVM dependency (gh CLI)
+#   - 1 CVM on-boarding step (gh auth login)
+#   - 1 CVM script step (step_gh_cli in prepare.sh)
+# Operator manual fallback: `export DOCKER_REGISTRY=...` once.
+#
+# Failure modes (all exit 1, never silent):
+#   - DOCKER_REGISTRY env var empty (workflow didn't inject OR manual)
+#   - DOCKER_REGISTRY format invalid (no dot in hostname)
 
 # resolve_docker_registry  → sets $DOCKER_REGISTRY in the caller's scope
-# (and exports it) following the chain above. Always succeeds; an empty
-# result means "local-only mode".
-#
-# "Shell env wins" is checked by set-ness, not by non-emptiness — so
-# `DOCKER_REGISTRY= ./script` (explicit empty) forces local-only mode
-# instead of falling through to auto-detect. Without this, an empty
-# DOCKER_REGISTRY env var would be silently re-detected to
-# `docker.io/$USER` on hosts where that succeeds, turning an
-# operator's "I want local-only" intent into a push-mode run.
+# (and exports it). Returns 0 on success, 1 if env var missing/invalid.
+# _DOCKER_REGISTRY_SOURCE is always "workflow" (no other source exists).
 #
 # Usage:
 #   source lib.sh
-#   resolve_docker_registry
+#   resolve_docker_registry || exit 1
 #   echo "$DOCKER_REGISTRY"
 resolve_docker_registry() {
-    # 1. Shell env wins — even if explicitly empty (see note above).
-    if [ -n "${DOCKER_REGISTRY+x}" ]; then
-        export DOCKER_REGISTRY
-        _DOCKER_REGISTRY_SOURCE="shell"
-        export _DOCKER_REGISTRY_SOURCE
-        return 0
+    # DOCKER_REGISTRY is provided by the deploy-prod workflow via SSH env
+    # (which got it from `${{ vars.DOCKER_REGISTRY }}` in the GH Variable).
+    # This script does NOT need gh CLI — gh lives on the workflow side
+    # and never on the CVM itself.
+    #
+    # Source chain: GitHub Variable → workflow env → CVM env (this var)
+    #
+    # If unset: either the workflow didn't inject it (GH Variable missing
+    # → workflow pre-check fail), or this is a manual run without the env
+    # set. Both cases fail loud with clear instructions.
+
+    # 1. Must be non-empty.
+    if [ -z "${DOCKER_REGISTRY:-}" ]; then
+        err "DOCKER_REGISTRY 未设置"
+        err "  这个值应该由 deploy-prod workflow 通过 SSH env 注入"
+        err "  让 release-prod/deploy-prod workflow 跑 —— 它会自动注入"
+        err "  手动跑: export DOCKER_REGISTRY=ccr.ccs.example.com/your-tcr-id/type-any-language"
+        return 1
     fi
-    # 2. REGISTRY file at repo root.
-    local root registry_path file_val
-    root="$(find_repo_root)"
-    if [ -n "$root" ]; then
-        registry_path="$root/REGISTRY"
-        file_val="$(read_registry_file "$registry_path")"
-        if [ -n "$file_val" ]; then
-            DOCKER_REGISTRY="$file_val"
-            export DOCKER_REGISTRY
-            _DOCKER_REGISTRY_SOURCE="file"
-            export _DOCKER_REGISTRY_SOURCE
-            return 0
-        fi
+
+    # 2. Basic sanity check — must look like a hostname/path.
+    # Reject things like "  " (whitespace) or "no" (clearly not a hostname).
+    if ! [[ "$DOCKER_REGISTRY" == *.* ]]; then
+        err "DOCKER_REGISTRY 格式不对: $DOCKER_REGISTRY"
+        err "  期望: hostname like ccr.ccs.tencentyun.com/your-tcr-id"
+        return 1
     fi
-    # 3. Auto-detect (best effort). Recorded as "detect" so callers that
-    #    care about user intent (e.g. auto_pull_from_registry) can tell
-    #    the difference between "operator configured a registry" and
-    #    "we just guessed docker.io/$USER". Auto-detect is fine for push
-    #    (solo dev convenience) but should NOT trigger auto-pull — that
-    #    would fail with 429 on registries that don't host our image.
-    DOCKER_REGISTRY="$(detect_default_registry)"
+
+    DOCKER_REGISTRY="$DOCKER_REGISTRY"
     export DOCKER_REGISTRY
-    _DOCKER_REGISTRY_SOURCE="detect"
+    _DOCKER_REGISTRY_SOURCE="workflow"
     export _DOCKER_REGISTRY_SOURCE
+    return 0
 }
 
 # ---------------------------------------------------------------------------

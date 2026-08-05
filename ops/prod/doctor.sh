@@ -2,7 +2,10 @@
 #
 # ops/prod/doctor.sh — pre-flight env check (read-only).
 #
-# Validates that everything ops/prod/{lifecycle,setup} need is in
+# Updated 2026-08-04: no longer checks gh CLI (CVM doesn't need gh —
+# DOCKER_REGISTRY is injected by the deploy workflow via SSH env).
+#
+# Validates that everything ops/prod/{lifecycle,bootstrap} need is in
 # place. Does NOT modify anything on disk or call docker compose.
 #
 # Drift check (running containers vs local VERSION) is appended.
@@ -39,52 +42,83 @@ cmd_doctor() {
         err "未找到 docker-compose / docker compose"; failed=1
     fi
 
-    # Cloud-db contract.
-    if [ -f "$DB_URL_FILE" ]; then
-        ok "DATABASE_URL 存在 — backend 会通过 secrets: 挂载进容器"
-        if command -v psql &> /dev/null; then
-            local db_url
-            db_url="$(awk 'NR==1' "$DB_URL_FILE" 2>/dev/null)"
-            if [ -n "$db_url" ]; then
-                if PGPASSWORD= psql "$db_url" -c 'select 1' &>/dev/null; then
-                    ok "  docker postgres 可达 ($(awk -F/ '{print $3}' <<<"$db_url"))"
-                else
-                    warn "  docker postgres 不可达 — 检查 DATABASE_URL + 网络/凭据"
-                fi
-            fi
-        else
-            info "  psql 未安装 — 跳过可达性探测(只验文件存在)"
-        fi
-    elif [ -n "${DATABASE_URL:-}" ]; then
-        ok "DATABASE_URL 在 shell env(自管 db / CI)"
+    # Db contract: prod compose reads .secrets/db_password via the
+    # `secrets:` block; the db service uses POSTGRES_PASSWORD_FILE.
+    # DATABASE_URL is built at compose env-block evaluation time using
+    # $(cat /run/secrets/db_password) — not stored anywhere on host.
+    if [ -f "$DB_PASSWORD_FILE" ]; then
+        ok ".secrets/db_password 存在 — compose 会通过 secrets: 注入 db 容器"
+        chmod 600 "$DB_PASSWORD_FILE"
     else
-        err "DATABASE_URL 不存在 且 DATABASE_URL 未设 — 云 db 未配置"
-        info "  → ./ops/prod/setup.sh bootstrap    # 一次性: docker postgres ROLE/DB + DATABASE_URL"
-        info "  → 或从 peer prod 主机拷过来: scp peer-prod:DATABASE_URL .secrets/"
-        info "  → 或 export DATABASE_URL=postgres://... (自管 / CI)"
+        err ".secrets/db_password 不存在 — db 容器无密码"
+        info "  → ./ops/prod/prepare.sh       # 首次部署自动生成"
+        info "  → 或手动: openssl rand -hex 32 > .secrets/db_password && chmod 600"
         failed=1
     fi
+
+    # Note: doctor also used to check db reachability via psql, but the
+    # prod compose does NOT expose db's 5432 to host — only backend talks
+    # to db via the internal network. Reachability is verified through
+    # backend's verify_schema_up_to_date startup check, not here.
 
     if check_docker_installed && check_docker_daemon_running; then
         if image_exists "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"; then
             ok "image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 存在"
         else
-            warn "image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 缺失 → 运行 ops/prod/build_image.sh"
+            err "image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 缺失"
+            info "  → 在 BUILD 端跑: make prod-build  或  make release-prod vX.Y.Z -y"
+            info "  → 或手动: docker pull \${DOCKER_REGISTRY}/${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"
+            failed=1
         fi
         if image_exists "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"; then
             ok "image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 存在"
         else
-            warn "image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 缺失 → 运行 ops/prod/build_image.sh"
+            err "image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 缺失"
+            info "  → 在 BUILD 端跑: make prod-build  或  make release-prod vX.Y.Z -y"
+            info "  → 或手动: docker pull \${DOCKER_REGISTRY}/${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"
+            failed=1
         fi
+        if image_exists "${DB_IMAGE}:${DB_IMAGE_TAG}"; then
+            ok "image ${DB_IMAGE}:${DB_IMAGE_TAG} 存在"
+        else
+            err "image ${DB_IMAGE}:${DB_IMAGE_TAG} 缺失"
+            info "  → 在 BUILD 端跑: make prod-build  或  make release-prod vX.Y.Z -y"
+            info "  → 或手动: docker pull \${DOCKER_REGISTRY}/${DB_IMAGE}:${DB_IMAGE_TAG}"
+            failed=1
+        fi
+    fi
+
+    # Data directory: db container bind-mounts /var/lib/.../postgres.
+    # Required on the host BEFORE first deploy. If missing, the
+    # container will create it but with wrong ownership (root), and
+    # postgres will fail to start with EACCES.
+    if [ -d "/var/lib/type-any-language/postgres" ]; then
+        ok "/var/lib/type-any-language/postgres 存在"
+    else
+        err "/var/lib/type-any-language/postgres 不存在"
+        info "  → 跑: ./ops/prod/prepare.sh  (会 sudo mkdir + chown 999:999)"
+        failed=1
     fi
 
     warn_port_in_use 80  "nginx 端口 (宿主机 80)"
 
     if [ -z "$DOCKER_REGISTRY" ]; then
-        warn "DOCKER_REGISTRY 未设置(auto-pull 会跳过;本地镜像必须已经构建)"
+        # Should not happen — setup_prod_host_env fails loud on missing
+        # DOCKER_REGISTRY. But print a clear hint for manual runs.
+        err "DOCKER_REGISTRY 未设置"
+        info "  这个值应该由 deploy-prod workflow 通过 SSH env 注入"
+        info "  release-prod/deploy-prod workflow 跑时自动注入"
+        info "  手动跑: export DOCKER_REGISTRY=ccr.ccs.example.com/your-tcr-id/type-any-language"
+        failed=1
     else
-        ok "DOCKER_REGISTRY=$DOCKER_REGISTRY"
+        ok "DOCKER_REGISTRY=$DOCKER_REGISTRY (source=${_DOCKER_REGISTRY_SOURCE:-workflow})"
     fi
+
+    # gh CLI: NO LONGER required on CVM (2026-08-04).
+    # DOCKER_REGISTRY is now injected by the deploy workflow via SSH env.
+    # If CVM is being used manually, operator sets `export DOCKER_REGISTRY=...` once.
+    # Doctor just verifies the env var is non-empty + format is sane (via
+    # setup_prod_host_env which calls resolve_docker_registry).
 
     echo ""
     echo "--- drift check (running containers vs local VERSION) ---"

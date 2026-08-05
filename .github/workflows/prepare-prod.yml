@@ -1,0 +1,123 @@
+name: prepare-prod
+run-name: prepare-prod-on-${{ inputs.host || 'auto' }}
+
+# -----------------------------------------------------------------------
+# One-time host preparation for a new prod CVM.
+#
+# What this workflow does:
+#   1. Verify required GH Secrets are configured.
+#   2. SSH into the CVM as the `deploy` user.
+#   3. Push `DOCKER_REGISTRY` from the GH Variable into the SSH session
+#      as an env var (so the CVM doesn't need its own auth — only
+#      the workflow does, and it already has GITHUB_TOKEN).
+#   4. Run `make prod-prepare` on the CVM. That script does:
+#        - preflight (docker / compose / port 80)
+#        - secrets (.secrets/db_password, chmod 600)
+#        - data dir (sudo mkdir /var/lib/.../postgres + chown 999:999)
+#
+# Required GH Secrets:
+#   CVM_HOST     — public IP / hostname of the prod CVM
+#   CVM_SSH_KEY  — SSH private key for the `deploy` user on the CVM
+#                  (must be in deploy's authorized_keys, write access
+#                  to /opt/type-any-language, and have limited sudo for
+#                  `mkdir` + `chown` — see /etc/sudoers.d/deploy)
+#
+# Required GH Variable:
+#   DOCKER_REGISTRY  — the registry namespace (single source of truth)
+#
+# Why split from release-prod.yml and deploy-prod.yml:
+#   - prepare is ONE-TIME per host (not "every release")
+#   - prepare requires `sudo` on the CVM (deploy doesn't)
+#   - prepare needs human-readable failure if the host isn't ready
+#   - release + deploy are fully automated; prepare is triggered by
+#     operator when adding a new host
+#
+# After this runs once, all future deploys are handled by:
+#   - release-prod.yml (tag push → publish image)
+#   - deploy-prod.yml  (workflow_run → SSH + make prod-deploy)
+# -----------------------------------------------------------------------
+
+on:
+  # Manual-only: this is a setup operation, not a routine deploy.
+  workflow_dispatch:
+    inputs:
+      host:
+        description: 'CVM 标识(纯 label,debug 用,不影响行为)'
+        required: false
+        type: string
+        default: 'prod-cvm-1'
+
+permissions:
+  contents: read   # only read repo (no checkout needed for this)
+
+concurrency:
+  # Don't run prepare twice on the same host in parallel — could
+  # race on .secrets/db_password generation.
+  group: prepare-prod
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      # -------- Pre-check: GH Secrets --------
+      - name: Verify required secrets
+        run: |
+          if [ -z "${{ secrets.CVM_HOST }}" ]; then
+            echo "::error::GH Secret CVM_HOST 未配置"
+            echo "  → GH repo → Settings → Secrets and variables → Actions → New repository secret"
+            echo "  → Name: CVM_HOST, Value: <CVM 公网 IP 或域名>"
+            exit 1
+          fi
+          if [ -z "${{ secrets.CVM_SSH_KEY }}" ]; then
+            echo "::error::GH Secret CVM_SSH_KEY 未配置"
+            echo "  → GH repo → Settings → Secrets and variables → Actions → New repository secret"
+            echo "  → Name: CVM_SSH_KEY, Value: <deploy user 的 SSH 私钥>"
+            exit 1
+          fi
+          echo "GH Secrets OK: CVM_HOST, CVM_SSH_KEY"
+
+      # -------- Pre-check: GH Variable --------
+      - name: Verify DOCKER_REGISTRY is set
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+        run: |
+          if [ -z "$DOCKER_REGISTRY" ]; then
+            echo "::error::GH Variable DOCKER_REGISTRY 未配置"
+            echo "  → GH repo → Settings → Variables → Actions → New repository variable"
+            echo "  → Name: DOCKER_REGISTRY, Value: ccr.ccs.tencentyun.com/your-tcr-id/type-any-language"
+            exit 1
+          fi
+          echo "DOCKER_REGISTRY=$DOCKER_REGISTRY (source=GH Variable)"
+
+      # -------- SSH to CVM and run prepare --------
+      - name: SSH to CVM and run make prod-prepare
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CVM_HOST }}
+          username: deploy
+          key: ${{ secrets.CVM_SSH_KEY }}
+          # Forward DOCKER_REGISTRY to CVM so resolve_docker_registry works
+          # without gh CLI on the CVM.
+          envs: DOCKER_REGISTRY
+          script: |
+            set -e
+            cd /opt/type-any-language
+
+            # Pull the latest repo content so prepare.sh is up to date.
+            echo "[prepare] pulling latest repo"
+            git pull
+
+            # Verify DOCKER_REGISTRY was actually forwarded (defense in depth).
+            if [ -z "$DOCKER_REGISTRY" ]; then
+              echo "::error::DOCKER_REGISTRY was not forwarded to CVM via SSH env"
+              echo "  → Check appleboy/ssh-action 'envs:' directive in this workflow"
+              exit 1
+            fi
+            echo "[prepare] DOCKER_REGISTRY=$DOCKER_REGISTRY"
+
+            # THE host prep step. Idempotent.
+            echo "[prepare] running make prod-prepare"
+            make prod-prepare
+
+            echo "[prepare] done — CVM is now ready for deploy-prod workflow"

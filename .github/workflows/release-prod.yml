@@ -1,0 +1,137 @@
+name: release-prod
+run-name: release-prod-${{ github.ref_name || inputs.version }}
+
+# Build and push prod app images (english_backend + english_frontend) to
+# ${{ vars.DOCKER_REGISTRY }}.
+#
+# Triggers (any of):
+#   1. push tag matching `v*` (e.g. v0.3.0) — the recommended path.
+#      The tag's stripped version must already match backend/VERSION and
+#      frontend/VERSION (release.sh's bump step is a no-op in that case).
+#   2. workflow_dispatch with a `version` input — manual fallback when
+#      the operator wants to release a version that isn't yet in git tags.
+#
+# Setup (one-time per repo):
+#   1. Settings → Secrets and variables → Actions → Variables tab →
+#      New repository variable:
+#        Name:  DOCKER_REGISTRY
+#        Value: ccr.ccs.tencentyun.com/your-tcr-id/type-any-language
+#      (Same value goes into ./REGISTRY at the repo root so the prod
+#       CVM can pull from the same place.)
+#
+#   2. Settings → Secrets and variables → Actions → Secrets tab →
+#      New repository secret:
+#        REGISTRY_USERNAME  — TCR / Docker Hub username (or temp token id)
+#        REGISTRY_PASSWORD  — TCR / Docker Hub password (or temp token)
+#      (Never put in Variables — they're not secrets!)
+#
+#   3. (Optional) Settings → Environments → prod → Required reviewers
+#      → add yourself / team. The `environment: prod` block below makes
+#      every dispatch-triggered run pause for approval before pulling
+#      secrets. Tag-push triggers are unaffected.
+#
+# What this workflow does:
+#   - Checkout the tag (or default branch for dispatch).
+#   - Login to $DOCKER_REGISTRY using REGISTRY_USERNAME/PASSWORD secrets.
+#   - Run ./ops/prod/release.sh prod <version> -y, which:
+#       a) bumps backend/VERSION + frontend/VERSION to the requested version
+#          (no-op if already at that version — typical for tag-push).
+#       b) commits the bump (no-op if nothing changed).
+#       c) builds english_backend + english_frontend via docker compose build.
+#       d) tags + pushes them to $DOCKER_REGISTRY/english_*:vX.Y.Z.
+#   - The prod CVM picks up the new images on the next
+#     ./ops/prod/lifecycle.sh restart, which `docker pull`s from the
+#     same $DOCKER_REGISTRY (resolved from ./REGISTRY or shell env on
+#     the CVM side).
+#
+# Why ./REGISTRY AND ${{ vars.DOCKER_REGISTRY }}:
+#   - vars.DOCKER_REGISTRY is the GitHub-side source of truth (audited,
+#     visible in repo settings).
+#   - ./REGISTRY is the CVM-side mirror (no token needed, just `git pull`).
+#   - The two MUST stay in sync — release.sh here uses vars.*, the CVM
+#     uses REGISTRY. If they diverge, push succeeds but pull finds nothing.
+#     Add a CI lint if you want to enforce sync.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'X.Y.Z (without v prefix) to bump + release'
+        required: true
+        type: string
+        pattern: '^\d+\.\d+\.\d+$'
+
+permissions:
+  contents: write   # release.sh's git_commit_touched does `git commit`
+  packages: write   # optional: if using GH Packages instead of TCR
+
+concurrency:
+  # Avoid two releases racing on the same VERSION files.
+  group: release-prod
+  cancel-in-progress: false
+
+jobs:
+  release-prod:
+    runs-on: ubuntu-latest
+    environment: prod   # optional: pause dispatch runs for reviewer approval
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Tag-push: checkout the tag itself so the working tree matches
+          # the released VERSION. Dispatch: checkout the default branch.
+          ref: ${{ github.event_name == 'push' && github.ref || github.event.repository.default_branch }}
+          fetch-depth: 0   # need history for release.sh's git_commit_touched
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # github.ref is refs/tags/vX.Y.Z — strip the prefix
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            VERSION="${{ inputs.version }}"
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::version must be X.Y.Z (got: $VERSION)"
+            exit 1
+          fi
+          echo "version=v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: v${VERSION}"
+
+      - name: Login to ${{ vars.DOCKER_REGISTRY }}
+        if: vars.DOCKER_REGISTRY != ''
+        run: |
+          if [ -z "${{ vars.DOCKER_REGISTRY }}" ]; then
+            echo "::error::DOCKER_REGISTRY variable not set — push has nowhere to go"
+            exit 1
+          fi
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | \
+            docker login "${{ vars.DOCKER_REGISTRY }}" \
+                       -u "${{ secrets.REGISTRY_USERNAME }}" \
+                       --password-stdin
+
+      - name: Verify DOCKER_REGISTRY is set
+        run: |
+          if [ -z "$DOCKER_REGISTRY" ]; then
+            echo "::error::GH Variable DOCKER_REGISTRY 未配置"
+            echo "  → GH repo → Settings → Variables → Actions → New: DOCKER_REGISTRY=ccr.ccs..."
+            exit 1
+          fi
+          echo "DOCKER_REGISTRY=$DOCKER_REGISTRY (source=GH Variable)"
+
+      - name: Run release.sh prod ${{ steps.version.outputs.version }} -y
+        env:
+          # release.sh reads DOCKER_REGISTRY; pass it explicitly so the
+          # GH Variable reaches the script.
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          bash ops/prod/release.sh prod "${{ steps.version.outputs.version }}" -y
+
+      - name: Logout
+        if: always()
+        run: docker logout "${{ vars.DOCKER_REGISTRY }}" || true

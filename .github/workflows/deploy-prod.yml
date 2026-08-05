@@ -1,0 +1,119 @@
+name: deploy-prod
+run-name: deploy-prod-${{ inputs.version || 'auto' }}
+
+# Auto-trigger: when release-prod.yml completes successfully, run this
+# workflow to roll out the new release to the prod CVM.
+#
+# Manual trigger (workflow_dispatch) supports two use cases:
+#   1. Re-deploy (leave version empty): SSH in, git pull, run make prod-deploy
+#      to pick up the latest tagged release.
+#   2. Rollback (specify version): SSH in, git checkout vX.Y.Z, run make
+#      prod-deploy to redeploy an older release.
+#
+# Pairs with the Makefile target `make prod-deploy` which is THE go-live
+# step (doctor pre + lifecycle restart + doctor post).
+#
+# Required GH Secrets:
+#   CVM_HOST     — public IP / hostname of the prod CVM
+#   CVM_SSH_KEY  — SSH private key for the `deploy` user on the CVM
+#                  (must have write access to /opt/type-any-language)
+#
+# Why split from release-prod.yml (rather than one combined workflow):
+#   - Release = artifact creation; deploy = go-live. Different concerns,
+#     different failure modes. If deploy fails, release still succeeded —
+#     just re-run deploy.
+#   - Manual rollback needs a dedicated deploy trigger without re-running
+#     release (otherwise you'd accidentally publish a new tag).
+#   - Different secrets: release uses TCR creds, deploy uses CVM SSH key.
+
+on:
+  workflow_run:
+    workflows: [release-prod]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'X.Y.Z to deploy (e.g. 0.3.0). Leave empty for "latest tag".'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read   # only checkout (read-only), no commits
+
+concurrency:
+  # Two deploys at once would race on the same CVM. Queue them serially.
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Auto-trigger: only fire when release-prod succeeded.
+    # Manual trigger: always fire.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success')
+    steps:
+      - name: Verify DOCKER_REGISTRY is set
+        run: |
+          if [ -z "$DOCKER_REGISTRY" ]; then
+            echo "::error::GH Variable DOCKER_REGISTRY 未配置"
+            echo "  → GH repo → Settings → Variables → Actions → New: DOCKER_REGISTRY=ccr.ccs..."
+            exit 1
+          fi
+          echo "DOCKER_REGISTRY=$DOCKER_REGISTRY (source=GH Variable)"
+
+      - name: SSH to CVM and deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CVM_HOST }}
+          username: deploy
+          key: ${{ secrets.CVM_SSH_KEY }}
+          envs: DOCKER_REGISTRY
+          script: |
+            set -e
+            cd /opt/type-any-language
+
+            if [ -n "${{ inputs.version }}" ]; then
+              # Manual rollback: check out a specific version
+              echo "[deploy] checking out v${{ inputs.version }}"
+              git fetch --tags
+              git checkout "v${{ inputs.version }}"
+            else
+              # Normal deploy / re-deploy: pull the default branch head
+              echo "[deploy] pulling latest"
+              git pull
+            fi
+
+            # Verify DOCKER_REGISTRY was injected (defense in depth — CVM also checks)
+            if [ -z "$DOCKER_REGISTRY" ]; then
+              echo "::error::DOCKER_REGISTRY was not forwarded to CVM via SSH env"
+              echo "  → Check appleboy/ssh-action 'envs:' directive in this workflow"
+              exit 1
+            fi
+            echo "[deploy] DOCKER_REGISTRY=$DOCKER_REGISTRY"
+
+            # THE go-live step. doctor pre + lifecycle restart + doctor post.
+            echo "[deploy] running make prod-deploy"
+            make prod-deploy
+          key: ${{ secrets.CVM_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/type-any-language
+
+            if [ -n "${{ inputs.version }}" ]; then
+              # Manual rollback: check out a specific version
+              echo "[deploy] checking out v${{ inputs.version }}"
+              git fetch --tags
+              git checkout "v${{ inputs.version }}"
+            else
+              # Normal deploy / re-deploy: pull the default branch head
+              echo "[deploy] pulling latest"
+              git pull
+            fi
+
+            # THE go-live step. doctor pre + lifecycle restart + doctor post.
+            echo "[deploy] running make prod-deploy"
+            make prod-deploy

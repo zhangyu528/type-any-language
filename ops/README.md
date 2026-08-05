@@ -10,7 +10,6 @@ ops/
 ├── lib.sh              共享 helper —— 每个脚本都 source 它
 ├── build.sh            本地 build prod 镜像,no push
 ├── release.sh          发版编排器(bump + build + push prod)
-├── build_ielts_csv.py  一次性数据准备工具(IELTS 词表 → cms CSV 格式)
 ├── dev/                dev 目标机(host-native + docker postgres)
 │   ├── _common.sh      共享 bootstrap(docker postgres contract、db helpers、staging-files check)
 │   ├── native.sh       host-native dev driver(uvicorn + next dev on host; db 在 docker)
@@ -22,11 +21,12 @@ ops/
 └── prod/               prod 目标机(预编译)
     ├── _common.sh      共享 bootstrap
     ├── lifecycle.sh    start / stop / restart | reload(auto-pull from registry)
-    ├── doctor.sh       只读 preflight env check for prod(含 docker postgres 可达性)
-    ├── setup.sh        首次 bootstrap for fresh prod host(含 `setup.sh bootstrap` 子命令)
+    ├── doctor.sh       只读 preflight env check for prod(读 .secrets/db_password、image 存在、port 80)
+    ├── prepare.sh      主机层准备(preflight + .secrets/db_password + /var/lib/.../postgres chown 999:999)。幂等,不起容器,不 build image
+    ├── bootstrap.sh    首次运行时 bring-up(fetch content + start db + migrate + import + start full stack + verify)。一次性
     ├── logs.sh         docker compose logs -f wrapper
-    ├── build_image.sh  本地 build english_backend + english_frontend
-    ├── push_image.sh   推送 prod backend+frontend 到 $DOCKER_REGISTRY
+    ├── build_image.sh  本地 build english_backend + english_frontend(BUILD 端)
+    ├── push_image.sh   推送 prod backend+frontend 到 $DOCKER_REGISTRY(BUILD 端)
     └── nginx.conf      prod-only 反向代理配置(无 /audio location —— audio 由 COS 直出)
 ```
 
@@ -36,21 +36,23 @@ ops/
 
 | 想做的事 | 命令 |
 |---|---|
-| 发版 | `./ops/release.sh dev\|prod [X.Y.Z] [-y]` |
-| 查看当前版本 | `./ops/release.sh show` |
-| 本地 build prod 镜像(不 push) | `./ops/build.sh` |
+| 发版 | `./ops/prod/release.sh dev\|prod [X.Y.Z] [-y]` |
+| 查看当前版本 | `./ops/prod/release.sh show` |
+| 本地 build prod 镜像(不 push) | `./ops/prod/build.sh` |
 | 首次 dev setup(装 host-native deps + 起 docker db) | `./ops/dev/setup.sh` |
 | 启动 / 停止 / 重启 host-native dev loop | `./ops/dev/native.sh start\|stop\|restart` |
-| 首次 verify docker postgres + build prod apps | `./ops/prod/setup.sh` |
-| 一次性 docker postgres setup(prod) | `./ops/prod/setup.sh bootstrap` |
-| 检查主机就绪状态 | `./ops/<host>/doctor.sh` |
+| **RUN 端**:首次 prod 主机层准备(preflight + secrets + 数据目录) | `./ops/prod/prepare.sh` |
+| **RUN 端**:首次 prod 运行时 bring-up(fetch + db + migrate + import + start + verify) | `./ops/prod/deploy.sh` |
+| **BUILD 端**:本地 build prod 镜像(不 push) | `./ops/prod/build.sh` 或 `./ops/prod/build/image.sh` |
+| **BUILD 端**:bump + build + push prod 镜像 | `./ops/prod/release.sh prod vX.Y.Z -y` |
+| **BUILD 端**:推送已 build 的 prod 镜像到 registry | `./ops/prod/build/push.sh -y` |
+| 检查 prod 主机就绪状态 | `./ops/prod/doctor.sh` |
 | 启动 / 停止 / 重启 prod 容器 | `./ops/prod/lifecycle.sh start\|stop\|restart` |
 | 滚动重载(同容器、不重建) | `./ops/prod/lifecycle.sh reload` |
 | 查看容器日志 | `./ops/<host>/logs.sh [svc]` |
 | Apply schema migrations 到 docker db(dev-only host runner) | `./ops/dev/migrate.sh` |
-| 本地 build prod 镜像 | `./ops/prod/build_image.sh` |
-| 推送 prod 镜像到 registry | `./ops/prod/push_image.sh -y` |
 | Import staging 内容到 db | `./db/scripts/import_staging.sh all` |
+| 拉 CMS staging 内容到本机 | `make cms-fetch` 或 `./scripts/fetch_cms_content.sh auto` |
 | 拉 CMS 密钥到 shell | `eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"` (每次新 shell 都跑) |
 
 `ops/dev/` 用 host-native loop(uvicorn + `next dev` on host;db 在 docker);prod 才是容器化的。CMS 脚本在 `cms/scripts/` 下,db 脚本在 `db/scripts/` 下 —— 这两个独立子系统的入口不在 `ops/` 里,保留各自的命名空间。
@@ -153,7 +155,7 @@ require_docker    # 脚本用到 docker 时
 
 dev 没有 image(uvicorn + `next dev` 跑在 host 上),所以也没有 dev VERSION 概念 —— `backend/VERSION` 只管 prod 那个 tag。完整的解析链和覆盖优先级见仓库根 `CLAUDE.md` 的 "Image version tags" 段。
 
-`ops/release.sh` 是版本管理的唯一入口 —— 优先用它,别手改 VERSION 文件。
+`ops/prod/release.sh` 是版本管理的唯一入口 —— 优先用它,别手改 VERSION 文件。
 
 ## 新增脚本流程
 

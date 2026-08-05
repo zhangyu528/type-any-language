@@ -1,8 +1,8 @@
 #!/bin/bash
 #
-# ops/build.sh — build the prod docker images locally, no push.
+# ops/prod/build.sh — build the prod docker images locally, no push.
 #
-# Build-only counterpart to ops/release.sh. It produces the prod
+# Build-only counterpart to ops/prod/release.sh. It produces the prod
 # app images (english_backend + english_frontend) so an operator can
 # have a locally-runnable prod stack in one command.
 #
@@ -11,7 +11,7 @@
 # the db via db/scripts/import_staging.sh on the CMS host (a
 # separate step from this build script).
 #
-# Pushing is intentionally NOT handled here — use ops/release.sh for
+# Pushing is intentionally NOT handled here — use ops/prod/release.sh for
 # that. This script is for the "build everything so I can run/test it
 # locally" workflow: a single-machine CMS+prod setup, or just
 # "rebuild after a code change".
@@ -20,7 +20,7 @@
 #   (default) | prod   Build the prod backend + frontend images.
 #   -h | help          Show usage.
 #
-# Image tags follow the standard chain (ops/prod/build_image.sh does
+# Image tags follow the standard chain (ops/prod/build/image.sh does
 # its own resolution via lib.sh → resolve_image_tag):
 #
 #   per-image env (BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG)
@@ -31,7 +31,7 @@
 #
 # Override all tags at once:
 #
-#   IMAGE_TAG=v1.2.3 ./ops/build.sh
+#   IMAGE_TAG=v1.2.3 ./ops/prod/build.sh
 #
 # Requires: shell + docker.
 
@@ -61,7 +61,7 @@ usage() {
   (default) | prod    Build prod 应用镜像 (english_backend + english_frontend)
   -h | help           显示帮助
 
-不负责 push — 想推到 registry 请用 ops/release.sh。
+不负责 push — 想推到 registry 请用 ops/prod/release.sh。
 
 Image tag 解析(每个 inner build 自己 resolve, 见 lib.sh → resolve_image_tag):
   per-image env (BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG)
@@ -100,7 +100,7 @@ cmd_prod() {
     echo ""
 
     run_step "build prod backend + frontend" \
-        ./ops/prod/build_image.sh
+        ./ops/prod/build/image.sh
     echo ""
 
     ok "build prod done."
