@@ -46,7 +46,10 @@ __pycache__/
 *.egg-info/
 .eggs/
 dist/
-build/
+# Python setuptools' build/ (root-only — do NOT generalize to all
+# build/ directories; e.g. ops/prod/build/ holds our image build
+# scripts and MUST be tracked).
+/build/
 .venv/
 venv/
 ENV/
