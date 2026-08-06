@@ -53,7 +53,7 @@ COPY db/db_url.py         /app/db_url.py
 COPY cms/content/         /app/cms_content/
 
 # ── Custom entrypoint wrapper ───────────────────────────────────────────
-COPY image-entrypoint.sh /usr/local/bin/db-image-entrypoint.sh
+COPY db/image-entrypoint.sh /usr/local/bin/db-image-entrypoint.sh
 RUN chmod +x /usr/local/bin/db-image-entrypoint.sh
 
 ENTRYPOINT ["/usr/local/bin/db-image-entrypoint.sh"]
