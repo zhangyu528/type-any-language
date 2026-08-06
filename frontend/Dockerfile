@@ -12,6 +12,11 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY package*.json ./
+# scripts/install.mjs must be present before `npm ci`, because npm ci
+# triggers the `install` script (= node scripts/install.mjs) as a
+# lifecycle hook, and install.mjs is not part of the COPY . . layer
+# that happens after npm ci. Copy it explicitly first.
+COPY scripts/install.mjs ./scripts/install.mjs
 # `npm ci` triggers the package.json `install` script (which runs
 # install.mjs). install.mjs is now permissive: it sees node_modules
 # already populated by `npm ci` itself, records the lock hash, and
