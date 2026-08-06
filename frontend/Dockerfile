@@ -12,12 +12,12 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY package*.json ./
-# --ignore-scripts: skip the postinstall hook (`node scripts/install.mjs`).
-# That hook is a local-dev helper for idempotency that re-runs
-# `npm install` — useless in Docker (fresh node_modules every build,
-# already installed correctly by `npm ci`) and actively harmful (re-runs
-# would race with the lockfile-driven `npm ci` install).
-RUN npm ci --ignore-scripts
+# `npm ci` triggers the package.json `install` script (which runs
+# install.mjs). install.mjs is now permissive: it sees node_modules
+# already populated by `npm ci` itself, records the lock hash, and
+# exits 0 — no recursive `npm install`. So we don't need
+# --ignore-scripts anymore.
+RUN npm ci
 
 COPY . .
 
