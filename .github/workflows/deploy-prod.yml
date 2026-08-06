@@ -152,12 +152,13 @@ jobs:
         # needed files (the runner has the latest via checkout) and scp
         # them to /tmp on the CVM; the next SSH step unpacks them in place.
         #
-        # ALSO pushes /tmp/ghcr_auth.b64 = base64("github.actor:GITHUB_TOKEN")
-        # which the next SSH step merges into /root/.docker/config.json.
-        # This bypasses GHCR's anonymous-pull rate limit without putting
-        # ${{ secrets.* }} into appleboy's `script:` (which triggers a YAML
-        # parser error). GITHUB_TOKEN is run-scoped (dies after this run),
-        # so any leftover in /tmp or config.json is harmless.
+        # ALSO pushes /tmp/ghcr_user and /tmp/ghcr_token, which the next
+        # SSH step feeds to `docker login` to bypass GHCR's anonymous-pull
+        # rate limit. We push them as files (not via appleboy's `envs:`
+        # forwarding, which silently dropped GHCR_USER for unrelated
+        # reasons) and the values never appear in appleboy's `script:`
+        # string (which doesn't accept ${{ }} interpolation anyway).
+        # GITHUB_TOKEN is run-scoped, so any straggler in /tmp is harmless.
         env:
           CVM_HOST: ${{ secrets.CVM_HOST }}
           CVM_USER: ${{ vars.CVM_BOOTSTRAP_USER || 'ubuntu' }}
@@ -169,31 +170,31 @@ jobs:
           tar czf /tmp/prod-deploy.tar.gz -C "${{ github.workspace }}" \
             ops/prod ops/lib.sh Makefile docker-compose.yml
 
-          # Build GHCR docker auth blob: base64("user:token") — the format
-          # /root/.docker/config.json stores under "auths.ghcr.io.auth".
-          printf '%s' "$GHCR_USER:$GHCR_TOKEN" | base64 -w0 > /tmp/ghcr_auth.b64
-          # Sanity check: an empty token would still produce a valid base64
-          # string and silently log the CVM in as anonymous, masking the bug.
-          AUTH_LEN=$(wc -c < /tmp/ghcr_auth.b64)
-          if [ "$AUTH_LEN" -lt 20 ]; then
-            echo "::error::GHCR auth blob is suspiciously short ($AUTH_LEN bytes) — GITHUB_TOKEN is probably empty"
+          # Sanity-check the token: an empty GITHUB_TOKEN would let docker
+          # login fall back to anonymous, which is exactly the bug we are
+          # trying to fix. Fail loudly instead.
+          if [ -z "$GHCR_TOKEN" ]; then
+            echo "::error::GHCR_TOKEN (secrets.GITHUB_TOKEN) is empty — can't authenticate to ghcr.io"
             exit 1
           fi
-          echo "[runner] built GHCR auth blob (length=$AUTH_LEN)"
+          echo "[runner] GHCR user=$GHCR_USER token_len=${#GHCR_TOKEN}"
 
           printf '%s\n' "$CVM_KEY" > "$RUNNER_TEMP/cvm_key"
           chmod 600 "$RUNNER_TEMP/cvm_key"
 
-          # scp both files in one session (saves an SSH handshake each).
+          # Stage GHCR creds on disk, scp them in the same session as the
+          # prod scripts tarball (saves an SSH handshake).
+          printf '%s' "$GHCR_USER" > /tmp/ghcr_user
+          printf '%s' "$GHCR_TOKEN" > /tmp/ghcr_token
+          chmod 600 /tmp/ghcr_user /tmp/ghcr_token
           scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             -i "$RUNNER_TEMP/cvm_key" \
-            /tmp/prod-deploy.tar.gz /tmp/ghcr_auth.b64 \
+            /tmp/prod-deploy.tar.gz /tmp/ghcr_user /tmp/ghcr_token \
             "$CVM_USER@$CVM_HOST:/tmp/"
 
-          # Wipe runner-side auth blob immediately. Runner temp dir is
-          # ephemeral but no reason to leave it lying around.
-          rm -f /tmp/ghcr_auth.b64 "$RUNNER_TEMP/cvm_key"
-          echo "[runner] delivered prod-deploy.tar.gz + ghcr_auth.b64 -> CVM:/tmp"
+          # Wipe runner-side creds immediately.
+          rm -f /tmp/ghcr_user /tmp/ghcr_token "$RUNNER_TEMP/cvm_key"
+          echo "[runner] delivered prod-deploy.tar.gz + ghcr creds -> CVM:/tmp"
 
       - name: SSH to CVM and deploy
         uses: appleboy/ssh-action@v1.0.3
@@ -244,47 +245,26 @@ jobs:
               /opt/type-any-language/docker-compose.yml
             rm -f /tmp/prod-deploy.tar.gz
 
-            # Login CVM to ghcr.io by merging the runner-delivered auth blob into
-            # /root/.docker/config.json. This bypasses GHCR's anonymous pull
-            # rate limit WITHOUT relying on docker login (which requires
-            # the GITHUB_TOKEN to be a string in this script — not allowed
-            # in appleboy's `script:`) and WITHOUT env forwarding through
-            # appleboy (which silently dropped GHCR_USER). The blob is
-            # /tmp/ghcr_auth.b64 = base64("github.actor:GITHUB_TOKEN").
-            # Run as root because deploy user can't write to /root/.docker/.
-            # The token is run-scoped so any leftover here is harmless.
-            #
-            # Implementation: stash the auth value in /tmp/_ghcr_auth_value
-            # so python can read it (heredoc). Bash-via-python variable
-            # interpolation in a single-quoted `sudo bash -lc` block is
-            # awkward; passing through a file keeps quoting clean.
-            if [ -s /tmp/ghcr_auth.b64 ]; then
+            # Login CVM to ghcr.io to bypass anonymous-pull rate limit. The runner
+            # scp'd /tmp/ghcr_user and /tmp/ghcr_token so we can run docker
+            # login here without depending on appleboy's env forwarding
+            # (which silently dropped GHCR_USER) and without putting
+            # ${{ secrets.* }} into appleboy's `script:` (which doesn't
+            # accept ${{ }} interpolation). Run as root because docker
+            # login touches /root/.docker/config.json. Files are wiped
+            # immediately after login; GITHUB_TOKEN is run-scoped so any
+            # straggler is harmless.
+            if [ -s /tmp/ghcr_user ] && [ -s /tmp/ghcr_token ]; then
               sudo -n bash -lc '
                 set -e
-                cat /tmp/ghcr_auth.b64 > /tmp/_ghcr_auth_value
-                mkdir -p /root/.docker
-                python3 - <<-PYEOF
-                  import json, os
-                  cfg_path = "/root/.docker/config.json"
-                  with open("/tmp/_ghcr_auth_value") as f:
-                      auth_value = f.read().strip()
-                  cfg = {}
-                  if os.path.exists(cfg_path):
-                      try:
-                          with open(cfg_path) as f:
-                              cfg = json.load(f)
-                      except Exception:
-                          cfg = {}
-                  cfg.setdefault("auths", {})["ghcr.io"] = {"auth": auth_value}
-                  with open(cfg_path, "w") as f:
-                      json.dump(cfg, f, indent=2)
-                  os.chmod(cfg_path, 0o600)
-                PYEOF
-                rm -f /tmp/ghcr_auth.b64 /tmp/_ghcr_auth_value
-                echo "[cvm] wrote /root/.docker/config.json with ghcr.io auth"
+                # Run login from a writable CWD; docker login reads
+                # /tmp/ghcr_token via stdin.
+                docker login ghcr.io -u "$(cat /tmp/ghcr_user)" --password-stdin < /tmp/ghcr_token
+                rm -f /tmp/ghcr_user /tmp/ghcr_token
+                echo "[cvm] docker login ghcr.io OK"
               '
             else
-              echo "::warning::/tmp/ghcr_auth.b64 missing or empty - CVM will pull anonymously (may hit GHCR rate limit)"
+              echo "::warning::ghcr creds missing on CVM - will pull anonymously (may hit GHCR rate limit)"
             fi
 
             sudo -u deploy bash -lc '
