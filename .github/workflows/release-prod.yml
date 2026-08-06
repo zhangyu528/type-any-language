@@ -133,6 +133,15 @@ jobs:
           DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
           GIT_SHA: ${{ github.sha }}
         run: |
+          # DEBUG: verify checkout has the files we expect
+          echo "[DEBUG] CWD=$(pwd)"
+          echo "[DEBUG] ls -la backend/VERSION frontend/VERSION db/VERSION ops/prod/build/image.sh:"
+          ls -la backend/VERSION frontend/VERSION db/VERSION ops/prod/build/image.sh 2>&1 || true
+          echo "[DEBUG] ls ops/prod/:"
+          ls -la ops/prod/ 2>&1
+          echo "[DEBUG] git log --oneline -3:"
+          git log --oneline -3
+          echo ""
           bash ops/prod/release.sh prod "${{ steps.version.outputs.version }}" -y
 
       - name: Logout
