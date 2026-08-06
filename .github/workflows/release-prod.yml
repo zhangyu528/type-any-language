@@ -133,22 +133,6 @@ jobs:
           DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
           GIT_SHA: ${{ github.sha }}
         run: |
-          # DEBUG: trace what release.sh does step by step
-          set -e
-          echo "BEFORE: PWD=$PWD"
-          SCRIPT="ops/prod/release.sh"
-          echo "SCRIPT=$SCRIPT"
-          DIRNAME=$(dirname "$SCRIPT")
-          echo "DIRNAME=$DIRNAME"
-          SCRIPT_DIR=$(cd "$DIRNAME" && pwd)
-          echo "SCRIPT_DIR=$SCRIPT_DIR"
-          PROJECT_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
-          echo "PROJECT_DIR=$PROJECT_DIR"
-          cd "$PROJECT_DIR"
-          echo "AFTER_CD: PWD=$PWD"
-          echo "FILES:"
-          ls -la backend/VERSION frontend/VERSION db/VERSION
-          echo "---"
           bash ops/prod/release.sh prod "${{ steps.version.outputs.version }}" -y
 
       - name: Logout

@@ -82,10 +82,14 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# Use git rev-parse to find the actual repo root, not SCRIPT_DIR/.. which
+# breaks on GH Actions where the checkout path is
+# /home/runner/work/<owner>-<repo>/<repo>/ (the duplicate <repo> segment
+# means SCRIPT_DIR/.. lands in <repo>/ops instead of <repo>/).
+PROJECT_DIR="$(git rev-parse --show-toplevel)"
 cd "$PROJECT_DIR"
 # shellcheck disable=SC1091
-source "$SCRIPT_DIR/../lib.sh"
+source "$PROJECT_DIR/ops/lib.sh"
 
 # Each release stream touches its own set of per-segment VERSION files.
 # One file per segment, gating prod image tags only:
