@@ -18,9 +18,10 @@ run-name: deploy-prod-${{ inputs.version || 'auto' }}
 # go-live step (doctor pre + lifecycle restart + doctor post).
 #
 # Required GH Secrets (env: prod):
-#   CVM_HOST     — public IP / hostname of the prod CVM
-#   CVM_SSH_KEY  — SSH private key for the `deploy` user on the CVM
-#                  (must have write access to /opt/type-any-language)
+#   CVM_HOST              — public IP / hostname of the prod CVM
+#   CVM_BOOTSTRAP_SSH_KEY — SSH private key for the `ubuntu` (or root)
+#                           user on the CVM. deploy-prod logs in as this
+#                           user and runs the deploy via `sudo -u deploy`.
 #
 # Why split from release-prod.yml (rather than one combined workflow):
 #   - Release = artifact creation; deploy = go-live. Different
@@ -30,7 +31,8 @@ run-name: deploy-prod-${{ inputs.version || 'auto' }}
 #     re-running release (otherwise you'd accidentally publish a
 #     new tag).
 #   - Different secrets: release uses GITHUB_TOKEN (GHCR push), deploy
-#     uses CVM SSH key. No registry username/password needed — GHCR uses
+#     uses CVM_BOOTSTRAP_SSH_KEY (logs in as the bootstrap user, then
+#     sudo -u deploy). No registry username/password needed — GHCR uses
 #     the built-in GITHUB_TOKEN (packages: write).
 
 on:
@@ -41,6 +43,11 @@ on:
         required: false
         type: string
         default: ''
+      bootstrap_user:
+        description: 'Login user used to run the deploy via sudo -u deploy (default: ubuntu)'
+        required: false
+        type: string
+        default: 'ubuntu'
 
 permissions:
   contents: read   # only checkout (read-only), no commits
@@ -53,7 +60,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # Use prod environment for access to CVM_HOST / CVM_SSH_KEY secrets
+    # Use prod environment for access to CVM_HOST / CVM_BOOTSTRAP_SSH_KEY secrets
     # AND for optional required-reviewer approval on manual deploys.
     environment: prod
     # workflow_dispatch only — no auto trigger. The operator explicitly
@@ -98,32 +105,36 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.CVM_HOST }}
-          username: deploy
-          key: ${{ secrets.CVM_SSH_KEY }}
+          username: ${{ inputs.bootstrap_user }}
+          key: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
           envs: DOCKER_REGISTRY
           script: |
             set -e
-            cd /opt/type-any-language
+            sudo -u deploy bash -lc '
+              export DOCKER_REGISTRY="'"$DOCKER_REGISTRY"'"
+              set -e
+              cd /opt/type-any-language
 
-            if [ -n "${{ inputs.version }}" ]; then
-              # Manual rollback: check out a specific version
-              echo "[deploy] checking out v${{ inputs.version }}"
-              git fetch --tags
-              git checkout "v${{ inputs.version }}"
-            else
-              # Normal deploy / re-deploy: pull the default branch head
-              echo "[deploy] pulling latest"
-              git pull
-            fi
+              if [ -n "${{ inputs.version }}" ]; then
+                # Manual rollback: check out a specific version
+                echo "[deploy] checking out v${{ inputs.version }}"
+                git fetch --tags
+                git checkout "v${{ inputs.version }}"
+              else
+                # Normal deploy / re-deploy: pull the default branch head
+                echo "[deploy] pulling latest"
+                git pull
+              fi
 
-            # Verify DOCKER_REGISTRY was injected (defense in depth — CVM also checks)
-            if [ -z "$DOCKER_REGISTRY" ]; then
-              echo "::error::DOCKER_REGISTRY was not forwarded to CVM via SSH env"
-              echo "  → Check appleboy/ssh-action 'envs:' directive in this workflow"
-              exit 1
-            fi
-            echo "[deploy] DOCKER_REGISTRY=$DOCKER_REGISTRY"
+              # Verify DOCKER_REGISTRY was injected (defense in depth — CVM also checks)
+              if [ -z "$DOCKER_REGISTRY" ]; then
+                echo "::error::DOCKER_REGISTRY was not forwarded to CVM via SSH env"
+                echo "  -> Check appleboy/ssh-action envs: directive in this workflow"
+                exit 1
+              fi
+              echo "[deploy] DOCKER_REGISTRY=$DOCKER_REGISTRY"
 
-            # THE go-live step. doctor pre + lifecycle restart + doctor post.
-            echo "[deploy] running make prod-deploy"
-            make prod-deploy
+              # THE go-live step. doctor pre + lifecycle restart + doctor post.
+              echo "[deploy] running make prod-deploy"
+              make prod-deploy
+            '
