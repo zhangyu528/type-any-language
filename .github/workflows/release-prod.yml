@@ -137,10 +137,23 @@ jobs:
           echo "[DEBUG] CWD=$(pwd)"
           echo "[DEBUG] ls -la backend/VERSION frontend/VERSION db/VERSION ops/prod/build/image.sh:"
           ls -la backend/VERSION frontend/VERSION db/VERSION ops/prod/build/image.sh 2>&1 || true
-          echo "[DEBUG] ls ops/prod/:"
-          ls -la ops/prod/ 2>&1
-          echo "[DEBUG] git log --oneline -3:"
-          git log --oneline -3
+          echo ""
+          # DEBUG: trace what release.sh does
+          bash -c '
+            set -e
+            echo "[DEBUG2] inside new bash CWD=$(pwd)"
+            echo "[DEBUG2] BASH_SOURCE[0]=$0"
+            DIRNAME=$(dirname "$0")
+            echo "[DEBUG2] dirname=\$0 = $DIRNAME"
+            cd "$DIRNAME" && echo "[DEBUG2] after cd, pwd=$(pwd)"
+            SCRIPT_DIR=$(cd "$DIRNAME" && pwd)
+            echo "[DEBUG2] SCRIPT_DIR=$SCRIPT_DIR"
+            PROJECT_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
+            echo "[DEBUG2] PROJECT_DIR=$PROJECT_DIR"
+            cd "$PROJECT_DIR"
+            echo "[DEBUG2] final CWD=$(pwd)"
+            ls -la backend/VERSION 2>&1
+          ' ops/prod/release.sh
           echo ""
           bash ops/prod/release.sh prod "${{ steps.version.outputs.version }}" -y
 
