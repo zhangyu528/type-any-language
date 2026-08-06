@@ -1,15 +1,23 @@
 name: release-prod
-run-name: release-prod-${{ github.ref_name || inputs.version }}
+run-name: release-prod-${{ github.event.inputs.version || 'auto' }}
 
-# Build and push prod app images (english_backend + english_frontend) to
+# Build and push prod app images (english_db + english_backend + english_frontend) to
 # ${{ vars.DOCKER_REGISTRY }}.
 #
-# Triggers (any of):
-#   1. push tag matching `v*` (e.g. v0.3.0) — the recommended path.
-#      The tag's stripped version must already match backend/VERSION and
-#      frontend/VERSION (release.sh's bump step is a no-op in that case).
-#   2. workflow_dispatch with a `version` input — manual fallback when
-#      the operator wants to release a version that isn't yet in git tags.
+# Trigger: workflow_dispatch ONLY. The operator runs this manually
+# after deciding what version to release. There is no auto-trigger
+# (no push-tag, no workflow_run) — release + deploy are explicit,
+# auditable, two-step process. Pair with deploy-prod, which is
+# also manual and offers a version picker.
+#
+# Why manual-only:
+#   - Release produces real artifacts pushed to TCR. An accidental
+#     release is hard to roll back (have to delete registry images,
+#     rotate tags, etc.). A "push tag → auto release" path is
+#     dangerous in a small team where the same person writes code
+#     and ships it.
+#   - Forces a deliberate "I'm shipping now" moment in the GH UI,
+#     which is where you want a human gate.
 #
 # Setup (one-time per repo):
 #   1. Settings → Secrets and variables → Actions → Variables tab →
@@ -20,29 +28,26 @@ run-name: release-prod-${{ github.ref_name || inputs.version }}
 #       CVM can pull from the same place.)
 #
 #   2. Settings → Secrets and variables → Actions → Secrets tab →
-#      New repository secret:
+#      New repository secret (env: prod):
 #        REGISTRY_USERNAME  — TCR / Docker Hub username (or temp token id)
 #        REGISTRY_PASSWORD  — TCR / Docker Hub password (or temp token)
 #      (Never put in Variables — they're not secrets!)
 #
-#   3. (Optional) Settings → Environments → prod → Required reviewers
-#      → add yourself / team. The `environment: prod` block below makes
-#      every dispatch-triggered run pause for approval before pulling
-#      secrets. Tag-push triggers are unaffected.
-#
 # What this workflow does:
-#   - Checkout the tag (or default branch for dispatch).
+#   - Checkout the default branch (release-prod always runs from
+#     the latest committed code, NOT from a tag — the tag is
+#     created by the operator, not the workflow).
 #   - Login to $DOCKER_REGISTRY using REGISTRY_USERNAME/PASSWORD secrets.
 #   - Run ./ops/prod/release.sh prod <version> -y, which:
 #       a) bumps backend/VERSION + frontend/VERSION to the requested version
-#          (no-op if already at that version — typical for tag-push).
+#          (no-op if already at that version).
 #       b) commits the bump (no-op if nothing changed).
-#       c) builds english_backend + english_frontend via docker compose build.
+#       c) builds english_db + english_backend + english_frontend
+#          via docker compose build.
 #       d) tags + pushes them to $DOCKER_REGISTRY/english_*:vX.Y.Z.
-#   - The prod CVM picks up the new images on the next
-#     ./ops/prod/lifecycle.sh restart, which `docker pull`s from the
-#     same $DOCKER_REGISTRY (resolved from ./REGISTRY or shell env on
-#     the CVM side).
+#
+# After release-prod completes successfully, the operator runs
+# deploy-prod (manual) to roll the images out to the CVM.
 #
 # Why ./REGISTRY AND ${{ vars.DOCKER_REGISTRY }}:
 #   - vars.DOCKER_REGISTRY is the GitHub-side source of truth (audited,
@@ -53,9 +58,6 @@ run-name: release-prod-${{ github.ref_name || inputs.version }}
 #     Add a CI lint if you want to enforce sync.
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
     inputs:
       version:

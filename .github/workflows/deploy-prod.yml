@@ -1,39 +1,42 @@
 name: deploy-prod
 run-name: deploy-prod-${{ inputs.version || 'auto' }}
 
-# Auto-trigger: when release-prod.yml completes successfully, run this
-# workflow to roll out the new release to the prod CVM.
+# Roll out a release to the prod CVM.
+#
+# Trigger: workflow_dispatch ONLY. The operator runs this manually
+# after release-prod completes successfully, picking the version
+# to deploy. There is no auto-trigger (no workflow_run) — deploy is
+# a deliberate, auditable action.
 #
 # Manual trigger (workflow_dispatch) supports two use cases:
-#   1. Re-deploy (leave version empty): SSH in, git pull, run make prod-deploy
-#      to pick up the latest tagged release.
-#   2. Rollback (specify version): SSH in, git checkout vX.Y.Z, run make
-#      prod-deploy to redeploy an older release.
+#   1. Deploy the just-released version: leave the version input
+#      empty (resolves to the most recent successful release-prod
+#      run's tagged version, see "Discover releases" step below).
+#   2. Rollback: enter an older version (e.g. 0.0.5).
 #
-# Pairs with the Makefile target `make prod-deploy` which is THE go-live
-# step (doctor pre + lifecycle restart + doctor post).
+# Pair with the Makefile target `make prod-deploy` which is THE
+# go-live step (doctor pre + lifecycle restart + doctor post).
 #
-# Required GH Secrets:
+# Required GH Secrets (env: prod):
 #   CVM_HOST     — public IP / hostname of the prod CVM
 #   CVM_SSH_KEY  — SSH private key for the `deploy` user on the CVM
 #                  (must have write access to /opt/type-any-language)
 #
 # Why split from release-prod.yml (rather than one combined workflow):
-#   - Release = artifact creation; deploy = go-live. Different concerns,
-#     different failure modes. If deploy fails, release still succeeded —
-#     just re-run deploy.
-#   - Manual rollback needs a dedicated deploy trigger without re-running
-#     release (otherwise you'd accidentally publish a new tag).
-#   - Different secrets: release uses TCR creds, deploy uses CVM SSH key.
+#   - Release = artifact creation; deploy = go-live. Different
+#     concerns, different failure modes. If deploy fails, release
+#     still succeeded — just re-run deploy.
+#   - Manual rollback needs a dedicated deploy trigger without
+#     re-running release (otherwise you'd accidentally publish a
+#     new tag).
+#   - Different secrets: release uses TCR creds, deploy uses CVM
+#     SSH key.
 
 on:
-  workflow_run:
-    workflows: [release-prod]
-    types: [completed]
   workflow_dispatch:
     inputs:
       version:
-        description: 'X.Y.Z to deploy (e.g. 0.3.0). Leave empty for "latest tag".'
+        description: 'X.Y.Z to deploy (e.g. 0.3.0). Leave empty for "most recent successful release".'
         required: false
         type: string
         default: ''
@@ -52,13 +55,32 @@ jobs:
     # Use prod environment for access to CVM_HOST / CVM_SSH_KEY secrets
     # AND for optional required-reviewer approval on manual deploys.
     environment: prod
-    # Auto-trigger: only fire when release-prod succeeded.
-    # Manual trigger: always fire.
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success')
+    # workflow_dispatch only — no auto trigger. The operator explicitly
+    # runs this after release-prod completes (decide what version
+    # to ship, run deploy, verify on CVM).
     steps:
+      - name: Discover recent successful releases
+        # List recent successful release-prod runs (with the version
+        # they shipped) + the matching git tag, so the operator can
+        # copy a version into the dispatch input below. The version
+        # input itself is a free-text field (GH workflow_dispatch
+        # choice inputs are static — we can't dynamically populate them
+        # from previous run history).
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "=== 最近成功的 release-prod runs (按时间倒序) ==="
+          gh run list \
+              --workflow=release-prod.yml \
+              --status=success \
+              --limit=10 \
+              --json databaseId,displayTitle,headBranch,createdAt,conclusion \
+              --jq '.[] | "\(.createdAt)  run=\(.databaseId)  title=\(.displayTitle)"'
+          echo ""
+          echo "=== 当前 git tags (按版本倒序) ==="
+          git tag --sort=-v:refname | head -20
+        continue-on-error: true   # listing is informational; don't fail the run
+
       - name: Verify DOCKER_REGISTRY is set
         env:
           DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
