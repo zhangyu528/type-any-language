@@ -9,10 +9,14 @@ run-name: deploy-prod-${{ inputs.version || 'auto' }}
 # a deliberate, auditable action.
 #
 # Manual trigger (workflow_dispatch) supports two use cases:
-#   1. Deploy the just-released version: leave the version input
-#      empty (resolves to the most recent successful release-prod
-#      run's tagged version, see "Discover releases" step below).
-#   2. Rollback: enter an older version (e.g. 0.0.5).
+#   1. Deploy the just-released version: pick "auto" — the workflow
+#      resolves the latest published release (via `gh release list`)
+#      and deploys it. If no release exists yet, it falls back to the
+#      default branch head.
+#   2. Rollback: pick a specific version (e.g. v0.1.0) from the
+#      dropdown. The option list is STATIC (GH workflow_dispatch
+#      choice inputs can't be populated dynamically) — add new
+#      versions here by hand as you cut releases.
 #
 # Pair with the Makefile target `make prod-deploy` which is THE
 # go-live step (doctor pre + lifecycle restart + doctor post).
@@ -39,10 +43,13 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'X.Y.Z to deploy (e.g. 0.3.0). Leave empty for "most recent successful release".'
-        required: false
-        type: string
-        default: ''
+        description: '要部署的版本。选 "auto" 部署最新的已发布 release；或选具体版本回滚。每发一个新版本，需手动在下方 options 追加一项。'
+        required: true
+        type: choice
+        default: auto
+        options:
+          - auto
+          - v0.1.0
       bootstrap_user:
         description: 'Login user used to run the deploy via sudo -u deploy (default: ubuntu)'
         required: false
@@ -68,12 +75,10 @@ jobs:
     # to ship, run deploy, verify on CVM).
     steps:
       - name: Discover recent successful releases
-        # List recent successful release-prod runs (with the version
-        # they shipped) + the matching git tag, so the operator can
-        # copy a version into the dispatch input below. The version
-        # input itself is a free-text field (GH workflow_dispatch
-        # choice inputs are static — we can't dynamically populate them
-        # from previous run history).
+        # Informational helper (does NOT drive the dropdown — GH
+        # workflow_dispatch choice inputs are static and must be edited
+        # by hand). Lists recent release-prod runs + git tags so the
+        # operator can see what versions exist and which to pick.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -101,29 +106,54 @@ jobs:
           fi
           echo "DOCKER_REGISTRY=$DOCKER_REGISTRY (source=GH Variable)"
 
+      - name: Resolve deploy version
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SELECTED: ${{ inputs.version }}
+        run: |
+          set -e
+          if [ "$SELECTED" = "auto" ]; then
+            echo "version input = auto → resolving latest published release"
+            tag=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || true)
+            if [ -z "$tag" ]; then
+              echo "::warning::未找到已发布的 release，将回退到默认分支最新提交"
+              tag=""
+            else
+              echo "resolved latest release tag = $tag"
+            fi
+          else
+            echo "version input = $SELECTED (explicit)"
+            tag="$SELECTED"
+          fi
+          echo "DEPLOY_TAG=$tag" >> "$GITHUB_OUTPUT"
+
       - name: SSH to CVM and deploy
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          DEPLOY_TAG: ${{ steps.resolve.outputs.DEPLOY_TAG }}
         with:
           host: ${{ secrets.CVM_HOST }}
           username: ${{ inputs.bootstrap_user }}
           key: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
-          envs: DOCKER_REGISTRY
+          envs: DOCKER_REGISTRY,DEPLOY_TAG
           script: |
             set -e
             sudo -u deploy bash -lc '
               export DOCKER_REGISTRY="'"$DOCKER_REGISTRY"'"
+              export DEPLOY_TAG="'"$DEPLOY_TAG"'"
               set -e
               cd /opt/type-any-language
 
-              if [ -n "${{ inputs.version }}" ]; then
-                # Manual rollback: check out a specific version
-                echo "[deploy] checking out v${{ inputs.version }}"
-                git fetch --tags
-                git checkout "v${{ inputs.version }}"
-              else
-                # Normal deploy / re-deploy: pull the default branch head
-                echo "[deploy] pulling latest"
+              if [ -z "$DEPLOY_TAG" ]; then
+                # auto + no release found → deploy latest branch head
+                echo "[deploy] auto: no release resolved, pulling latest branch head"
                 git pull
+              else
+                # Deploy / rollback: check out the chosen version tag
+                echo "[deploy] checking out $DEPLOY_TAG"
+                git fetch --tags
+                git checkout "$DEPLOY_TAG"
               fi
 
               # Verify DOCKER_REGISTRY was injected (defense in depth — CVM also checks)
