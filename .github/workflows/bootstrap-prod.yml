@@ -20,7 +20,10 @@ run-name: bootstrap-prod-on-${{ inputs.host || 'auto' }}
 #        - add `deploy` to the `docker` group (run docker without sudo)
 #        - create ~/.ssh and install the generated deploy PUBLIC key
 #          (prunes any prior gh-actions-deploy@ key first)
-#        - clone the repo into /opt/type-any-language (owned by deploy)
+#        - sparse-checkout clone into /opt/type-any-language (owned by
+#          deploy): ONLY docker-compose.yml + Makefile + ops/prod +
+#          ops/lib.sh + */VERSION. Source code is excluded — prod images
+#          are pulled from GHCR, not built locally on the CVM.
 #   4. Write the generated deploy PRIVATE key back to GH Secret
 #      CVM_SSH_KEY (via `gh secret set`, needs `secrets: write`).
 #   5. SSH into the CVM as `deploy` (using the generated key) and run
@@ -132,7 +135,7 @@ jobs:
             if ! command -v docker >/dev/null 2>&1; then
               echo "[bootstrap] installing Docker Engine..."
               sudo apt-get update -y
-              sudo apt-get install -y ca-certificates curl gnupg
+              sudo apt-get install -y ca-certificates curl gnupg git
               sudo install -m 0755 -d /etc/apt/keyrings
               sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
                 -o /etc/apt/keyrings/docker.asc
@@ -167,12 +170,33 @@ jobs:
             sudo chown -R "$DEPLOY_USER:$DEPLOY_USER" /home/$DEPLOY_USER/.ssh
             echo "[bootstrap] deployed managed pubkey to $AUTH"
 
-            # Clone repo if missing; always ensure deploy owns it.
+            # Sparse-checkout clone — only the files deploy needs on the CVM:
+            #   docker-compose.yml + Makefile   (compose + make targets)
+            #   ops/prod/*                      (deploy scripts + nginx.conf)
+            #   ops/lib.sh                      (sourced by the prod scripts)
+            #   */VERSION                       (image tag resolution —
+            #                                     resolve_image_tag FAILS if
+            #                                     these are missing)
+            # Source code (backend/ frontend/ db/ Dockerfiles, cms/, scripts/)
+            # is intentionally excluded: prod images are pulled from GHCR,
+            # not built locally on the CVM.
             if [ ! -d /opt/type-any-language/.git ]; then
-              sudo -u "$DEPLOY_USER" git clone \
-                https://github.com/zhangyu528/type-any-language.git \
-                /opt/type-any-language
-              echo "[bootstrap] cloned repo"
+              sudo -u "$DEPLOY_USER" bash -c '
+                set -e
+                git clone --filter=blob:none \
+                  https://github.com/zhangyu528/type-any-language.git \
+                  /opt/type-any-language
+                cd /opt/type-any-language
+                git sparse-checkout set --no-cone \
+                  docker-compose.yml \
+                  Makefile \
+                  ops/prod \
+                  ops/lib.sh \
+                  backend/VERSION \
+                  frontend/VERSION \
+                  db/VERSION
+              '
+              echo "[bootstrap] sparse-cloned repo (compose + ops/prod + version files only)"
             else
               echo "[bootstrap] repo already present"
             fi
