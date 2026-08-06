@@ -75,6 +75,11 @@ jobs:
     # runs this after release-prod completes (decide what version
     # to ship, run deploy, verify on CVM).
     steps:
+      - name: Checkout repo
+        # Needed so the runner has the prod scripts (for the tar→scp step)
+        # and so `gh run list` can resolve the base repo from git context.
+        uses: actions/checkout@v4
+
       - name: Discover recent successful releases
         # Informational helper (does NOT drive the dropdown — GH
         # workflow_dispatch choice inputs are static and must be edited
