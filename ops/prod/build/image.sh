@@ -76,5 +76,6 @@ $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" build
 
 echo ""
 ok "Build done."
-info "  → 检查: docker image inspect $BACKEND_IMAGE"
-info "  → 启动: ./ops/prod/lifecycle.sh start"
+info "后续步骤(手动, CI 不会自动执行):"
+info "  · 检查镜像: docker image inspect $BACKEND_IMAGE"
+info "  · 本地启动: ./ops/prod/lifecycle.sh start   (真正上线由 deploy-prod 负责)"

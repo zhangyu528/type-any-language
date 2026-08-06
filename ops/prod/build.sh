@@ -104,7 +104,7 @@ cmd_prod() {
     echo ""
 
     ok "build prod done."
-    info "  → 启动: ./ops/prod/lifecycle.sh start"
+    info "如需本地启动(手动, 非 CI): ./ops/prod/lifecycle.sh start   (真正上线由 deploy-prod 负责)"
 }
 
 # ---------------------------------------------------------------------------
