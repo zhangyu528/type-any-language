@@ -12,12 +12,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY package*.json ./
-# --ignore-scripts: skip the postinstall hook (`node scripts/install.mjs`).
-# That script is a local-dev helper for idempotency and re-resolves
-# dependencies — useless in Docker (fresh node_modules every build)
-# and actively harmful (it calls `npm install` which conflicts with
-# `npm ci`'s lockfile-driven install). Real prod-image install is
-# just `npm ci` from the lockfile, no postinstall.
+# --ignore-scripts: skip lifecycle scripts (postinstall hook that calls
+# `npm install` recursively). The release image doesn't need idempotency
+# tricks — `npm ci` from the lockfile is sufficient and reproducible.
 RUN npm ci --ignore-scripts
 
 COPY . .
@@ -25,7 +22,13 @@ COPY . .
 ARG NEXT_PUBLIC_API_URL=http://localhost/api
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
-RUN npm run build
+# Skip the `npm run build` wrapper (scripts/build.mjs) because it
+# self-heal-triggers `npm run install` which recursively re-resolves
+# deps. For a release image that just compiled deps with `npm ci` from
+# the lockfile, this self-heal is wrong (and was the source of an
+# 18-min hang in CI). Invoke `next build` directly.
+ENV NEXT_DIST_DIR=.next-build
+RUN npx --offline next build
 
 EXPOSE 80
 
