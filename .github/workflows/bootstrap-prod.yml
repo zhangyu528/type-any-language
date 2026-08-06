@@ -90,7 +90,12 @@ jobs:
             set -e
             DEPLOY_USER=deploy
             if ! id -u "$DEPLOY_USER" >/dev/null 2>&1; then
-              sudo useradd --disabled-password --create-home --shell /bin/bash "$DEPLOY_USER"
+              # `-m` create home, `-s` login shell, `-U` create a same-named
+              # group (needed for the later `chown deploy:deploy`).
+              # NOTE: `useradd` has NO `--disabled-password` flag (that's an
+              # `adduser` option). Without `-p`, the account is created with a
+              # locked password field, so password login is already impossible.
+              sudo useradd -m -s /bin/bash -U "$DEPLOY_USER"
               echo "[bootstrap] created user $DEPLOY_USER"
             else
               echo "[bootstrap] user $DEPLOY_USER already exists"
