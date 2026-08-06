@@ -172,6 +172,22 @@ jobs:
             echo "created release $VERSION"
           fi
 
+      - name: Mirror nginx:alpine to GHCR
+        # The prod compose's nginx service uses `nginx:alpine` (Docker Hub).
+        # The CVM cannot reach Docker Hub (registry-1.docker.io times out
+        # from CN cloud hosts), but CAN reach ghcr.io (proven by the 3 app
+        # images pulling fine). So we mirror the base image HERE — the
+        # runner has good Docker Hub connectivity — and point
+        # docker-compose.yml at ${DOCKER_REGISTRY}/nginx:alpine instead.
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+        run: |
+          set -e
+          docker pull nginx:alpine
+          docker tag nginx:alpine "${DOCKER_REGISTRY}/nginx:alpine"
+          docker push "${DOCKER_REGISTRY}/nginx:alpine"
+          echo "mirrored nginx:alpine -> ${DOCKER_REGISTRY}/nginx:alpine"
+
       - name: Logout
         if: always()
         run: docker logout "${{ vars.DOCKER_REGISTRY }}" || true

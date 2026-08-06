@@ -31,9 +31,8 @@
 #                /      → frontend:3000
 #
 # Run via:  ALLOWED_ORIGINS=https://my.domain ./ops/prod/lifecycle.sh start
-# All four image tags (DB / BACKEND / FRONTEND) come from the
-# corresponding per-segment VERSION files. On the prod RUN host, the
-# images are PULLED from ${DOCKER_REGISTRY} (GitHub Container Registry /
+# All prod images (db / backend / frontend / nginx) are PULLED from
+# ${DOCKER_REGISTRY} (GitHub Container Registry /
 # GHCR — ghcr.io/zhangyu528/type-any-language). lifecycle.sh / deploy.sh
 # run `docker compose up --no-build`, so compose NEVER builds locally;
 # the build side (release-prod CI) is the only place images are produced.
@@ -124,10 +123,13 @@ services:
       - backend
 
   # -------------------------------------------------------------------------
-  # nginx — reverse proxy on :80
+  # nginx — reverse proxy on :80.
+  # Base image mirrored from Docker Hub to ${DOCKER_REGISTRY} (the CVM
+  # cannot reach Docker Hub, but CAN reach GHCR). release-prod publishes
+  # the mirror as ghcr.io/.../nginx:alpine; see that workflow.
   # -------------------------------------------------------------------------
   nginx:
-    image: nginx:alpine
+    image: ${DOCKER_REGISTRY}/nginx:alpine
     restart: unless-stopped
     ports:
       - "80:80"
