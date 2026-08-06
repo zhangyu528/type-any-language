@@ -74,6 +74,22 @@ echo ""
 # its first arg, which is what the v2 plugin syntax requires.
 $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" build
 
+# push.sh (called next by release.sh) expects BARE-named local images
+# (english_db:v0.1.0) so it can tag bare→remote and push. But `docker
+# compose build` tags per the compose `image:` field, which is
+# registry-prefixed when DOCKER_REGISTRY is set (e.g.
+# ghcr.io/.../english_db:v0.1.0). Create a bare alias so push.sh's
+# checks + re-tag work regardless of whether DOCKER_REGISTRY was set
+# during the build. When DOCKER_REGISTRY is empty the build already
+# produced a bare tag, so this is a no-op.
+for pair in "english_db:$DB_IMAGE_TAG" "english_backend:$BACKEND_IMAGE_TAG" "english_frontend:$FRONTEND_IMAGE_TAG"; do
+    name="${pair%%:*}"; tag="${pair##*:}"
+    src="${DOCKER_REGISTRY:+$DOCKER_REGISTRY/}$name:$tag"
+    if [ "$src" != "$name:$tag" ] && image_exists "$src"; then
+        docker tag "$src" "$name:$tag"
+    fi
+done
+
 echo ""
 ok "Build done."
 info "后续步骤(手动, CI 不会自动执行):"
