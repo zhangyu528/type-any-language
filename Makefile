@@ -187,10 +187,6 @@ release-show:
 release-prod:
 	@bash ops/prod/release.sh prod
 
-## prod-deploy: pull latest image + recreate containers. THE "go live" step. Run after `make release-prod`. Pairs with .github/workflows/deploy-prod.yml.
-prod-deploy:
-	@bash ops/prod/deploy.sh
-
 ## publish-prod: legacy alias for release-prod (kept for backward compat)
 publish-prod: release-prod
 

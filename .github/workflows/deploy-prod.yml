@@ -165,6 +165,11 @@ jobs:
               set -e
               cd /opt/type-any-language
 
+              # git clone 在 CVM 上可能不保留 +x 位 (repo 中脚本为 100644),
+              # 而 deploy.sh 内部直接执行 doctor.sh / lifecycle.sh。确保可执行,
+              # 避免 "Permission denied"。已 clone 的旧 CVM 也靠这一步现场修复。
+              chmod +x ops/prod/*.sh
+
               if [ -z "$IMAGE_TAG" ]; then
                 echo "::error::IMAGE_TAG 为空, 无法确定要部署的版本"
                 exit 1
