@@ -32,9 +32,13 @@
 #
 # Run via:  ALLOWED_ORIGINS=https://my.domain ./ops/prod/lifecycle.sh start
 # All four image tags (DB / BACKEND / FRONTEND) come from the
-# corresponding per-segment VERSION files. Pull from DOCKER_REGISTRY
-# when set; otherwise the build script must produce the images locally
-# first (ops/prod/build/image.sh builds all four).
+# corresponding per-segment VERSION files. On the prod RUN host, the
+# images are PULLED from ${DOCKER_REGISTRY} (GitHub Container Registry /
+# GHCR — ghcr.io/zhangyu528/type-any-language). lifecycle.sh / deploy.sh
+# run `docker compose up --no-build`, so compose NEVER builds locally;
+# the build side (release-prod CI) is the only place images are produced.
+# DOCKER_REGISTRY is forwarded to the CVM via SSH env by the deploy-prod /
+# prepare-prod workflows (single source of truth = GH Variable).
 # ---------------------------------------------------------------------------
 
 secrets:
@@ -53,7 +57,7 @@ services:
   # db — custom image, applies migrations + imports content on every start
   # -------------------------------------------------------------------------
   db:
-    image: english_db:${DB_IMAGE_TAG:-latest}
+    image: ${DOCKER_REGISTRY}/english_db:${DB_IMAGE_TAG:-latest}
     build:
       # Build context is the repo root so we can COPY backend/, db/,
       # cms/. See db/Dockerfile for the contents baked in.
@@ -84,7 +88,7 @@ services:
   # (db image's entrypoint handles those). Just serves API.
   # -------------------------------------------------------------------------
   backend:
-    image: english_backend:${BACKEND_IMAGE_TAG:-latest}
+    image: ${DOCKER_REGISTRY}/english_backend:${BACKEND_IMAGE_TAG:-latest}
     build:
       context: ./backend
       args:
@@ -105,7 +109,7 @@ services:
   # build time (it's the URL the browser uses to call backend).
   # -------------------------------------------------------------------------
   frontend:
-    image: english_frontend:${FRONTEND_IMAGE_TAG:-latest}
+    image: ${DOCKER_REGISTRY}/english_frontend:${FRONTEND_IMAGE_TAG:-latest}
     build:
       context: ./frontend
       args:

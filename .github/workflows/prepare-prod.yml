@@ -88,7 +88,7 @@ jobs:
           if [ -z "$DOCKER_REGISTRY" ]; then
             echo "::error::GH Variable DOCKER_REGISTRY 未配置"
             echo "  → GH repo → Settings → Variables → Actions → New repository variable"
-            echo "  → Name: DOCKER_REGISTRY, Value: ccr.ccs.tencentyun.com/your-tcr-id/type-any-language"
+            echo "  → Name: DOCKER_REGISTRY, Value: ghcr.io/zhangyu528/type-any-language"
             exit 1
           fi
           echo "DOCKER_REGISTRY=$DOCKER_REGISTRY (source=GH Variable)"

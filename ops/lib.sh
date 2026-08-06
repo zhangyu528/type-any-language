@@ -381,15 +381,16 @@ warn_if_version_default() {
 # Registry resolution
 # ---------------------------------------------------------------------------
 # DOCKER_REGISTRY is the shared project-wide namespace prefix used for
-# `docker push` / `docker pull` (e.g. ccr.ccs.tencentyun.com/your-tcr-id,
-# docker.io/youruser, ghcr.io/yourname). Unlike POSTGRES_PASSWORD or
-# AI_API_KEY, it is NOT a personal secret — it is project config that the
-# whole team shares.
+# `docker push` / `docker pull` (e.g. ghcr.io/zhangyu528/type-any-language,
+# docker.io/youruser). Unlike POSTGRES_PASSWORD or AI_API_KEY, it is NOT a
+# personal secret — it is project config that the whole team shares.
 #
 # **Single source of truth**: GitHub repo Variable "DOCKER_REGISTRY"
 # (Settings → Variables → Actions). The build side (GH Actions) reads
 # `${{ vars.DOCKER_REGISTRY }}` directly. The run side (CVM scripts)
-# reads the same Variable via `gh variable get`.
+# receives the same value via the SSH-injected env var set by the
+# deploy-prod / prepare-prod workflows (which read `${{ vars.DOCKER_REGISTRY }}`).
+# The CVM itself never needs gh CLI or registry auth.
 #
 # There is NO shell-env override, NO REGISTRY file fallback, NO auto-detect.
 # This is a deliberate design choice (2026-08-04): a single source means
@@ -437,7 +438,7 @@ resolve_docker_registry() {
         err "DOCKER_REGISTRY 未设置"
         err "  这个值应该由 deploy-prod workflow 通过 SSH env 注入"
         err "  让 release-prod/deploy-prod workflow 跑 —— 它会自动注入"
-        err "  手动跑: export DOCKER_REGISTRY=ccr.ccs.example.com/your-tcr-id/type-any-language"
+        err "  手动跑: export DOCKER_REGISTRY=ghcr.io/zhangyu528/type-any-language"
         return 1
     fi
 
@@ -445,7 +446,7 @@ resolve_docker_registry() {
     # Reject things like "  " (whitespace) or "no" (clearly not a hostname).
     if ! [[ "$DOCKER_REGISTRY" == *.* ]]; then
         err "DOCKER_REGISTRY 格式不对: $DOCKER_REGISTRY"
-        err "  期望: hostname like ccr.ccs.tencentyun.com/your-tcr-id"
+        err "  期望: hostname like ghcr.io/zhangyu528/type-any-language"
         return 1
     fi
 

@@ -88,9 +88,9 @@ cmd_doctor() {
 
     if [ -z "$DOCKER_REGISTRY" ]; then
         err "DOCKER_REGISTRY 未设置 — push 需要 registry"
-        info "  → export DOCKER_REGISTRY=ccr.ccs.tencentyun.com/your-tcr-id/type-any-language   (腾讯云 TCR,推荐)"
-        info "  → 或 docker.io/youruser (Docker Hub)"
-        info "  → 或在仓库根的 REGISTRY 文件里设置 (commit 后全队共享)"
+        info "  → 已在 GH Variable (env: prod) 配置: ghcr.io/zhangyu528/type-any-language"
+        info "  → 手动覆盖: export DOCKER_REGISTRY=ghcr.io/zhangyu528/type-any-language"
+        info "  → 或 docker.io/youruser (Docker Hub) / 其他 registry"
         ok=0
     else
         ok "DOCKER_REGISTRY=$DOCKER_REGISTRY"

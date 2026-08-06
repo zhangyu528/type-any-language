@@ -152,7 +152,7 @@ make prod-push
 3. 创建访问凭证(临时 token,或给 CVM 绑 RAM role 实现免密)
 4. 在仓库根 `REGISTRY` 文件填一行:
    ```
-   DOCKER_REGISTRY=ccr.ccs.tencentyun.com/your-tcr-id/type-any-language
+   DOCKER_REGISTRY=ghcr.io/zhangyu528/type-any-language
    ```
 5. 第一次手动 `docker login ccr.ccs.tencentyun.com`(或 CVM 用 RAM role 跳过)
 

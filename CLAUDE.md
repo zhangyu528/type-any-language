@@ -334,13 +334,13 @@ images. There is no db image in the pipeline.
 - **Prod target host**: `docker pull` backend + frontend from `$DOCKER_REGISTRY` on every `lifecycle.sh start` / `restart` (auto-pulled - registry is the source of truth for prod).
 - **Dev target host**: dev is host-native — there is no dev image to pull. The `english_backend` + `english_frontend` images are prod-only.
 
-The registry namespace (e.g. `ccr.ccs.tencentyun.com/your-ns` for **TCR**, or `docker.io/youruser` for Docker Hub) is **shared project config** that the whole team uses. It is **not** a personal secret, so it lives in the committed `REGISTRY` file at the repo root (symmetric with the per-segment VERSION files), not in `cms/.env` (gitignored). See [Image registry namespace](#image-registry-namespace) below — for Tencent Cloud prod, **TCR is the recommended path**.
+The registry namespace (e.g. `ghcr.io/zhangyu528/type-any-language` for **TCR**, or `docker.io/youruser` for Docker Hub) is **shared project config** that the whole team uses. It is **not** a personal secret, so it lives in the GH repo Variable `DOCKER_REGISTRY` (single source of truth, set in env: prod), not in `cms/.env` (gitignored). See [Image registry namespace](#image-registry-namespace) below — for Tencent Cloud prod, **TCR is the recommended path**.
 
 ## Image registry namespace
 
 The `DOCKER_REGISTRY` shell variable is the namespace prefix prepended to `image:tag` for `docker push` / `docker pull`. The chain (`ops/lib.sh` → `resolve_docker_registry`) is, in order of decreasing precedence:
 
-1. **Shell env** — `export DOCKER_REGISTRY=ccr.ccs.tencentyun.com/your-ns` (highest priority; CI / one-off override)
+1. **Shell env** — `export DOCKER_REGISTRY=ghcr.io/zhangyu528/type-any-language` (highest priority; CI / one-off override)
 2. **`./REGISTRY` file at repo root** — committed, shared project config (typical default)
 3. **`detect_default_registry()`** — `docker.io/$USER` (best-effort guess; useful for solo dev work)
 4. **Empty** — local-only mode; push scripts fail with a clear error, run scripts just skip the auto-pull
@@ -349,7 +349,7 @@ The `REGISTRY` file's format: first non-empty, non-comment line starting with `D
 
 ```bash
 # REGISTRY (recommended for Tencent Cloud prod)
-DOCKER_REGISTRY=ccr.ccs.tencentyun.com/your-tcr-id/type-any-language
+DOCKER_REGISTRY=ghcr.io/zhangyu528/type-any-language
 # Other valid forms: docker.io/zhangyu528, ghcr.io/myorg, registry.gitlab.com/mygroup
 ```
 
@@ -360,7 +360,7 @@ DOCKER_REGISTRY=ccr.ccs.tencentyun.com/your-tcr-id/type-any-language
 If the prod host is a Tencent Cloud CVM, the recommended `DOCKER_REGISTRY` is **Tencent Container Registry (TCR)**:
 
 ```
-DOCKER_REGISTRY=ccr.ccs.tencentyun.com/your-tcr-id/type-any-language
+DOCKER_REGISTRY=ghcr.io/zhangyu528/type-any-language
 ```
 
 Why TCR over dockerhub for Tencent Cloud prod:
@@ -680,9 +680,9 @@ Required keys when running `./cms/scripts/staging.sh audio`
 
 For multi-host CMS or production, set `CLOUD_PROVIDER=tencent_cos` (plus `CLOUD_BUCKET` / `CLOUD_REGION` / `CLOUD_ACCESS_KEY` / `CLOUD_SECRET_KEY`) in the GH Environment. MP3s upload to the COS bucket instead of the local directory; `sentences.audio_url` becomes the full COS URL. See `cms/pipeline/storage.py` for the abstraction.
 
-`DOCKER_REGISTRY` is shared project config that lives in the committed `REGISTRY` file at the repo root (see [Image registry namespace](#image-registry-namespace) above). Override at push time via shell env if you need a one-off namespace:
+`DOCKER_REGISTRY` is shared project config that lives in the GH repo Variable `DOCKER_REGISTRY` (env: prod) (see [Image registry namespace](#image-registry-namespace) above). Override at push time via shell env if you need a one-off namespace:
 ```bash
-export DOCKER_REGISTRY=ccr.ccs.tencentyun.com/your-tcr-id/type-any-language   # overrides REGISTRY file (only affects prod app images — no db image to push)
+export DOCKER_REGISTRY=ghcr.io/zhangyu528/type-any-language   # overrides REGISTRY file (only affects prod app images — no db image to push)
 ./ops/prod/build/push.sh -y
 ```
 
@@ -725,7 +725,7 @@ Runtime configuration is via shell env (passed to `lifecycle.sh` via `KEY=value 
   ```bash
   ALLOWED_ORIGINS=https://my.domain ./ops/prod/lifecycle.sh start
   ```
-- `DOCKER_REGISTRY` — registry namespace to push to / pull from. Comes from the committed `REGISTRY` file at the repo root; shell env wins. Pull behavior is **asymmetric**:
+- `DOCKER_REGISTRY` — registry namespace to push to / pull from. Comes from the GH repo Variable `DOCKER_REGISTRY` (env: prod); shell env wins. Pull behavior is **asymmetric**:
   - **Prod**: `lifecycle.sh start` auto-pulls the backend + frontend images on every start/restart — registry is the source of truth.
   - **Dev**: dev is host-native — there is no dev image to pull. `english_backend` + `english_frontend` are prod-only.
 

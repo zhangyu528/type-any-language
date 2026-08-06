@@ -11,7 +11,9 @@
 #   backend  — FastAPI / uvicorn. Connects to db via DATABASE_URL env.
 #   nginx    — reverse proxy on :80.
 # All 3 image tags are resolved from per-segment VERSION files via
-# setup_prod_host_env. With DOCKER_REGISTRY set, compose auto-pulls.
+# setup_prod_host_env. The images are PULLED from ${DOCKER_REGISTRY}
+# (GHCR) — `up` runs with --no-build, so compose never builds locally.
+# Build is done once on the CI build side (release-prod).
 #
 # Subcommands:
 #   start             bring up all 3 services (db + backend + nginx)
@@ -33,7 +35,9 @@ cmd_start() {
     # (single source of truth). Run `make prod-doctor` first if you
     # want a pre-flight check before starting.
     info "启动生产容器 (db + backend + nginx)..."
-    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d
+    # --no-build: on the RUN host we PULL from ${DOCKER_REGISTRY} (GHCR),
+    # never build locally. (Build is the CI build-side job.)
+    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d --no-build
     ok "服务已启动"
     echo -e "  前端:   ${_LIB_BLUE}http://localhost${_LIB_NC}"
     echo -e "  API:    ${_LIB_BLUE}http://localhost/api/docs${_LIB_NC}"
@@ -65,7 +69,9 @@ cmd_restart() {
     # db image's entrypoint auto-applies migrations + imports content on
     # start — so recreating db is how new schema / content gets applied.
     # We also recreate frontend and nginx so new image tags take effect.
-    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d --no-deps --force-recreate db backend frontend nginx
+    # --no-build: PULL the new tags from ${DOCKER_REGISTRY} (GHCR) instead
+    # of building locally.
+    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d --no-deps --force-recreate --no-build db backend frontend nginx
 
     backend_after=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}" 2>/dev/null || true)
     frontend_after=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}" 2>/dev/null || true)

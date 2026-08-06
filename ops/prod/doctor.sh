@@ -108,7 +108,7 @@ cmd_doctor() {
         err "DOCKER_REGISTRY 未设置"
         info "  这个值应该由 deploy-prod workflow 通过 SSH env 注入"
         info "  release-prod/deploy-prod workflow 跑时自动注入"
-        info "  手动跑: export DOCKER_REGISTRY=ccr.ccs.example.com/your-tcr-id/type-any-language"
+        info "  手动跑: export DOCKER_REGISTRY=ghcr.io/zhangyu528/type-any-language"
         failed=1
     else
         ok "DOCKER_REGISTRY=$DOCKER_REGISTRY (source=${_DOCKER_REGISTRY_SOURCE:-workflow})"

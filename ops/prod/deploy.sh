@@ -56,7 +56,7 @@ info "=== pre-flight: doctor.sh ==="
 
 if [ -z "$DOCKER_REGISTRY" ]; then
     err "DOCKER_REGISTRY 未设置 — deploy 需要从 registry 拉 image"
-    info "  解决: export DOCKER_REGISTRY=...  (或)  gh auth login + 配 GH Variable"
+    info "  解决: export DOCKER_REGISTRY=ghcr.io/zhangyu528/type-any-language  (CVM 不再需要 gh CLI)"
     exit 1
 fi
 info "DOCKER_REGISTRY=$DOCKER_REGISTRY (source=${_DOCKER_REGISTRY_SOURCE:-shell})"

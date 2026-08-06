@@ -29,8 +29,9 @@ run-name: deploy-prod-${{ inputs.version || 'auto' }}
 #   - Manual rollback needs a dedicated deploy trigger without
 #     re-running release (otherwise you'd accidentally publish a
 #     new tag).
-#   - Different secrets: release uses TCR creds, deploy uses CVM
-#     SSH key.
+#   - Different secrets: release uses GITHUB_TOKEN (GHCR push), deploy
+#     uses CVM SSH key. No registry username/password needed — GHCR uses
+#     the built-in GITHUB_TOKEN (packages: write).
 
 on:
   workflow_dispatch:
@@ -88,7 +89,7 @@ jobs:
           if [ -z "$DOCKER_REGISTRY" ]; then
             echo "::error::GH Variable DOCKER_REGISTRY 未配置"
             echo "  → GH repo → Settings → Environments → prod → Variables → New"
-            echo "  → Name: DOCKER_REGISTRY, Value: ccr.ccs.tencentyun.com/<ns>"
+            echo "  → Name: DOCKER_REGISTRY, Value: ghcr.io/zhangyu528/type-any-language"
             exit 1
           fi
           echo "DOCKER_REGISTRY=$DOCKER_REGISTRY (source=GH Variable)"

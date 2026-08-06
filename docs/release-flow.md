@@ -53,7 +53,7 @@ operator / maintainer
 #### Variables(Variables tab)
 | Name | Value | 用途 |
 |---|---|---|
-| `DOCKER_REGISTRY` | `ccr.ccs.tencentyun.com/your-tcr-id/type-any-language` | 所有 build/push 镜像的 namespace 前缀 |
+| `DOCKER_REGISTRY` | `ghcr.io/zhangyu528/type-any-language` | 所有 build/push 镜像的 namespace 前缀 |
 
 **Variable 不是 secret** —— 全员可见,Audit log 有记录。适合放 namespace、镜像 tag 模板之类的项目级配置。
 
@@ -76,7 +76,7 @@ operator / maintainer
 把同一行 `DOCKER_REGISTRY=` 取消注释,跟 GH Variable 一致:
 
 ```
-DOCKER_REGISTRY=ccr.ccs.tencentyun.com/your-tcr-id/type-any-language
+DOCKER_REGISTRY=ghcr.io/zhangyu528/type-any-language
 ```
 
 **两边必须同步** —— workflow 的 `Verify registry mirror in sync` step 会检查,不一致直接 fail。
