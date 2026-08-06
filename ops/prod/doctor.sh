@@ -62,28 +62,28 @@ cmd_doctor() {
     # backend's verify_schema_up_to_date startup check, not here.
 
     if check_docker_installed && check_docker_daemon_running; then
-        if image_exists "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"; then
-            ok "image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 存在"
+        if image_pullable "${BACKEND_FULL_IMAGE}"; then
+            ok "image ${BACKEND_FULL_IMAGE} 存在 (registry 可拉)"
         else
-            err "image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 缺失"
+            err "image ${BACKEND_FULL_IMAGE} 缺失 (registry 拉不到)"
             info "  → 在 BUILD 端跑: make prod-build  或  make release-prod vX.Y.Z -y"
-            info "  → 或手动: docker pull \${DOCKER_REGISTRY}/${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"
+            info "  → 或手动: docker pull ${BACKEND_FULL_IMAGE}"
             failed=1
         fi
-        if image_exists "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"; then
-            ok "image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 存在"
+        if image_pullable "${FRONTEND_FULL_IMAGE}"; then
+            ok "image ${FRONTEND_FULL_IMAGE} 存在 (registry 可拉)"
         else
-            err "image ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG} 缺失"
+            err "image ${FRONTEND_FULL_IMAGE} 缺失 (registry 拉不到)"
             info "  → 在 BUILD 端跑: make prod-build  或  make release-prod vX.Y.Z -y"
-            info "  → 或手动: docker pull \${DOCKER_REGISTRY}/${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"
+            info "  → 或手动: docker pull ${FRONTEND_FULL_IMAGE}"
             failed=1
         fi
-        if image_exists "${DB_IMAGE}:${DB_IMAGE_TAG}"; then
-            ok "image ${DB_IMAGE}:${DB_IMAGE_TAG} 存在"
+        if image_pullable "${DB_FULL_IMAGE}"; then
+            ok "image ${DB_FULL_IMAGE} 存在 (registry 可拉)"
         else
-            err "image ${DB_IMAGE}:${DB_IMAGE_TAG} 缺失"
+            err "image ${DB_FULL_IMAGE} 缺失 (registry 拉不到)"
             info "  → 在 BUILD 端跑: make prod-build  或  make release-prod vX.Y.Z -y"
-            info "  → 或手动: docker pull \${DOCKER_REGISTRY}/${DB_IMAGE}:${DB_IMAGE_TAG}"
+            info "  → 或手动: docker pull ${DB_FULL_IMAGE}"
             failed=1
         fi
     fi

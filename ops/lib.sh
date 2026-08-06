@@ -151,6 +151,18 @@ image_exists() {
     return 1
 }
 
+# image_pullable <full-ref>  → returns 0 if the image exists in the
+# registry and can be PULLED (no docker login needed for PUBLIC registries
+# like GHCR). Uses `docker manifest inspect` — a small network call that does
+# NOT pull the full image. Use this in prod pre-flight, where images are
+# pulled from a remote registry (not built locally on the host), so checking
+# local tags (image_exists) is wrong: the image isn't local yet on first
+# deploy, and even after a pull its local tag carries the registry prefix
+# that image_exists's bare-name check can't match.
+image_pullable() {
+    docker manifest inspect "$1" &> /dev/null
+}
+
 # resolve_image_ref <name> — print a docker-inspectable reference for the
 # image (image ID if found, empty if not). Mirrors image_exists's prefix
 # stripping so callers asking with a registry prefix still find locally-
