@@ -184,6 +184,12 @@ jobs:
           host: ${{ secrets.CVM_HOST }}
           username: ${{ vars.CVM_BOOTSTRAP_USER || 'ubuntu' }}
           key: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
+          # Generous command timeout: a cold `docker compose pull` of 4 images
+          # from GHCR on the CVM can take several minutes. The earlier
+          # "Run Command Timeout" was caused by a MISSING nginx tag making the
+          # pull retry forever — now fixed — but keep this headroom so a merely
+          # SLOW (not stuck) pull still finishes.
+          command_timeout: '1800s'
           envs: DOCKER_REGISTRY,IMAGE_TAG
           script: |
             set -e

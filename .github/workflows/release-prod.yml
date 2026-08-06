@@ -175,30 +175,50 @@ jobs:
       - name: Mirror nginx:alpine to GHCR
         # The prod compose's nginx service uses `nginx:alpine` (Docker Hub).
         # The CVM cannot reach Docker Hub (registry-1.docker.io times out
-        # from CN cloud hosts), but CAN reach ghcr.io (proven by the 3 app
-        # images pulling fine). So we mirror the base image HERE — the
-        # runner has good Docker Hub connectivity — and point
+        # from CN cloud hosts), but CAN reach ghcr.io. So we mirror the base
+        # image HERE — the runner has good Docker Hub connectivity — and point
         # docker-compose.yml at ${DOCKER_REGISTRY}/nginx:alpine instead.
         #
-        # Use `crane copy` rather than `docker pull|tag|push`: docker's push
-        # to GHCR tries to cross-repo MOUNT shared base layers (nginx shares
-        # the alpine base with english_db), and GHCR intermittently fails the
-        # manifest with "unknown blob". crane re-uploads blobs cleanly and
-        # avoids that daemon mount path.
+        # Use `crane copy` (NOT docker pull|tag|push): docker's push to GHCR
+        # tries to cross-repo MOUNT shared base layers and GHCR intermittently
+        # fails with "unknown blob". crane re-uploads blobs cleanly.
+        #
+        # IMPORTANT (2026-08-06 fix): copy ONLY linux/amd64. The CVM is x86_64,
+        # and copying the full multi-arch INDEX left the `alpine` TAG
+        # unregistered in GHCR (blobs uploaded, but `docker pull .../nginx:alpine`
+        # returned 404 -> CVM retried forever -> "Run Command Timeout" on deploy).
+        # Single-platform copy produces one manifest that we tag cleanly, and
+        # we VERIFY the tag resolves before declaring success.
         env:
           DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
         run: |
           set -e
           CRANE_VER=v0.20.2
-          echo "installing crane ${CRANE_VER}"
-          curl -sSL "https://github.com/google/go-containerregistry/releases/download/${CRANE_VER}/go-containerregistry_Linux_x86_64.tar.gz" \
-            | sudo tar -xz -C /usr/local/bin crane
-          # Reuse the ghcr.io creds already written by the docker login step
-          # (GITHUB_TOKEN). crane reads ~/.docker/config.json by default, but
-          # we set it explicitly to be safe.
+          if ! command -v crane >/dev/null 2>&1; then
+            echo "installing crane ${CRANE_VER}"
+            curl -sSL "https://github.com/google/go-containerregistry/releases/download/${CRANE_VER}/go-containerregistry_Linux_x86_64.tar.gz" \
+              | sudo tar -xz -C /usr/local/bin crane
+          fi
           crane auth login ghcr.io -u "${{ github.actor }}" -p "${{ secrets.GITHUB_TOKEN }}"
-          crane copy docker.io/library/nginx:alpine "${DOCKER_REGISTRY}/nginx:alpine"
-          echo "mirrored nginx:alpine -> ${DOCKER_REGISTRY}/nginx:alpine"
+          DST="${DOCKER_REGISTRY}/nginx:alpine"
+          ok=0
+          for i in 1 2 3; do
+            echo "crane copy attempt $i: docker.io/library/nginx:alpine -> $DST"
+            if crane copy --platform=linux/amd64 docker.io/library/nginx:alpine "$DST"; then
+              ok=1
+              break
+            fi
+            echo "attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          if [ "$ok" -ne 1 ]; then
+            echo "::error::crane copy nginx:alpine 失败 (3 次重试均失败)"
+            exit 1
+          fi
+          # Verify the tag is actually resolvable (fail loudly if not).
+          echo "verifying tag $DST ..."
+          crane manifest "$DST" >/dev/null
+          echo "mirrored + verified: $DST"
 
       - name: Logout
         if: always()
