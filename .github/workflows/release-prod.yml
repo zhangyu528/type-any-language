@@ -133,6 +133,9 @@ jobs:
           DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
           GIT_SHA: ${{ github.sha }}
         run: |
+          # actions/checkout doesn't preserve file mode bits; restore
+          # execute on the scripts we shell out to.
+          chmod +x ops/prod/release.sh ops/prod/build/image.sh ops/prod/build/push.sh
           bash ops/prod/release.sh prod "${{ steps.version.outputs.version }}" -y
 
       - name: Logout
