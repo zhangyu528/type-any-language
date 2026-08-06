@@ -16,6 +16,8 @@ run-name: bootstrap-prod-on-${{ inputs.host || 'auto' }}
 #      CVM_BOOTSTRAP_SSH_KEY, and:
 #        - create the `deploy` user (idempotent)
 #        - install NOPASSWD sudoers for /bin/mkdir + /bin/chown
+#        - install Docker Engine + compose plugin (so deploy-prod can run)
+#        - add `deploy` to the `docker` group (run docker without sudo)
 #        - create ~/.ssh and install the generated deploy PUBLIC key
 #          (prunes any prior gh-actions-deploy@ key first)
 #        - clone the repo into /opt/type-any-language (owned by deploy)
@@ -124,6 +126,35 @@ jobs:
               | sudo tee /etc/sudoers.d/deploy
             sudo chmod 440 /etc/sudoers.d/deploy
             sudo visudo -c
+
+            # ── Install Docker Engine + compose plugin (one-time host prep) ──
+            # deploy-prod cannot run without Docker, so bootstrap owns this.
+            if ! command -v docker >/dev/null 2>&1; then
+              echo "[bootstrap] installing Docker Engine..."
+              sudo apt-get update -y
+              sudo apt-get install -y ca-certificates curl gnupg
+              sudo install -m 0755 -d /etc/apt/keyrings
+              sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+                -o /etc/apt/keyrings/docker.asc
+              sudo chmod a+r /etc/apt/keyrings/docker.asc
+              echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+                | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+              sudo apt-get update -y
+              sudo apt-get install -y docker-ce docker-ce-cli containerd.io \
+                docker-buildx-plugin docker-compose-plugin
+              sudo systemctl enable --now docker
+              echo "[bootstrap] Docker Engine installed"
+            else
+              echo "[bootstrap] Docker already present"
+            fi
+
+            # Let deploy run docker without sudo (required for `docker compose`).
+            if ! id -nG "$DEPLOY_USER" | tr ' ' '\n' | grep -qx docker; then
+              sudo usermod -aG docker "$DEPLOY_USER"
+              echo "[bootstrap] added $DEPLOY_USER to docker group"
+            else
+              echo "[bootstrap] $DEPLOY_USER already in docker group"
+            fi
 
             # ssh dir + authorized_keys (prune prior managed key, then install).
             sudo -u "$DEPLOY_USER" mkdir -p /home/$DEPLOY_USER/.ssh
