@@ -34,10 +34,13 @@ run-name: bootstrap-prod-on-${{ inputs.host || 'auto' }}
 #                           This is the one key you must supply.
 # Required GH Variable:
 #   DOCKER_REGISTRY       — registry namespace (single source of truth)
+#   CVM_BOOTSTRAP_USER    — login user that owns CVM_BOOTSTRAP_SSH_KEY
+#                           (default ubuntu; set to root/custom if your
+#                            CVM uses a different account). Single source
+#                            of truth shared with deploy-prod.
 #
 # Optional workflow_dispatch inputs:
 #   host           — label only (debug)
-#   bootstrap_user — login user used to provision/deploy (default: ubuntu)
 # -----------------------------------------------------------------------
 
 on:
@@ -48,11 +51,6 @@ on:
         required: false
         type: string
         default: 'prod-cvm-1'
-      bootstrap_user:
-        description: '用于首次创建 deploy 用户的登录用户(默认 ubuntu)'
-        required: false
-        type: string
-        default: 'ubuntu'
 
 permissions:
   contents: read
@@ -73,18 +71,20 @@ jobs:
         env:
           CVM_HOST: ${{ secrets.CVM_HOST }}
           CVM_BOOTSTRAP_SSH_KEY: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
+          CVM_BOOTSTRAP_USER: ${{ vars.CVM_BOOTSTRAP_USER || 'ubuntu' }}
         run: |
           : "${CVM_HOST:?GH Secret CVM_HOST 未配置}"
           : "${CVM_BOOTSTRAP_SSH_KEY:?GH Secret CVM_BOOTSTRAP_SSH_KEY 未配置(ubuntu 私钥)}"
           : "${DOCKER_REGISTRY:?GH Variable DOCKER_REGISTRY 未配置}"
+          echo "login user (CVM_BOOTSTRAP_USER) = $CVM_BOOTSTRAP_USER"
           echo "prechecks OK: CVM_HOST, CVM_BOOTSTRAP_SSH_KEY, DOCKER_REGISTRY"
 
-      # -------- Provision deploy user on CVM (as bootstrap_user) --------
-      - name: Provision deploy user on CVM (as ${{ inputs.bootstrap_user }})
+      # -------- Provision deploy user on CVM (as CVM_BOOTSTRAP_USER) --------
+      - name: Provision deploy user on CVM (as ${{ vars.CVM_BOOTSTRAP_USER || 'ubuntu' }})
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.CVM_HOST }}
-          username: ${{ inputs.bootstrap_user }}
+          username: ${{ vars.CVM_BOOTSTRAP_USER || 'ubuntu' }}
           key: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
           script: |
             set -e
@@ -186,7 +186,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.CVM_HOST }}
-          username: ${{ inputs.bootstrap_user }}
+          username: ${{ vars.CVM_BOOTSTRAP_USER || 'ubuntu' }}
           key: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
           envs: DOCKER_REGISTRY
           script: |

@@ -50,11 +50,6 @@ on:
         options:
           - auto
           - v0.1.0
-      bootstrap_user:
-        description: 'Login user used to run the deploy via sudo -u deploy (default: ubuntu)'
-        required: false
-        type: string
-        default: 'ubuntu'
 
 permissions:
   contents: read   # only checkout (read-only), no commits
@@ -134,7 +129,7 @@ jobs:
           DEPLOY_TAG: ${{ steps.resolve.outputs.DEPLOY_TAG }}
         with:
           host: ${{ secrets.CVM_HOST }}
-          username: ${{ inputs.bootstrap_user }}
+          username: ${{ vars.CVM_BOOTSTRAP_USER || 'ubuntu' }}
           key: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
           envs: DOCKER_REGISTRY,DEPLOY_TAG
           script: |
