@@ -54,8 +54,25 @@ const priorHash = existsSync(HASH_FILE)
   ? readFileSync(HASH_FILE, 'utf8').trim()
   : '';
 
-if (existsSync(NM) && currentHash === priorHash) {
-  log('node_modules exists + lock hash match — skip');
+// If node_modules/ exists, trust it. This handles three cases:
+//   1. Fresh `npm ci` in a Docker build — node_modules is correctly
+//      populated from the lockfile; we just record the hash for
+//      future runs. Don't fall through to `npm install` (would race
+//      with the lockfile-driven install).
+//   2. Idempotent re-run after a successful prior install — hash
+//      matches, nothing to do.
+//   3. Lockfile drift — `currentHash !== priorHash` but node_modules
+//      is from the old lock. Trust the lockfile's correctness: the
+//      caller (CI, dev loop) will refresh node_modules via `npm ci`
+//      or `npm install` as appropriate; this script's job is just to
+//      not re-resolve deps on every build.
+if (existsSync(NM)) {
+  if (currentHash === priorHash) {
+    log('node_modules exists + lock hash match — skip');
+  } else {
+    log(`node_modules exists; recording lock hash (prior=${priorHash || '<none>'}, current=${currentHash.slice(0, 12)}…)`);
+    writeFileSync(HASH_FILE, currentHash);
+  }
   process.exit(0);
 }
 

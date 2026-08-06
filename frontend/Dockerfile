@@ -12,9 +12,11 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY package*.json ./
-# --ignore-scripts: skip lifecycle scripts (postinstall hook that calls
-# `npm install` recursively). The release image doesn't need idempotency
-# tricks — `npm ci` from the lockfile is sufficient and reproducible.
+# --ignore-scripts: skip the postinstall hook (`node scripts/install.mjs`).
+# That hook is a local-dev helper for idempotency that re-runs
+# `npm install` — useless in Docker (fresh node_modules every build,
+# already installed correctly by `npm ci`) and actively harmful (re-runs
+# would race with the lockfile-driven `npm ci` install).
 RUN npm ci --ignore-scripts
 
 COPY . .
@@ -22,15 +24,13 @@ COPY . .
 ARG NEXT_PUBLIC_API_URL=http://localhost/api
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
-# Skip the `npm run build` wrapper (scripts/build.mjs) because it
-# self-heal-triggers `npm run install` which recursively re-resolves
-# deps. For a release image that just compiled deps with `npm ci` from
-# the lockfile, this self-heal is wrong (and was the source of an
-# 18-min hang in CI). Invoke next via the local node_modules/.bin/next
-# directly. Using npx --offline failed because the npm cache didn't
-# have @types/node locally; calling the local bin avoids that lookup.
-ENV NEXT_DIST_DIR=.next-build
-RUN node_modules/.bin/next build
+# Build via scripts/build.mjs (the canonical entry point). It
+# self-heal-triggers `npm run install`, but install.mjs is now
+# permissive — it skips re-install if node_modules already exists
+# (the common case after `npm ci`), and only runs `npm install` when
+# something's actually missing or drifted. The dev intent of the
+# self-heal is preserved without interfering with the prod image.
+RUN npm run build
 
 EXPOSE 80
 
