@@ -86,17 +86,6 @@ cmd_doctor() {
             info "  → 或手动: docker pull ${DB_FULL_IMAGE}"
             failed=1
         fi
-        # nginx base image is mirrored from Docker Hub to GHCR by
-        # release-prod (the CVM can't reach Docker Hub directly).
-        local nginx_full_image="${DOCKER_REGISTRY}/nginx:alpine"
-        if image_pullable "${nginx_full_image}"; then
-            ok "image ${nginx_full_image} 存在 (registry 可拉)"
-        else
-            err "image ${nginx_full_image} 缺失 (registry 拉不到)"
-            info "  → 在 BUILD 端跑: make release-prod vX.Y.Z -y  (会镜像 nginx:alpine 到 GHCR)"
-            info "  → 或手动: docker pull ${nginx_full_image}"
-            failed=1
-        fi
     fi
 
     # Data directory: db container bind-mounts /var/lib/.../postgres.

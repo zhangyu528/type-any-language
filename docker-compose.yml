@@ -31,13 +31,18 @@
 #                /      → frontend:3000
 #
 # Run via:  ALLOWED_ORIGINS=https://my.domain ./ops/prod/lifecycle.sh start
-# All prod images (db / backend / frontend / nginx) are PULLED from
-# ${DOCKER_REGISTRY} (GitHub Container Registry /
-# GHCR — ghcr.io/zhangyu528/type-any-language). lifecycle.sh / deploy.sh
-# run `docker compose up --no-build`, so compose NEVER builds locally;
-# the build side (release-prod CI) is the only place images are produced.
-# DOCKER_REGISTRY is forwarded to the CVM via SSH env by the deploy-prod /
-# bootstrap-prod workflows (single source of truth = GH Variable).
+# Image sources:
+#   - db / backend / frontend: PULLED from ${DOCKER_REGISTRY}
+#     (GitHub Container Registry / GHCR — ghcr.io/zhangyu528/type-any-language).
+#     These are custom images built + pushed by release-prod CI.
+#   - nginx: PULLED from Docker Hub (docker.io/library/nginx:alpine) via the
+#     registry mirror configured on the CVM (e.g. Tencent Cloud mirror), so it
+#     does NOT go through GHCR. The CVM can't reach Docker Hub directly, but the
+#     mirror proxies it.
+# lifecycle.sh / deploy.sh run `docker compose up --no-build`, so compose NEVER
+# builds locally; the build side (release-prod CI) is the only place images are
+# produced. DOCKER_REGISTRY is forwarded to the CVM via SSH env by the deploy-prod
+# / bootstrap-prod workflows (single source of truth = GH Variable).
 # ---------------------------------------------------------------------------
 
 secrets:
@@ -124,12 +129,12 @@ services:
 
   # -------------------------------------------------------------------------
   # nginx — reverse proxy on :80.
-  # Base image mirrored from Docker Hub to ${DOCKER_REGISTRY} (the CVM
-  # cannot reach Docker Hub, but CAN reach GHCR). release-prod publishes
-  # the mirror as ghcr.io/.../nginx:alpine; see that workflow.
+  # Stock official image from Docker Hub (nginx:alpine), pulled via the
+  # registry mirror configured on the CVM (e.g. Tencent Cloud mirror) —
+  # NOT from GHCR. No custom build, no GHCR mirror step.
   # -------------------------------------------------------------------------
   nginx:
-    image: ${DOCKER_REGISTRY}/nginx:alpine
+    image: nginx:alpine
     restart: unless-stopped
     ports:
       - "80:80"
