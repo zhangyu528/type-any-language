@@ -5,131 +5,178 @@ run-name: bootstrap-prod-on-${{ inputs.host || 'auto' }}
 # One-time (BOOTSTRAP) host preparation for a new prod CVM.
 #
 # Lifecycle — 3 workflows, in this order:
-#   bootstrap-prod  → ONE-TIME per host: preflight + secrets + data dir
+#   bootstrap-prod  → ONE-TIME per host: provision deploy user + host prep
 #   release-prod    → per release: build + push 3 images to GHCR
 #   deploy-prod     → per release: pull images from GHCR + bring up stack
-# bootstrap runs ONCE when you add a new CVM; release + deploy run on
-# every release. They are independent — bootstrap does NOT run during
-# a normal deploy, and deploy does NOT re-prepare the host.
 #
-# What this workflow does:
-#   1. Verify required GH Secrets are configured.
-#   2. SSH into the CVM as the `deploy` user.
-#   3. Push `DOCKER_REGISTRY` from the GH Variable into the SSH session
-#      as an env var (so the CVM doesn't need its own auth — only
-#      the workflow does, and it already has GITHUB_TOKEN).
-#   4. Run `make prod-bootstrap` on the CVM. That script does:
-#        - preflight (docker / compose / port 80)
-#        - secrets (.secrets/db_password, chmod 600)
-#        - data dir (sudo mkdir /var/lib/.../postgres + chown 999:999)
+# What this workflow does (option B — fully automated user provisioning):
+#   1. Verify CVM_HOST, CVM_BOOTSTRAP_SSH_KEY, DOCKER_REGISTRY exist.
+#   2. Generate a fresh deploy SSH keypair on the runner (temporary).
+#   3. SSH into the CVM as `ubuntu` (configurable) using
+#      CVM_BOOTSTRAP_SSH_KEY, and:
+#        - create the `deploy` user (idempotent)
+#        - install NOPASSWD sudoers for /bin/mkdir + /bin/chown
+#        - create ~/.ssh and install the generated deploy PUBLIC key
+#          (prunes any prior gh-actions-deploy@ key first)
+#        - clone the repo into /opt/type-any-language (owned by deploy)
+#   4. Write the generated deploy PRIVATE key back to GH Secret
+#      CVM_SSH_KEY (via `gh secret set`, needs `secrets: write`).
+#   5. SSH into the CVM as `deploy` (using the generated key) and run
+#      `make prod-bootstrap` (preflight + .secrets/db_password + data dir).
 #
-# Required GH Secrets:
-#   CVM_HOST     — public IP / hostname of the prod CVM
-#   CVM_SSH_KEY  — SSH private key for the `deploy` user on the CVM
-#                  (must be in deploy's authorized_keys, write access
-#                  to /opt/type-any-language, and have limited sudo for
-#                  `mkdir` + `chown` — see /etc/sudoers.d/deploy)
+# After this runs once, deploy-prod can log in directly as `deploy`
+# via the now-auto-provisioned CVM_SSH_KEY.
 #
+# Required GH Secrets (you MUST add these manually, one-time):
+#   CVM_HOST              — public IP / hostname of the prod CVM
+#   CVM_BOOTSTRAP_SSH_KEY — SSH private key for the `ubuntu` (or root)
+#                           user on the CVM. Used ONLY to provision the
+#                           deploy user. This is the one key that cannot be
+#                           bootstrapped (you must supply it).
+# Auto-created by this workflow:
+#   CVM_SSH_KEY           — deploy user's private key (written here)
 # Required GH Variable:
-#   DOCKER_REGISTRY  — the registry namespace (single source of truth)
+#   DOCKER_REGISTRY       — registry namespace (single source of truth)
 #
-# Why split from release-prod.yml and deploy-prod.yml:
-#   - bootstrap is ONE-TIME per host (run ONCE when adding a new CVM;
-#     it is NOT "every release" — that's what deploy-prod is for)
-#   - bootstrap requires `sudo` on the CVM (deploy doesn't)
-#   - bootstrap needs human-readable failure if the host isn't ready
-#   - release + deploy are fully automated; bootstrap is triggered by
-#     operator (manual workflow_dispatch) when adding a new host
-#
-# After bootstrap runs once, all future deploys are handled by:
-#   - release-prod.yml (manual workflow_dispatch → build + push 3 images)
-#   - deploy-prod.yml  (manual workflow_dispatch → SSH + make prod-deploy)
+# Optional workflow_dispatch inputs:
+#   host           — label only (debug)
+#   bootstrap_user — login user used to provision deploy (default: ubuntu)
 # -----------------------------------------------------------------------
 
 on:
-  # Manual-only: this is a setup operation, not a routine deploy.
   workflow_dispatch:
     inputs:
       host:
-        description: 'CVM 标识(纯 label,debug 用,不影响行为)'
+        description: 'CVM 标识(label, 仅 debug)'
         required: false
         type: string
         default: 'prod-cvm-1'
+      bootstrap_user:
+        description: '用于首次创建 deploy 用户的登录用户(默认 ubuntu)'
+        required: false
+        type: string
+        default: 'ubuntu'
 
 permissions:
-  contents: read   # only read repo (no checkout needed for this)
+  contents: read
+  # Needed to write CVM_SSH_KEY back via `gh secret set`.
+  secrets: write
 
 concurrency:
-  # Don't run bootstrap twice on the same host in parallel — could
-  # race on .secrets/db_password generation.
   group: bootstrap-prod
   cancel-in-progress: false
 
 jobs:
   bootstrap:
     runs-on: ubuntu-latest
-    # Use prod environment for access to CVM_HOST / CVM_SSH_KEY secrets
-    # AND for optional required-reviewer approval on manual bootstrap.
     environment: prod
+    env:
+      DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
     steps:
-      # -------- Pre-check: GH Secrets --------
-      - name: Verify required secrets
-        run: |
-          if [ -z "${{ secrets.CVM_HOST }}" ]; then
-            echo "::error::GH Secret CVM_HOST 未配置"
-            echo "  → GH repo → Settings → Secrets and variables → Actions → New repository secret"
-            echo "  → Name: CVM_HOST, Value: <CVM 公网 IP 或域名>"
-            exit 1
-          fi
-          if [ -z "${{ secrets.CVM_SSH_KEY }}" ]; then
-            echo "::error::GH Secret CVM_SSH_KEY 未配置"
-            echo "  → GH repo → Settings → Secrets and variables → Actions → New repository secret"
-            echo "  → Name: CVM_SSH_KEY, Value: <deploy user 的 SSH 私钥>"
-            exit 1
-          fi
-          echo "GH Secrets OK: CVM_HOST, CVM_SSH_KEY"
-
-      # -------- Pre-check: GH Variable --------
-      - name: Verify DOCKER_REGISTRY is set
+      # -------- Pre-check: secrets / var --------
+      - name: Verify required secrets / variable
         env:
-          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+          CVM_HOST: ${{ secrets.CVM_HOST }}
+          CVM_BOOTSTRAP_SSH_KEY: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
         run: |
-          if [ -z "$DOCKER_REGISTRY" ]; then
-            echo "::error::GH Variable DOCKER_REGISTRY 未配置"
-            echo "  → GH repo → Settings → Variables → Actions → New repository variable"
-            echo "  → Name: DOCKER_REGISTRY, Value: ghcr.io/zhangyu528/type-any-language"
-            exit 1
-          fi
-          echo "DOCKER_REGISTRY=$DOCKER_REGISTRY (source=GH Variable)"
+          : "${CVM_HOST:?GH Secret CVM_HOST 未配置}"
+          : "${CVM_BOOTSTRAP_SSH_KEY:?GH Secret CVM_BOOTSTRAP_SSH_KEY 未配置(ubuntu 私钥)}"
+          : "${DOCKER_REGISTRY:?GH Variable DOCKER_REGISTRY 未配置}"
+          echo "prechecks OK: CVM_HOST, CVM_BOOTSTRAP_SSH_KEY, DOCKER_REGISTRY"
 
-      # -------- SSH to CVM and run bootstrap --------
-      - name: SSH to CVM and run make prod-bootstrap
+      # -------- Generate deploy keypair (runner-local, temporary) --------
+      - name: Generate deploy keypair
+        run: |
+          mkdir -p "$RUNNER_TEMP/keys"
+          ssh-keygen -t ed25519 -N "" \
+            -f "$RUNNER_TEMP/keys/deploy_key" \
+            -C "gh-actions-deploy@$(date +%s)"
+          {
+            echo "DEPLOY_PUBKEY<<EOF"
+            cat "$RUNNER_TEMP/keys/deploy_key.pub"
+            echo "EOF"
+            echo "DEPLOY_PRIV_KEY<<EOF"
+            cat "$RUNNER_TEMP/keys/deploy_key"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+          echo "deploy keypair generated (temporary, runner-local)"
+
+      # -------- Provision deploy user on CVM (as bootstrap_user) --------
+      - name: Provision deploy user on CVM (as ${{ inputs.bootstrap_user }})
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CVM_HOST }}
+          username: ${{ inputs.bootstrap_user }}
+          key: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
+          envs: DEPLOY_PUBKEY
+          script: |
+            set -e
+            DEPLOY_USER=deploy
+            if ! id -u "$DEPLOY_USER" >/dev/null 2>&1; then
+              sudo useradd --disabled-password --create-home --shell /bin/bash "$DEPLOY_USER"
+              echo "[bootstrap] created user $DEPLOY_USER"
+            else
+              echo "[bootstrap] user $DEPLOY_USER already exists"
+            fi
+
+            # NOPASSWD sudoers for the two commands make prod-bootstrap needs.
+            echo "$DEPLOY_USER ALL=(ALL) NOPASSWD: /bin/mkdir, /bin/chown" \
+              | sudo tee /etc/sudoers.d/deploy
+            sudo chmod 440 /etc/sudoers.d/deploy
+            sudo visudo -c
+
+            # ssh dir + authorized_keys (prune prior managed key, then install).
+            sudo -u "$DEPLOY_USER" mkdir -p /home/$DEPLOY_USER/.ssh
+            sudo -u "$DEPLOY_USER" chmod 700 /home/$DEPLOY_USER/.ssh
+            AUTH=/home/$DEPLOY_USER/.ssh/authorized_keys
+            sudo -u "$DEPLOY_USER" touch "$AUTH"
+            sudo -u "$DEPLOY_USER" sed -i '/gh-actions-deploy@/d' "$AUTH" 2>/dev/null || true
+            echo "$DEPLOY_PUBKEY" | sudo -u "$DEPLOY_USER" tee -a "$AUTH" >/dev/null
+            sudo -u "$DEPLOY_USER" chmod 600 "$AUTH"
+            sudo chown -R "$DEPLOY_USER:$DEPLOY_USER" /home/$DEPLOY_USER/.ssh
+            echo "[bootstrap] deployed managed pubkey to $AUTH"
+
+            # Clone repo if missing; always ensure deploy owns it.
+            if [ ! -d /opt/type-any-language/.git ]; then
+              sudo -u "$DEPLOY_USER" git clone \
+                https://github.com/zhangyu528/type-any-language.git \
+                /opt/type-any-language
+              echo "[bootstrap] cloned repo"
+            else
+              echo "[bootstrap] repo already present"
+            fi
+            sudo chown -R "$DEPLOY_USER:$DEPLOY_USER" /opt/type-any-language
+
+      # -------- Write deploy private key back to GH Secret --------
+      - name: Write deploy private key to GH Secret CVM_SSH_KEY
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh secret set CVM_SSH_KEY --env prod --body "$DEPLOY_PRIV_KEY"
+          echo "[bootstrap] CVM_SSH_KEY written (auto-provisioned)"
+
+      # -------- Run make prod-bootstrap as deploy --------
+      - name: Run make prod-bootstrap as deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.CVM_HOST }}
           username: deploy
-          key: ${{ secrets.CVM_SSH_KEY }}
-          # Forward DOCKER_REGISTRY to CVM so resolve_docker_registry works
-          # without gh CLI on the CVM.
+          key: ${{ env.DEPLOY_PRIV_KEY }}
           envs: DOCKER_REGISTRY
           script: |
             set -e
             cd /opt/type-any-language
-
-            # Pull the latest repo content so bootstrap.sh is up to date.
             echo "[bootstrap] pulling latest repo"
             git pull
-
-            # Verify DOCKER_REGISTRY was actually forwarded (defense in depth).
             if [ -z "$DOCKER_REGISTRY" ]; then
-              echo "::error::DOCKER_REGISTRY was not forwarded to CVM via SSH env"
-              echo "  → Check appleboy/ssh-action 'envs:' directive in this workflow"
+              echo "::error::DOCKER_REGISTRY was not forwarded to CVM"
               exit 1
             fi
             echo "[bootstrap] DOCKER_REGISTRY=$DOCKER_REGISTRY"
-
-            # THE host prep step. Idempotent.
-            echo "[bootstrap] running make prod-bootstrap"
             make prod-bootstrap
-
             echo "[bootstrap] done — CVM is now ready for deploy-prod workflow"
+
+      # -------- Clean up temp key --------
+      - name: Clean up temp key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/keys"
