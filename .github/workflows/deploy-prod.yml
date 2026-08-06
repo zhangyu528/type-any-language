@@ -10,14 +10,19 @@ run-name: deploy-prod-${{ inputs.version || 'auto' }}
 #
 # Manual trigger (workflow_dispatch) supports two use cases:
 #   1. Deploy the just-released version: pick "auto" — the workflow
-#      reads the latest version from the default branch's
-#      backend/VERSION (via the GitHub API on the runner, which has
-#      good network) and deploys it. The CVM itself never fetches
-#      from github.com (cross-continental SSL timeouts).
+#      resolves the latest git tag / GitHub release (via the GitHub API
+#      on the runner, which has good network) and deploys it. The CVM
+#      itself never fetches from github.com (cross-continental SSL timeouts).
 #   2. Rollback: pick a specific version (e.g. v0.1.0) from the
 #      dropdown. The option list is STATIC (GH workflow_dispatch
 #      choice inputs can't be populated dynamically) — add new
 #      versions here by hand as you cut releases.
+#
+# Version model (full cleanup, 2026-08-06): the single source of truth
+# for the deployed version is the git TAG created by release-prod (which
+# also publishes a GitHub release). There are NO per-segment VERSION
+# files anymore — the resolved tag is delivered to the CVM as the
+# IMAGE_TAG env var, which resolve_image_tag() prefers over any file.
 #
 # Pair with the Makefile target `make prod-deploy` which is THE
 # go-live step (doctor pre + lifecycle restart + doctor post).
@@ -112,16 +117,20 @@ jobs:
         run: |
           set -e
           if [ "$SELECTED" = "auto" ]; then
-            # This project versions via backend/VERSION (NOT git tags), so the
-            # "latest" version is whatever the default branch declares. Read it
-            # through the GitHub API on the RUNNER (good network) — the CVM must
-            # NOT fetch from github.com (cross-continental SSL timeouts).
-            echo "version = auto → reading latest version from default-branch backend/VERSION"
-            tag=$(gh api "repos/$REPO/contents/backend/VERSION" --jq '.content' 2>/dev/null \
-                    | base64 -d 2>/dev/null | tr -d '[:space:]\r')
+            # Full cleanup: the version IS the git tag created by release-prod
+            # (which also publishes a GitHub release). Resolve the LATEST
+            # release/tag on the RUNNER (good network). The CVM itself never
+            # fetches from github.com (cross-continental SSL timeouts) — it
+            # only receives the tag as the IMAGE_TAG env var via SSH.
+            echo "version = auto → resolving latest release/tag on runner"
+            tag=$(gh release list --repo "$REPO" --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null)
             if [ -z "$tag" ]; then
-              echo "::error::无法从默认分支读取 backend/VERSION (auto 模式依赖它)"
-              echo "  → 在 dropdown 里选一个具体版本, 或确保默认分支根存在 backend/VERSION"
+              # Fallback to the latest git tag if no GitHub release exists yet.
+              tag=$(gh api "repos/$REPO/tags?per_page=1" --jq '.[0].name' 2>/dev/null)
+            fi
+            if [ -z "$tag" ]; then
+              echo "::error::auto 模式找不到任何 release/tag —— 先跑一次 release-prod 创建 tag+release"
+              echo "  → 或在 dropdown 里选一个具体版本 (如 v0.1.0)"
               exit 1
             fi
             echo "resolved latest version = $tag"
@@ -134,32 +143,32 @@ jobs:
       - name: SSH to CVM and deploy
         uses: appleboy/ssh-action@v1.0.3
         env:
-          DEPLOY_TAG: ${{ steps.resolve.outputs.DEPLOY_TAG }}
+          # FIX: DOCKER_REGISTRY must be declared here too — appleboy only
+          # forwards env vars that actually exist in THIS step's `env:` block.
+          # It was listed in `envs:` before but never set here, so it arrived
+          # empty on the CVM ("DOCKER_REGISTRY was not forwarded" error).
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+          # Full cleanup: forward the resolved tag as IMAGE_TAG. The CVM's
+          # resolve_image_tag() prefers IMAGE_TAG over any VERSION file, so
+          # no VERSION file is written/pinned on the CVM anymore.
+          IMAGE_TAG: ${{ steps.resolve.outputs.DEPLOY_TAG }}
         with:
           host: ${{ secrets.CVM_HOST }}
           username: ${{ vars.CVM_BOOTSTRAP_USER || 'ubuntu' }}
           key: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
-          envs: DOCKER_REGISTRY,DEPLOY_TAG
+          envs: DOCKER_REGISTRY,IMAGE_TAG
           script: |
             set -e
             sudo -u deploy bash -lc '
               export DOCKER_REGISTRY="'"$DOCKER_REGISTRY"'"
-              export DEPLOY_TAG="'"$DEPLOY_TAG"'"
+              export IMAGE_TAG="'"$IMAGE_TAG"'"
               set -e
               cd /opt/type-any-language
 
-              if [ -z "$DEPLOY_TAG" ]; then
-                echo "::error::DEPLOY_TAG 为空, 无法确定要部署的版本"
+              if [ -z "$IMAGE_TAG" ]; then
+                echo "::error::IMAGE_TAG 为空, 无法确定要部署的版本"
                 exit 1
               fi
-              # Pin the version into the three VERSION files. The CVM never
-              # fetches from github.com (cross-continental SSL timeouts) — the
-              # version is delivered as DATA via the SSH env var instead. The
-              # image tag resolved by resolve_image_tag() comes from these files.
-              echo "[deploy] pinning version = $DEPLOY_TAG"
-              printf '%s\n' "$DEPLOY_TAG" > backend/VERSION
-              printf '%s\n' "$DEPLOY_TAG" > frontend/VERSION
-              printf '%s\n' "$DEPLOY_TAG" > db/VERSION
 
               # Verify DOCKER_REGISTRY was injected (defense in depth — CVM also checks)
               if [ -z "$DOCKER_REGISTRY" ]; then
@@ -167,7 +176,7 @@ jobs:
                 echo "  -> Check appleboy/ssh-action envs: directive in this workflow"
                 exit 1
               fi
-              echo "[deploy] DOCKER_REGISTRY=$DOCKER_REGISTRY"
+              echo "[deploy] IMAGE_TAG=$IMAGE_TAG  DOCKER_REGISTRY=$DOCKER_REGISTRY"
 
               # THE go-live step. doctor pre + lifecycle restart + doctor post.
               echo "[deploy] running make prod-deploy"

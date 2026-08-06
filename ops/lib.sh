@@ -229,32 +229,31 @@ gen_secret() {
 # ---------------------------------------------------------------------------
 # Version resolution
 # ---------------------------------------------------------------------------
-# Each segment owns its own VERSION file for **prod** tags (semver,
-# manually bumped via `release.sh prod X.Y.Z`):
+# Each segment's prod image tag is the git TAG created by release-prod
+# (which also publishes a GitHub release). The per-segment VERSION files
+# (backend/VERSION, frontend/VERSION, db/VERSION) were REMOVED on
+# 2026-08-06 — the version is delivered to every environment as the
+# IMAGE_TAG env var instead:
 #
-#   backend/VERSION                  ← english_backend (prod only)
-#   frontend/VERSION                 ← english_frontend (prod only)
-#   cms/VERSION                      ← placeholder (cms has no docker image
-#                                       today; reserved for a future CMS pipeline
-#                                       version stamp)
+#   release-prod creates tag vX.Y.Z  →  deploy-prod forwards it as IMAGE_TAG
+#                                     →  CVM's resolve_image_tag() uses it
 #
-# One file per segment: backend/VERSION gates the prod backend image tag,
-# frontend/VERSION gates the prod frontend image tag. Dev has no docker
-# images — the dev loop runs host-native (uvicorn + `next dev` on the
-# host, talking to the docker `db` container) so there's no image tag to
-# resolve for dev iteration. Prod tags are explicit semver, bumped only
-# by `release.sh prod`.
+# cms/VERSION is a placeholder (cms has no docker image today; reserved
+# for a future CMS pipeline version stamp) — see cms/ for its own pipeline.
+#
+# Dev has no docker images — the dev loop runs host-native (uvicorn +
+# `next dev` on the host, talking to the docker `db` container) so there's
+# no image tag to resolve for dev iteration.
 #
 # All callers resolve tags by passing an explicit relative path (relative to
-# find_repo_root) — there is no implicit root-level fallback. There is no
-# VERSION file at the repo root in the current layout; every segment owns
-# its own file (e.g. db/VERSION, backend/VERSION) and callers pass the
-# per-segment path explicitly.
+# find_repo_root) — there is no implicit root-level fallback. The path args
+# are now only a FALLBACK when IMAGE_TAG (and per-image env vars) are unset.
 #
 # Resolution order (highest priority first):
 #   1. Per-image env var, e.g. BACKEND_IMAGE_TAG=v1.2.3
-#   2. Generic IMAGE_TAG env var (CI convenience — bumps all images at once)
-#   3. The VERSION file path passed in (resolved by read_version_file)
+#   2. Generic IMAGE_TAG env var (the git tag — primary path in CI/prod)
+#   3. The VERSION file path passed in (resolved by read_version_file;
+#      deprecated — files removed, only reached if IMAGE_TAG is unset)
 #   4. Literal "v0.0.0" fallback (won't break a build, but warns once)
 
 # find_repo_root [start] → echoes the absolute path of the repo root, or "".

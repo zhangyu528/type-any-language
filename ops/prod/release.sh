@@ -208,9 +208,11 @@ git_commit_touched() {
 # ---------------------------------------------------------------------------
 
 cmd_show() {
+    info "IMAGE_TAG (current deploy tag) = ${IMAGE_TAG:-<未设置>}"
+    info "version 现在由 git tag 决定 (不再有 per-segment VERSION 文件)"
     info "cms/VERSION      = $(read_version_file cms/VERSION)  (placeholder — no image)"
-    info "backend/VERSION  = $(read_version_file backend/VERSION)  (gates prod image tag)"
-    info "frontend/VERSION = $(read_version_file frontend/VERSION) (gates prod image tag)"
+    info "backend/VERSION  = $(read_version_file backend/VERSION)  (已废弃 — 用 git tag)"
+    info "frontend/VERSION = $(read_version_file frontend/VERSION) (已废弃 — 用 git tag)"
 }
 
 # prepare_version <label> <path> <requested> → echoes the resolved tag.
@@ -311,19 +313,25 @@ cmd_prod() {
     echo ""
 
     local tag
-    tag="$(bump_stream_paths "prod" "$requested" "${PROD_VERSION_PATHS[@]}")"
-    local touched_prod=0
-    [ "${RELEASEd_BUMP:-0}" = "1" ] && touched_prod=1
+    if [ -n "$requested" ]; then
+        # Full cleanup: the version IS the input (it becomes the git tag +
+        # GitHub release created by release-prod.yml). No per-segment
+        # VERSION files are written anymore.
+        tag="$requested"
+        info "version = $tag (from CLI arg — VERSION 文件已废弃)"
+    elif [ -n "${IMAGE_TAG:-}" ]; then
+        tag="$IMAGE_TAG"
+        info "version = $tag (from IMAGE_TAG env — 重新发布当前 tag)"
+    else
+        err "release prod 需要版本号: release.sh prod vX.Y.Z  或  设置 IMAGE_TAG"
+        exit 1
+    fi
 
     echo ""
     publish_one "prod release set (db + backend + frontend — all tagged $tag)" \
         "./ops/prod/build/image.sh" \
         "./ops/prod/build/push.sh" \
         "$tag"
-
-    if [ "$touched_prod" = "1" ]; then
-        git_commit_touched "prod" "$tag" "${PROD_VERSION_PATHS[@]}"
-    fi
 
     echo ""
     ok "release prod done: tag=$tag"

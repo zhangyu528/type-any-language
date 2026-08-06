@@ -19,8 +19,10 @@ run-name: bootstrap-prod-on-${{ inputs.host || 'auto' }}
 #        - add `deploy` to the `docker` group (run docker without sudo)
 #        - sparse-checkout clone into /opt/type-any-language (owned by
 #          deploy): ONLY docker-compose.yml + Makefile + ops/prod +
-#          ops/lib.sh + */VERSION. Source code is excluded — prod images
-#          are pulled from GHCR, not built locally on the CVM.
+#          ops/lib.sh. Source code is excluded — prod images
+#          are pulled from GHCR, not built locally on the CVM. The
+#          deployed version comes from the git tag (forwarded as IMAGE_TAG
+#          by deploy-prod), so no VERSION files are cloned.
 #   3. SSH into the CVM as `ubuntu` again and run `make prod-bootstrap`
 #      via `sudo -u deploy` (preflight + .secrets/db_password + data dir).
 #      deploy-prod reuses the SAME bootstrap key + `sudo -u deploy`, so
@@ -145,12 +147,11 @@ jobs:
             #   docker-compose.yml + Makefile   (compose + make targets)
             #   ops/prod/*                      (deploy scripts + nginx.conf)
             #   ops/lib.sh                      (sourced by the prod scripts)
-            #   */VERSION                       (image tag resolution —
-            #                                     resolve_image_tag FAILS if
-            #                                     these are missing)
             # Source code (backend/ frontend/ db/ Dockerfiles, cms/, scripts/)
             # is intentionally excluded: prod images are pulled from GHCR,
-            # not built locally on the CVM.
+            # not built locally on the CVM. The deployed version comes from
+            # the git tag (forwarded by deploy-prod as IMAGE_TAG), so no
+            # VERSION files are cloned.
             #
             # /opt is root-owned (755), so `deploy` CANNOT create
             # /opt/type-any-language itself. Pre-create it as root and hand
@@ -170,12 +171,9 @@ jobs:
                   docker-compose.yml \
                   Makefile \
                   ops/prod/ \
-                  ops/lib.sh \
-                  backend/VERSION \
-                  frontend/VERSION \
-                  db/VERSION
+                  ops/lib.sh
               '
-              echo "[bootstrap] sparse-cloned repo (compose + ops/prod + version files only)"
+              echo "[bootstrap] sparse-cloned repo (compose + ops/prod only)"
             else
               echo "[bootstrap] repo already present"
             fi

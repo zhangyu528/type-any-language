@@ -60,9 +60,10 @@ setup_prod_host_env() {
         exit 1
     fi
     info "DOCKER_REGISTRY=$DOCKER_REGISTRY (source=${_DOCKER_REGISTRY_SOURCE:-github}, auto-pull on for all 3 prod images)"
-    # Prod image tags come from per-segment VERSION files. With Layer 3,
-    # all 3 images (db + backend + frontend) share the same tag — a publish
-    # is a "release set" of 3 images at the same version.
+    # Prod image tags come from the IMAGE_TAG env (set by deploy-prod from
+    # the git tag). The per-segment VERSION files were removed (2026-08-06);
+    # the path args below are now only a fallback if IMAGE_TAG is unset.
+    # All 3 images (db + backend + frontend) share the same tag.
     resolve_image_tag BACKEND_IMAGE_TAG  backend/VERSION
     resolve_image_tag FRONTEND_IMAGE_TAG frontend/VERSION
     resolve_image_tag DB_IMAGE_TAG       db/VERSION

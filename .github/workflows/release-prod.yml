@@ -37,12 +37,12 @@ run-name: release-prod-${{ github.event.inputs.version || 'auto' }}
 #     created by the operator, not the workflow).
 #   - Login to ghcr.io using the GITHUB_TOKEN (no registry user/pass needed).
 #   - Run ./ops/prod/release.sh prod <version> -y, which:
-#       a) bumps backend/VERSION + frontend/VERSION to the requested version
-#          (no-op if already at that version).
-#       b) commits the bump (no-op if nothing changed).
-#       c) builds english_db + english_backend + english_frontend
-#          via docker compose build.
-#       d) tags + pushes them to $DOCKER_REGISTRY/english_*:vX.Y.Z.
+#       a) builds english_db + english_backend + english_frontend
+#          via docker compose build (tag = the requested version).
+#       b) tags + pushes them to $DOCKER_REGISTRY/english_*:vX.Y.Z.
+#   - This workflow then creates a git tag + GitHub release for <version>
+#     (the SINGLE SOURCE OF TRUTH for the deployed version — deploy-prod
+#     "auto" resolves it on the runner; no per-segment VERSION files).
 #
 # After release-prod completes successfully, the operator runs
 # deploy-prod (manual) to roll the images out to the CVM.
@@ -144,6 +144,33 @@ jobs:
           # execute on the scripts we shell out to.
           chmod +x ops/prod/release.sh ops/prod/build/image.sh ops/prod/build/push.sh
           bash ops/prod/release.sh prod "${{ steps.version.outputs.version }}" -y
+
+      - name: Tag + create GitHub release
+        # Full cleanup (2026-08-06): the git tag is now the SINGLE SOURCE OF
+        # TRUTH for the deployed version. deploy-prod "auto" resolves the
+        # latest release/tag on the runner (CVM never touches github.com).
+        # release.sh no longer writes per-segment VERSION files.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          # Annotated tag on the default-branch HEAD.
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "tag $VERSION already exists — skip tag create"
+          else
+            git tag -a "$VERSION" -m "release $VERSION"
+            git push origin "$VERSION"
+            echo "pushed tag $VERSION"
+          fi
+          # GitHub release so deploy-prod "auto" can list the latest.
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "release $VERSION already exists — skip release create"
+          else
+            gh release create "$VERSION" --title "$VERSION" --generate-notes
+            echo "created release $VERSION"
+          fi
 
       - name: Logout
         if: always()
