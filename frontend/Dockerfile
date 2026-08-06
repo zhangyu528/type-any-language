@@ -26,9 +26,11 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 # self-heal-triggers `npm run install` which recursively re-resolves
 # deps. For a release image that just compiled deps with `npm ci` from
 # the lockfile, this self-heal is wrong (and was the source of an
-# 18-min hang in CI). Invoke `next build` directly.
+# 18-min hang in CI). Invoke next via the local node_modules/.bin/next
+# directly. Using npx --offline failed because the npm cache didn't
+# have @types/node locally; calling the local bin avoids that lookup.
 ENV NEXT_DIST_DIR=.next-build
-RUN npx --offline next build
+RUN node_modules/.bin/next build
 
 EXPOSE 80
 
