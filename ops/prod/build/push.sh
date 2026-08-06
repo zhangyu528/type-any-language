@@ -210,7 +210,10 @@ cmd_push() {
     echo ""
 
     if [ "$skip_confirm" = false ]; then
-        read -p "Push to $DOCKER_REGISTRY? [y/N] " ans
+        if ! read -p "Push to $DOCKER_REGISTRY? [y/N] " ans </dev/null; then
+            err "stdin 不可用 (CI 环境?) — 请用 -y 跳过确认"
+            exit 1
+        fi
         case "$ans" in
             [Yy]|[Yy][Ee][Ss]) ;;
             *) info "已取消"; exit 0 ;;
@@ -289,7 +292,7 @@ EOF
 case "${1:-}" in
     doctor)         cmd_doctor ;;
     -h|--help|help) usage ;;
-    -y|--yes)       shift; cmd_push "$@" ;;
+    -y|--yes)       cmd_push -y ;;
     "")             cmd_push ;;
     *)              usage; err "未知命令: $1"; exit 1 ;;
 esac
