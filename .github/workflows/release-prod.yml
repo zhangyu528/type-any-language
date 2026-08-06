@@ -68,7 +68,7 @@ on:
 
 permissions:
   contents: write   # release.sh's git_commit_touched does `git commit`
-  packages: write   # optional: if using GH Packages instead of TCR
+  packages: write   # push to GHCR (ghcr.io)
 
 concurrency:
   # Avoid two releases racing on the same VERSION files.
@@ -111,10 +111,17 @@ jobs:
             echo "::error::DOCKER_REGISTRY variable not set — push has nowhere to go"
             exit 1
           fi
-          echo "${{ secrets.REGISTRY_PASSWORD }}" | \
-            docker login "${{ vars.DOCKER_REGISTRY }}" \
-                       -u "${{ secrets.REGISTRY_USERNAME }}" \
-                       --password-stdin
+          # GHCR (ghcr.io) authenticates with the built-in GITHUB_TOKEN;
+          # other registries (e.g. Tencent CCR) use REGISTRY_USERNAME/PASSWORD.
+          if [[ "${{ vars.DOCKER_REGISTRY }}" == ghcr.io/* ]]; then
+            echo "${{ secrets.GITHUB_TOKEN }}" | \
+              docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          else
+            echo "${{ secrets.REGISTRY_PASSWORD }}" | \
+              docker login "${{ vars.DOCKER_REGISTRY }}" \
+                         -u "${{ secrets.REGISTRY_USERNAME }}" \
+                         --password-stdin
+          fi
 
       - name: Verify DOCKER_REGISTRY is set
         env:
