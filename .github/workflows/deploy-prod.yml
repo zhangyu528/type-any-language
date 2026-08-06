@@ -180,6 +180,15 @@ jobs:
           # resolve_image_tag() prefers IMAGE_TAG over any VERSION file, so
           # no VERSION file is written/pinned on the CVM anymore.
           IMAGE_TAG: ${{ steps.resolve.outputs.DEPLOY_TAG }}
+          # CVM pulls GHCR as authenticated user → bypasses GHCR's anonymous
+          # pull rate limit (~100 req / 200MB per IP per hour, which trips
+          # easily when pulling 3 app images × ~60-80 layers in parallel).
+          # GITHUB_TOKEN is workflow-scoped and ephemeral, so writing it
+          # into CVM's ~/.docker/config.json leaves no long-lived secret
+          # behind. GITHUB_TOKEN has read:packages by default, which is
+          # exactly what GHCR pull needs.
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ secrets.CVM_HOST }}
           username: ${{ vars.CVM_BOOTSTRAP_USER || 'ubuntu' }}
@@ -190,7 +199,7 @@ jobs:
           # pull retry forever — now fixed — but keep this headroom so a merely
           # SLOW (not stuck) pull still finishes.
           command_timeout: '1800s'
-          envs: DOCKER_REGISTRY,IMAGE_TAG
+          envs: DOCKER_REGISTRY,IMAGE_TAG,GHCR_USER,GHCR_TOKEN
           script: |
             set -e
 
@@ -204,6 +213,14 @@ jobs:
               /opt/type-any-language/Makefile \
               /opt/type-any-language/docker-compose.yml
             rm -f /tmp/prod-deploy.tar.gz
+
+            # Login CVM to ghcr.io as `github.actor` with GITHUB_TOKEN. Avoids
+            # GHCR anonymous-pull rate limit; do this ONCE per deploy, before
+            # any pull. Run as root (sudo -n) because docker login touches
+            # /root/.docker/config.json; deploy user doesn't own that file.
+            sudo -n bash -lc '
+              echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            '
 
             sudo -u deploy bash -lc '
               export DOCKER_REGISTRY="'"$DOCKER_REGISTRY"'"
