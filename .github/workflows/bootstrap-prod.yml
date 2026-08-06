@@ -25,7 +25,8 @@ run-name: bootstrap-prod-on-${{ inputs.host || 'auto' }}
 #          ops/lib.sh + */VERSION. Source code is excluded — prod images
 #          are pulled from GHCR, not built locally on the CVM.
 #   4. Write the generated deploy PRIVATE key back to GH Secret
-#      CVM_SSH_KEY (via `gh secret set`, needs `secrets: write`).
+#      CVM_SSH_KEY via `gh secret set` — authenticated with the GH_PAT
+#      PAT, because GITHUB_TOKEN is NOT permitted to manage secrets.
 #   5. SSH into the CVM as `deploy` (using the generated key) and run
 #      `make prod-bootstrap` (preflight + .secrets/db_password + data dir).
 #
@@ -38,6 +39,11 @@ run-name: bootstrap-prod-on-${{ inputs.host || 'auto' }}
 #                           user on the CVM. Used ONLY to provision the
 #                           deploy user. This is the one key that cannot be
 #                           bootstrapped (you must supply it).
+#   GH_PAT                — a classic Personal Access Token with the
+#                           `repo` scope. bootstrap uses it (via `gh
+#                           secret set`) to write CVM_SSH_KEY back, because
+#                           GITHUB_TOKEN is NOT allowed to manage secrets.
+#                           This is a powerful credential — guard it.
 # Auto-created by this workflow:
 #   CVM_SSH_KEY           — deploy user's private key (written here)
 # Required GH Variable:
@@ -64,8 +70,6 @@ on:
 
 permissions:
   contents: read
-  # Needed to write CVM_SSH_KEY back via `gh secret set`.
-  secrets: write
 
 concurrency:
   group: bootstrap-prod
@@ -83,11 +87,13 @@ jobs:
         env:
           CVM_HOST: ${{ secrets.CVM_HOST }}
           CVM_BOOTSTRAP_SSH_KEY: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
+          GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           : "${CVM_HOST:?GH Secret CVM_HOST 未配置}"
           : "${CVM_BOOTSTRAP_SSH_KEY:?GH Secret CVM_BOOTSTRAP_SSH_KEY 未配置(ubuntu 私钥)}"
+          : "${GH_PAT:?GH Secret GH_PAT 未配置(classic PAT, repo 权限, 用于回写 CVM_SSH_KEY)}"
           : "${DOCKER_REGISTRY:?GH Variable DOCKER_REGISTRY 未配置}"
-          echo "prechecks OK: CVM_HOST, CVM_BOOTSTRAP_SSH_KEY, DOCKER_REGISTRY"
+          echo "prechecks OK: CVM_HOST, CVM_BOOTSTRAP_SSH_KEY, GH_PAT, DOCKER_REGISTRY"
 
       # -------- Generate deploy keypair (runner-local, temporary) --------
       - name: Generate deploy keypair
@@ -205,10 +211,10 @@ jobs:
       # -------- Write deploy private key back to GH Secret --------
       - name: Write deploy private key to GH Secret CVM_SSH_KEY
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           gh secret set CVM_SSH_KEY --env prod --body "$DEPLOY_PRIV_KEY"
-          echo "[bootstrap] CVM_SSH_KEY written (auto-provisioned)"
+          echo "[bootstrap] CVM_SSH_KEY written (auto-provisioned via GH_PAT)"
 
       # -------- Run make prod-bootstrap as deploy --------
       - name: Run make prod-bootstrap as deploy
