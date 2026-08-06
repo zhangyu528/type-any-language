@@ -140,6 +140,29 @@ jobs:
           fi
           echo "DEPLOY_TAG=$tag" >> "$GITHUB_OUTPUT"
 
+      - name: Package + copy latest prod scripts to CVM
+        # The CVM NEVER fetches from github.com (cross-continental SSL
+        # timeouts) and deploy no longer runs `git pull`, so script fixes
+        # can only reach the CVM if the RUNNER pushes them. We tar the
+        # needed files (the runner has the latest via checkout) and scp
+        # them to /tmp on the CVM; the next SSH step unpacks them in place.
+        env:
+          CVM_HOST: ${{ secrets.CVM_HOST }}
+          CVM_USER: ${{ vars.CVM_BOOTSTRAP_USER || 'ubuntu' }}
+          CVM_KEY: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
+        run: |
+          set -e
+          tar czf /tmp/prod-deploy.tar.gz -C "${{ github.workspace }}" \
+            ops/prod ops/lib.sh Makefile docker-compose.yml
+          printf '%s\n' "$CVM_KEY" > "$RUNNER_TEMP/cvm_key"
+          chmod 600 "$RUNNER_TEMP/cvm_key"
+          scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            -i "$RUNNER_TEMP/cvm_key" \
+            /tmp/prod-deploy.tar.gz \
+            "$CVM_USER@$CVM_HOST:/tmp/prod-deploy.tar.gz"
+          rm -f "$RUNNER_TEMP/cvm_key"
+          echo "[runner] delivered prod-deploy.tar.gz -> CVM:/tmp"
+
       - name: SSH to CVM and deploy
         uses: appleboy/ssh-action@v1.0.3
         env:
@@ -159,15 +182,25 @@ jobs:
           envs: DOCKER_REGISTRY,IMAGE_TAG
           script: |
             set -e
+
+            # Deliver the latest prod scripts pushed by the runner (previous
+            # step scp'd /tmp/prod-deploy.tar.gz). The CVM never reaches
+            # github.com, so this is the ONLY way script fixes get applied.
+            sudo rm -rf /opt/type-any-language/ops/prod /opt/type-any-language/ops/lib.sh
+            sudo tar xzf /tmp/prod-deploy.tar.gz -C /opt/type-any-language
+            sudo chown -R deploy:deploy \
+              /opt/type-any-language/ops \
+              /opt/type-any-language/Makefile \
+              /opt/type-any-language/docker-compose.yml
+            rm -f /tmp/prod-deploy.tar.gz
+
             sudo -u deploy bash -lc '
               export DOCKER_REGISTRY="'"$DOCKER_REGISTRY"'"
               export IMAGE_TAG="'"$IMAGE_TAG"'"
               set -e
               cd /opt/type-any-language
 
-              # git clone 在 CVM 上可能不保留 +x 位 (repo 中脚本为 100644),
-              # 而 deploy.sh 内部直接执行 doctor.sh / lifecycle.sh。确保可执行,
-              # 避免 "Permission denied"。已 clone 的旧 CVM 也靠这一步现场修复。
+              # defense in depth: ensure prod scripts are executable
               chmod +x ops/prod/*.sh
 
               if [ -z "$IMAGE_TAG" ]; then

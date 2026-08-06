@@ -193,8 +193,10 @@ jobs:
               export DOCKER_REGISTRY="'"$DOCKER_REGISTRY"'"
               set -e
               cd /opt/type-any-language
-              echo "[bootstrap] pulling latest repo"
-              git pull
+              # NOTE: the CVM never fetches from github.com (cross-continental
+              # SSL timeouts). The sparse-checkout clone at bootstrap time is
+              # the only file source; prod scripts are refreshed later by
+              # deploy-prod via runner→CVM scp. So there is NO git pull here.
               if [ -z "$DOCKER_REGISTRY" ]; then
                 echo "::error::DOCKER_REGISTRY was not forwarded to CVM"
                 exit 1
