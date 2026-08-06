@@ -64,7 +64,12 @@ echo ""
 info "Building $BACKEND_IMAGE + $FRONTEND_IMAGE via $COMPOSE_FILE"
 echo ""
 
-"$DOCKER_COMPOSE_CMD" -f "$COMPOSE_FILE" build
+# Note: don't quote $DOCKER_COMPOSE_CMD — it can be "docker-compose" or
+# "docker compose" (v2 plugin). Quoting would make bash look for a single
+# command literally named "docker compose" (with space) which doesn't exist.
+# Without quotes, bash word-splits and runs `docker` with `compose` as
+# its first arg, which is what the v2 plugin syntax requires.
+$DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" build
 
 echo ""
 ok "Build done."
