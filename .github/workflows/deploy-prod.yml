@@ -10,9 +10,10 @@ run-name: deploy-prod-${{ inputs.version || 'auto' }}
 #
 # Manual trigger (workflow_dispatch) supports two use cases:
 #   1. Deploy the just-released version: pick "auto" — the workflow
-#      resolves the latest published release (via `gh release list`)
-#      and deploys it. If no release exists yet, it falls back to the
-#      default branch head.
+#      reads the latest version from the default branch's
+#      backend/VERSION (via the GitHub API on the runner, which has
+#      good network) and deploys it. The CVM itself never fetches
+#      from github.com (cross-continental SSL timeouts).
 #   2. Rollback: pick a specific version (e.g. v0.1.0) from the
 #      dropdown. The option list is STATIC (GH workflow_dispatch
 #      choice inputs can't be populated dynamically) — add new
@@ -76,6 +77,7 @@ jobs:
         # operator can see what versions exist and which to pick.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
         run: |
           echo "=== 最近成功的 release-prod runs (按时间倒序) ==="
           gh run list \
@@ -85,8 +87,8 @@ jobs:
               --json databaseId,displayTitle,headBranch,createdAt,conclusion \
               --jq '.[] | "\(.createdAt)  run=\(.databaseId)  title=\(.displayTitle)"'
           echo ""
-          echo "=== 当前 git tags (按版本倒序) ==="
-          git tag --sort=-v:refname | head -20
+          echo "=== 已有 git tags (按版本倒序) ==="
+          gh api "repos/$REPO/tags" --jq '.[].name' 2>/dev/null | head -20 || true
         continue-on-error: true   # listing is informational; don't fail the run
 
       - name: Verify DOCKER_REGISTRY is set
@@ -105,18 +107,24 @@ jobs:
         id: resolve
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
           SELECTED: ${{ inputs.version }}
         run: |
           set -e
           if [ "$SELECTED" = "auto" ]; then
-            echo "version input = auto → resolving latest published release"
-            tag=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || true)
+            # This project versions via backend/VERSION (NOT git tags), so the
+            # "latest" version is whatever the default branch declares. Read it
+            # through the GitHub API on the RUNNER (good network) — the CVM must
+            # NOT fetch from github.com (cross-continental SSL timeouts).
+            echo "version = auto → reading latest version from default-branch backend/VERSION"
+            tag=$(gh api "repos/$REPO/contents/backend/VERSION" --jq '.content' 2>/dev/null \
+                    | base64 -d 2>/dev/null | tr -d '[:space:]\r')
             if [ -z "$tag" ]; then
-              echo "::warning::未找到已发布的 release，将回退到默认分支最新提交"
-              tag=""
-            else
-              echo "resolved latest release tag = $tag"
+              echo "::error::无法从默认分支读取 backend/VERSION (auto 模式依赖它)"
+              echo "  → 在 dropdown 里选一个具体版本, 或确保默认分支根存在 backend/VERSION"
+              exit 1
             fi
+            echo "resolved latest version = $tag"
           else
             echo "version input = $SELECTED (explicit)"
             tag="$SELECTED"
@@ -141,15 +149,17 @@ jobs:
               cd /opt/type-any-language
 
               if [ -z "$DEPLOY_TAG" ]; then
-                # auto + no release found → deploy latest branch head
-                echo "[deploy] auto: no release resolved, pulling latest branch head"
-                git pull
-              else
-                # Deploy / rollback: check out the chosen version tag
-                echo "[deploy] checking out $DEPLOY_TAG"
-                git fetch --tags
-                git checkout "$DEPLOY_TAG"
+                echo "::error::DEPLOY_TAG 为空, 无法确定要部署的版本"
+                exit 1
               fi
+              # Pin the version into the three VERSION files. The CVM never
+              # fetches from github.com (cross-continental SSL timeouts) — the
+              # version is delivered as DATA via the SSH env var instead. The
+              # image tag resolved by resolve_image_tag() comes from these files.
+              echo "[deploy] pinning version = $DEPLOY_TAG"
+              printf '%s\n' "$DEPLOY_TAG" > backend/VERSION
+              printf '%s\n' "$DEPLOY_TAG" > frontend/VERSION
+              printf '%s\n' "$DEPLOY_TAG" > db/VERSION
 
               # Verify DOCKER_REGISTRY was injected (defense in depth — CVM also checks)
               if [ -z "$DOCKER_REGISTRY" ]; then
