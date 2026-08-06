@@ -157,7 +157,7 @@ jobs:
         # rate limit. We push them as files (not via appleboy's `envs:`
         # forwarding, which silently dropped GHCR_USER for unrelated
         # reasons) and the values never appear in appleboy's `script:`
-        # string (which doesn't accept ${{ }} interpolation anyway).
+        # string (which doesn't accept GHA expression interpolation anyway).
         # GITHUB_TOKEN is run-scoped, so any straggler in /tmp is harmless.
         env:
           CVM_HOST: ${{ secrets.CVM_HOST }}
@@ -212,14 +212,14 @@ jobs:
           # step env + envs: caused two failures:
           #   (a) appleboy/ssh-action silently dropped GHCR_USER ("username
           #       is empty" from docker login)
-          #   (b) inline ${{ secrets.GITHUB_TOKEN }} in `script:` triggers
-          #       YAML parser error "An expression was expected" — appleboy's
-          #       `script:` is NOT a GitHub Actions `run:` and does not
-          #       allow ${{ }} interpolation.
-          # Solution: the previous step scp'd /tmp/ghcr_auth.b64 (base64 of
-          # "github.actor:GITHUB_TOKEN"). This step reads it and merges into
-          # /root/.docker/config.json via python — no docker login command,
-          # no ${{ }} in script.
+          #   (b) inline the secrets.GITHUB_TOKEN expression in appleboy's
+          #       `script:` triggers a YAML parser error "An expression
+          #       was expected" — appleboy's `script:` is NOT a GitHub
+          #       Actions `run:` and does not allow GHA interpolation.
+          # Solution: the previous step scp'd /tmp/ghcr_user and
+          # /tmp/ghcr_token (plain user + token). This step feeds them
+          # to `docker login` — no docker login input needs to be
+          # inlined, no GHA expression in script.
         with:
           host: ${{ secrets.CVM_HOST }}
           username: ${{ vars.CVM_BOOTSTRAP_USER || 'ubuntu' }}
@@ -249,8 +249,8 @@ jobs:
             # scp'd /tmp/ghcr_user and /tmp/ghcr_token so we can run docker
             # login here without depending on appleboy's env forwarding
             # (which silently dropped GHCR_USER) and without putting
-            # ${{ secrets.* }} into appleboy's `script:` (which doesn't
-            # accept ${{ }} interpolation). Run as root because docker
+            # secrets.GITHUB_TOKEN into appleboy's `script:` (which doesn't
+            # accept GHA expression interpolation). Run as root because docker
             # login touches /root/.docker/config.json. Files are wiped
             # immediately after login; GITHUB_TOKEN is run-scoped so any
             # straggler is harmless.
