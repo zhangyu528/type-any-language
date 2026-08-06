@@ -22,7 +22,7 @@ ops/
     ├── _common.sh      共享 bootstrap
     ├── lifecycle.sh    start / stop / restart | reload(auto-pull from registry)
     ├── doctor.sh       只读 preflight env check for prod(读 .secrets/db_password、image 存在、port 80)
-    ├── prepare.sh      主机层准备(preflight + .secrets/db_password + /var/lib/.../postgres chown 999:999)。幂等,不起容器,不 build image
+    ├── bootstrap.sh      主机层准备(preflight + .secrets/db_password + /var/lib/.../postgres chown 999:999)。幂等,不起容器,不 build image
     ├── bootstrap.sh    首次运行时 bring-up(fetch content + start db + migrate + import + start full stack + verify)。一次性
     ├── logs.sh         docker compose logs -f wrapper
     ├── build_image.sh  本地 build english_backend + english_frontend(BUILD 端)
@@ -41,7 +41,7 @@ ops/
 | 本地 build prod 镜像(不 push) | `./ops/prod/build.sh` |
 | 首次 dev setup(装 host-native deps + 起 docker db) | `./ops/dev/setup.sh` |
 | 启动 / 停止 / 重启 host-native dev loop | `./ops/dev/native.sh start\|stop\|restart` |
-| **RUN 端**:首次 prod 主机层准备(preflight + secrets + 数据目录) | `./ops/prod/prepare.sh` |
+| **RUN 端**:首次 prod 主机层准备(preflight + secrets + 数据目录) | `./ops/prod/bootstrap.sh` |
 | **RUN 端**:首次 prod 运行时 bring-up(fetch + db + migrate + import + start + verify) | `./ops/prod/deploy.sh` |
 | **BUILD 端**:本地 build prod 镜像(不 push) | `./ops/prod/build.sh` 或 `./ops/prod/build/image.sh` |
 | **BUILD 端**:bump + build + push prod 镜像 | `./ops/prod/release.sh prod vX.Y.Z -y` |

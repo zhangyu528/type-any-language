@@ -50,7 +50,7 @@ setup_prod_host_env
 info "=== pre-flight: doctor.sh ==="
 "$COMMON_DIR/doctor.sh" || {
     err "doctor pre-flight 失败 — deploy 终止"
-    info "  修好上面报告的问题后再跑 (通常是:跑 ./ops/prod/prepare.sh / gh auth login / 重新 publish)"
+    info "  修好上面报告的问题后再跑 (通常是:跑 ./ops/prod/bootstrap.sh / gh auth login / 重新 publish)"
     exit 1
 }
 

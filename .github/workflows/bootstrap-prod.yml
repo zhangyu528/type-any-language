@@ -1,8 +1,16 @@
-name: prepare-prod
-run-name: prepare-prod-on-${{ inputs.host || 'auto' }}
+name: bootstrap-prod
+run-name: bootstrap-prod-on-${{ inputs.host || 'auto' }}
 
 # -----------------------------------------------------------------------
-# One-time host preparation for a new prod CVM.
+# One-time (BOOTSTRAP) host preparation for a new prod CVM.
+#
+# Lifecycle — 3 workflows, in this order:
+#   bootstrap-prod  → ONE-TIME per host: preflight + secrets + data dir
+#   release-prod    → per release: build + push 3 images to GHCR
+#   deploy-prod     → per release: pull images from GHCR + bring up stack
+# bootstrap runs ONCE when you add a new CVM; release + deploy run on
+# every release. They are independent — bootstrap does NOT run during
+# a normal deploy, and deploy does NOT re-prepare the host.
 #
 # What this workflow does:
 #   1. Verify required GH Secrets are configured.
@@ -10,7 +18,7 @@ run-name: prepare-prod-on-${{ inputs.host || 'auto' }}
 #   3. Push `DOCKER_REGISTRY` from the GH Variable into the SSH session
 #      as an env var (so the CVM doesn't need its own auth — only
 #      the workflow does, and it already has GITHUB_TOKEN).
-#   4. Run `make prod-prepare` on the CVM. That script does:
+#   4. Run `make prod-bootstrap` on the CVM. That script does:
 #        - preflight (docker / compose / port 80)
 #        - secrets (.secrets/db_password, chmod 600)
 #        - data dir (sudo mkdir /var/lib/.../postgres + chown 999:999)
@@ -26,15 +34,16 @@ run-name: prepare-prod-on-${{ inputs.host || 'auto' }}
 #   DOCKER_REGISTRY  — the registry namespace (single source of truth)
 #
 # Why split from release-prod.yml and deploy-prod.yml:
-#   - prepare is ONE-TIME per host (not "every release")
-#   - prepare requires `sudo` on the CVM (deploy doesn't)
-#   - prepare needs human-readable failure if the host isn't ready
-#   - release + deploy are fully automated; prepare is triggered by
-#     operator when adding a new host
+#   - bootstrap is ONE-TIME per host (run ONCE when adding a new CVM;
+#     it is NOT "every release" — that's what deploy-prod is for)
+#   - bootstrap requires `sudo` on the CVM (deploy doesn't)
+#   - bootstrap needs human-readable failure if the host isn't ready
+#   - release + deploy are fully automated; bootstrap is triggered by
+#     operator (manual workflow_dispatch) when adding a new host
 #
-# After this runs once, all future deploys are handled by:
-#   - release-prod.yml (tag push → publish image)
-#   - deploy-prod.yml  (workflow_run → SSH + make prod-deploy)
+# After bootstrap runs once, all future deploys are handled by:
+#   - release-prod.yml (manual workflow_dispatch → build + push 3 images)
+#   - deploy-prod.yml  (manual workflow_dispatch → SSH + make prod-deploy)
 # -----------------------------------------------------------------------
 
 on:
@@ -51,16 +60,16 @@ permissions:
   contents: read   # only read repo (no checkout needed for this)
 
 concurrency:
-  # Don't run prepare twice on the same host in parallel — could
+  # Don't run bootstrap twice on the same host in parallel — could
   # race on .secrets/db_password generation.
-  group: prepare-prod
+  group: bootstrap-prod
   cancel-in-progress: false
 
 jobs:
-  prepare:
+  bootstrap:
     runs-on: ubuntu-latest
     # Use prod environment for access to CVM_HOST / CVM_SSH_KEY secrets
-    # AND for optional required-reviewer approval on manual prepare.
+    # AND for optional required-reviewer approval on manual bootstrap.
     environment: prod
     steps:
       # -------- Pre-check: GH Secrets --------
@@ -93,8 +102,8 @@ jobs:
           fi
           echo "DOCKER_REGISTRY=$DOCKER_REGISTRY (source=GH Variable)"
 
-      # -------- SSH to CVM and run prepare --------
-      - name: SSH to CVM and run make prod-prepare
+      # -------- SSH to CVM and run bootstrap --------
+      - name: SSH to CVM and run make prod-bootstrap
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.CVM_HOST }}
@@ -107,8 +116,8 @@ jobs:
             set -e
             cd /opt/type-any-language
 
-            # Pull the latest repo content so prepare.sh is up to date.
-            echo "[prepare] pulling latest repo"
+            # Pull the latest repo content so bootstrap.sh is up to date.
+            echo "[bootstrap] pulling latest repo"
             git pull
 
             # Verify DOCKER_REGISTRY was actually forwarded (defense in depth).
@@ -117,10 +126,10 @@ jobs:
               echo "  → Check appleboy/ssh-action 'envs:' directive in this workflow"
               exit 1
             fi
-            echo "[prepare] DOCKER_REGISTRY=$DOCKER_REGISTRY"
+            echo "[bootstrap] DOCKER_REGISTRY=$DOCKER_REGISTRY"
 
             # THE host prep step. Idempotent.
-            echo "[prepare] running make prod-prepare"
-            make prod-prepare
+            echo "[bootstrap] running make prod-bootstrap"
+            make prod-bootstrap
 
-            echo "[prepare] done — CVM is now ready for deploy-prod workflow"
+            echo "[bootstrap] done — CVM is now ready for deploy-prod workflow"

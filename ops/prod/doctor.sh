@@ -51,7 +51,7 @@ cmd_doctor() {
         chmod 600 "$DB_PASSWORD_FILE"
     else
         err ".secrets/db_password 不存在 — db 容器无密码"
-        info "  → ./ops/prod/prepare.sh       # 首次部署自动生成"
+        info "  → ./ops/prod/bootstrap.sh       # 首次部署自动生成"
         info "  → 或手动: openssl rand -hex 32 > .secrets/db_password && chmod 600"
         failed=1
     fi
@@ -96,7 +96,7 @@ cmd_doctor() {
         ok "/var/lib/type-any-language/postgres 存在"
     else
         err "/var/lib/type-any-language/postgres 不存在"
-        info "  → 跑: ./ops/prod/prepare.sh  (会 sudo mkdir + chown 999:999)"
+        info "  → 跑: ./ops/prod/bootstrap.sh  (会 sudo mkdir + chown 999:999)"
         failed=1
     fi
 

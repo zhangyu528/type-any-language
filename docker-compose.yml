@@ -38,7 +38,7 @@
 # run `docker compose up --no-build`, so compose NEVER builds locally;
 # the build side (release-prod CI) is the only place images are produced.
 # DOCKER_REGISTRY is forwarded to the CVM via SSH env by the deploy-prod /
-# prepare-prod workflows (single source of truth = GH Variable).
+# bootstrap-prod workflows (single source of truth = GH Variable).
 # ---------------------------------------------------------------------------
 
 secrets:

@@ -74,11 +74,11 @@ dev-import-content:
 # prod target host — pre-built, no watch, registry-pulled
 # ---------------------------------------------------------------------------
 
-## prod-prepare: host-level preparation on the RUN env (idempotent): preflight + generate .secrets/db_password + create /var/lib/type-any-language/postgres. Does NOT start containers, does NOT build images (build happens on the BUILD env via `make prod-build` / `make release-prod`).
-prod-prepare:
-	@bash ops/prod/prepare.sh
+## prod-bootstrap: host-level preparation on the RUN env (ONE-TIME per host, idempotent): preflight + generate .secrets/db_password + create /var/lib/type-any-language/postgres. Does NOT start containers, does NOT build images (build happens on the BUILD env via `make prod-build` / `make release-prod`).
+prod-bootstrap:
+	@bash ops/prod/bootstrap.sh
 
-## prod-deploy: THE go-live step. Works for both first-time and subsequent deploys. Pulls all 3 images, recreates db+backend+nginx, db image's entrypoint auto-applies migrations + imports content. Pre: `make prod-prepare` has been run on this host (one-time, for new CVMs).
+## prod-deploy: THE go-live step. Works for both first-time and subsequent deploys. Pulls all 3 images, recreates db+backend+nginx, db image's entrypoint auto-applies migrations + imports content. Pre: `make prod-bootstrap` has been run on this host (one-time, for new CVMs).
 prod-deploy:
 	@bash ops/prod/deploy.sh
 

@@ -11,7 +11,7 @@
 > **当前架构再次演进:本地 docker postgres** — 运行时数据库就是 prod compose
 > 里的 `db` 服务(`postgres:15-alpine`,绑 mount 到 `/var/lib/type-any-language/postgres`),
 > 目标机不再直连云 db,也不再需要 db image / `db-data` 卷 / `bake_image.sh` /
-> TencentDB。db 密码通过 `ops/prod/prepare.sh` 生成到 `.secrets/db_password`,
+> TencentDB。db 密码通过 `ops/prod/bootstrap.sh` 生成到 `.secrets/db_password`,
 > 由 compose 的 `secrets:` block 注入。
 > 完整当前架构见仓库根 `CLAUDE.md` 和 `db/README.md`。
 > 本文档保留作为**架构演进历史参考**,章节里具体到 bake / 烤 image /

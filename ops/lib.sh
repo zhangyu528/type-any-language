@@ -389,7 +389,7 @@ warn_if_version_default() {
 # (Settings → Variables → Actions). The build side (GH Actions) reads
 # `${{ vars.DOCKER_REGISTRY }}` directly. The run side (CVM scripts)
 # receives the same value via the SSH-injected env var set by the
-# deploy-prod / prepare-prod workflows (which read `${{ vars.DOCKER_REGISTRY }}`).
+# deploy-prod / bootstrap-prod workflows (which read `${{ vars.DOCKER_REGISTRY }}`).
 # The CVM itself never needs gh CLI or registry auth.
 #
 # There is NO shell-env override, NO REGISTRY file fallback, NO auto-detect.
@@ -406,7 +406,7 @@ warn_if_version_default() {
 #   - 1 GH Secret (GITHUB_PAT)
 #   - 1 CVM dependency (gh CLI)
 #   - 1 CVM on-boarding step (gh auth login)
-#   - 1 CVM script step (step_gh_cli in prepare.sh)
+#   - 1 CVM script step (step_gh_cli in bootstrap.sh)
 # Operator manual fallback: `export DOCKER_REGISTRY=...` once.
 #
 # Failure modes (all exit 1, never silent):

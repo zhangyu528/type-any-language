@@ -60,7 +60,7 @@ via `docker compose up -d db`. The first-time bootstrap is:
 # dev:
 ./ops/dev/setup.sh                     # 装 venv + node_modules + 起 db
 # prod (RUN 端):
-./ops/prod/prepare.sh                  # 生成 .secrets/db_password + sudo chown /var/lib/.../postgres
+./ops/prod/bootstrap.sh                  # 生成 .secrets/db_password + sudo chown /var/lib/.../postgres
 ./ops/prod/deploy.sh                # 起 db + apply migrations + import content + start full stack
 ```
 

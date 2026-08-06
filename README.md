@@ -179,7 +179,7 @@ ALLOWED_ORIGINS=https://my.domain make prod-restart  # 自动从 TCR pull + 重�
 
 ```bash
 # (一次性,首次) prod 目标机(RUN 端)
-make prod-prepare                 # 主机层:preflight + .secrets/db_password + /var/lib/.../postgres
+make prod-bootstrap                 # 主机层:preflight + .secrets/db_password + /var/lib/.../postgres
 make prod-deploy                  # 首次 / 后续都跑这个 —— 拉 3 image + recreate,
                                   # db image 的 entrypoint 自动 apply migrations + import content
 

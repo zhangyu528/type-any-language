@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# ops/prod/prepare.sh — host-level preparation for the prod TARGET host.
+# ops/prod/bootstrap.sh — host-level preparation for the prod TARGET host.
 #
 # This script is **only** for the runtime/serve side of the deploy —
 # i.e. the CVM that will run the prod containers. It does NOT build
@@ -48,10 +48,10 @@
 #   - Provision TLS / DNS / firewall (host-level, run before this).
 #
 # Typical first-time flow on the prod CVM:
-#   ./ops/prod/prepare.sh        # host prep (this script — idempotent)
+#   ./ops/prod/bootstrap.sh       # host prep (this script — idempotent)
 #   ./ops/prod/deploy.sh      # first-time runtime bring-up
 #
-# Daily flow (after both prepare.sh and bootstrap.sh have been run once):
+# Daily flow (after bootstrap.sh has been run once):
 #   ./ops/prod/lifecycle.sh start|stop|restart
 #
 # Subcommands:
@@ -228,14 +228,14 @@ usage() {
   - **不需要 gh CLI**(2026-08-04 移走,workflow 替它读 GH Variable)
 
 跟其他脚本的分工:
-  prepare.sh     主机层(幂等,不起容器,不 build image)  ← RUN 端
+  bootstrap.sh   主机层(幂等,不起容器,不 build image)  ← RUN 端
   deploy.sh      THE go-live(doctor pre + lifecycle + doctor post)  ← RUN 端
   lifecycle.sh   日常(start / stop / restart)         ← RUN 端
   release.sh     bump VERSION + build + push(发布编排)      ← BUILD 端
 
 典型首次流程(RUN 端,在 prod CVM 上):
   apt install -y docker.io python3 git openssl rsync
-  ./ops/prod/prepare.sh        # 主机层准备(无需 gh auth)
+  ./ops/prod/bootstrap.sh       # 主机层准备(无需 gh auth)
   ./ops/prod/deploy.sh         # 首次运行时 bring-up
 #    ^^^^^^^^^^^^^^^^^^^^^^^^
 #    DOCKER_REGISTRY 由 deploy-prod workflow 通过 SSH env 注入
@@ -251,7 +251,7 @@ EOF
 }
 
 case "${1:-}" in
-    ""|setup|prepare)          cmd_prepare ;;
+    ""|setup|bootstrap|prepare)   cmd_prepare ;;
     -h|--help|help)            usage ;;
     *)                         { err "未知命令: $1"; usage; } >&2; exit 1 ;;
 esac
