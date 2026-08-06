@@ -38,16 +38,19 @@ source "$PROJECT_DIR/ops/lib.sh"
 
 require_docker
 
-# BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG default to the backend / frontend
-# segments' per-stream VERSION files (one file per segment, no dev/prod
-# split — gates both the dev and prod image tags). They're exported so
-# docker-compose's ${BACKEND_IMAGE_TAG:-latest} / ${FRONTEND_IMAGE_TAG:-latest}
+# DB_IMAGE_TAG / BACKEND_IMAGE_TAG / FRONTEND_IMAGE_TAG default to the
+# corresponding per-stream VERSION files (one file per segment, no
+# dev/prod split — gates both the dev and prod image tags). They're
+# exported so docker-compose's ${DB_IMAGE_TAG:-latest} /
+# ${BACKEND_IMAGE_TAG:-latest} / ${FRONTEND_IMAGE_TAG:-latest}
 # interpolation in the compose file resolves correctly.
+resolve_image_tag DB_IMAGE_TAG       db/VERSION
 resolve_image_tag BACKEND_IMAGE_TAG  backend/VERSION
 resolve_image_tag FRONTEND_IMAGE_TAG frontend/VERSION
-warn_if_version_default "$BACKEND_IMAGE_TAG" backend/VERSION
+warn_if_version_default "$DB_IMAGE_TAG" db/VERSION
 
 COMPOSE_FILE="docker-compose.yml"
+DB_IMAGE="english_db"
 BACKEND_IMAGE="english_backend"
 FRONTEND_IMAGE="english_frontend"
 
@@ -61,7 +64,7 @@ echo -e "${_LIB_BLUE}=========================================${_LIB_BLUE}"
 echo -e "${_LIB_BLUE} type-any-language · prod build${_LIB_BLUE}"
 echo -e "${_LIB_BLUE}=========================================${_LIB_BLUE}"
 echo ""
-info "Building $BACKEND_IMAGE + $FRONTEND_IMAGE via $COMPOSE_FILE"
+info "Building $DB_IMAGE + $BACKEND_IMAGE + $FRONTEND_IMAGE via $COMPOSE_FILE"
 echo ""
 
 # Note: don't quote $DOCKER_COMPOSE_CMD — it can be "docker-compose" or
