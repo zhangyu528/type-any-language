@@ -1,15 +1,19 @@
 #!/bin/bash
 #
-# prod/push_image.sh — push PROD backend + frontend images to $DOCKER_REGISTRY.
+# prod/push_image.sh — push PROD db + backend + frontend images to
+# $DOCKER_REGISTRY.
 #
 # Run this AFTER ./ops/prod/build/image.sh has produced the images locally.
 # Push is a deliberate, separate step: you might build many times locally
 # before you're ready to publish.
 #
-# Note: there is no db image to push — runtime data lives in TencentDB,
-# which is shared by all target hosts. Content (staging files → cloud db
-# UPSERT) is a separate CMS-host workflow (cms/run.sh →
-# db/scripts/import_staging.sh).
+# All three (db + backend + frontend) are produced by the build script and
+# consumed by the CVM's `lifecycle.sh start` via `docker pull`. The db
+# image is a custom one (db/Dockerfile) that bakes in
+# backend/migrations/, db/importer.py, and cms/content/ — CVM hosts
+# pull a fresh db image on every release, so the image registry IS
+# the source of truth for both schema (via image label) and content
+# (via baked-in cms/content/ files).
 #
 # Subcommands:
 #   (no args)    Push with interactive confirmation prompt.
@@ -32,7 +36,9 @@
 #                        3. auto-detect: detect_default_registry()
 #                                        (docker.io/$USER or "")
 #
-# Pushes (tag = backend/VERSION / frontend/VERSION by default):
+# Pushes (tag = per-segment VERSION file: db/VERSION, backend/VERSION,
+# frontend/VERSION):
+#   english_db        → ${DOCKER_REGISTRY}/english_db:vX.Y.Z
 #   english_backend   → ${DOCKER_REGISTRY}/english_backend:vX.Y.Z
 #   english_frontend  → ${DOCKER_REGISTRY}/english_frontend:vX.Y.Z
 #
@@ -61,13 +67,15 @@ source "$PROJECT_DIR/ops/lib.sh"
 resolve_docker_registry
 
 COMPOSE_FILE="docker-compose.yml"
+DB_IMAGE="english_db"
 BACKEND_IMAGE="english_backend"
 FRONTEND_IMAGE="english_frontend"
 # *_IMAGE_TAG default to the backend / frontend segments' per-stream
 # VERSION files (one file per segment, no dev/prod split).
+resolve_image_tag DB_IMAGE_TAG        db/VERSION
 resolve_image_tag BACKEND_IMAGE_TAG  backend/VERSION
 resolve_image_tag FRONTEND_IMAGE_TAG frontend/VERSION
-warn_if_version_default "$BACKEND_IMAGE_TAG" backend/VERSION
+warn_if_version_default "$DB_IMAGE_TAG" db/VERSION
 
 # ---------------------------------------------------------------------------
 # doctor — pre-flight checks. Returns 0/1, doesn't push.
@@ -108,6 +116,14 @@ cmd_doctor() {
     else
         warn "未检测到 docker login — push 可能被 registry 拒绝"
         info "  → docker login $DOCKER_REGISTRY"
+    fi
+
+    if ! image_exists "${DB_IMAGE}:${DB_IMAGE_TAG}"; then
+        err "本地 image ${DB_IMAGE}:${DB_IMAGE_TAG} 不存在"
+        info "  → 先跑 ./ops/prod/build/image.sh"
+        ok=0
+    else
+        ok "本地 image ${DB_IMAGE}:${DB_IMAGE_TAG} 存在"
     fi
 
     if ! image_exists "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"; then
@@ -155,6 +171,11 @@ cmd_push() {
         exit 1
     fi
 
+    if ! image_exists "${DB_IMAGE}:${DB_IMAGE_TAG}"; then
+        err "本地 image ${DB_IMAGE}:${DB_IMAGE_TAG} 不存在"
+        info "  → 先跑 ./ops/prod/build/image.sh"
+        exit 1
+    fi
     if ! image_exists "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"; then
         err "本地 image ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG} 不存在"
         info "  → 先跑 ./ops/prod/build/image.sh"
@@ -166,20 +187,24 @@ cmd_push() {
         exit 1
     fi
 
+    local db_remote="${DOCKER_REGISTRY}/${DB_IMAGE}:${DB_IMAGE_TAG}"
     local backend_remote="${DOCKER_REGISTRY}/${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"
     local frontend_remote="${DOCKER_REGISTRY}/${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"
 
     echo ""
     info "Will push:"
+    info "  $DB_IMAGE       →  $db_remote"
     info "  $BACKEND_IMAGE  →  $backend_remote"
     info "  $FRONTEND_IMAGE →  $frontend_remote"
     info ""
 
     # Brief metadata block.
-    local backend_id frontend_id
+    local db_id backend_id frontend_id
+    db_id="$(docker inspect "${DB_IMAGE}:${DB_IMAGE_TAG}" --format '{{.Id}}' 2>/dev/null)"
     backend_id="$(docker inspect "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}" --format '{{.Id}}' 2>/dev/null)"
     frontend_id="$(docker inspect "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}" --format '{{.Id}}' 2>/dev/null)"
     info ""
+    info "  db       id=${db_id}"
     info "  backend  id=${backend_id}"
     info "  frontend id=${frontend_id}"
     echo ""
@@ -194,8 +219,16 @@ cmd_push() {
 
     echo ""
     info "Tagging..."
+    docker tag "${DB_IMAGE}:${DB_IMAGE_TAG}" "$db_remote"
     docker tag "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}" "$backend_remote"
     docker tag "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}" "$frontend_remote"
+
+    info "Pushing db..."
+    if ! docker push "$db_remote"; then
+        err "db push 失败"
+        info "  → 检查 docker login 状态、网络、registry quota"
+        exit 2
+    fi
 
     info "Pushing backend..."
     if ! docker push "$backend_remote"; then
@@ -212,6 +245,7 @@ cmd_push() {
     fi
 
     echo ""
+    ok "Pushed: $db_remote"
     ok "Pushed: $backend_remote"
     ok "Pushed: $frontend_remote"
 
