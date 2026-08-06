@@ -179,13 +179,25 @@ jobs:
         # images pulling fine). So we mirror the base image HERE — the
         # runner has good Docker Hub connectivity — and point
         # docker-compose.yml at ${DOCKER_REGISTRY}/nginx:alpine instead.
+        #
+        # Use `crane copy` rather than `docker pull|tag|push`: docker's push
+        # to GHCR tries to cross-repo MOUNT shared base layers (nginx shares
+        # the alpine base with english_db), and GHCR intermittently fails the
+        # manifest with "unknown blob". crane re-uploads blobs cleanly and
+        # avoids that daemon mount path.
         env:
           DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
         run: |
           set -e
-          docker pull nginx:alpine
-          docker tag nginx:alpine "${DOCKER_REGISTRY}/nginx:alpine"
-          docker push "${DOCKER_REGISTRY}/nginx:alpine"
+          CRANE_VER=v0.20.2
+          echo "installing crane ${CRANE_VER}"
+          curl -sSL "https://github.com/google/go-containerregistry/releases/download/${CRANE_VER}/go-containerregistry_Linux_x86_64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin crane
+          # Reuse the ghcr.io creds already written by the docker login step
+          # (GITHUB_TOKEN). crane reads ~/.docker/config.json by default, but
+          # we set it explicitly to be safe.
+          crane auth login ghcr.io -u "${{ github.actor }}" -p "${{ secrets.GITHUB_TOKEN }}"
+          crane copy docker.io/library/nginx:alpine "${DOCKER_REGISTRY}/nginx:alpine"
           echo "mirrored nginx:alpine -> ${DOCKER_REGISTRY}/nginx:alpine"
 
       - name: Logout
