@@ -151,6 +151,14 @@ jobs:
             # Source code (backend/ frontend/ db/ Dockerfiles, cms/, scripts/)
             # is intentionally excluded: prod images are pulled from GHCR,
             # not built locally on the CVM.
+            #
+            # /opt is root-owned (755), so `deploy` CANNOT create
+            # /opt/type-any-language itself. Pre-create it as root and hand
+            # it to deploy; an empty dir is a valid `git clone` target.
+            if [ ! -d /opt/type-any-language ]; then
+              sudo mkdir -p /opt/type-any-language
+              sudo chown "$DEPLOY_USER:$DEPLOY_USER" /opt/type-any-language
+            fi
             if [ ! -d /opt/type-any-language/.git ]; then
               sudo -u "$DEPLOY_USER" bash -c '
                 set -e
@@ -161,7 +169,7 @@ jobs:
                 git sparse-checkout set --no-cone \
                   docker-compose.yml \
                   Makefile \
-                  ops/prod \
+                  ops/prod/ \
                   ops/lib.sh \
                   backend/VERSION \
                   frontend/VERSION \
