@@ -47,9 +47,12 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Use git rev-parse to find the actual repo root, not SCRIPT_DIR/../..
+# (which breaks on GH Actions due to the double-nested checkout path
+# /home/runner/work/<repo>/<repo>/).
+PROJECT_DIR="$(git rev-parse --show-toplevel)"
 cd "$PROJECT_DIR"
-source "$SCRIPT_DIR/../../ops/lib.sh"
+source "$PROJECT_DIR/ops/lib.sh"
 
 # DOCKER_REGISTRY: shell env > ./REGISTRY file > detect_default_registry().
 # prod pushes its own backend+frontend images. dev does NOT have a push
