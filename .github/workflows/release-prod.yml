@@ -2,7 +2,7 @@ name: release-prod
 run-name: release-prod-${{ github.event.inputs.version || 'auto' }}
 
 # Build and push prod app images (english_db + english_backend + english_frontend) to
-# ${{ vars.DOCKER_REGISTRY }}.
+# ${{ vars.DOCKER_REGISTRY }} (GitHub Container Registry / GHCR).
 #
 # Trigger: workflow_dispatch ONLY. The operator runs this manually
 # after deciding what version to release. There is no auto-trigger
@@ -11,7 +11,7 @@ run-name: release-prod-${{ github.event.inputs.version || 'auto' }}
 # also manual and offers a version picker.
 #
 # Why manual-only:
-#   - Release produces real artifacts pushed to TCR. An accidental
+#   - Release produces real artifacts pushed to the registry. An accidental
 #     release is hard to roll back (have to delete registry images,
 #     rotate tags, etc.). A "push tag → auto release" path is
 #     dangerous in a small team where the same person writes code
@@ -20,24 +20,22 @@ run-name: release-prod-${{ github.event.inputs.version || 'auto' }}
 #     which is where you want a human gate.
 #
 # Setup (one-time per repo):
-#   1. Settings → Secrets and variables → Actions → Variables tab →
-#      New repository variable:
+#   1. GitHub → repo Settings → Environments → prod → Variables →
+#      New environment variable:
 #        Name:  DOCKER_REGISTRY
-#        Value: ccr.ccs.tencentyun.com/your-tcr-id/type-any-language
-#      (Same value goes into ./REGISTRY at the repo root so the prod
-#       CVM can pull from the same place.)
+#        Value: ghcr.io/<owner>/type-any-language
+#      This is the namespace prefix that push.sh / release.sh push to.
 #
-#   2. Settings → Secrets and variables → Actions → Secrets tab →
-#      New repository secret (env: prod):
-#        REGISTRY_USERNAME  — TCR / Docker Hub username (or temp token id)
-#        REGISTRY_PASSWORD  — TCR / Docker Hub password (or temp token)
-#      (Never put in Variables — they're not secrets!)
+#   2. NO registry username/password needed. GHCR authenticates with the
+#      built-in GITHUB_TOKEN (the workflow requests `permissions:
+#      packages: write`), so no REGISTRY_USERNAME / REGISTRY_PASSWORD
+#      secrets are required or referenced.
 #
 # What this workflow does:
 #   - Checkout the default branch (release-prod always runs from
 #     the latest committed code, NOT from a tag — the tag is
 #     created by the operator, not the workflow).
-#   - Login to $DOCKER_REGISTRY using REGISTRY_USERNAME/PASSWORD secrets.
+#   - Login to ghcr.io using the GITHUB_TOKEN (no registry user/pass needed).
 #   - Run ./ops/prod/release.sh prod <version> -y, which:
 #       a) bumps backend/VERSION + frontend/VERSION to the requested version
 #          (no-op if already at that version).
@@ -49,13 +47,13 @@ run-name: release-prod-${{ github.event.inputs.version || 'auto' }}
 # After release-prod completes successfully, the operator runs
 # deploy-prod (manual) to roll the images out to the CVM.
 #
-# Why ./REGISTRY AND ${{ vars.DOCKER_REGISTRY }}:
-#   - vars.DOCKER_REGISTRY is the GitHub-side source of truth (audited,
-#     visible in repo settings).
-#   - ./REGISTRY is the CVM-side mirror (no token needed, just `git pull`).
-#   - The two MUST stay in sync — release.sh here uses vars.*, the CVM
-#     uses REGISTRY. If they diverge, push succeeds but pull finds nothing.
-#     Add a CI lint if you want to enforce sync.
+# NOTE on the CVM pull side (NOT configured by this file):
+#   - This repo has NO ./REGISTRY file. The CVM's pull target is configured
+#     locally on the CVM, not via this GitHub variable.
+#   - The CVM must pull from the same $DOCKER_REGISTRY value
+#     (ghcr.io/<owner>/type-any-language). If the repo is private, give the
+#     CVM a GitHub read-only PAT with `read:packages`; public packages need
+#     no login. Keep the CVM's value in sync with the env: prod variable.
 
 on:
   workflow_dispatch:
