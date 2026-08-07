@@ -40,11 +40,15 @@ on:
         required: false
         type: string
         default: 'prod-cvm-1'
-      ghcr_login:
-        description: '先 docker login ghcr.io (用 GITHUB_TOKEN), 避免匿名被 denied'
+      auth_mode:
+        description: 'auth 模式: token (用 GITHUB_TOKEN login, 默认) / anonymous (撤销凭证, 强制走 mirror) / none (完全不动 login)'
         required: false
-        type: boolean
-        default: true
+        type: choice
+        default: token
+        options:
+        - token
+        - anonymous
+        - none
 
 permissions:
   contents: read
@@ -61,8 +65,8 @@ jobs:
       # Deliver GHCR creds to CVM (only when ghcr_login=true). Mirrors
       # deploy-prod's approach. Writes two files to /tmp on the CVM;
       # the SSH step below reads them via sudo to login as root.
-      - name: Deliver GHCR creds to CVM (only when ghcr_login=true)
-        if: ${{ inputs.ghcr_login }}
+      - name: Deliver GHCR creds to CVM (only when auth_mode=token)
+        if: ${{ inputs.auth_mode == 'token' }}
         env:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -86,19 +90,19 @@ jobs:
       - name: Configure mirror + restart docker + pull frontend
         env:
           DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
-          GHCR_LOGIN: ${{ inputs.ghcr_login }}
+          AUTH_MODE: ${{ inputs.auth_mode }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.CVM_HOST }}
           username: ${{ vars.CVM_BOOTSTRAP_USER || 'ubuntu' }}
           key: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
           command_timeout: '15m'
-          envs: DOCKER_REGISTRY,GHCR_LOGIN
+          envs: DOCKER_REGISTRY,AUTH_MODE
           script: |
             set -e
             echo "diag-prod target=${{ inputs.target }}"
             echo "DOCKER_REGISTRY=${DOCKER_REGISTRY}"
-            echo "GHCR_LOGIN=${GHCR_LOGIN}"
+            echo "AUTH_MODE=${AUTH_MODE}"
             echo ""
 
             # -----------------------------------------------------------------
@@ -141,23 +145,54 @@ jobs:
             echo ''
 
             # -----------------------------------------------------------------
-            # 4. docker login (if requested)
+            # 4. docker login / logout depending on AUTH_MODE
             # -----------------------------------------------------------------
-            if [ "${GHCR_LOGIN}" = "true" ]; then
-              if [ -s /tmp/ghcr_user.txt ] && [ -s /tmp/ghcr_token.txt ]; then
+            # token     — docker login with GITHUB_TOKEN (creds delivered by
+            #             the Deliver step). Used by deploy-prod today.
+            # anonymous — explicit `docker logout ghcr.io` + remove /root/.docker/config.json
+            #             so daemon has NO bearer token and is forced to fall
+            #             through to the mirror list (which only fires for
+            #             anonymous traffic in dockerd).
+            # none      — leave whatever login state is on the CVM alone.
+            case "${AUTH_MODE}" in
+              token)
+                if [ -s /tmp/ghcr_user.txt ] && [ -s /tmp/ghcr_token.txt ]; then
+                  echo '======================================================'
+                  echo '## 4. docker login ghcr.io (auth_mode=token)'
+                  echo '======================================================'
+                  sudo bash -c '
+                    set -e
+                    sudo docker login ghcr.io -u "$(cat /tmp/ghcr_user.txt)" --password-stdin < /tmp/ghcr_token.txt
+                    rm -f /tmp/ghcr_user.txt /tmp/ghcr_token.txt
+                  '
+                  echo ''
+                else
+                  echo 'WARNING: auth_mode=token but /tmp/ghcr_*.txt missing — pull will likely be denied' >&2
+                fi
+                ;;
+              anonymous)
                 echo '======================================================'
-                echo '## 4. docker login ghcr.io'
+                echo '## 4. anonymous mode — strip credentials, force mirror use'
                 echo '======================================================'
-                sudo bash -c '
-                  set -e
-                  sudo docker login ghcr.io -u "$(cat /tmp/ghcr_user.txt)" --password-stdin < /tmp/ghcr_token.txt
-                  rm -f /tmp/ghcr_user.txt /tmp/ghcr_token.txt
-                '
+                sudo docker logout ghcr.io 2>&1 || true
+                sudo rm -f /root/.docker/config.json
+                echo '--- /root/.docker/config.json after cleanup ---'
+                sudo ls -la /root/.docker/ 2>&1 || echo '(no /root/.docker)'
                 echo ''
-              else
-                echo 'WARNING: ghcr_login=true but /tmp/ghcr_*.txt missing — pull will likely be denied' >&2
-              fi
-            fi
+                # Also restart containerd so host.toml is re-read.
+                sudo systemctl restart containerd
+                sleep 2
+                systemctl is-active containerd
+                echo ''
+                ;;
+              none)
+                echo '======================================================'
+                echo '## 4. auth_mode=none — leaving login state alone'
+                echo '======================================================'
+                sudo ls -la /root/.docker/config.json 2>&1 || echo '(no /root/.docker/config.json)'
+                echo ''
+                ;;
+            esac
 
             # -----------------------------------------------------------------
             # 5. Drop local frontend image so the pull is a real download
