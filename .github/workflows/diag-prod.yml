@@ -102,7 +102,7 @@ jobs:
       # logs both to its GHA step output and we don't want a secret in the
       # run log even briefly.
       - name: Deliver GHCR creds to CVM (only when ghcr_login=true)
-        if: inputs.ghcr_login == 'true'
+        if: ${{ inputs.ghcr_login }}
         env:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -286,7 +286,7 @@ jobs:
       # Independent SSH step because Python heredoc can't nest cleanly inside
       # the main script block (yaml block scalar would choke on col-0 Python).
       - name: Apply ghcr.io mirror to CVM daemon.json + restart docker
-        if: inputs.apply_mirror == 'true'
+        if: ${{ inputs.apply_mirror }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.CVM_HOST }}
@@ -337,7 +337,7 @@ jobs:
       # Assumes the previous step already restarted docker, so docker daemon
       # is now picking up the new mirrors.
       - name: "Verify: docker pull frontend after applying mirror"
-        if: inputs.verify_pull == 'true'
+        if: ${{ inputs.verify_pull }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.CVM_HOST }}
