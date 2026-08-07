@@ -75,6 +75,13 @@ services:
       POSTGRES_USER: english_prod
       POSTGRES_PASSWORD_FILE: /run/secrets/db_password  # see secrets: above
       POSTGRES_DB: english_prod
+    # Mount the db_password secret so POSTGRES_PASSWORD_FILE resolves.
+    # Without this block, the file exists at the top-level `secrets:`
+    # config but is never injected into this container, and the
+    # postgres entrypoint fails on the very first read with:
+    #   `/run/secrets/db_password: No such file or directory`
+    secrets:
+      - db_password
     volumes:
       # Persistent data — bind-mounted to /var/lib/postgresql/data on the
       # CVM. Operator: create this dir + chown to UID 999 (postgres
@@ -106,6 +113,9 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost}
       # Internal compose network — backend dials the db service by name.
       DATABASE_URL: postgresql://english_prod:$(cat /run/secrets/db_password)@db:5432/english_prod
+    # See db service above for why this block is needed.
+    secrets:
+      - db_password
 
   # -------------------------------------------------------------------------
   # Frontend — Next.js standalone build. Browser hits nginx, which
