@@ -103,8 +103,19 @@ jobs:
               echo "[bootstrap] user $DEPLOY_USER already exists"
             fi
 
-            # NOPASSWD sudoers for the two commands make prod-bootstrap needs.
-            echo "$DEPLOY_USER ALL=(ALL) NOPASSWD: /bin/mkdir, /bin/chown" \
+            # NOPASSWD sudoers for the commands make prod-bootstrap + the
+            # nginx-site install need. Keep this list small — each entry
+            # is a real attack surface. Things that aren't here require
+            # an interactive sudo, which is fine (we'd rather have a
+            # human type the password than have the deploy user be
+            # able to, say, edit /etc/passwd).
+            #
+            # /bin/mkdir + /bin/chown — bootstrap step_data_dir.
+            # /bin/ln + /bin/rm + /bin/install — install-nginx-site.sh
+            #   (replaces sites-enabled default, symlinks our conf).
+            # /usr/sbin/nginx — nginx -t validation.
+            # /bin/systemctl — systemctl reload nginx.
+            echo "$DEPLOY_USER ALL=(ALL) NOPASSWD: /bin/mkdir, /bin/chown, /bin/ln, /bin/rm, /bin/install, /usr/sbin/nginx, /bin/systemctl" \
               | sudo tee /etc/sudoers.d/deploy
             sudo chmod 440 /etc/sudoers.d/deploy
             sudo visudo -c
