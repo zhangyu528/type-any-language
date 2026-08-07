@@ -62,17 +62,10 @@ fi
 info "DOCKER_REGISTRY=$DOCKER_REGISTRY (source=${_DOCKER_REGISTRY_SOURCE:-shell})"
 info "  3 个 image 待拉: db + backend + frontend, 全部 tag=${BACKEND_IMAGE_TAG}"
 
-info "=== apply schema migrations (host-side, before container up) ==="
-# Schema migrations are applied by the runner (python3 -m migrations.runner)
-# against the docker postgres port 5432. The runner is pure Python —
-# sqlalchemy + psycopg2-binary (in requirements.txt), both have cp314
-# musllinux wheels, no C toolchain needed. This is the same script
-# dev runs on its host, so prod and dev go through identical code.
-"$COMMON_DIR/../../db/scripts/migrate.sh" || {
-    err "migrate.sh 失败 — deploy 终止 (db schema 没更新)"
-    info "  排查: ssh 进 CVM 手动跑 ./db/scripts/migrate.sh 看具体错"
-    exit 1
-}
+# Note: schema migrations are NOT applied here. They run inside the
+# backend container's entrypoint (see backend/image-entrypoint.sh) on
+# every container start, before uvicorn binds the port. Idempotent —
+# the runner stamps applied versions in schema_migrations.
 
 info "=== prod deploy: pull all 3 images + recreate containers ==="
 "$COMMON_DIR/lifecycle.sh" restart

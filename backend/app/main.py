@@ -58,21 +58,23 @@ app = FastAPI(
 def verify_db_reachable() -> None:
     """Sanity-check db connection at boot. Fails fast if db is unreachable.
 
-    Schema migrations and content import are now handled by the db
-    image's custom entrypoint (db/Dockerfile + db/image-entrypoint.sh)
-    on every container start, idempotently. So the backend no longer
-    needs to verify migrations — that responsibility moved to the db
-    image. We keep just a connection sanity check here so the backend
-    fails fast at boot if db is somehow down (clearer error than
-    serving 500s on every request).
+    Schema migrations are applied by backend/image-entrypoint.sh on
+    every container start, idempotently (runner stamps applied versions
+    in schema_migrations). Content import runs in db/image-entrypoint.sh.
+    By the time this startup event fires, the entrypoint has already
+    finished migrations and exec'd into uvicorn, so the schema is
+    guaranteed current. The check below is just a "can I open a
+    connection?" probe — fails fast with a clear error if db is
+    somehow unreachable, rather than serving 500s on every request.
     """
     db_url = settings.resolved_database_url()
     try:
         import psycopg2
         with psycopg2.connect(db_url) as conn:
             # Just open + close — the connection itself is the proof
-            # of life. We don't query schema_migrations because the
-            # db image's entrypoint is now responsible for that.
+            # of life. Migrations are not re-checked here (entrypoint
+            # already stamped them) and content import isn't either
+            # (db's entrypoint handles that).
             pass
     except Exception as exc:
         raise RuntimeError(
