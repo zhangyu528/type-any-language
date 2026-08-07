@@ -1,0 +1,209 @@
+name: diag-prod
+run-name: diag-prod-on-${{ inputs.target || 'auto' }}
+
+# -----------------------------------------------------------------------
+# Diagnostic-only workflow: SSH into the prod CVM and run one or more
+# inspection commands. Pure read-side — never mutates CVM state, never
+# touches GHCR, never restarts services. Safe to re-run.
+#
+# Purpose: when deploy-prod fails or behaves strangely (e.g. the
+# `Downloading X MB` retry storm we just hit), use this workflow to
+# collect ground truth from the CVM without having to SSH by hand.
+#
+# Each diagnostic is gated by an input boolean. Pass all=true to run
+# everything in one go, or pick individual checks to keep logs focused.
+#
+# Required GH Secrets / Variables (same as deploy-prod / bootstrap-prod):
+#   secrets.CVM_HOST, secrets.CVM_BOOTSTRAP_SSH_KEY
+#   vars.DOCKER_REGISTRY  (printed in the report header, not consumed)
+#
+# Optional workflow_dispatch inputs:
+#   target          — debug label only
+#   all             — run every diagnostic (overrides the booleans below)
+#   check_config    — daemon.json / hosts.toml / mirror registry mirrors
+#   check_speed     — curl speed tests against ghcr.io and 3 mirrors
+#   check_digest    — manifest digest parity (mirror returns the same blob)
+#   pull_frontend   — `docker pull english_frontend:v0.1.0` end-to-end
+#   pull_db         — `docker pull english_db:v0.1.0` (largest image, worst case)
+# -----------------------------------------------------------------------
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'CVM 标识 (label, 仅 debug)'
+        required: false
+        type: string
+        default: 'prod-cvm-1'
+      all:
+        description: '跑全部诊断 (覆盖下面的 checkbox)'
+        required: false
+        type: boolean
+        default: false
+      check_config:
+        description: '检查 daemon.json + hosts.toml + mirror 配置'
+        required: false
+        type: boolean
+        default: true
+      check_speed:
+        description: 'curl 测速 (ghcr.io 直连 + 3 个 mirror)'
+        required: false
+        type: boolean
+        default: true
+      check_digest:
+        description: 'manifest digest 一致性 (mirror 是否纯净代理)'
+        required: false
+        type: boolean
+        default: true
+      pull_frontend:
+        description: 'docker pull english_frontend:v0.1.0 (端到端)'
+        required: false
+        type: boolean
+        default: false
+      pull_db:
+        description: 'docker pull english_db:v0.1.0 (端到端, 最大镜像)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: diag-prod
+  cancel-in-progress: true
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    environment: prod
+    env:
+      DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+      # The frontend v0.1.0 manifest digest captured from GHCR directly —
+      # used as the ground-truth reference for `check_digest`.
+      FRONTEND_V010_MANIFEST: 'sha256:0e42a8c2df83e08068be633dc074d31acf07e0403ceaa0090688183fcf2c2d19'
+      # A representative large layer from english_frontend (246 MB) — same one
+      # deploy-prod logs showed stuck. If this one downloads fast, the image
+      # is fine; if it crawls, the mirror or network is the bottleneck.
+      FRONTEND_BIG_BLOB: 'sha256:5a154c577d1ce015bbbe2b00d17f3554fdbea837080a914f384399528da9ed6b'
+    steps:
+      - name: SSH to CVM and run diagnostics
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CVM_HOST }}
+          username: ${{ vars.CVM_BOOTSTRAP_USER || 'ubuntu' }}
+          key: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
+          command_timeout: '30m'
+          envs: ALL,CHECK_CONFIG,CHECK_SPEED,CHECK_DIGEST,PULL_FRONTEND,PULL_DB
+          script: |
+            set -e
+            echo "diag-prod target=${{ inputs.target }}"
+            echo "DOCKER_REGISTRY=${DOCKER_REGISTRY}"
+            echo ""
+
+            # helper: should we run a check?  honors inputs.all OR the per-check boolean.
+            should_run() {
+              local name="$1"
+              if [ "${ALL}" = "true" ]; then return 0; fi
+              local v="${!name}"
+              [ "${v}" = "true" ]
+            }
+
+            if should_run CHECK_CONFIG; then
+              echo '======================================================'
+              echo '## 1. daemon.json + hosts.toml + docker info (mirror)'
+              echo '======================================================'
+              echo '--- /etc/docker/daemon.json ---'
+              sudo cat /etc/docker/daemon.json 2>&1 || echo '(no daemon.json)'
+              echo ''
+              echo '--- /etc/containerd/certs.d/ghcr.io/hosts.toml ---'
+              sudo cat /etc/containerd/certs.d/ghcr.io/hosts.toml 2>&1 || echo '(no hosts.toml)'
+              echo ''
+              echo '--- docker info (Registry Mirrors + Storage Driver) ---'
+              sudo docker info 2>&1 | grep -iE 'registry mirrors|storage driver|username|http proxy|https proxy'
+              echo ''
+            fi
+
+            if should_run CHECK_SPEED; then
+              echo '======================================================'
+              echo '## 2. curl speed - ghcr.io direct vs 3 mirrors (manifest GET, ~9 KB)'
+              echo '======================================================'
+              for pair in \
+                "ghcr.io|https://ghcr.io/v2/zhangyu528/type-any-language/english_frontend/manifests/v0.1.0" \
+                "ghcr.m.daocloud.io|https://ghcr.m.daocloud.io/v2/zhangyu528/type-any-language/english_frontend/manifests/v0.1.0" \
+                "ghcr.nju.edu.cn|https://ghcr.nju.edu.cn/v2/zhangyu528/type-any-language/english_frontend/manifests/v0.1.0" \
+                "ghcr.mirrors.ustc.edu.cn|https://ghcr.mirrors.ustc.edu.cn/v2/zhangyu528/type-any-language/english_frontend/manifests/v0.1.0"
+              do
+                label="${pair%%|*}"
+                url="${pair#*|}"
+                printf '%s\n' "--- $label ---"
+                /usr/bin/time -f "  real=%e  HTTP=%{http_code}  speed=%{speed_download} B/s" \
+                  curl -s -o /dev/null -w "  total=%{time_total}s\n" --max-time 30 "$url" \
+                  || echo "  (curl failed)"
+              done
+              echo ''
+              echo '--- layer GET (the big one we kept seeing stuck in deploy-prod) ---'
+              blob="${FRONTEND_BIG_BLOB}"
+              for pair in \
+                "ghcr.io|https://ghcr.io/v2/zhangyu528/type-any-language/english_frontend/blobs/${blob}" \
+                "ghcr.m.daocloud.io|https://ghcr.m.daocloud.io/v2/zhangyu528/type-any-language/english_frontend/blobs/${blob}" \
+                "ghcr.nju.edu.cn|https://ghcr.nju.edu.cn/v2/zhangyu528/type-any-language/english_frontend/blobs/${blob}"
+              do
+                label="${pair%%|*}"
+                url="${pair#*|}"
+                printf '%s\n' "--- $label (1 MB slice of 246 MB layer) ---"
+                /usr/bin/time -f "  real=%e  HTTP=%{http_code}  speed=%{speed_download} B/s" \
+                  curl -s -r 0-1048575 -o /dev/null -w "  total=%{time_total}s\n" --max-time 60 "$url" \
+                  || echo "  (curl failed)"
+              done
+              echo ''
+            fi
+
+            if should_run CHECK_DIGEST; then
+              echo '======================================================'
+              echo '## 3. manifest digest parity - does the mirror return the same bytes?'
+              echo '======================================================'
+              for pair in \
+                "ghcr.io|https://ghcr.io/v2/zhangyu528/type-any-language/english_frontend/manifests/v0.1.0" \
+                "ghcr.m.daocloud.io|https://ghcr.m.daocloud.io/v2/zhangyu528/type-any-language/english_frontend/manifests/v0.1.0" \
+                "ghcr.nju.edu.cn|https://ghcr.nju.edu.cn/v2/zhangyu528/type-any-language/english_frontend/manifests/v0.1.0"
+              do
+                label="${pair%%|*}"
+                url="${pair#*|}"
+                digest=$(curl -sI --max-time 10 \
+                  -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
+                  "$url" | grep -i '^docker-content-digest' | tr -d '\r' | awk '{print $2}')
+                echo "  $label  ->  ${digest:-<no digest header>}"
+              done
+              echo ''
+              echo "  reference (direct from GHCR): ${FRONTEND_V010_MANIFEST}"
+              echo ''
+            fi
+
+            if should_run PULL_FRONTEND; then
+              echo '======================================================'
+              echo '## 4. end-to-end: sudo docker pull english_frontend:v0.1.0'
+              echo '======================================================'
+              /usr/bin/time -f "real=%e" \
+                sudo docker pull ghcr.io/zhangyu528/type-any-language/english_frontend:v0.1.0 \
+                || echo '(pull failed)'
+              echo ''
+            fi
+
+            if should_run PULL_DB; then
+              echo '======================================================'
+              echo '## 5. end-to-end: sudo docker pull english_db:v0.1.0 (largest image)'
+              echo '======================================================'
+              /usr/bin/time -f "real=%e" \
+                sudo docker pull ghcr.io/zhangyu528/type-any-language/english_db:v0.1.0 \
+                || echo '(pull failed)'
+              echo ''
+            fi
+
+            if ! should_run CHECK_CONFIG \
+               && ! should_run CHECK_SPEED \
+               && ! should_run CHECK_DIGEST \
+               && ! should_run PULL_FRONTEND \
+               && ! should_run PULL_DB; then
+              echo '(no diagnostics selected — pass all=true or tick at least one checkbox)'
+            fi
