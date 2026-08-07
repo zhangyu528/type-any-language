@@ -77,24 +77,29 @@ jobs:
   diag:
     runs-on: ubuntu-latest
     environment: prod
-    env:
-      DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
-      # The frontend v0.1.0 manifest digest captured from GHCR directly —
-      # used as the ground-truth reference for `check_digest`.
-      FRONTEND_V010_MANIFEST: 'sha256:0e42a8c2df83e08068be633dc074d31acf07e0403ceaa0090688183fcf2c2d19'
-      # A representative large layer from english_frontend (246 MB) — same one
-      # deploy-prod logs showed stuck. If this one downloads fast, the image
-      # is fine; if it crawls, the mirror or network is the bottleneck.
-      FRONTEND_BIG_BLOB: 'sha256:5a154c577d1ce015bbbe2b00d17f3554fdbea837080a914f384399528da9ed6b'
     steps:
       - name: SSH to CVM and run diagnostics
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          # appleboy/ssh-action only forwards env vars declared in THIS
+          # step's env block (mirrors the deploy-prod gotcha). All booleans
+          # below come from workflow_dispatch inputs but won't reach the
+          # CVM unless re-exported here.
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+          FRONTEND_V010_MANIFEST: 'sha256:0e42a8c2df83e08068be633dc074d31acf07e0403ceaa0090688183fcf2c2d19'
+          FRONTEND_BIG_BLOB: 'sha256:5a154c577d1ce015bbbe2b00d17f3554fdbea837080a914f384399528da9ed6b'
+          ALL: ${{ inputs.all }}
+          CHECK_CONFIG: ${{ inputs.check_config }}
+          CHECK_SPEED: ${{ inputs.check_speed }}
+          CHECK_DIGEST: ${{ inputs.check_digest }}
+          PULL_FRONTEND: ${{ inputs.pull_frontend }}
+          PULL_DB: ${{ inputs.pull_db }}
         with:
           host: ${{ secrets.CVM_HOST }}
           username: ${{ vars.CVM_BOOTSTRAP_USER || 'ubuntu' }}
           key: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
           command_timeout: '30m'
-          envs: ALL,CHECK_CONFIG,CHECK_SPEED,CHECK_DIGEST,PULL_FRONTEND,PULL_DB
+          envs: DOCKER_REGISTRY,FRONTEND_V010_MANIFEST,FRONTEND_BIG_BLOB,ALL,CHECK_CONFIG,CHECK_SPEED,CHECK_DIGEST,PULL_FRONTEND,PULL_DB
           script: |
             set -e
             echo "diag-prod target=${{ inputs.target }}"
