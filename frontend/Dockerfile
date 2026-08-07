@@ -36,6 +36,13 @@ COPY scripts/install.mjs ./scripts/install.mjs
 # registry.npmmirror.com, which occasionally 502s a single tarball and makes
 # `npm ci` hard-fail the whole build (seen 2026-08-07: npmmirror 502 on
 # caniuse-lite). Retry instead of dying.
+# The lockfile pins tarballs to registry.npmmirror.com (generated on a CN
+# machine). From GitHub's US runners that mirror is both SLOW and was the
+# source of the 502 build failure (caniuse-lite). Rewrite resolved URLs to
+# npmjs.org for the build only — the committed lockfile is untouched, so
+# local CN dev keeps using npmmirror. npmjs.org has a global CDN and is
+# fast/reliable from GitHub runners.
+RUN sed -i 's#https://registry.npmmirror.com/#https://registry.npmjs.org/#g' package-lock.json
 RUN npm ci --include=dev --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000
 
 # Copy the source tree WITHOUT the build output. The build runs
