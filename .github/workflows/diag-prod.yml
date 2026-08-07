@@ -65,6 +65,21 @@ on:
         required: false
         type: boolean
         default: false
+      apply_mirror:
+        description: '将 ghcr.io mirror 写进 CVM daemon.json + restart docker (会修改 CVM 配置)'
+        required: false
+        type: boolean
+        default: false
+      verify_pull:
+        description: '应用 mirror 后再跑一次 docker pull frontend (端到端验证 mirror 加速效果)'
+        required: false
+        type: boolean
+        default: false
+      ghcr_login:
+        description: '先 docker login ghcr.io 再跑 pull (避免匿名被 GHCR 限流/拒绝; 复刻 deploy-prod 的做法)'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -78,6 +93,35 @@ jobs:
     runs-on: ubuntu-latest
     environment: prod
     steps:
+      # When ghcr_login=true: write GHCR creds to two files on the CVM via
+      # SSH stdin. Mirrors deploy-prod's approach (deploy-prod.yml:158-181)
+      # — it does the same thing so `docker login` in the SSH step that
+      # follows can read them via stdin. The runner-to-CVM ssh channel is
+      # already open for the diagnostic step, so we just piggy-back here.
+      # We avoid passing the token through envs/scripts because appleboy
+      # logs both to its GHA step output and we don't want a secret in the
+      # run log even briefly.
+      - name: Deliver GHCR creds to CVM (only when ghcr_login=true)
+        if: inputs.ghcr_login == 'true'
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CVM_HOST }}
+          username: ${{ vars.CVM_BOOTSTRAP_USER || 'ubuntu' }}
+          key: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
+          command_timeout: '2m'
+          envs: GHCR_USER,GHCR_TOKEN
+          script: |
+            set -e
+            # Write token + user to /tmp, mode 600, owned by ubuntu.
+            # The diagnostic step's `sudo docker login` reads them via stdin.
+            printf '%s' "${GHCR_TOKEN}" > /tmp/ghcr_token.txt
+            printf '%s' "${GHCR_USER}"  > /tmp/ghcr_user.txt
+            chmod 600 /tmp/ghcr_token.txt /tmp/ghcr_user.txt
+            ls -la /tmp/ghcr_token.txt /tmp/ghcr_user.txt
+
       - name: SSH to CVM and run diagnostics
         uses: appleboy/ssh-action@v1.0.3
         env:
@@ -94,17 +138,42 @@ jobs:
           CHECK_DIGEST: ${{ inputs.check_digest }}
           PULL_FRONTEND: ${{ inputs.pull_frontend }}
           PULL_DB: ${{ inputs.pull_db }}
+          APPLY_MIRROR: ${{ inputs.apply_mirror }}
+          VERIFY_PULL: ${{ inputs.verify_pull }}
+          GHCR_LOGIN: ${{ inputs.ghcr_login }}
         with:
           host: ${{ secrets.CVM_HOST }}
           username: ${{ vars.CVM_BOOTSTRAP_USER || 'ubuntu' }}
           key: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
           command_timeout: '30m'
-          envs: DOCKER_REGISTRY,FRONTEND_V010_MANIFEST,FRONTEND_BIG_BLOB,ALL,CHECK_CONFIG,CHECK_SPEED,CHECK_DIGEST,PULL_FRONTEND,PULL_DB
+          envs: DOCKER_REGISTRY,FRONTEND_V010_MANIFEST,FRONTEND_BIG_BLOB,ALL,CHECK_CONFIG,CHECK_SPEED,CHECK_DIGEST,PULL_FRONTEND,PULL_DB,APPLY_MIRROR,VERIFY_PULL,GHCR_LOGIN
           script: |
             set -e
             echo "diag-prod target=${{ inputs.target }}"
             echo "DOCKER_REGISTRY=${DOCKER_REGISTRY}"
             echo ""
+
+            # Optional: docker login ghcr.io BEFORE running any pull_* check.
+            # Pulls without login get "denied" from GHCR's anonymous pool.
+            # The scp step above delivered /tmp/ghcr_user.txt + /tmp/ghcr_token.txt
+            # only when inputs.ghcr_login=true. We sudo them so docker login
+            # writes /root/.docker/config.json (matches what deploy-prod does).
+            if [ "${GHCR_LOGIN}" = "true" ]; then
+              if [ -s /tmp/ghcr_user.txt ] && [ -s /tmp/ghcr_token.txt ]; then
+                echo '======================================================'
+                echo '## 0. docker login ghcr.io (as root via sudo)'
+                echo '======================================================'
+                sudo bash -c '
+                  set -e
+                  sudo docker login ghcr.io -u "$(cat /tmp/ghcr_user.txt)" --password-stdin < /tmp/ghcr_token.txt
+                  rm -f /tmp/ghcr_user.txt /tmp/ghcr_token.txt
+                '
+                echo ''
+              else
+                echo 'WARNING: ghcr_login=true but /tmp/ghcr_user.txt or /tmp/ghcr_token.txt missing on CVM' >&2
+                echo 'WARNING: pulls will likely be denied by GHCR' >&2
+              fi
+            fi
 
             # helper: should we run a check?  honors inputs.all OR the per-check boolean.
             should_run() {
@@ -212,3 +281,85 @@ jobs:
                && ! should_run PULL_DB; then
               echo '(no diagnostics selected — pass all=true or tick at least one checkbox)'
             fi
+
+      # ---- apply_mirror: write ghcr.io mirror into daemon.json + restart docker.
+      # Independent SSH step because Python heredoc can't nest cleanly inside
+      # the main script block (yaml block scalar would choke on col-0 Python).
+      - name: Apply ghcr.io mirror to CVM daemon.json + restart docker
+        if: inputs.apply_mirror == 'true'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CVM_HOST }}
+          username: ${{ vars.CVM_BOOTSTRAP_USER || 'ubuntu' }}
+          key: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
+          command_timeout: '5m'
+          script: |
+            set -e
+            echo '======================================================'
+            echo '## 6. APPLY: write ghcr.io mirror into /etc/docker/daemon.json + restart docker'
+            echo '======================================================'
+            echo '--- backup current daemon.json ---'
+            sudo cp /etc/docker/daemon.json "/etc/docker/daemon.json.bak.$(date +%s)"
+            ls -la /etc/docker/daemon.json*
+            echo ''
+            echo '--- merge mirrors (DaoCloud + NJU for ghcr.io) ---'
+            # jq is safer than python here: no heredoc indent hell, and no
+            # extra file to clean up. It is installed by the docker-ce apt
+            # package as a runtime dep, so it is always present.
+            sudo jq '
+              if (.["registry-mirrors"] // []) | index("https://ghcr.m.daocloud.io") then . else
+                .["registry-mirrors"] = ((.["registry-mirrors"] // []) + ["https://ghcr.m.daocloud.io"])
+              end |
+              if (.["registry-mirrors"] // []) | index("https://ghcr.nju.edu.cn") then . else
+                .["registry-mirrors"] = ((.["registry-mirrors"] // []) + ["https://ghcr.nju.edu.cn"])
+              end
+            ' /etc/docker/daemon.json | sudo tee /etc/docker/daemon.json >/dev/null
+            echo '--- updated daemon.json ---'
+            sudo cat /etc/docker/daemon.json
+            echo ''
+            echo '--- restart docker ---'
+            sudo systemctl restart docker
+            sleep 3
+            systemctl is-active docker
+            echo ''
+            echo '--- verify mirror list via docker info ---'
+            sudo docker info 2>&1 | grep -A6 'Registry Mirrors'
+            echo ''
+            echo '--- quick curl sanity on DaoCloud (1 MB layer slice) ---'
+            /usr/bin/time -f "  real=%e" \
+              curl -s -r 0-1048575 -o /dev/null -w "  HTTP=%{http_code}  speed=%{speed_download} B/s\n" \
+                --max-time 30 \
+                https://ghcr.m.daocloud.io/v2/zhangyu528/type-any-language/english_frontend/blobs/sha256:5a154c577d1ce015bbbe2b00d17f3554fdbea837080a914f384399528da9ed6b \
+              || echo '  (curl failed)'
+            echo ''
+
+      # ---- verify_pull: end-to-end docker pull after apply_mirror.
+      # Assumes the previous step already restarted docker, so docker daemon
+      # is now picking up the new mirrors.
+      - name: "Verify: docker pull frontend after applying mirror"
+        if: inputs.verify_pull == 'true'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CVM_HOST }}
+          username: ${{ vars.CVM_BOOTSTRAP_USER || 'ubuntu' }}
+          key: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
+          command_timeout: '10m'
+          envs: GHCR_LOGIN
+          script: |
+            set -e
+            if [ "${GHCR_LOGIN}" = "true" ]; then
+              if [ -s /tmp/ghcr_user.txt ] && [ -s /tmp/ghcr_token.txt ]; then
+                echo '--- docker login ghcr.io ---'
+                sudo bash -c '
+                  set -e
+                  sudo docker login ghcr.io -u "$(cat /tmp/ghcr_user.txt)" --password-stdin < /tmp/ghcr_token.txt
+                '
+              fi
+            fi
+            echo '======================================================'
+            echo '## 7. VERIFY: docker pull english_frontend (post-mirror, expect fast)'
+            echo '======================================================'
+            /usr/bin/time -f "real=%e" \
+              sudo docker pull ghcr.io/zhangyu528/type-any-language/english_frontend:v0.1.0 \
+              || echo '(pull failed)'
+            echo ''
