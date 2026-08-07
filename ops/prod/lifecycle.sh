@@ -82,27 +82,21 @@ cmd_restart() {
     # docker.io images (nginx) doesn't fail the whole compose up — the
     # image itself is already pulled by the time we get to `up -d`, so
     # compose sees it locally and skips the pull-with-attestation step.
-    # nginx is hardcoded in docker-compose.yml as `nginx:alpine` from
-    # docker.io (see docker-compose.yml:137); the 3 custom images come
-    # from ${DOCKER_REGISTRY} which is set from $vars.DOCKER_REGISTRY in
-    # the deploy-prod workflow.
-    info "pre-pulling 4 images individually (tolerate referrer failures)..."
+    # Pre-pull each image up front with || true so a referrer-timeout
+    # doesn't fail the whole compose up — the image itself is already
+    # pulled by the time we get to `up -d`, so compose sees it locally
+    # and skips the pull-with-attestation step. The 3 custom images
+    # come from ${DOCKER_REGISTRY} which is set from
+    # $vars.DOCKER_REGISTRY in the deploy-prod workflow. nginx is the
+    # host's system nginx (see ops/prod/nginx.conf + bootstrap.sh
+    # step_nginx_site_link) — not pulled from any registry here.
+    info "pre-pulling 3 images individually (tolerate referrer failures)..."
     for img in \
       "${DB_IMAGE}:${DB_IMAGE_TAG}" \
       "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}" \
-      "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}" \
-      "nginx:alpine"
+      "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"
     do
-      # All 4 images — including nginx — come from ${DOCKER_REGISTRY}.
-      # nginx:alpine is mirrored there by release-prod via crane copy
-      # (see release-prod.yml), so the CVM pulls it through the same
-      # ghcr.io path as the 3 custom images, avoiding docker.io's
-      # referrer query that times out from CN-region CVMs.
-      if [[ "$img" == "nginx:alpine" ]]; then
-        target="${DOCKER_REGISTRY}/nginx:alpine"
-      else
-        target="${DOCKER_REGISTRY}/${img}"
-      fi
+      target="${DOCKER_REGISTRY}/${img}"
       # Pull without sudo: the script runs as the `deploy` user (set up
       # by bootstrap-prod), which is in the `docker` group (see
       # bootstrap-prod.yml:134-139). NOPASSWD sudoers only covers
@@ -127,7 +121,7 @@ cmd_restart() {
     $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" down --remove-orphans || true
     sleep 2
 
-    $DOCKER_COMPOSE_CMD --parallel=1 -f "$COMPOSE_FILE" up -d --no-deps --no-build db backend frontend nginx
+    $DOCKER_COMPOSE_CMD --parallel=1 -f "$COMPOSE_FILE" up -d --no-deps --no-build db backend frontend
 
     backend_after=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}" 2>/dev/null || true)
     frontend_after=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}" 2>/dev/null || true)
