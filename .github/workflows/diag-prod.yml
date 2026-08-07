@@ -190,10 +190,18 @@ jobs:
             #   - "trying <url>"  -> daemon did try the mirror
             #   - "<url>" + "401/403/denied" -> mirror rejected the request
             #   - "fallback" or direct ghcr.io hits -> mirror unreachable
-            sudo journalctl -u docker --since "5 min ago" --no-pager 2>/dev/null \
+            # journalctl may not be present on every CVM image; fall back
+            # to /var/log/docker.log which is what dockerd writes when no
+            # log driver override is set.
+            echo '--- (journalctl) ---'
+            sudo journalctl -u docker --since "10 min ago" --no-pager 2>/dev/null \
               | grep -iE 'mirror|registry|trying|ghcr\.io|daocloud|nju\.edu' \
-              | tail -40 \
-              || echo '(journalctl unavailable or no matches)'
+              | tail -40 || echo '(journalctl not present or no matches)'
+            echo ''
+            echo '--- (/var/log/docker.log) ---'
+            sudo tail -200 /var/log/docker.log 2>/dev/null \
+              | grep -iE 'mirror|registry|trying|ghcr\.io|daocloud|nju\.edu' \
+              | tail -40 || echo '(no /var/log/docker.log or no matches)'
             echo ''
 
             echo '======================================================'
