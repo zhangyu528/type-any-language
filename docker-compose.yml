@@ -129,12 +129,16 @@ services:
 
   # -------------------------------------------------------------------------
   # nginx — reverse proxy on :80.
-  # Stock official image from Docker Hub (nginx:alpine), pulled via the
-  # registry mirror configured on the CVM (e.g. Tencent Cloud mirror) —
-  # NOT from GHCR. No custom build, no GHCR mirror step.
+  # Pulled from ${DOCKER_REGISTRY}/nginx:alpine (our GHCR namespace),
+  # which is itself a copy of docker.io/library/nginx:alpine made by
+  # release-prod via `crane copy`. The reason we don't pull from docker.io
+  # directly: the daemon's OCI-referrer query against registry-1.docker.io
+  # times out from this CVM's egress, which makes `docker compose up -d`
+  # exit non-zero even though the image layers themselves downloaded fine.
+  # Pulling through GHCR sidesteps the referrer query entirely.
   # -------------------------------------------------------------------------
   nginx:
-    image: nginx:alpine
+    image: ${DOCKER_REGISTRY}/nginx:alpine
     restart: unless-stopped
     ports:
       - "80:80"

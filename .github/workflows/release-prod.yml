@@ -161,6 +161,48 @@ jobs:
           chmod +x ops/prod/release.sh ops/prod/build/image.sh ops/prod/build/push.sh
           bash ops/prod/release.sh prod "${{ steps.version.outputs.version }}" -y
 
+      - name: Mirror nginx:alpine from docker.io to GHCR via crane copy
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+        run: |
+          # Pulling nginx:alpine from docker.io on the CVM hits a slow
+          # path: the daemon tries an OCI referrer query against
+          # registry-1.docker.io directly (bypassing our docker.io
+          # mirror config in /etc/docker/certs.d/docker.io/hosts.toml)
+          # and that path times out from CN-region CVMs. The actual
+          # image layers do download, but the referrer failure makes
+          # `docker compose up -d` exit non-zero.
+          #
+          # Workaround: mirror nginx:alpine into our GHCR namespace so
+          # the CVM pulls it the same way as the 3 custom images —
+          # entirely through ghcr.io where our ghcr.m.daocloud.io +
+          # ghcr.nju.edu.cn mirrors work, no referrer query, no extra
+          # round trip to docker.io.
+          set -e
+          if [ -z "$DOCKER_REGISTRY" ]; then
+            echo "::error::DOCKER_REGISTRY not set; skipping nginx mirror"
+            exit 0
+          fi
+          # Install crane (go-containerregistry CLI) — small, single binary.
+          # Pin a recent version known to handle referrer copy.
+          CRANE_VERSION="v0.20.1"
+          echo "::group::installing crane ${CRANE_VERSION}"
+          curl -fsSL "https://github.com/google/go-containerregistry/releases/download/${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" \
+            | tar -xz -C /tmp crane
+          chmod +x /tmp/crane
+          /tmp/crane version
+          echo "::endgroup::"
+          # Copy nginx:alpine from docker.io to ${DOCKER_REGISTRY}/nginx:alpine.
+          # The source repo is the official Docker Hub 'library/nginx'; GHCR
+          # namespacing means we need to re-tag under our org.
+          SRC="docker.io/library/nginx:alpine"
+          DST="${DOCKER_REGISTRY}/nginx:alpine"
+          echo "::group::crane copy ${SRC} -> ${DST}"
+          /tmp/crane copy "$SRC" "$DST"
+          echo "::endgroup::"
+          # Sanity check — confirm the GHCR copy resolves.
+          /tmp/crane manifest "$DST" >/dev/null && echo "verified: ${DST} manifest fetchable"
+
       - name: Tag + create GitHub release
         # Full cleanup (2026-08-06): the git tag is now the SINGLE SOURCE OF
         # TRUTH for the deployed version. deploy-prod "auto" resolves the

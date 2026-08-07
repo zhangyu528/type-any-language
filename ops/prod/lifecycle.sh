@@ -93,12 +93,13 @@ cmd_restart() {
       "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}" \
       "nginx:alpine"
     do
-      # DOCKER_REGISTRY is only meaningful for the 3 custom images; for
-      # docker.io images (nginx) pull bare. But try with the registry
-      # prefix first since it doesn't hurt — dockerd will resolve and
-      # fall back to docker.io if needed.
+      # All 4 images — including nginx — come from ${DOCKER_REGISTRY}.
+      # nginx:alpine is mirrored there by release-prod via crane copy
+      # (see release-prod.yml), so the CVM pulls it through the same
+      # ghcr.io path as the 3 custom images, avoiding docker.io's
+      # referrer query that times out from CN-region CVMs.
       if [[ "$img" == "nginx:alpine" ]]; then
-        target="nginx:alpine"
+        target="${DOCKER_REGISTRY}/nginx:alpine"
       else
         target="${DOCKER_REGISTRY}/${img}"
       fi
