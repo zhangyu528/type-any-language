@@ -121,7 +121,7 @@ jobs:
             # The printf + redirect + python -c all need to run as root (the
             # > redirect doesn't pick up the preceding sudo).
             sudo mkdir -p /etc/docker
-            sudo bash -c 'printf "%s" "{\"registry-mirrors\":[\"https://mirror.ccs.tencentyun.com\",\"https://docker.m.daocloud.io\",\"https://ghcr.m.daocloud.io\",\"https://ghcr.nju.edu.cn\"]}" > /etc/docker/daemon.json'
+            sudo bash -c 'printf "%s" "{\"registry-mirrors\":[\"https://mirror.ccs.tencentyun.com\",\"https://docker.m.daocloud.io\",\"https://ghcr.m.daocloud.io\",\"https://ghcr.nju.edu.cn\"],\"log-level\":\"debug\"}" > /etc/docker/daemon.json'
             sudo python3 -c 'import json; p=json.load(open("/etc/docker/daemon.json")); json.dump(p, open("/etc/docker/daemon.json","w"), indent=2)'
             echo '--- new daemon.json ---'
             sudo cat /etc/docker/daemon.json
@@ -178,6 +178,24 @@ jobs:
               sudo docker pull ghcr.io/zhangyu528/type-any-language/english_frontend:v0.1.0 \
               || echo '(pull failed)'
             echo ''
+
+            # -----------------------------------------------------------------
+            # 7. Inspect daemon journal — proves WHICH registry was tried
+            # -----------------------------------------------------------------
+            echo '======================================================'
+            echo '## 7. daemon debug log (which URLs did dockerd try?)'
+            echo '======================================================'
+            # Docker daemon in debug mode logs each registry request as it
+            # tries the mirror list. Look for:
+            #   - "trying <url>"  -> daemon did try the mirror
+            #   - "<url>" + "401/403/denied" -> mirror rejected the request
+            #   - "fallback" or direct ghcr.io hits -> mirror unreachable
+            sudo journalctl -u docker --since "5 min ago" --no-pager 2>/dev/null \
+              | grep -iE 'mirror|registry|trying|ghcr\.io|daocloud|nju\.edu' \
+              | tail -40 \
+              || echo '(journalctl unavailable or no matches)'
+            echo ''
+
             echo '======================================================'
             echo '## done'
             echo '======================================================'
