@@ -1,22 +1,25 @@
 #!/bin/sh
 # db/image-entrypoint.sh — custom entrypoint for the prod db image.
 #
-# Wraps the standard postgres docker-entrypoint.sh to run schema
-# migrations and import CMS content BEFORE bringing postgres to the
-# foreground. Idempotent: safe to run on every container start
-# (migrations.runner stamps applied versions; importer is UPSERT).
+# Wraps the standard postgres docker-entrypoint.sh to import CMS content
+# BEFORE bringing postgres to the foreground. Idempotent: importer is
+# UPSERT, safe to run on every container start.
+#
+# Schema migrations are NOT applied here — that responsibility moved
+# to the deploy host (deploy.sh runs db/scripts/migrate.sh before
+# `compose up -d`). The db image is a passive store; the deploy host
+# owns the schema lifecycle. See ops/prod/deploy.sh.
 #
 # Postgres lifecycle (this script):
 #   1. Start postgres as a background process
 #   2. Wait for pg_isready
-#   3. Apply pending migrations (PYTHONPATH=/app)
-#   4. Import content (PYTHONPATH=/app, importer reads /app/cms_content/)
-#   5. Bring postgres to foreground (wait — postgres becomes PID 1)
+#   3. Import CMS content (PYTHONPATH=/app, importer reads /app/cms_content/)
+#   4. Bring postgres to foreground (wait — postgres becomes PID 1)
 #
 # Environment variables come from compose's environment: block:
 #   POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
-# We assemble DATABASE_URL from these so migrations + importer can
-# reach the in-container postgres (no network — same namespace).
+# We assemble DATABASE_URL from these so the importer can reach the
+# in-container postgres (no network — same namespace).
 
 set -e
 
@@ -45,13 +48,10 @@ fi
 DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}"
 export DATABASE_URL
 
-echo "[db-init] applying schema migrations..."
-cd /app
-python3 -c "from migrations.runner import main; main()"
-
 echo "[db-init] importing CMS content..."
 # importer's module path is /app/importer.py; sys.argv is hijacked
 # so it sees `importer all` (the typical CLI invocation).
+cd /app
 python3 -c "
 import sys
 sys.argv = ['importer', 'all']
@@ -60,9 +60,6 @@ main()
 "
 
 echo "[db-init] done. postgres is now the main process."
-# Hand off: wait for postgres to exit (becomes PID 1 from the kernel's
-# perspective; the entrypoint shell that originally started us has
-# already exited via exec — actually we still have the wrapper.
-# `wait` is correct here: keeps our PID 1 = postgres, with our shell
-# reaped at the end of postgres's life.
+# wait for postgres to exit (postgres is PID 1 from the kernel's
+# perspective; this wrapper gets reaped at the end of postgres's life).
 wait $PG_PID

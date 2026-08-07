@@ -40,12 +40,12 @@ LABEL type-any-language.app.git-sha="${GIT_SHA}"
 # image has none. We add them here.
 RUN apk add --no-cache python3 py3-pip \
     && pip3 install --no-cache-dir --break-system-packages \
-        'sqlalchemy==2.0.25' \
-        'psycopg2-binary==2.9.9'
-# Note: no pydantic / pydantic-settings anymore. Migrations are pure
-# SQL (see backend/migrations/versions/0001_baseline.py), so the image
-# only needs sqlalchemy + psycopg2-binary. Both have cp314 musllinux
-# wheels published, so this layer doesn't need a C toolchain.
+        psycopg2-binary \
+        sqlalchemy
+# Loose pin: this image is going to be retired in favor of one
+# without Python at all (migration moves to backend image, importer
+# moves out), so we don't care about picking a specific version.
+# Until then keep parity with the original 50ae774-era Dockerfile.
 
 WORKDIR /app
 
