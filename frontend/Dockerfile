@@ -22,7 +22,17 @@ COPY scripts/install.mjs ./scripts/install.mjs
 # already populated by `npm ci` itself, records the lock hash, and
 # exits 0 — no recursive `npm install`. So we don't need
 # --ignore-scripts anymore.
-RUN npm ci
+#
+# NOTE: `ENV NODE_ENV=production` (line 12) is in scope here, so a plain
+# `npm ci` would SKIP devDependencies. But `next build` (below) needs
+# `typescript` + `eslint` for type-checking/linting and would otherwise
+# re-fetch them on the fly over a flaky runner egress — that's the
+# "Installing devDependencies (npm): typescript @types/react @types/node"
+# stall seen in release builds. `--include=dev` installs them up front so
+# the build is fast and deterministic. The standalone runtime output
+# (.next-build/standalone) still excludes them by tracing, so the running
+# container never pays for them.
+RUN npm ci --include=dev
 
 # Copy the source tree WITHOUT the build output. The build runs
 # below, after this COPY — we don't `COPY . .` here because that
