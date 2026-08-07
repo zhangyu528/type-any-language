@@ -186,53 +186,12 @@ step_data_dir() {
 }
 
 # ─── step_nginx_site_link ─────────────────────────────────────────────
-# Install (or update) the system nginx site link pointing at
-# ops/prod/nginx.conf. Idempotent: re-running updates the symlink
-# target if nginx.conf changed. We disable the default site if it's
-# still enabled (Ubuntu's nginx-common ships a default symlink that
-# would shadow ours on listen :80).
-#
-# System nginx is the prod reverse proxy — it listens on the host's
-# :80 and forwards to the docker backend (127.0.0.1:8000) +
-# frontend (127.0.0.1:3000). The dockerised nginx service was
-# retired; see docker-compose.yml for the comments.
+# Delegate to ops/prod/install-nginx-site.sh so the implementation
+# is testable in isolation and can be re-run outside of bootstrap.sh
+# (e.g. after the operator hand-edits /etc/nginx/sites-available).
+# The script itself is idempotent and safe to re-run.
 step_nginx_site_link() {
-    local conf_src="$PROJECT_DIR/ops/prod/nginx.conf"
-    local conf_dst="/etc/nginx/sites-available/type-any-language"
-
-    if ! command -v nginx >/dev/null 2>&1; then
-        err "系统 nginx 未安装 — apt-get install nginx"
-        return 1
-    fi
-
-    if [ ! -f "$conf_src" ]; then
-        err "  $conf_src 不存在 (应该是 repo 里的 proxy 配置)"
-        return 1
-    fi
-
-    # Copy (not symlink) so the operator can hand-tune /etc/nginx/...
-    # without dirtying the repo. Re-running bootstrap refreshes the
-    # copy from the repo source — that's intentional: ops/prod/nginx.conf
-    # is the single source of truth.
-    sudo install -m 644 "$conf_src" "$conf_dst"
-
-    # Enable our site, disable the default 'welcome to nginx' page
-    # if it's still present (apt's default symlink listens on :80 and
-    # would shadow our config).
-    sudo ln -sfn "$conf_dst" /etc/nginx/sites-enabled/type-any-language
-    if [ -f /etc/nginx/sites-enabled/default ]; then
-        sudo rm -f /etc/nginx/sites-enabled/default
-        info "    移除了 /etc/nginx/sites-enabled/default (会 shadow type-any-language)"
-    fi
-
-    # Validate config and reload. Reload (not restart) so the system
-    # nginx keeps handling in-flight requests.
-    if ! sudo nginx -t; then
-        err "    nginx -t 失败 — 配置有语法错"
-        return 1
-    fi
-    sudo systemctl reload nginx
-    ok "    /etc/nginx/sites-enabled/type-any-language → $conf_src  (active)"
+    bash "$PROJECT_DIR/ops/prod/install-nginx-site.sh"
 }
 
 # ─── cmd_prepare ─────────────────────────────────────────────────────────

@@ -67,6 +67,13 @@ info "  3 个 image 待拉: db + backend + frontend, 全部 tag=${BACKEND_IMAGE_
 # every container start, before uvicorn binds the port. Idempotent —
 # the runner stamps applied versions in schema_migrations.
 
+# Make sure system nginx is configured and running BEFORE we
+# recreate the containers — otherwise an old nginx (or no nginx)
+# would 502 traffic that should be reaching the new containers.
+# Idempotent — see install-nginx-site.sh.
+info "=== ensure system nginx is configured for type-any-language ==="
+bash "$COMMON_DIR/install-nginx-site.sh"
+
 info "=== prod deploy: pull all 3 images + recreate containers ==="
 "$COMMON_DIR/lifecycle.sh" restart
 
