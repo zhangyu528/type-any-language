@@ -40,14 +40,23 @@ LABEL type-any-language.app.git-sha="${GIT_SHA}"
 # image has none. We add them here.
 RUN apk add --no-cache python3 py3-pip \
     && pip3 install --no-cache-dir --break-system-packages \
-        psycopg2-binary \
-        sqlalchemy
+        'sqlalchemy==2.0.25' \
+        'psycopg2-binary==2.9.9' \
+        'pydantic==2.5.3' \
+        'pydantic-settings==2.1.0'
 
 WORKDIR /app
 
-# ── Bake the four ingredients the entrypoint needs ──────────────────────
+# ── Bake the ingredients the entrypoint + migrations need ─────────────
+# Migrations import `from app.database import Base` and
+# `from app.models import vocabulary, sentence` — so we have to ship
+# backend/app/ alongside backend/migrations/ into the image. Without
+# this, 0001_baseline raises "No module named 'app'" the first time
+# the db container starts on a fresh volume.
+#
 # Build context is the repo root, so these relative paths work.
 COPY backend/migrations/ /app/migrations/
+COPY backend/app/        /app/app/
 COPY db/importer.py       /app/importer.py
 COPY db/db_url.py         /app/db_url.py
 COPY cms/content/         /app/cms_content/
