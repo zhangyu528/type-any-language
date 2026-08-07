@@ -1,74 +1,80 @@
 """
 0001_baseline — capture the schema as of the Phase 1 / pre-Phase-2 state.
+
+Pure SQL, no SQLAlchemy ORM dependency. The schema here is a manual
+translation of backend/app/models/{vocabulary,sentence}.py as of the
+end of Phase 1. Keeping migrations in plain SQL has two payoffs:
+
+  1. The db image doesn't need to ship backend/app/ + pydantic + the
+     full ORM dependency tree. migrations.runner only needs sqlalchemy
+     and psycopg2-binary — both have cp314 musllinux wheels, no build
+     toolchain required.
+  2. The schema is reviewable as plain SQL, the way a DBA would write
+     it. Migrations no longer go through Base.metadata.create_all()'s
+     implicit CREATE TABLE synthesis, which is harder to diff.
+
+If you change a model in backend/app/models/, mirror the change here
+in a new migration (don't edit 0001 — it's already stamped as
+applied on every existing DB).
 """
 from __future__ import annotations
 
 version = "0001_baseline"
-description = "Baseline: capture the 3 content tables as declared by SQLAlchemy models"
-
-import os
-import sys
-from pathlib import Path
+description = "Baseline: 3 content tables (vocabulary_libs/words/sentences) + schema_migrations"
 
 
-def _ensure_backend_on_path() -> None:
-    """backend/app/models/*.py must be importable. The CMS host's
-    PYTHONPATH is `cms/tools/` (not `backend/`); add backend/ once.
-    """
-    backend_path = Path(__file__).resolve().parent.parent.parent.parent.parent.parent / "backend"
-    backend_path_str = str(backend_path)
-    if backend_path_str not in sys.path:
-        sys.path.insert(0, backend_path_str)
+# Hand-translated from backend/app/models/vocabulary.py + sentence.py
+# as of the end of Phase 1. CREATE TABLE IF NOT EXISTS is idempotent
+# so this is safe to re-run on a fresh DB or an existing one.
+_UPGRADE_SQL = r"""
+CREATE TABLE IF NOT EXISTS vocabulary_libs (
+    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    name        VARCHAR(100) NOT NULL,
+    level       VARCHAR(20)  NOT NULL,
+    word_count  INTEGER      NOT NULL DEFAULT 0,
+    created_at  TIMESTAMP    NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC')
+);
+
+CREATE TABLE IF NOT EXISTS vocabulary_words (
+    id             UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    lib_id         UUID         NOT NULL REFERENCES vocabulary_libs(id) ON DELETE CASCADE,
+    word           VARCHAR(100) NOT NULL,
+    phonetic       VARCHAR(100) NOT NULL DEFAULT '',
+    translation    TEXT         NOT NULL DEFAULT '',
+    part_of_speech VARCHAR(20)  NOT NULL DEFAULT '',
+    created_at     TIMESTAMP    NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC')
+);
+
+CREATE TABLE IF NOT EXISTS sentences (
+    id            UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+    lib_id        UUID    NOT NULL REFERENCES vocabulary_libs(id) ON DELETE CASCADE,
+    text          TEXT    NOT NULL,
+    chinese_text  TEXT    NOT NULL DEFAULT '',
+    audio_url     TEXT    NOT NULL DEFAULT '',
+    difficulty    VARCHAR(20) NOT NULL DEFAULT 'medium',
+    created_at    TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC')
+);
+"""
+
+_DOWNGRADE_SQL = r"""
+DROP TABLE IF EXISTS sentences           CASCADE;
+DROP TABLE IF EXISTS vocabulary_words    CASCADE;
+DROP TABLE IF EXISTS vocabulary_libs    CASCADE;
+DROP TABLE IF EXISTS schema_migrations  CASCADE;
+"""
 
 
 def upgrade(conn) -> None:
-    """Apply the baseline schema. CREATE TABLE IF NOT EXISTS semantics.
+    """Create the 3 content tables + the schema_migrations bookkeeping
+    table is owned by the runner (runner.ensure_schema_migrations_table
+    is called before this). We only declare the content schema here.
 
-    This migration is the starting point for all future schema changes.
-    It captures the schema as defined by the SQLAlchemy models at the
-    end of Phase 1: the 3 content tables (vocabulary_libs,
-    vocabulary_words, sentences) with all their columns including the
-    ones Phase 2 will later drop (is_cached, is_stale, refresh_count)
-    and missing the ones Phase 2 will add (vocabulary_words metadata,
-    sentences metadata, sentence_word_links).
-
-    For fresh DBs this creates the tables. For DBs that already have
-    them (i.e. were bootstrapped by the legacy `init_schema.py
-    create_all()` path before migrations existed) it's a no-op because
-    SQLAlchemy's create_all() emits `CREATE TABLE IF NOT EXISTS`.
+    CREATE TABLE IF NOT EXISTS makes this idempotent: existing DBs
+    no-op, fresh DBs get the 3 tables.
     """
-    _ensure_backend_on_path()
-
-    # Import inside the function so the migration doesn't fail at
-    # collection time on machines that don't have backend/ on PYTHONPATH
-    # (e.g. CI / lint / partial checkouts).
-    from sqlalchemy import create_engine  # noqa: E402
-
-    from app.database import Base  # noqa: E402
-    # Importing the model modules registers them on Base.metadata.
-    from app.models import vocabulary, sentence  # noqa: E402,F401
-
-    # Read DATABASE_URL directly — db/scripts/migrate.sh assembles it
-    # before invoking the runner (no longer via pipeline.env).
-    # This migration is called with a psycopg2 conn (from the runner),
-    # but the schema metadata is created via SQLAlchemy's create_all()
-    # which needs its own engine. Both end up talking to the same DB.
-    database_url = os.environ.get("DATABASE_URL", "").strip()
-    if not database_url:
-        sys.exit(
-            "DATABASE_URL is not set. db/scripts/migrate.sh should have "
-            "assembled it from POSTGRES_PASSWORD + code defaults before "
-            "invoking this migration."
-        )
-
-    engine = create_engine(database_url)
-    try:
-        # create_all() is idempotent: it emits `CREATE TABLE IF NOT EXISTS`
-        # (via SQLAlchemy's checkfirst=True default). Existing DBs no-op,
-        # fresh DBs get the 3 tables.
-        Base.metadata.create_all(engine)
-    finally:
-        engine.dispose()
+    with conn.cursor() as cur:
+        cur.execute(_UPGRADE_SQL)
+    conn.commit()
 
 
 def downgrade(conn) -> None:
@@ -78,7 +84,5 @@ def downgrade(conn) -> None:
     rollback to pre-migration state.
     """
     with conn.cursor() as cur:
-        cur.execute("DROP TABLE IF EXISTS sentences CASCADE")
-        cur.execute("DROP TABLE IF EXISTS vocabulary_words CASCADE")
-        cur.execute("DROP TABLE IF EXISTS vocabulary_libs CASCADE")
-        cur.execute("DROP TABLE IF EXISTS schema_migrations")
+        cur.execute(_DOWNGRADE_SQL)
+    conn.commit()

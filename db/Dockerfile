@@ -39,36 +39,20 @@ LABEL type-any-language.app.git-sha="${GIT_SHA}"
 # Note: alpine ships python3 + pip via apk, but the base postgres:15-alpine
 # image has none. We add them here.
 RUN apk add --no-cache python3 py3-pip \
-        # build-essential + postgresql-dev for compiling psycopg2-binary
-        # and pydantic-core wheels on cp314 (musllinux, no manylinux
-        # wheel available for our specific python + arch combo). These
-        # add ~80MB to the image but let `pip install` succeed where
-        # otherwise it tries to build from source and fails without cc.
-        gcc \
-        musl-dev \
-        postgresql-dev \
-        libffi-dev \
     && pip3 install --no-cache-dir --break-system-packages \
         'sqlalchemy==2.0.25' \
-        'psycopg2-binary==2.9.9' \
-        'pydantic==2.5.3' \
-        'pydantic-settings==2.1.0' \
-    # Drop the build toolchain so it doesn't ship in the final image.
-    # We don't need gcc on the runtime path; only pip install needed it.
-    && apk del gcc musl-dev postgresql-dev libffi-dev
+        'psycopg2-binary==2.9.9'
+# Note: no pydantic / pydantic-settings anymore. Migrations are pure
+# SQL (see backend/migrations/versions/0001_baseline.py), so the image
+# only needs sqlalchemy + psycopg2-binary. Both have cp314 musllinux
+# wheels published, so this layer doesn't need a C toolchain.
 
 WORKDIR /app
 
 # ── Bake the ingredients the entrypoint + migrations need ─────────────
-# Migrations import `from app.database import Base` and
-# `from app.models import vocabulary, sentence` — so we have to ship
-# backend/app/ alongside backend/migrations/ into the image. Without
-# this, 0001_baseline raises "No module named 'app'" the first time
-# the db container starts on a fresh volume.
-#
 # Build context is the repo root, so these relative paths work.
+# Note: we DON'T copy backend/app/ — migrations don't import it anymore.
 COPY backend/migrations/ /app/migrations/
-COPY backend/app/        /app/app/
 COPY db/importer.py       /app/importer.py
 COPY db/db_url.py         /app/db_url.py
 COPY cms/content/         /app/cms_content/
