@@ -24,6 +24,10 @@ COPY scripts/install.mjs ./scripts/install.mjs
 # --ignore-scripts anymore.
 RUN npm ci
 
+# Copy the source tree WITHOUT the build output. The build runs
+# below, after this COPY — we don't `COPY . .` here because that
+# would have to be re-done post-build anyway, and double-copying
+# `node_modules` blows up the image.
 COPY . .
 
 ARG NEXT_PUBLIC_API_URL=http://localhost/api
@@ -38,6 +42,17 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN npm run build
 
 EXPOSE 80
+
+# Next.js 'standalone' output mode produces a self-contained
+# .next-build/standalone/ tree, but DOES NOT copy the static
+# assets (.next/static) or the public/ directory — those are served
+# at runtime as plain files. Without the explicit copies below,
+# the browser sees the page HTML (server.js handles the SSR)
+# but every /_next/static/* request 404s. This is the
+# recommended pattern in the Next.js docs at
+# https://nextjs.org/docs/pages/api-reference/next-config-js/output#automatically-copying-traced-files
+RUN cp -r .next-build/static .next-build/standalone/.next/static && \
+    cp -r public .next-build/standalone/public 2>/dev/null || true
 
 # Match scripts/build.mjs DEFAULT_DIST_DIR (.next-build). Next's
 # standalone build self-deployed mode emits the minimal server.js
