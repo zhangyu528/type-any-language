@@ -51,8 +51,18 @@ EXPOSE 80
 # but every /_next/static/* request 404s. This is the
 # recommended pattern in the Next.js docs at
 # https://nextjs.org/docs/pages/api-reference/next-config-js/output#automatically-copying-traced-files
-RUN cp -r .next-build/static .next-build/standalone/.next/static && \
-    cp -r public .next-build/standalone/public 2>/dev/null || true
+#
+# IMPORTANT: `cp -r src dest` will NOT create intermediate parents of
+# `dest`, so `mkdir -p` first. And do NOT mask a static-copy failure with
+# `|| true` — a previous version did exactly that, the copy silently
+# failed (the .next parent didn't exist), and the build "succeeded" while
+# shipping an image with no static assets. The static copy MUST fail the
+# build loudly if it ever can't run.
+RUN mkdir -p .next-build/standalone/.next && \
+    cp -r .next-build/static .next-build/standalone/.next/static
+# public/ is optional in this app (assets live under /_next/static). Copy
+# it if present, but never let a missing public/ fail the build.
+RUN cp -r public .next-build/standalone/public 2>/dev/null || true
 
 # Match scripts/build.mjs DEFAULT_DIST_DIR (.next-build). Next's
 # standalone build self-deployed mode emits the minimal server.js

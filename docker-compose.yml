@@ -154,17 +154,17 @@ services:
       - "127.0.0.1:3000:3000"
     # Export the standalone build's static assets to a host path so the
     # system nginx can serve /_next/static/ directly (faster + removes the
-    # dependency on the Node server serving hashed static files — the
-    # exact failure class that 404s every /_next/static/* when the image
-    # was built without the Dockerfile's `cp -r .next-build/static
-    # .next-build/standalone/.next/static` step). The command copies the
-    # baked-in static -> /static-export at boot (idempotent; runs on every
-    # recreate so new builds refresh the cache-busted filenames), then runs
-    # server.js. If the copy fails (e.g. stale image), nginx falls back to
-    # proxying /_next/static to Node — see ops/prod/nginx.conf.
+    # dependency on the Node server serving hashed static files). The
+    # static assets live at /app/.next-build/static (the build output),
+    # NOT under .next-build/standalone/.next/static — the standalone
+    # server does NOT auto-populate that path, which is exactly why every
+    # /_next/static/* request 404'd. So the command copies from the REAL
+    # build-output location, after `mkdir -p` (cp -r won't create the
+    # intermediate parent dir), then runs server.js. This runs on every
+    # recreate so new builds refresh the cache-busted filenames.
     volumes:
       - /var/lib/type-any-language/frontend-static:/static-export:rw
-    command: sh -c "cp -rf /app/.next-build/standalone/.next/static /static-export/.next/static 2>/dev/null; cp -rf /app/.next-build/standalone/public /static-export/public 2>/dev/null; exec node /app/.next-build/standalone/server.js"
+    command: sh -c "mkdir -p /static-export/.next && cp -rf /app/.next-build/static /static-export/.next/static; exec node /app/.next-build/standalone/server.js"
 
   # -------------------------------------------------------------------------
   # nginx — reverse proxy on :80.
