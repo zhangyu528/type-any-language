@@ -37,7 +37,13 @@ cmd_start() {
     info "启动生产容器 (db + backend + nginx)..."
     # --no-build: on the RUN host we PULL from ${DOCKER_REGISTRY} (GHCR),
     # never build locally. (Build is the CI build-side job.)
-    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d --no-build
+    # --parallel=1: serialize image pulls. With the default (-1, unlimited)
+    # compose fans out one stream per service in parallel; on a CVM with a
+    # rate-limited egress to GHCR this saturates the per-IP concurrent
+    # connection cap and each stream crawls at ~16-75 KB/s — 4 streams of
+    # ~450MB then never finish within the 1800s command_timeout. Serializing
+    # concentrates all bandwidth on a single stream and finishes in minutes.
+    $DOCKER_COMPOSE_CMD --parallel=1 -f "$COMPOSE_FILE" up -d --no-build
     ok "服务已启动"
     echo -e "  前端:   ${_LIB_BLUE}http://localhost${_LIB_NC}"
     echo -e "  API:    ${_LIB_BLUE}http://localhost/api/docs${_LIB_NC}"
@@ -71,7 +77,8 @@ cmd_restart() {
     # We also recreate frontend and nginx so new image tags take effect.
     # --no-build: PULL the new tags from ${DOCKER_REGISTRY} (GHCR) instead
     # of building locally.
-    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d --no-deps --force-recreate --no-build db backend frontend nginx
+    # --parallel=1: serialize image pulls (see cmd_start for the why).
+    $DOCKER_COMPOSE_CMD --parallel=1 -f "$COMPOSE_FILE" up -d --no-deps --force-recreate --no-build db backend frontend nginx
 
     backend_after=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}" 2>/dev/null || true)
     frontend_after=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}" 2>/dev/null || true)
