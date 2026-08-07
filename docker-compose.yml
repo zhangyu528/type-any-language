@@ -152,6 +152,19 @@ services:
     # internet directly.
     ports:
       - "127.0.0.1:3000:3000"
+    # Export the standalone build's static assets to a host path so the
+    # system nginx can serve /_next/static/ directly (faster + removes the
+    # dependency on the Node server serving hashed static files — the
+    # exact failure class that 404s every /_next/static/* when the image
+    # was built without the Dockerfile's `cp -r .next-build/static
+    # .next-build/standalone/.next/static` step). The command copies the
+    # baked-in static -> /static-export at boot (idempotent; runs on every
+    # recreate so new builds refresh the cache-busted filenames), then runs
+    # server.js. If the copy fails (e.g. stale image), nginx falls back to
+    # proxying /_next/static to Node — see ops/prod/nginx.conf.
+    volumes:
+      - /var/lib/type-any-language/frontend-static:/static-export:rw
+    command: sh -c "cp -rf /app/.next-build/standalone/.next/static /static-export/.next/static 2>/dev/null; cp -rf /app/.next-build/standalone/public /static-export/public 2>/dev/null; exec node /app/.next-build/standalone/server.js"
 
   # -------------------------------------------------------------------------
   # nginx — reverse proxy on :80.
