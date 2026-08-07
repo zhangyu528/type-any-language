@@ -139,10 +139,12 @@ services:
       args:
         APP_VERSION: ${FRONTEND_IMAGE_TAG:-latest}
         GIT_SHA: ${GIT_SHA:-unknown}
-        # The browser's API base URL. /api is fine when nginx is the
-        # entrypoint (it routes /api/ to backend). Override for cross-
-        # origin setups (e.g. NEXT_PUBLIC_API_URL=https://api.example.com).
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
+        # The browser's API base URL. Use "/" for same-origin prod: nginx
+        # already routes /api/ -> backend, and the client appends the "/api"
+        # segment itself, so a "/api" base would DOUBLE it (/api/api/...).
+        # Override for cross-origin setups
+        # (e.g. NEXT_PUBLIC_API_URL=https://api.example.com).
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/}
     restart: unless-stopped
     depends_on:
       - backend

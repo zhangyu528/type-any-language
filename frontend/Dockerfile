@@ -30,7 +30,7 @@ RUN npm ci
 # `node_modules` blows up the image.
 COPY . .
 
-ARG NEXT_PUBLIC_API_URL=http://localhost/api
+ARG NEXT_PUBLIC_API_URL=/
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 # Build via scripts/build.mjs (the canonical entry point). It
