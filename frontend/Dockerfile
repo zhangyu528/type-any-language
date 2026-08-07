@@ -32,7 +32,11 @@ COPY scripts/install.mjs ./scripts/install.mjs
 # the build is fast and deterministic. The standalone runtime output
 # (.next-build/standalone) still excludes them by tracing, so the running
 # container never pays for them.
-RUN npm ci --include=dev
+# Harden against transient registry blips: the lockfile pins packages to
+# registry.npmmirror.com, which occasionally 502s a single tarball and makes
+# `npm ci` hard-fail the whole build (seen 2026-08-07: npmmirror 502 on
+# caniuse-lite). Retry instead of dying.
+RUN npm ci --include=dev --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000
 
 # Copy the source tree WITHOUT the build output. The build runs
 # below, after this COPY — we don't `COPY . .` here because that
