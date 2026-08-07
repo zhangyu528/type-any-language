@@ -112,7 +112,22 @@ cmd_restart() {
       docker pull "$target" || warn "  $target pull finished with non-zero (likely referrer-timeout); proceeding if image is locally present"
     done
     echo ''
-    $DOCKER_COMPOSE_CMD --parallel=1 -f "$COMPOSE_FILE" up -d --no-deps --force-recreate --no-build db backend frontend nginx
+
+    # Tear down whatever is currently running BEFORE we try to bring
+    # the new set up. `up -d --force-recreate` alone won't release
+    # host port bindings that an old container is still holding in a
+    # half-torn-down state — and a stale nginx container (e.g. left
+    # over from a cancelled previous deploy) will keep host port 80
+    # occupied so the new nginx fails to start. `down` is the only
+    # way to force-release host ports cleanly; it tears down the
+    # whole stack but compose reuses image layers so it's fast
+    # (typically <2s) and the bind-mounted /var/lib/.../postgres
+    # survives untouched.
+    info "tearing down any running containers (releases host ports)..."
+    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" down --remove-orphans || true
+    sleep 2
+
+    $DOCKER_COMPOSE_CMD --parallel=1 -f "$COMPOSE_FILE" up -d --no-deps --no-build db backend frontend nginx
 
     backend_after=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}" 2>/dev/null || true)
     frontend_after=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}" 2>/dev/null || true)
