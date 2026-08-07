@@ -116,6 +116,11 @@ services:
     # See db service above for why this block is needed.
     secrets:
       - db_password
+    # Expose to host so the system nginx can reverse-proxy to it
+    # (see ops/prod/nginx.conf + ops/prod/site.link). Compose-internal
+    # routing still uses backend:8000 from the frontend container.
+    ports:
+      - "127.0.0.1:8000:8000"
 
   # -------------------------------------------------------------------------
   # Frontend — Next.js standalone build. Browser hits nginx, which
@@ -136,6 +141,12 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+    # Expose to host so the system nginx can reverse-proxy to it
+    # (see ops/prod/nginx.conf + ops/prod/site.link). Same 127.0.0.1
+    # bind as backend — host-only, never reachable from the public
+    # internet directly.
+    ports:
+      - "127.0.0.1:3000:3000"
 
   # -------------------------------------------------------------------------
   # nginx — reverse proxy on :80.
@@ -147,12 +158,9 @@ services:
   # exit non-zero even though the image layers themselves downloaded fine.
   # Pulling through GHCR sidesteps the referrer query entirely.
   # -------------------------------------------------------------------------
-  nginx:
-    image: ${DOCKER_REGISTRY}/nginx:alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    volumes:
-      - ./ops/prod/nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - frontend
+  # Note: the dockerised nginx service was removed in favor of the
+  # host's system nginx (this CVM ships nginx via apt). The system
+  # nginx reads ops/prod/nginx.conf and reverse-proxies to the
+  # backend + frontend exposed on host 127.0.0.1 (see ports: above).
+  # bootstrap-prod installs the symlink automatically; see
+  # ops/prod/bootstrap.sh::install_nginx_site_link.
