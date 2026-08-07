@@ -359,6 +359,12 @@ jobs:
             echo '======================================================'
             echo '## 7. VERIFY: docker pull english_frontend (post-mirror, expect fast)'
             echo '======================================================'
+            # Drop the image first so the pull is a real download, not a
+            # cache hit. Otherwise after the previous pull_frontend run
+            # local cache would mask whether the mirror actually works.
+            echo '--- (dropping local frontend image to force a real pull) ---'
+            sudo docker rmi -f ghcr.io/zhangyu528/type-any-language/english_frontend:v0.1.0 2>&1 || true
+            echo ''
             /usr/bin/time -f "real=%e" \
               sudo docker pull ghcr.io/zhangyu528/type-any-language/english_frontend:v0.1.0 \
               || echo '(pull failed)'
