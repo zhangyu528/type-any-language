@@ -39,4 +39,12 @@ RUN npm run build
 
 EXPOSE 80
 
-CMD ["node", ".next/standalone/server.js"]
+# Match scripts/build.mjs DEFAULT_DIST_DIR (.next-build). Next's
+# standalone build self-deployed mode emits the minimal server.js
+# into <distDir>/standalone/ — so when distDir=.next-build the
+# entrypoint lives at .next-build/standalone/server.js. Earlier
+# revisions used .next/standalone/server.js but build.mjs has since
+# moved the build output to .next-build so the dev server's own
+# .next/ directory stays untouched (see scripts/build.mjs for the
+# rationale).
+CMD ["node", ".next-build/standalone/server.js"]
