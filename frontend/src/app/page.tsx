@@ -85,7 +85,11 @@ export default function PracticePage() {
           Promise.resolve(loadTranslationProgress()),
         ]);
         if (cancelled) return;
-        if (c.libs.length === 0) return;
+        // NOTE: do NOT early-return on an empty catalog here. Setting the
+        // catalog (even with libs: []) lets the render below reach its
+        // "暂无课程" empty-state branch. The previous early `return` left
+        // `catalog` null forever, so the page was stuck on the
+        // `!catalog` Loading branch with no error — a silent hang.
         setCatalog(c);
         setTranslationProgress(tp);
 

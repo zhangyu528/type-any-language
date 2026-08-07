@@ -75,6 +75,17 @@ services:
       POSTGRES_USER: english_prod
       POSTGRES_PASSWORD_FILE: /run/secrets/db_password  # see secrets: above
       POSTGRES_DB: english_prod
+      # Importer reads CMS content from this dir. db/Dockerfile bakes
+      # cms/content/ into /app/cms_content/ in the image. Without this
+      # env var, importer.py::find_content_dir() falls back to
+      # find_project_root()/"cms"/"content" — but find_project_root() is
+      # Path("/app/importer.py").parent.parent == "/", so it looks at the
+      # non-existent /cms/content, finds nothing, and the DB stays empty
+      # (vocabulary_libs has 0 rows) → /api/content/catalog returns
+      # {"libs":[]} → homepage spins on an empty catalog forever.
+      # Setting this makes the importer import on every db start (idempotent
+      # UPSERT), so the catalog is populated after a db recreate.
+      CMS_CONTENT_DIR: /app/cms_content
     # Mount the db_password secret so POSTGRES_PASSWORD_FILE resolves.
     # Without this block, the file exists at the top-level `secrets:`
     # config but is never injected into this container, and the
