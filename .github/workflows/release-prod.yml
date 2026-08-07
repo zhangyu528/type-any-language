@@ -59,7 +59,23 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'X.Y.Z (without v prefix) to bump + release'
+        # ── SemVer bump 选择 (选择合适的 X.Y.Z) ──────────────────────
+        # 1. PATCH  (X.Y.Z → X.Y.{Z+1})  — 默认选择
+        #    修 bug / 性能优化 / typo / 内部重构 / 文档
+        #    用户升级不需要改代码
+        #
+        # 2. MINOR  (X.Y.0)             — 仅在"明确发新功能"时
+        #    加新功能 / 新 API endpoint / 新页面
+        #    用户升级不需要改代码
+        #
+        # 3. MAJOR  (X.0.0)             — API 破坏性变更
+        #    重命名/删除公开 API / 不兼容的接口改动
+        #    用户升级必须改代码
+        #
+        # 本项目还在 0.x.y, 所以破坏性变更也可以用 MINOR.
+        # 日常修复用 PATCH 就够了.
+        # ──────────────────────────────────────────────────────────
+        description: 'X.Y.Z (without v prefix) — 见上面 SemVer 规则. 日常修选用 PATCH.'
         required: true
         type: string
         pattern: '^\d+\.\d+\.\d+$'
