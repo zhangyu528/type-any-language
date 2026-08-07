@@ -161,12 +161,22 @@ services:
     # NOT under .next-build/standalone/.next/static — the standalone
     # server does NOT auto-populate that path, which is exactly why every
     # /_next/static/* request 404'd. So the command copies from the REAL
-    # build-output location, after `mkdir -p` (cp -r won't create the
-    # intermediate parent dir), then runs server.js. This runs on every
-    # recreate so new builds refresh the cache-busted filenames.
+    # build-output location into the export mount, then runs server.js.
+    #
+    # Why `rm -rf` first (not just `cp -rf`): on a recreate the host export
+    # dir already exists, and `cp -rf src dest` where dest exists nests the
+    # source inside it (dest/static/...), so fresh hash-busted filenames
+    # would land in the wrong place and nginx would 404 them every time.
+    # Wiping + re-copying gives a clean layout on every recreate.
+    #
+    # Why `&&` (fail-fast), NOT `;`: if the build output is ever missing,
+    # a `;` lets node start anyway with an EMPTY export dir → page loads
+    # but every /_next/static/* 404s (silent, hard to spot in prod). With
+    # `&&`, a failed copy crashes the container loudly so a broken image
+    # can never ship a working-looking-but-static-less deploy.
     volumes:
       - /var/lib/type-any-language/frontend-static:/static-export:rw
-    command: sh -c "mkdir -p /static-export/.next && cp -rf /app/.next-build/static /static-export/.next/static; exec node /app/.next-build/standalone/server.js"
+    command: sh -c "rm -rf /static-export/.next/static && cp -rf /app/.next-build/static /static-export/.next/static && exec node /app/.next-build/standalone/server.js"
 
   # -------------------------------------------------------------------------
   # nginx — reverse proxy on :80.
