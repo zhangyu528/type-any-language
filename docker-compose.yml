@@ -111,8 +111,13 @@ services:
         condition: service_healthy
     environment:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost}
-      # Internal compose network — backend dials the db service by name.
-      DATABASE_URL: postgresql://english_prod:$(cat /run/secrets/db_password)@db:5432/english_prod
+      # DATABASE_URL is assembled at container start by
+      # backend/image-entrypoint.sh, which reads /run/secrets/db_password
+      # and exports the resulting DSN into this container's env. compose's
+      # environment: block doesn't run a shell, so we can't inline the
+      # secret read here — instead, the entrypoint does it once at boot.
+      # Compose syntax doesn't allow `$(cat ...)` expansion; it would
+      # land in the env as the literal string "$(cat ...)".
     # See db service above for why this block is needed.
     secrets:
       - db_password
