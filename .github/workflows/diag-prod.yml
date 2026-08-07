@@ -118,9 +118,11 @@ jobs:
             echo '## 2. write new daemon.json (4 mirrors)'
             echo '======================================================'
             # Inline JSON via printf to dodge yaml block scalar indent rules.
+            # The printf + redirect + python -c all need to run as root (the
+            # > redirect doesn't pick up the preceding sudo).
             sudo mkdir -p /etc/docker
-            sudo printf '%s' '{"registry-mirrors":["https://mirror.ccs.tencentyun.com","https://docker.m.daocloud.io","https://ghcr.m.daocloud.io","https://ghcr.nju.edu.cn"]}' > /etc/docker/daemon.json
-            sudo python3 -c 'import json,sys;p=json.load(open("/etc/docker/daemon.json"));json.dump(p,open("/etc/docker/daemon.json","w"),indent=2)'
+            sudo bash -c 'printf "%s" "{\"registry-mirrors\":[\"https://mirror.ccs.tencentyun.com\",\"https://docker.m.daocloud.io\",\"https://ghcr.m.daocloud.io\",\"https://ghcr.nju.edu.cn\"]}" > /etc/docker/daemon.json'
+            sudo python3 -c 'import json; p=json.load(open("/etc/docker/daemon.json")); json.dump(p, open("/etc/docker/daemon.json","w"), indent=2)'
             echo '--- new daemon.json ---'
             sudo cat /etc/docker/daemon.json
             echo ''
