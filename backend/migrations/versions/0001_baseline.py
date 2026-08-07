@@ -50,9 +50,16 @@ CREATE TABLE IF NOT EXISTS sentences (
     lib_id        UUID    NOT NULL REFERENCES vocabulary_libs(id) ON DELETE CASCADE,
     text          TEXT    NOT NULL,
     chinese_text  TEXT    NOT NULL DEFAULT '',
-    audio_url     TEXT    NOT NULL DEFAULT '',
-    difficulty    VARCHAR(20) NOT NULL DEFAULT 'medium',
-    created_at    TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC')
+    target_words  TEXT[]  NOT NULL DEFAULT '{}',
+    audio_url     VARCHAR(500) NOT NULL DEFAULT '',
+    difficulty    VARCHAR(20) NOT NULL DEFAULT 'beginner',
+    topic         VARCHAR(50),       -- daily_life | business | travel | ...
+    register      VARCHAR(20),       -- formal | neutral | informal | slang
+    cefr          VARCHAR(2),        -- A1 / A2 / B1 / B2 / C1 / C2
+    tags          TEXT[],           -- free-form array
+    use_count     INTEGER NOT NULL DEFAULT 0,
+    created_at    TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+    last_used_at  TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC')
 );
 """
 
