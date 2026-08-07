@@ -103,7 +103,13 @@ cmd_restart() {
       else
         target="${DOCKER_REGISTRY}/${img}"
       fi
-      sudo docker pull "$target" || warn "  $target pull finished with non-zero (likely referrer-timeout); proceeding if image is locally present"
+      # Pull without sudo: the script runs as the `deploy` user (set up
+      # by bootstrap-prod), which is in the `docker` group (see
+      # bootstrap-prod.yml:134-139). NOPASSWD sudoers only covers
+      # /bin/mkdir + /bin/chown (per bootstrap-prod.yml:107), so
+      # `sudo docker …` would prompt for a password and fail in a
+      # non-interactive SSH session.
+      docker pull "$target" || warn "  $target pull finished with non-zero (likely referrer-timeout); proceeding if image is locally present"
     done
     echo ''
     $DOCKER_COMPOSE_CMD --parallel=1 -f "$COMPOSE_FILE" up -d --no-deps --force-recreate --no-build db backend frontend nginx
