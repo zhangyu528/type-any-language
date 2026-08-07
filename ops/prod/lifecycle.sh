@@ -78,6 +78,33 @@ cmd_restart() {
     # --no-build: PULL the new tags from ${DOCKER_REGISTRY} (GHCR) instead
     # of building locally.
     # --parallel=1: serialize image pulls (see cmd_start for the why).
+    # Pre-pull each image up front with || true so a referrer-timeout on
+    # docker.io images (nginx) doesn't fail the whole compose up — the
+    # image itself is already pulled by the time we get to `up -d`, so
+    # compose sees it locally and skips the pull-with-attestation step.
+    # nginx is hardcoded in docker-compose.yml as `nginx:alpine` from
+    # docker.io (see docker-compose.yml:137); the 3 custom images come
+    # from ${DOCKER_REGISTRY} which is set from $vars.DOCKER_REGISTRY in
+    # the deploy-prod workflow.
+    info "pre-pulling 4 images individually (tolerate referrer failures)..."
+    for img in \
+      "${DB_IMAGE}:${DB_IMAGE_TAG}" \
+      "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}" \
+      "${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}" \
+      "nginx:alpine"
+    do
+      # DOCKER_REGISTRY is only meaningful for the 3 custom images; for
+      # docker.io images (nginx) pull bare. But try with the registry
+      # prefix first since it doesn't hurt — dockerd will resolve and
+      # fall back to docker.io if needed.
+      if [[ "$img" == "nginx:alpine" ]]; then
+        target="nginx:alpine"
+      else
+        target="${DOCKER_REGISTRY}/${img}"
+      fi
+      sudo docker pull "$target" || warn "  $target pull finished with non-zero (likely referrer-timeout); proceeding if image is locally present"
+    done
+    echo ''
     $DOCKER_COMPOSE_CMD --parallel=1 -f "$COMPOSE_FILE" up -d --no-deps --force-recreate --no-build db backend frontend nginx
 
     backend_after=$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" images -q "${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}" 2>/dev/null || true)
