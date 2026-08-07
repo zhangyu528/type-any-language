@@ -130,6 +130,44 @@ jobs:
               echo "[bootstrap] Docker already present"
             fi
 
+            # ── Configure ghcr.io mirror via /etc/docker/certs.d ─────────────
+            # Docker daemon reads /etc/docker/certs.d/<registry>/hosts.toml
+            # for non-docker.io registries (ghcr.io, gcr.io, quay.io, etc.).
+            # daemon.json's registry-mirrors only applies to docker.io —
+            # putting ghcr.io there is a no-op. /etc/containerd/certs.d is
+            # the wrong path (system containerd has cri disabled, and the
+            # hosts.toml there isn't read by dockerd's image puller).
+            #
+            # Without this, deploy-prod pulls english_backend /
+            # english_frontend / english_db / nginx directly from
+            # ghcr.io, which is rate-limited on the CVM egress and
+            # crawls at ~1 MB/s per stream (deploy-prod fails its 1800s
+            # command_timeout on the 246 MB frontend layer).
+            #
+            # The two hosts here are public reverse-proxies for ghcr.io:
+            #   ghcr.m.daocloud.io  — DaoCloud (Shanghai)
+            #   ghcr.nju.edu.cn     — Nanjing University mirror
+            # We do NOT add Tencent Cloud's mirror.ccs.tencentyun.com/ghcr
+            # here — its path-prefix API isn't a clean hosts.toml host and
+            # needs a separate test before trusting it.
+            GHCR_HOSTS_TOML=/etc/docker/certs.d/ghcr.io/hosts.toml
+            if [ ! -s "$GHCR_HOSTS_TOML" ] || ! grep -q 'ghcr.m.daocloud.io' "$GHCR_HOSTS_TOML"; then
+              sudo mkdir -p /etc/docker/certs.d/ghcr.io
+              # Write the TOML via printf %s\n — keeps it col-0 and dodges
+              # the yaml block scalar indent trap.
+              sudo bash -c 'printf "%s\n" \
+                "server = \"https://ghcr.io\"" \
+                "" \
+                "[host.\"https://ghcr.m.daocloud.io\"]" \
+                "  capabilities = [\"pull\", \"resolve\"]" \
+                "[host.\"https://ghcr.nju.edu.cn\"]" \
+                "  capabilities = [\"pull\", \"resolve\"]" \
+                > "$1"' bash "$GHCR_HOSTS_TOML"
+              echo "[bootstrap] wrote $GHCR_HOSTS_TOML"
+            else
+              echo "[bootstrap] $GHCR_HOSTS_TOML already configured"
+            fi
+
             # Let deploy run docker without sudo (required for `docker compose`).
             if ! id -nG "$DEPLOY_USER" | tr ' ' '\n' | grep -qx docker; then
               sudo usermod -aG docker "$DEPLOY_USER"
