@@ -1,4 +1,4 @@
-name: bootstrap-prod
+﻿name: bootstrap-prod
 run-name: bootstrap-prod-on-${{ inputs.host || 'auto' }}
 
 # -----------------------------------------------------------------------

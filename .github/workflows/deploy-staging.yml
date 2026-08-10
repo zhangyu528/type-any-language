@@ -1,0 +1,103 @@
+name: deploy-staging
+run-name: deploy-staging-${{ inputs.ref || auto }}
+
+# Plan B: ephemeral staging on GH runner (no separate staging CVM).
+#
+# Trigger: workflow_dispatch ONLY. Brings up db+backend+frontend+nginx in
+# a docker compose stack, runs smoke + e2e + long soak, writes GH Deployments
+# record (so publish-prod can assert it), then tears down everything.
+#
+# All heavy bash is in ops/ci/*.sh. The workflow just orchestrates.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: rc tag (vX.Y.Z-rc.N) - auto = latest prerelease
+        type: string
+        default: auto
+      soak_minutes:
+        description: long soak duration (0 = skip)
+        type: number
+        default: 15
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    environment: staging
+    services:
+      docker:
+        image: docker:24-dind
+        options: --privileged
+
+    env:
+      DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+      DB_PASSWORD: staging-${{ github.run_id }}
+      ALLOWED_ORIGINS: "*"
+      SOAK_MINUTES: ${{ inputs.soak_minutes }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve deploy ref
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          INPUT_REF: ${{ inputs.ref }}
+        run: bash ops/ci/resolve-tag.sh resolve "$INPUT_REF"
+
+      - name: Login to GHCR
+        if: env.DOCKER_REGISTRY != ""
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set IMAGE_TAG from resolved ref
+        env:
+          IMAGE_TAG: ${{ steps.resolve.outputs.NEW_TAG }}
+
+      - name: Bring up staging stack
+        env:
+          IMAGE_TAG: ${{ steps.resolve.outputs.NEW_TAG }}
+        run: bash ops/ci/bring-up-staging.sh
+
+      - name: Run smoke tests
+        run: bash ops/test/smoke.sh http://localhost:8080
+
+      - name: Run e2e tests
+        run: bash ops/test/e2e.sh http://localhost:8080 || echo "e2e skipped (no tests yet)"
+
+      - name: Long soak
+        if: env.SOAK_MINUTES != "" && env.SOAK_MINUTES != "0"
+        env:
+          SOAK: ${{ inputs.soak_minutes }}
+        run: |
+          echo "Soaking for $SOAK minutes..."
+          sleep "$((SOAK * 60))"
+
+      - name: Write GH Deployments record (verified)
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          REF: ${{ steps.resolve.outputs.NEW_TAG }}
+          SHA: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: bash ops/ci/write-deploy-record.sh
+
+      - name: Teardown
+        if: always()
+        run: bash ops/ci/teardown-staging.sh

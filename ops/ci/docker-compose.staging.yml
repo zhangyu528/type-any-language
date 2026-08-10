@@ -1,0 +1,61 @@
+# Ephemeral staging compose (plan B: runs on GH runner, not a separate CVM).
+#
+# Architecture (single entry point via nginx):
+#   cloudflared tunnel -> nginx:8080 -> { /api -> backend:8000, / -> frontend:3000 }
+#
+# Key differences from prod/docker-compose.yml:
+#   - Nginx IS in compose (prod uses host system nginx; ephemeral has no host)
+#   - No bind-mounts for data (ephemeral - gone when workflow ends)
+#   - No .secrets/ file - password passed via DB_PASSWORD env var
+#   - Frontend uses relative NEXT_PUBLIC_API_URL=/api (same-origin, no CORS)
+#   - Only nginx port (8080) is exposed to host (others are internal-only)
+#
+# Triggered by .github/workflows/deploy-staging.yml and deploy-staging-review.yml.
+
+services:
+  db:
+    image: ${DOCKER_REGISTRY}/english_db:${IMAGE_TAG}
+    container_name: tal-staging-db
+    environment:
+      POSTGRES_USER: english_staging
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: english_staging
+      CMS_CONTENT_DIR: /app/cms_content
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U english_staging -d english_staging"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    image: ${DOCKER_REGISTRY}/english_backend:${IMAGE_TAG}
+    container_name: tal-staging-backend
+    environment:
+      DATABASE_URL: postgresql://english_staging:${DB_PASSWORD}@db:5432/english_staging
+    depends_on:
+      db:
+        condition: service_healthy
+    # No host port - nginx proxies to backend:8000 via compose network
+
+  frontend:
+    image: ${DOCKER_REGISTRY}/english_frontend:${IMAGE_TAG}
+    container_name: tal-staging-frontend
+    environment:
+      # Relative path - browser calls /api/... on same origin (via nginx)
+      NEXT_PUBLIC_API_URL: /api
+    depends_on:
+      - backend
+    # No host port - nginx proxies to frontend:3000 via compose network
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: tal-staging-nginx
+    volumes:
+      - ./nginx.staging.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - frontend
+    ports:
+      - "127.0.0.1:8080:8080"  # exposed for cloudflared tunnel + tests
+    restart: unless-stopped

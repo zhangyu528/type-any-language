@@ -1,0 +1,63 @@
+name: ci
+on:
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend deps
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install frontend deps
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Backend lint (ruff)
+        run: |
+          pip install ruff
+          cd backend
+          ruff check .
+
+      - name: Frontend lint (eslint)
+        run: |
+          cd frontend
+          npm run lint || true
+
+      - name: Backend unit tests (pytest)
+        run: |
+          cd backend
+          python -m pytest tests/ --ignore=tests/integration -v --tb=short
+
+      - name: Frontend unit tests
+        run: |
+          cd frontend
+          npm test

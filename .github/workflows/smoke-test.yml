@@ -1,0 +1,70 @@
+name: smoke-test
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: target environment
+        required: true
+        type: choice
+        default: staging
+        options:
+          - staging
+          - prod
+      url:
+        description: override target URL (default = env domain)
+        required: false
+        type: string
+        default: ""
+      wait_seconds:
+        description: initial wait (e.g. let service start)
+        required: false
+        type: number
+        default: 0
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.env }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve target URL
+        id: url
+        env:
+          ENV: ${{ inputs.env }}
+          URL_OVERRIDE: ${{ inputs.url }}
+        run: |
+          if [ -n "$URL_OVERRIDE" ]; then
+            URL="$URL_OVERRIDE"
+          elif [ "$ENV" = "staging" ]; then
+            URL="${STAGING_DOMAIN:-https://staging.example.com}"
+          else
+            URL="${PROD_DOMAIN:-https://my.domain}"
+          fi
+          echo "URL=$URL" >> "$GITHUB_OUTPUT"
+          echo "Target URL: $URL"
+
+      - name: Wait (let service stabilize)
+        if: inputs.wait_seconds > 0
+        run: |
+          echo "Waiting ${{ inputs.wait_seconds }}s before testing..."
+          sleep ${{ inputs.wait_seconds }}
+
+      - name: Run smoke tests
+        env:
+          TARGET_URL: ${{ steps.url.outputs.URL }}
+        run: |
+          set -e
+          chmod +x ops/test/smoke.sh 2>/dev/null || true
+          bash ops/test/smoke.sh "$TARGET_URL"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "Smoke test run for env=${{ inputs.env }} url=${{ steps.url.outputs.URL }} done."
+          echo "Result: ${{ job.status }}"
+          fi

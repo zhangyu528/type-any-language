@@ -1,0 +1,86 @@
+name: e2e-test
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: target environment
+        required: true
+        type: choice
+        default: staging
+        options:
+          - staging
+          - prod
+      url:
+        description: override target URL (default = env domain)
+        required: false
+        type: string
+        default: ""
+      headless:
+        description: run browser in headless mode (no display)
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.env }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve target URL
+        id: url
+        env:
+          ENV: ${{ inputs.env }}
+          URL_OVERRIDE: ${{ inputs.url }}
+        run: |
+          if [ -n "$URL_OVERRIDE" ]; then
+            URL="$URL_OVERRIDE"
+          elif [ "$ENV" = "staging" ]; then
+            URL="${STAGING_DOMAIN:-https://staging.example.com}"
+          else
+            URL="${PROD_DOMAIN:-https://my.domain}"
+          echo "URL=$URL" >> "$GITHUB_OUTPUT"
+          echo "Target URL: $URL"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install playwright browsers
+        run: |
+          cd frontend
+          npm install --no-save @playwright/test
+          npx playwright install --with-deps chromium
+
+      - name: Run e2e tests
+        env:
+          TARGET_URL: ${{ steps.url.outputs.URL }}
+          HEADLESS: ${{ inputs.headless }}
+        run: |
+          set -e
+          chmod +x ops/test/e2e.sh 2>/dev/null || true
+          bash ops/test/e2e.sh "$TARGET_URL"
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "e2e test run for env=${{ inputs.env }} url=${{ steps.url.outputs.URL }} done."
+          echo "Result: ${{ job.status }}"

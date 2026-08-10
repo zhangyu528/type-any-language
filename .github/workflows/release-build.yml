@@ -1,0 +1,135 @@
+name: release-build
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "x.y.z base version (empty=auto)"
+        required: false
+        type: string
+        default: ""
+      bump_type:
+        description: "patch|minor|major (only when version empty)"
+        required: false
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      force_rc:
+        description: "Force a specific rc number (advanced)"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release-build
+  cancel-in-progress: false
+
+jobs:
+  release-build:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version + rc
+        id: resolve
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          BUMP_TYPE: ${{ github.event.inputs.bump_type }}
+          FORCE_RC: ${{ github.event.inputs.force_rc }}
+        run: |
+          chmod +x ops/ci/resolve-tag.sh
+          NEW_TAG=$(bash ops/ci/resolve-tag.sh "$INPUT_VERSION" "$BUMP_TYPE" "$FORCE_RC")
+          echo "NEW_TAG=${NEW_TAG}" >> "$GITHUB_OUTPUT"
+          echo "Resolved: ${NEW_TAG}"
+
+      - name: Verify DOCKER_REGISTRY is set
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+        run: |
+          if [ -z "$DOCKER_REGISTRY" ]; then
+            echo "::error::GH Variable DOCKER_REGISTRY not set"
+            exit 1
+          fi
+          echo "DOCKER_REGISTRY=$DOCKER_REGISTRY"
+
+      - name: Login to GHCR
+        if: env.DOCKER_REGISTRY != ""
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build + push 3 images
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+          NEW_TAG: ${{ steps.resolve.outputs.NEW_TAG }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          set -e
+          docker build --build-arg APP_VERSION="${NEW_TAG}" --build-arg GIT_SHA="${GIT_SHA}" -f db/Dockerfile -t "${DOCKER_REGISTRY}/english_db:${NEW_TAG}" .
+          docker push "${DOCKER_REGISTRY}/english_db:${NEW_TAG}"
+          docker build --build-arg APP_VERSION="${NEW_TAG}" --build-arg GIT_SHA="${GIT_SHA}" -f backend/Dockerfile -t "${DOCKER_REGISTRY}/english_backend:${NEW_TAG}" .
+          docker push "${DOCKER_REGISTRY}/english_backend:${NEW_TAG}"
+          docker build --build-arg APP_VERSION="${NEW_TAG}" --build-arg GIT_SHA="${GIT_SHA}" --build-arg NEXT_PUBLIC_API_URL=/ -t "${DOCKER_REGISTRY}/english_frontend:${NEW_TAG}" frontend
+          docker push "${DOCKER_REGISTRY}/english_frontend:${NEW_TAG}"
+
+      - name: Vulnerability scan (trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ vars.DOCKER_REGISTRY }}/english_backend:${{ steps.resolve.outputs.NEW_TAG }}
+          format: "table"
+          exit-code: "1"
+          severity: "HIGH,CRITICAL"
+          ignore-unfixed: true
+
+      - name: Image size check
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+          NEW_TAG: ${{ steps.resolve.outputs.NEW_TAG }}
+        run: |
+          set -e
+          MAX_BYTES=500000000
+          for img in english_db english_backend english_frontend; do
+            SIZE=$(docker image inspect "${DOCKER_REGISTRY}/${img}:${NEW_TAG}" --format "{{.Size}}")
+            if [ "$SIZE" -gt "$MAX_BYTES" ]; then
+              echo "::error::${img} image is $SIZE bytes"
+              exit 1
+            fi
+            echo "  ${img}: $SIZE bytes (ok)"
+          done
+
+      - name: Git tag
+        env:
+          NEW_TAG: ${{ steps.resolve.outputs.NEW_TAG }}
+        run: |
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          if git rev-parse "$NEW_TAG" >/dev/null 2>&1; then
+            echo "tag $NEW_TAG already exists"
+          else
+            git tag -a "$NEW_TAG" -m "release $NEW_TAG"
+            git push origin "$NEW_TAG"
+          fi
+
+      - name: GH release (prerelease)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_TAG: ${{ steps.resolve.outputs.NEW_TAG }}
+        run: |
+          if gh release view "$NEW_TAG" >/dev/null 2>&1; then
+            echo "release $NEW_TAG already exists"
+          else
+            gh release create "$NEW_TAG" --prerelease --generate-notes
+          fi
+
+      - name: Logout
+        if: always()
+        run: docker logout ghcr.io || true

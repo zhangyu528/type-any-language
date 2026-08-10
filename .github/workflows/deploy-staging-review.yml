@@ -1,0 +1,115 @@
+name: deploy-staging-review
+run-name: deploy-staging-review-${{ inputs.ref || auto }}
+
+# Plan C: ephemeral staging with PUBLIC URL for human review.
+#
+# Like deploy-staging, but:
+#   - Uses Cloudflare Tunnel to expose nginx (localhost:8080) publicly
+#   - Long timeout (default 4h) so operator has time to manually click around
+#   - Outputs the public URL in the GH Actions UI
+#   - DOES NOT write deploy record (this is for human review, not CI gate)
+#   - Operator cancels workflow when done OR waits for auto-timeout
+#
+# Use case: operator wants to see the rc in their browser before publish-prod.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: rc tag (vX.Y.Z-rc.N) - auto = latest prerelease
+        type: string
+        default: auto
+      timeout_hours:
+        description: max lifetime (operator can cancel sooner)
+        type: number
+        default: 4
+
+permissions:
+  contents: read
+
+concurrency:
+  # Only one review session at a time (trycloudflare URL collision)
+  group: deploy-staging-review
+  cancel-in-progress: false
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    environment: staging
+    services:
+      docker:
+        image: docker:24-dind
+        options: --privileged
+
+    env:
+      DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+      DB_PASSWORD: staging-review-${{ github.run_id }}
+      ALLOWED_ORIGINS: "*"
+      NEXT_PUBLIC_API_URL: /api
+      TIMEOUT_HOURS: ${{ inputs.timeout_hours }}
+
+    timeout-minutes: ${{ inputs.timeout_hours * 60 }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve deploy ref
+        id: resolve
+        env:
+          INPUT_REF: ${{ inputs.ref }}
+        run: bash ops/ci/resolve-tag.sh "$INPUT_REF"
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bring up staging stack
+        env:
+          IMAGE_TAG: ${{ steps.resolve.outputs.NEW_TAG }}
+        run: bash ops/ci/bring-up-staging.sh
+
+      - name: Install cloudflared
+        run: bash ops/ci/install-cloudflared.sh
+
+      - name: Start Cloudflare Tunnel
+        id: tunnel
+        run: bash ops/ci/expose-tunnel.sh
+
+      - name: Wait for operator to finish reviewing
+        env:
+          TUNNEL_PID: ${{ steps.tunnel.outputs.TUNNEL_PID }}
+          HOURS: ${{ inputs.timeout_hours }}
+        run: |
+          echo "Staging is live at the URL above (see Start Cloudflare Tunnel step output)."
+          echo "Cancel this workflow from GH Actions UI when done reviewing."
+          SECS=$((HOURS * 3600))
+          ELAPSED=0
+          while [ $ELAPSED -lt $SECS ]; do
+            if ! kill -0 "$TUNNEL_PID" 2>/dev/null; then
+              echo "Tunnel died early (operator cancelled?)"
+              break
+            fi
+            sleep 60
+            ELAPSED=$((ELAPSED + 60))
+          done
+          echo "Review window ended."
+
+      - name: Teardown
+        if: always()
+        run: |
+          if [ -n "${{ steps.tunnel.outputs.TUNNEL_PID }}" ]; then
+            kill "${{ steps.tunnel.outputs.TUNNEL_PID }}" 2>/dev/null || true
+          fi
+          bash ops/ci/teardown-staging.sh
+
+      - name: Summary
+        if: always()
+        run: |
+          PUBLIC_URL="${{ steps.tunnel.outputs.URL }}"
+          echo "Review session ended for env=staging url=$PUBLIC_URL"
+          echo "Result: ${{ job.status }}"
+          echo "Public URL is no longer reachable (workflow done = tunnel closed)"
