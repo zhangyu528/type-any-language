@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# ops/cvm/secrets/install.sh — generate .secrets/db_password.
+# ops/cvm/db-credentials/init.sh — initialize .secrets/db_password.
 #
 # Idempotent: if the file already exists, we don't touch it (preserves
 # the running prod db's credentials on a re-run — changing this would

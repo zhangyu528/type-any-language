@@ -3,11 +3,17 @@
 # ops/cvm/bootstrap.sh — host-level preparation for the prod CVM.
 #
 # Thin orchestrator. Each step is a separate script in ops/cvm/:
+# Naming convention inside ops/cvm/:
+#   <topic>/install.sh   - install a system package or service config
+#                          (docker engine, nginx site)
+#   <topic>/init.sh      - initialize persistent state (db password, data dir)
+#
+# Steps:
 #   docker/install.sh        - install Docker Engine + Compose plugin if missing
-#   secrets/install.sh       - generate .secrets/db_password
-#   data-dir/install.sh      - mkdir + chown UID 999 for postgres bind-mount
+#   db-credentials/init.sh   - initialize .secrets/db_password
+#   postgres-data/init.sh    - mkdir + chown UID 999 for postgres bind-mount
 #   nginx/install.sh         - install ops/cvm/nginx/site.conf to system nginx
-#                              (also warns if port 80 is already bound)
+#                              (hard-fails if port 80 is already bound)
 #   deploy-if-published.sh   - probe registry, pull, lifecycle.sh start, doctor
 #
 # No standalone preflight.sh — its checks (docker installed, daemon up,
@@ -39,8 +45,8 @@ cmd_prepare() {
     echo ""
 
     bash "$COMMON_DIR/docker/install.sh"        || return 1; echo ""
-    bash "$COMMON_DIR/secrets/install.sh"       || return 1; echo ""
-    bash "$COMMON_DIR/data-dir/install.sh"      || return 1; echo ""
+    bash "$COMMON_DIR/db-credentials/init.sh"   || return 1; echo ""
+    bash "$COMMON_DIR/postgres-data/init.sh"    || return 1; echo ""
     bash "$COMMON_DIR/nginx/install.sh"         || return 1; echo ""
 
     bash "$COMMON_DIR/deploy-if-published.sh"
@@ -60,7 +66,7 @@ usage() {
 
 命令:
   (default) | setup | bootstrap | prepare
-      主机层准备(docker install + secrets + data dir + nginx site)。
+      主机层准备(docker install + db creds + postgres data dir + nginx site)。
       准备完成后尝试部署并启动最新镜像(可跳)。
 
   -h | --help | help

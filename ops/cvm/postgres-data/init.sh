@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# ops/cvm/data-dir/install.sh — install /var/lib/type-any-language/postgres.
+# ops/cvm/postgres-data/init.sh — initialize /var/lib/type-any-language/postgres.
 #
 # Bind-mount target for the postgres alpine container. Owned by UID 999
 # (postgres alpine user) so the container can read/write it.
