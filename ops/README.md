@@ -1,49 +1,92 @@
 # ops/
 #
-# Target-host operations + image build/release orchestrator.
+# Target-host operations + image build/release orchestrator (CVM + CI only;
+# dev/ lives at the repo root as a sibling — see README.md for the top-level
+# layout).
 #
-# Three envs, each with its own subfolder:
+# Layout rule: each subfolder that USES a compose file keeps that file in
+# the SAME subfolder (consumer and artifact live side-by-side). There are
+# no compose files at the repo root.
 #
-#   dev/   - dev host scripts (host-native uvicorn + next dev)
-#   cvm/   - any CVM scripts (prod CVM today, staging CVM tomorrow)
-#   release/ - CI/CD staging + shared tag helper (called by .github/workflows/*.yml)
-#           resolve-tag.sh / bring-up-staging.sh / write-deploy-record.sh / etc.
-#   publish/ - CI/CD ship-to-prod scripts (called by publish-prod.yml)
-#           deploy-prod.sh / promote.sh / assert-staging-verified.sh
+#   cvm/      prod CVM runtime scripts (RUN env)
+#               cvm/nginx/                host nginx module (site.conf +
+#                                         install.sh, installed on the CVM by
+#                                         cvm/bootstrap.sh::step_nginx_site_link)
+#               (the prod compose file lives at the repo root:
+#                docker-compose.yml — consumed by cvm/lifecycle.sh via
+#                cvm/_common.sh's compose() wrapper, and packaged into the
+#                CVM tarball by ops/publish/deploy-prod.sh.)
+#               cvm/_common.sh            shared setup + the compose() wrapper
+#               cvm/bootstrap.sh          one-time idempotent host prep
+#               cvm/lifecycle.sh          start / stop / restart
+#               cvm/doctor.sh             read-only health + drift check
+#               cvm/logs.sh               docker compose logs -f
 #
-# lib.sh   - shared helpers (sourced by cvm/ and dev/ scripts)
+#   staging/  CI: ephemeral staging env (called by staging.yml)
+#               staging/docker-compose.staging.yml   the staging stack
+#               staging/nginx.staging.conf           nginx config inside the
+#                                                    staging compose
+#               bring-up-staging.sh / teardown-staging.sh
+#               install-cloudflared.sh / expose-tunnel.sh
+#               write-deploy-record.sh               GH Deployments record
 #
-# compose/ - prod stack definition (docker-compose.yml). Consumed by the
-#           CVM runtime scripts via _common.sh's compose() wrapper.
-# nginx/   - host nginx module (site.conf fragment + install.sh).
+#   publish/  CI: ship-to-prod scripts (called by publish-prod.yml)
+#               deploy-prod.sh            tar+scp + remote SSH (ships ops/cvm
+#                                         + ops/lib.sh + Makefile to the CVM)
+#               promote.sh                rc -> vX.Y.Z tag + GH release
+#               assert-staging-verified.sh  gate before prod
 #
-# ops/cvm/ layout - CVM runtime scripts (entry points, all sourcing _common.sh):
+#   release/  CI: image release orchestration (called by release-build.yml)
+#               _common.sh                shared helpers (image list + name
+#                                         assembly + size budget)
+#               resolve-tag.sh            smart vX.Y.Z-rc.N arithmetic
+#                                         (also used by staging.yml /
+#                                          publish-prod.yml)
+#               build.sh                  docker build + push 3 images
+#                                         (db/backend/frontend)
+#               push-latest.sh            retag + push :latest for all 3
+#               check-size.sh             fail if any image exceeds budget
+#                                         (default 500 MB, MAX_IMAGE_BYTES)
+#               push-git-tag.sh           git tag -a + push origin <NEW_TAG>
+#               create-gh-release.sh      gh release create --prerelease
 #
-#   _common.sh      shared setup + the compose() wrapper (see below)
-#   bootstrap.sh    one-time idempotent host prep
-#   lifecycle.sh    start / stop / restart
-#   doctor.sh       read-only health + drift check
-#   logs.sh         docker compose logs -f
+#   test/     smoke + e2e test scripts (called by staging.yml / smoke-test.yml /
+#               e2e-test.yml)
 #
-# IMPORTANT - the compose file is NOT at the repo root, and its
-# internal relative paths (secrets file, build contexts) are written
-# relative to the repo root. Never call `docker compose -f
-# ops/compose/docker-compose.yml` directly; go through
-# _common.sh's compose() wrapper, which pins --project-directory to the
-# repo root. Calling it directly makes compose look for
-# ops/compose/.secrets/db_password and fail.
+# lib.sh     shared helpers (sourced by cvm/ scripts; dev/ sources it too
+#            via the repo-root relative path ops/lib.sh)
+#
+# IMPORTANT - the prod compose file lives at the repo root
+# (docker-compose.yml). Its internal relative paths (./secrets/db_password,
+# ./backend, ./frontend, ./db/Dockerfile) are repo-root-relative and resolve
+# naturally against the compose file own directory. The CVM runtime
+# compose() wrapper still pins --project-directory + --project-name so
+# container / network names stay stable across PWDs; always call docker
+# compose through the wrapper, never directly with -f docker-compose.yml.
 
-# No build target lives at the repo root - it is in release/ (this folder).
+# No build target lives at the repo root - the image release orchestration scripts live in release/ (this folder), called by release-build.yml.
 #
-# Architecture: GitHub Actions workflow (yml) calls a small bash script in release/.
-# That bash script does the actual work: scp + ssh, docker compose up, etc.
-# Scripts are also runnable from a workstation (for debugging or manual ops).
+# Architecture: GitHub Actions workflows (yml) are thin orchestrators.
+# The heavy bash lives in ops/ subfolders by role:
+#   release-build.yml -> ops/release/  (resolve-tag, build, push-latest,
+#                                       check-size, push-git-tag,
+#                                       create-gh-release)
+#   staging.yml       -> ops/staging/  (bring-up / teardown / tunnel /
+#                                       write-deploy-record)
+#   publish-prod.yml  -> ops/publish/  (assert-staging-verified / deploy-prod
+#                                       / promote)
+# Scripts are also runnable from a workstation for debugging or manual ops.
 
 # When adding a new script:
-#   - targets a CVM (lifecycle / doctor / bootstrap) -> ops/cvm/
-#   - runs from CI / build host (staging / build / tag) -> ops/release/
+#   - targets a prod CVM (lifecycle / doctor / bootstrap) -> ops/cvm/
+#     AND put its compose file (if any) in ops/cvm/ too
+#   - runs from CI / build host (staging) -> ops/staging/
+#     AND put its compose file (if any) in ops/staging/ too
+#   - runs from CI / build host (image release: tag, build, push,
+#     size-check, git tag, GH release) -> ops/release/
 #   - runs from CI / build host (deploy / promote to prod) -> ops/publish/
-#   - runs on a dev workstation (host-native dev loop) -> ops/dev/
+#   - runs on a dev workstation (host-native dev loop) -> ../dev/  (sibling of
+#     ops/, NOT under it; put dev's compose file in ../dev/ too)
 
 # Conventions (all scripts):
 #   - SCRIPT_DIR = $(cd $(dirname $0) && pwd)
@@ -59,7 +102,9 @@
 #   staging.yml           ephemeral staging on GH runner; mode=validate
 #                         (smoke+e2e+soak+write record) | mode=review
 #                         (public Cloudflare Tunnel URL for human review)
-#   publish-prod.yml      asserts staging verified, deploys to prod (ops/publish/), creates vX.Y.Z
+#   publish-prod.yml      asserts staging verified, deploys to prod
+#                         (ops/publish/*.sh + ops/cvm/ via the deploy tarball),
+#                         creates vX.Y.Z
 
 # To trigger: GH Actions UI -> Run workflow on the relevant yml.
 # To inspect / test locally: bash <script> [args] from a workstation.

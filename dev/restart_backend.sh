@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# ops/dev/restart_backend.sh — backend-only restart that ACTUALLY frees :8000.
+# dev/restart_backend.sh — backend-only restart that ACTUALLY frees :8000.
 #
-# Why this exists alongside ops/dev/native.sh restart:
+# Why this exists alongside dev/native.sh restart:
 #
 #   uvicorn --reload on Windows spawns three processes:
 #     - the master (PID we put in .native-pids/backend.pid)

@@ -12,7 +12,7 @@ run-name: staging-${{ inputs.mode }}-${{ inputs.ref || 'auto' }}
 #       URL) for a human to click around, with a long timeout. NO deploy
 #       record is written (this is for human review, not the CI gate).
 #
-# All heavy bash is in ops/release/*.sh. The workflow just orchestrates.
+# All heavy bash is in ops/staging/*.sh (staging env) + ops/release/resolve-tag.sh (shared). The workflow just orchestrates.
 
 on:
   workflow_dispatch:
@@ -84,7 +84,7 @@ jobs:
       - name: Bring up staging stack
         env:
           IMAGE_TAG: ${{ steps.resolve.outputs.NEW_TAG }}
-        run: bash ops/release/bring-up-staging.sh
+        run: bash ops/staging/bring-up-staging.sh
 
       - name: Run smoke tests
         run: bash ops/test/smoke.sh http://localhost:8080
@@ -101,12 +101,12 @@ jobs:
 
       - name: Install cloudflared (review)
         if: inputs.mode == 'review'
-        run: bash ops/release/install-cloudflared.sh
+        run: bash ops/staging/install-cloudflared.sh
 
       - name: Start Cloudflare Tunnel (review)
         id: tunnel
         if: inputs.mode == 'review'
-        run: bash ops/release/expose-tunnel.sh
+        run: bash ops/staging/expose-tunnel.sh
 
       - name: Wait for operator to finish reviewing
         if: inputs.mode == 'review'
@@ -136,7 +136,7 @@ jobs:
           REF: ${{ steps.resolve.outputs.NEW_TAG }}
           SHA: ${{ github.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: bash ops/release/write-deploy-record.sh
+        run: bash ops/staging/write-deploy-record.sh
 
       - name: Teardown
         if: always()
@@ -144,7 +144,7 @@ jobs:
           if [ "${{ inputs.mode }}" = "review" ] && [ -n "${{ steps.tunnel.outputs.TUNNEL_PID }}" ]; then
             kill "${{ steps.tunnel.outputs.TUNNEL_PID }}" 2>/dev/null || true
           fi
-          bash ops/release/teardown-staging.sh
+          bash ops/staging/teardown-staging.sh
 
       - name: Summary
         if: always()

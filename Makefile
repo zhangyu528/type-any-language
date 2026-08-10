@@ -9,7 +9,7 @@
 # Conventions:
 #   - Group targets by host role: dev / cvm / cms / db / meta.
 #   - The bash invocation is the truth; the .sh files are still
-#     executable (for users who prefer `./ops/...` directly), but no
+#     executable (for users who prefer `./ops/cvm/...` or `./dev/...` directly), but no
 #     Makefile target depends on it.
 #   - `make help` (default goal) lists all targets + 1-line purpose.
 
@@ -21,26 +21,26 @@ SHELL := /usr/bin/env bash
 # ---------------------------------------------------------------------------
 # dev target host - daily driver.
 #
-# HOST-NATIVE dev loop only. backend (uvicorn) and frontend (next dev)
+# HOST-NATIVE dev loop only (no compose, no docker images). backend (uvicorn) and frontend (next dev)
 # run on the host against the docker postgres (the `db` service in
 # docker-compose.dev.yml). No dev docker images, no compose watch.
 # ---------------------------------------------------------------------------
 
 ## dev-setup: install host-native deps (python venv + node_modules) + bring up docker db
 dev-setup:
-	@bash ops/dev/setup.sh
+	@bash dev/setup.sh
 
 ## dev-start: HOST-NATIVE start (uvicorn + next dev on host; db in docker)
 dev-start:
-	@bash ops/dev/native.sh start
+	@bash dev/native.sh start
 
 ## dev-stop: stop host-native backend + frontend
 dev-stop:
-	@bash ops/dev/native.sh stop
+	@bash dev/native.sh stop
 
 ## dev-restart: stop + start host-native
 dev-restart:
-	@bash ops/dev/native.sh restart
+	@bash dev/native.sh restart
 
 ## dev-restart-frontend: kill frontend (pid file + port fallback for orphans) + start (does NOT touch backend)
 dev-restart-frontend:
@@ -48,27 +48,27 @@ dev-restart-frontend:
 
 ## dev-status: pid + uptime + port for native backend/frontend + docker db health
 dev-status:
-	@bash ops/dev/native.sh status
+	@bash dev/native.sh status
 
 ## dev-logs [backend|frontend|both]: tail native logs (default both)
 dev-logs:
-	@bash ops/dev/native.sh logs
+	@bash dev/native.sh logs
 
 ## dev-native-preflight: read-only check (python/node/.venv/node_modules/db)
 dev-native-preflight:
-	@bash ops/dev/native.sh preflight
+	@bash dev/native.sh preflight
 
 ## dev-doctor: preflight check (docker / compose / host python+node / db mount / ports)
 dev-doctor:
-	@bash ops/dev/doctor.sh
+	@bash dev/doctor.sh
 
 ## dev-migrate: apply pending schema migrations to docker postgres (host-side runner)
 dev-migrate:
-	@bash ops/dev/migrate.sh
+	@bash dev/migrate.sh
 
 ## dev-import-content: start db if needed, UPSERT cms/content/, then run rerunnable backfills
 dev-import-content:
-	@bash ops/dev/import_content.sh
+	@bash dev/import_content.sh
 
 # ---------------------------------------------------------------------------
 # prod target host - pre-built, no watch, registry-pulled

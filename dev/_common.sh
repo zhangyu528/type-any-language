@@ -1,11 +1,11 @@
 #!/bin/bash
 #
-# ops/dev/_common.sh — shared helpers for the dev scripts.
+# dev/_common.sh — shared helpers for the dev scripts.
 #
-# Sourced by every script in ops/dev/. Provides db-lifecycle helpers
+# Sourced by every script in dev/. Provides db-lifecycle helpers
 # (start the docker db, check it's healthy, warn if it's empty) and a
 # staging-files inventory check. No image / registry / watch machinery
-# — the dev loop is host-native (ops/dev/native.sh), the only docker
+# — the dev loop is host-native (dev/native.sh), the only docker
 # artifact on a dev host is the `db` service in docker-compose.dev.yml.
 #
 # Conventions:
@@ -19,8 +19,8 @@
 #
 # Runtime model:
 #   db         — postgres:15-alpine, data bind-mounted to .dev/data/postgres/
-#   backend    — runs on the host (uvicorn --reload, see ops/dev/native.sh)
-#   frontend   — runs on the host (next dev, see ops/dev/native.sh)
+#   backend    — runs on the host (uvicorn --reload, see dev/native.sh)
+#   frontend   — runs on the host (next dev, see dev/native.sh)
 #
 # DATABASE_URL on the host is `postgresql://english_dev:devpw@localhost:5432/english_dev`
 # (the same credentials as the db service exposes on the host's :5432).
@@ -31,7 +31,7 @@ set -e
 : "${PROJECT_DIR:=$(cd "$COMMON_DIR/../.." && pwd)}"
 cd "$PROJECT_DIR"
 # shellcheck disable=SC1091
-source "$PROJECT_DIR/ops/lib.sh"
+source "$PROJECT_DIR/ops/lib.sh"  # dev/ is sibling to ops/, lib.sh still lives under ops/
 
 # ─── Globals ───────────────────────────────────────────────────────────────
 COMPOSE_FILE="docker-compose.dev.yml"
@@ -48,7 +48,7 @@ require_dev_db_up() {
     cid="$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" ps -q db 2>/dev/null | head -1 || true)"
     if [ -z "$cid" ]; then
         err "dev db 容器没起 — host-side migrate 无 db 可连"
-        info "  → 运行: ./ops/dev/native.sh start"
+        info "  → 运行: ./dev/native.sh start"
         return 1
     fi
     status="$(docker inspect "$cid" --format '{{.State.Health.Status}}' 2>/dev/null || echo "")"
@@ -135,7 +135,7 @@ warn_if_db_empty() {
     fi
     if [ "$count" = "0" ]; then
         warn "db 是空的 (vocabulary_libs = 0 行)"
-        info "  → 灌入内容: ./ops/dev/import_content.sh"
+        info "  → 灌入内容: ./dev/import_content.sh"
         info "    (会自动起 db,如果没起;需要 cms/content/{vocabulary,sentences}/ 已有 staging 文件)"
     fi
 }

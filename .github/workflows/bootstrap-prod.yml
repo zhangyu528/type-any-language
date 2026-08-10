@@ -18,7 +18,8 @@ run-name: bootstrap-prod-on-${{ inputs.host || 'auto' }}
 #        - install Docker Engine + compose plugin (so deploy-prod can run)
 #        - add `deploy` to the `docker` group (run docker without sudo)
 #        - sparse-checkout clone into /opt/type-any-language (owned by
-#          deploy): ONLY Makefile + ops/cvm + ops/compose + ops/nginx + ops/lib.sh.
+#          deploy): ONLY Makefile + docker-compose.yml (prod stack at repo root)
+#                         + ops/cvm (lifecycle + doctor + bootstrap + nginx/) + ops/lib.sh.
 #          Source code is excluded — prod images
 #          are pulled from GHCR, not built locally on the CVM. The
 #          deployed version comes from the git tag (forwarded as IMAGE_TAG
@@ -194,12 +195,15 @@ jobs:
 
             # Sparse-checkout clone — only the files deploy needs on the CVM:
             #   Makefile        (make targets)
-            #   ops/cvm/*       (lifecycle/doctor/bootstrap runtime scripts)
-            #   ops/compose/    (docker-compose.yml — the prod stack definition)
-            #   ops/nginx/      (site.conf + install.sh — host nginx module)
+            #   docker-compose.yml (prod stack definition — at the repo root,
+            #                      NOT under ops/cvm/, since its build contexts
+            #                      are repo-root-relative: ./backend, ./frontend,
+            #                      ./.secrets/db_password, ./db/Dockerfile)
+            #   ops/cvm/*       (lifecycle/doctor/bootstrap runtime scripts +
+            #                      cvm/nginx/ — host nginx module)
             #   ops/lib.sh       (sourced by the cvm scripts)
-            # The compose file is NOT at the repo root — it lives at
-            # ops/compose/docker-compose.yml.
+            # The compose file lives at the repo root, not under ops/cvm/, so
+            # it needs its own sparse-checkout entry below.
             # Source code (backend/ frontend/ db/ Dockerfiles, cms/, scripts/)
             # is intentionally excluded: prod images are pulled from GHCR,
             # not built locally on the CVM. The deployed version comes from
@@ -222,12 +226,11 @@ jobs:
                 cd /opt/type-any-language
                 git sparse-checkout set --no-cone \
                   Makefile \
+                  docker-compose.yml \
                   ops/cvm/ \
-                  ops/compose/ \
-                  ops/nginx/ \
                   ops/lib.sh
               '
-              echo "[bootstrap] sparse-cloned repo (Makefile + ops/cvm + ops/compose + ops/nginx + ops/lib.sh)"
+              echo "[bootstrap] sparse-cloned repo (Makefile + docker-compose.yml + ops/cvm + ops/lib.sh)"
             else
               echo "[bootstrap] repo already present"
             fi

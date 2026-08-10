@@ -27,8 +27,8 @@
 #     frontend   — Next.js standalone server on :3000.
 #
 #   nginx is NOT a compose service — it is the host's apt-installed
-#   system nginx, configured from ops/nginx/site.conf and installed
-#   by ops/nginx/install.sh (called from bootstrap.sh).
+#   system nginx, configured from ops/cvm/nginx/site.conf and installed
+#   by ops/cvm/nginx/install.sh (called from bootstrap.sh).
 
 set -e
 
@@ -43,7 +43,7 @@ DB_PASSWORD_FILE="${SECRETS_DIR}/db_password"
 # Absolute path — the compose file lives in a subfolder, so a bare
 # relative name would resolve against $PWD and break the moment a
 # caller runs from anywhere other than the repo root.
-COMPOSE_FILE="$PROJECT_DIR/ops/compose/docker-compose.yml"
+COMPOSE_FILE="$PROJECT_DIR/docker-compose.yml"
 # Three image set, all tagged with the same VERSION (one publish = one release)
 BACKEND_IMAGE="english_backend"
 FRONTEND_IMAGE="english_frontend"
@@ -91,23 +91,14 @@ setup_prod_host_env() {
 # ─── compose ───────────────────────────────────────────────────────────────
 # The ONLY sanctioned way to call docker compose from ops/cvm/.
 #
-# Why --project-directory is mandatory:
-#   Compose resolves every relative path inside the YAML against the
-#   *compose file's own directory*, not against $PWD. Our compose file
-#   sits at ops/compose/, but the paths it declares are repo-root
-#   relative:
-#       secrets.db_password.file: ./.secrets/db_password
-#       db.build.context:         .          (+ dockerfile: db/Dockerfile)
-#       backend.build.context:    ./backend
-#   Without --project-directory those would resolve to
-#   ops/compose/.secrets/db_password etc. — none of which exist.
-#   bootstrap.sh writes the password to the REPO ROOT .secrets/, so we
-#   pin the project directory there and every relative path lines up.
-#
-# Also pins the compose project name so the container/network names stay
-# stable regardless of which directory the operator invoked the script
-# from (compose otherwise derives the project name from the basename of
-# the project directory).
+# The compose file (docker-compose.yml) lives at the repo root, so its
+# relative paths (./secrets/db_password, ./backend, ./frontend, ./db/...)
+# resolve naturally against the compose file own directory. --project-directory
+# is still pinned (and useful) only for the project-name stability: compose
+# derives the project name from the working directory basename unless told
+# otherwise; without --project-name + --project-directory, the same script
+# invoked from different PWDs would spin up different compose projects (and
+# thus different container / network names).
 compose() {
     $DOCKER_COMPOSE_CMD \
         --project-directory "$PROJECT_DIR" \

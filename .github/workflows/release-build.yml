@@ -44,7 +44,7 @@ jobs:
           BUMP_TYPE: ${{ github.event.inputs.bump_type }}
           FORCE_RC: ${{ github.event.inputs.force_rc }}
         run: |
-          chmod +x ops/release/resolve-tag.sh
+          chmod +x ops/release/*.sh
           NEW_TAG=$(bash ops/release/resolve-tag.sh "$INPUT_VERSION" "$BUMP_TYPE" "$FORCE_RC")
           echo "NEW_TAG=${NEW_TAG}" >> "$GITHUB_OUTPUT"
           echo "Resolved: ${NEW_TAG}"
@@ -72,31 +72,13 @@ jobs:
           DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
           NEW_TAG: ${{ steps.resolve.outputs.NEW_TAG }}
           GIT_SHA: ${{ github.sha }}
-        run: |
-          set -e
-          docker build --build-arg APP_VERSION="${NEW_TAG}" --build-arg GIT_SHA="${GIT_SHA}" -f db/Dockerfile -t "${DOCKER_REGISTRY}/english_db:${NEW_TAG}" .
-          docker push "${DOCKER_REGISTRY}/english_db:${NEW_TAG}"
-          docker build --build-arg APP_VERSION="${NEW_TAG}" --build-arg GIT_SHA="${GIT_SHA}" -f backend/Dockerfile -t "${DOCKER_REGISTRY}/english_backend:${NEW_TAG}" .
-          docker push "${DOCKER_REGISTRY}/english_backend:${NEW_TAG}"
-          docker build --build-arg APP_VERSION="${NEW_TAG}" --build-arg GIT_SHA="${GIT_SHA}" --build-arg NEXT_PUBLIC_API_URL=/ -t "${DOCKER_REGISTRY}/english_frontend:${NEW_TAG}" frontend
-          docker push "${DOCKER_REGISTRY}/english_frontend:${NEW_TAG}"
+        run: bash ops/release/build.sh
 
       - name: Tag + push :latest
-        # Publish a mutable `latest` tag for every version tag so a host
-        # with no explicit IMAGE_TAG (e.g. a bare `bootstrap.sh`) can pull
-        # "the newest published build" zero-config. NOTE: if GHCR has
-        # immutable tags enabled for this package, re-pushing :latest fails
-        # — disable immutable tags for the :latest tag or pin via IMAGE_TAG.
         env:
           DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
           NEW_TAG: ${{ steps.resolve.outputs.NEW_TAG }}
-        run: |
-          set -e
-          for img in english_db english_backend english_frontend; do
-            docker tag "${DOCKER_REGISTRY}/${img}:${NEW_TAG}" "${DOCKER_REGISTRY}/${img}:latest"
-            docker push "${DOCKER_REGISTRY}/${img}:latest"
-          done
-          echo "pushed :latest for all 3 images (NEW_TAG=${NEW_TAG})"
+        run: bash ops/release/push-latest.sh
 
       - name: Vulnerability scan (trivy)
         uses: aquasecurity/trivy-action@master
@@ -111,41 +93,18 @@ jobs:
         env:
           DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
           NEW_TAG: ${{ steps.resolve.outputs.NEW_TAG }}
-        run: |
-          set -e
-          MAX_BYTES=500000000
-          for img in english_db english_backend english_frontend; do
-            SIZE=$(docker image inspect "${DOCKER_REGISTRY}/${img}:${NEW_TAG}" --format "{{.Size}}")
-            if [ "$SIZE" -gt "$MAX_BYTES" ]; then
-              echo "::error::${img} image is $SIZE bytes"
-              exit 1
-            fi
-            echo "  ${img}: $SIZE bytes (ok)"
-          done
+        run: bash ops/release/check-size.sh
 
-      - name: Git tag
+      - name: Git tag + push
         env:
           NEW_TAG: ${{ steps.resolve.outputs.NEW_TAG }}
-        run: |
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git config user.name "github-actions[bot]"
-          if git rev-parse "$NEW_TAG" >/dev/null 2>&1; then
-            echo "tag $NEW_TAG already exists"
-          else
-            git tag -a "$NEW_TAG" -m "release $NEW_TAG"
-            git push origin "$NEW_TAG"
-          fi
+        run: bash ops/release/push-git-tag.sh
 
       - name: GH release (prerelease)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NEW_TAG: ${{ steps.resolve.outputs.NEW_TAG }}
-        run: |
-          if gh release view "$NEW_TAG" >/dev/null 2>&1; then
-            echo "release $NEW_TAG already exists"
-          else
-            gh release create "$NEW_TAG" --prerelease --generate-notes
-          fi
+        run: bash ops/release/create-gh-release.sh
 
       - name: Logout
         if: always()

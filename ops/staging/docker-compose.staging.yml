@@ -3,6 +3,13 @@
 # Architecture (single entry point via nginx):
 #   cloudflared tunnel -> nginx:8080 -> { /api -> backend:8000, / -> frontend:3000 }
 #
+# Why this lives in ops/staging/ (NOT at the repo root like the prod compose):
+#   this file references `./nginx.staging.conf` (a sibling in ops/staging/),
+#   so the compose file has to live next to its sibling config.
+#   Moving it to the repo root would break that volume mount.
+#   The prod compose (docker-compose.yml at the repo root) has no such sibling
+#   refs and can live at the root; this one can't.
+#
 # Key differences from prod/docker-compose.yml:
 #   - Nginx IS in compose (prod uses host system nginx; ephemeral has no host)
 #   - No bind-mounts for data (ephemeral - gone when workflow ends)

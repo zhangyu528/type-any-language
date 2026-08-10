@@ -13,7 +13,7 @@ run-name: publish-prod-${{ inputs.ref || auto }}
 #   - Short soak on prod (default 2 min)
 #   - If promote=true (default): consume the rc - create vX.Y.Z (ops/publish/promote.sh)
 #
-# All heavy bash is in ops/publish/*.sh (deploy/promote/assert) and ops/release/*.sh (staging). The workflow just orchestrates.
+# All heavy bash is in ops/publish/*.sh (deploy/promote/assert), ops/staging/*.sh (staging env), and ops/release/resolve-tag.sh (shared tag helper). The prod compose file lives at the repo root (docker-compose.yml) and is pulled to the CVM by deploy-prod.sh as a top-level tarball entry. The workflow just orchestrates.
 
 on:
   workflow_dispatch:

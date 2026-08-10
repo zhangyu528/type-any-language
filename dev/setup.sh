@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# ops/dev/setup.sh — first-time (or post-reset) bootstrap for dev.
+# dev/setup.sh — first-time (or post-reset) bootstrap for dev.
 #
 # Walks the operator through the steps a fresh dev clone needs before
 # `make dev-start` succeeds. The dev loop is host-native
@@ -138,7 +138,7 @@ usage() {
                       (idempotent — re-runs short-circuit work that's already done)
 
 典型工作流(全新机器):
-  ./ops/dev/setup.sh              # 装 venv + node_modules + 起 db
+  ./dev/setup.sh              # 装 venv + node_modules + 起 db
   make dev-start                  # native: uvicorn + next dev on host
   make dev-import-content         # 把 cms/content/ UPSERT 到 dev db
 EOF

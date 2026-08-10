@@ -4,7 +4,7 @@
 # !! DO NOT invoke this file with a bare `docker compose -f <path>` !!
 # Every relative path below (secrets file, build contexts) is written
 # RELATIVE TO THE REPO ROOT, but compose resolves them against this
-# file's own directory (ops/compose/). Always go through
+# file's own directory (the repo root). Always go through
 # ops/cvm/_common.sh's compose() wrapper, or pass
 # `--project-directory <repo-root>` yourself. Entry points:
 #     ./ops/cvm/lifecycle.sh start|stop|restart
@@ -37,7 +37,7 @@
 #              Browser hits nginx, which proxies / to this.
 #
 # nginx is NOT a service here — it is the host's apt-installed system
-# nginx, configured from ops/nginx/site.conf. It routes:
+# nginx, configured from ops/cvm/nginx/site.conf. It routes:
 #   /api/          → 127.0.0.1:8000 (backend)
 #   /_next/static/ → /var/lib/type-any-language/frontend-static (direct)
 #   /              → 127.0.0.1:3000 (frontend)
@@ -143,7 +143,7 @@ services:
     secrets:
       - db_password
     # Expose to host so the system nginx can reverse-proxy to it
-    # (see ops/nginx/site.conf). Compose-internal
+    # (see ops/cvm/nginx/site.conf). Compose-internal
     # routing still uses backend:8000 from the frontend container.
     ports:
       - "127.0.0.1:8000:8000"
@@ -170,7 +170,7 @@ services:
     depends_on:
       - backend
     # Expose to host so the system nginx can reverse-proxy to it
-    # (see ops/nginx/site.conf). Same 127.0.0.1
+    # (see ops/cvm/nginx/site.conf). Same 127.0.0.1
     # bind as backend — host-only, never reachable from the public
     # internet directly.
     ports:
@@ -210,8 +210,8 @@ services:
   # download fine; (2) the host nginx can serve /_next/static/ straight
   # off the bind-mounted export path without another hop.
   #
-  # The system nginx reads ops/nginx/site.conf and reverse-proxies to
+  # The system nginx reads ops/cvm/nginx/site.conf and reverse-proxies to
   # backend + frontend on host 127.0.0.1 (see the ports: blocks above).
-  # Installed + reloaded by ops/nginx/install.sh, which
+  # Installed + reloaded by ops/cvm/nginx/install.sh, which
   # ops/cvm/bootstrap.sh::step_nginx_site_link calls during host prep.
   # -------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# ops/dev/doctor.sh — pre-flight env check (read-only).
+# dev/doctor.sh — pre-flight env check (read-only).
 #
 # Validates that everything the host-native dev loop needs is in
 # place — docker (for the postgres container), compose, the host
@@ -22,7 +22,7 @@
 #
 # Exit: 0 if all required checks pass; 1 if any required check fails.
 #
-# Counterpart to ops/dev/{native,setup,logs,migrate,import_content}.sh.
+# Counterpart to dev/{native,setup,logs,migrate,import_content}.sh.
 
 set -e
 

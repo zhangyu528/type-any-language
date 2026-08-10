@@ -29,7 +29,7 @@
 #      (requires GitHub account + 2FA) so it can't be auto-done.
 #   3. Secrets — generate .secrets/db_password (chmod 600) if missing.
 #      The password is consumed by the compose file's `secrets:` block
-#      (ops/compose/docker-compose.yml) and POSTGRES_PASSWORD_FILE
+#      (docker-compose.yml at the repo root — the prod stack definition) and POSTGRES_PASSWORD_FILE
 #      in the db service. It is written to the REPO ROOT .secrets/,
 #      which is why every compose call goes through _common.sh's
 #      compose() wrapper with --project-directory pinned to the root.
@@ -202,7 +202,7 @@ step_data_dir() {
 # (e.g. after the operator hand-edits /etc/nginx/sites-available).
 # The script itself is idempotent and safe to re-run.
 step_nginx_site_link() {
-    bash "$PROJECT_DIR/ops/nginx/install.sh"
+    bash "$PROJECT_DIR/ops/cvm/nginx/install.sh"
 }
 
 # ─── step_deploy_if_published ──────────────────────────────────────────
@@ -311,7 +311,7 @@ usage() {
   ops/cvm/bootstrap.sh        主机层(幂等,不起容器,不 build)   ← RUN 端
   ops/cvm/lifecycle.sh        日常(start / stop / restart)      ← RUN 端
   ops/cvm/doctor.sh           只读体检(部署前后各跑一次)        ← RUN 端
-  ops/nginx/install.sh        装 / 重载系统 nginx site          ← RUN 端
+  ops/cvm/nginx/install.sh    装 / 重载系统 nginx site          ← RUN 端
   ops/publish/deploy-prod.sh   打包 + scp + 远程编排              ← CI 端
   .github/workflows/          build / release / publish         ← CI 端
 

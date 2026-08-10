@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# ops/dev/logs.sh — docker compose logs -f for dev.
+# dev/logs.sh — docker compose logs -f for dev.
 #
 # Read-only wrapper around `docker compose logs -f`.
 #
 # Usage:
-#   ./ops/dev/logs.sh                  # all services
-#   ./ops/dev/logs.sh backend          # one service
-#   ./ops/dev/logs.sh --tail 100 backend
+#   ./dev/logs.sh                  # all services
+#   ./dev/logs.sh backend          # one service
+#   ./dev/logs.sh --tail 100 backend
 
 set -e
 

@@ -11,7 +11,7 @@
 #   backend  — FastAPI / uvicorn. Assembles DATABASE_URL at boot.
 #   frontend — Next.js standalone server on :3000.
 # nginx is the host's system nginx (apt), NOT a compose service — see
-# ops/nginx/site.conf and ops/nginx/install.sh.
+# ops/cvm/nginx/site.conf and ops/cvm/nginx/install.sh.
 #
 # All 3 image tags are resolved via setup_prod_host_env (IMAGE_TAG env,
 # forwarded from the git tag by ops/publish/deploy-prod.sh). The images are
@@ -88,7 +88,7 @@ cmd_restart() {
     # and skips the pull-with-attestation step. The 3 custom images
     # come from ${DOCKER_REGISTRY} which is set from
     # $vars.DOCKER_REGISTRY in the deploy-prod workflow. nginx is the
-    # host's system nginx (see ops/nginx/site.conf + bootstrap.sh
+    # host's system nginx (see ops/cvm/nginx/site.conf + bootstrap.sh
     # step_nginx_site_link) — not pulled from any registry here.
     info "pre-pulling 3 images individually (tolerate referrer failures)..."
     for img in \
@@ -157,7 +157,7 @@ usage() {
                    apply migrations + import content。
 
   (nginx 是宿主机 apt 装的系统 nginx,不在 compose 里,
-   改配置走 ./ops/nginx/install.sh)
+   改配置走 ./ops/cvm/nginx/install.sh)
 
 典型工作流:
   # 日常 reload(改了 config / env,没改 image)
