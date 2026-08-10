@@ -2,19 +2,19 @@
 #
 # ops/cvm/bootstrap.sh — host-level preparation for the prod CVM.
 #
-# One-time idempotent setup. Does NOT build images (CI does that) — only
-# makes the host ready to RUN pulled images. Safe to re-run on an
-# already-prepared host (each step short-circuits on existing state).
+# Thin orchestrator. Each step is a separate script in ops/cvm/:
+#   preflight.sh          - read-only env check (docker / compose / :80)
+#   secrets/install.sh    - generate .secrets/db_password
+#   data-dir/install.sh   - mkdir + chown UID 999 for postgres bind-mount
+#   nginx/install.sh      - install ops/cvm/nginx/site.conf to system nginx
+#   deploy-if-published.sh - probe registry, pull, lifecycle.sh start, doctor
 #
-# Steps (in order):
-#   1. preflight       docker / compose / port 80 ready
-#   2. secrets         .secrets/db_password (chmod 600) if missing
-#   3. data_dir        /var/lib/type-any-language/postgres (UID 999) if missing
-#   4. nginx_site      install ops/cvm/nginx/site.conf via nginx/install.sh
-#   5. deploy          (separate script) probe registry + pull + lifecycle
+# Each step is idempotent and standalone-runnable (handy for re-runs
+# after operator hand-edits + for debugging one step at a time).
+# Safe to re-run the whole bootstrap.sh — every step short-circuits
+# on existing state.
 #
-# Step 5 lives in ops/cvm/deploy-if-published.sh — it's 3 sub-concerns
-# (probe / pull / lifecycle+doctor) and is also runnable standalone.
+# See AGENTS.md for the deploy-prod workflow that pairs with this script.
 
 set -euo pipefail
 
@@ -24,128 +24,20 @@ PROJECT_DIR="$(cd "$COMMON_DIR/../.." && pwd)"
 source "$COMMON_DIR/_common.sh"
 setup_prod_host_env
 
-# ─── Globals ─────────────────────────────────────────────────────────────
-DB_PASSWORD_FILE="${SECRETS_DIR}/db_password"
-DB_DATA_DIR="/var/lib/type-any-language/postgres"
-# Postgres alpine image runs as UID 999 (postgres user). Bind-mount target
-# must be owned by the same UID, otherwise container startup fails EACCES.
-POSTGRES_UID=999
-
-# ─── step_preflight ──────────────────────────────────────────────────────
-# Verifies docker / compose / port 80 are ready. Exits 1 on any failure.
-step_preflight() {
-    info "=== preflight ==="
-    local failed=0
-
-    if check_docker_installed; then
-        ok "docker 已安装: $(docker --version 2>&1 | head -1)"
-    else
-        err "docker 未安装"; failed=1
-    fi
-
-    if check_docker_daemon_running; then
-        ok "docker daemon 运行中"
-    else
-        err "docker daemon 未运行"; failed=1
-    fi
-
-    if detect_compose_cmd 2>/dev/null; then
-        ok "compose: $DOCKER_COMPOSE_CMD"
-    else
-        err "未找到 docker-compose / docker compose"; failed=1
-    fi
-
-    warn_port_in_use 80 "nginx 端口 (宿主机 80)"
-
-    if [ "$failed" -ne 0 ]; then
-        err "preflight 失败 — 修好后重跑"
-        return 1
-    fi
-    ok "preflight OK"
-}
-
-# ─── step_secrets ────────────────────────────────────────────────────────
-# Generate .secrets/db_password if it doesn't exist. Idempotent — if the
-# file already exists, we don't touch it (preserves the running prod
-# db's credentials on a re-run).
-step_secrets() {
-    info "=== secrets ==="
-    mkdir -p "$PROJECT_DIR/.secrets"
-    chmod 700 "$PROJECT_DIR/.secrets"
-
-    if [ -f "$PROJECT_DIR/$DB_PASSWORD_FILE" ]; then
-        ok ".secrets/db_password 已存在 — 跳过生成"
-        chmod 600 "$PROJECT_DIR/$DB_PASSWORD_FILE"
-        return 0
-    fi
-
-    info "生成 .secrets/db_password (48 字符 URL-safe)..."
-    gen_secret 48 > "$PROJECT_DIR/$DB_PASSWORD_FILE"
-    chmod 600 "$PROJECT_DIR/$DB_PASSWORD_FILE"
-    ok ".secrets/db_password 已写入 (chmod 600)"
-    info "  ⚠️  这个文件不可 commit (.gitignore 已含 .secrets/)"
-    info "  ⚠️  改这个密码会让现有 db 数据无法读 — 仅限首次部署"
-}
-
-# ─── step_data_dir ───────────────────────────────────────────────────────
-# Create /var/lib/type-any-language/postgres if missing. Chown to UID 999
-# so the postgres alpine container can read/write it. Uses the
-# sudo_run_or_manual helper from _common.sh for non-interactive sudo.
-step_data_dir() {
-    info "=== 数据目录 ==="
-
-    if [ -d "$DB_DATA_DIR" ]; then
-        ok "$DB_DATA_DIR 已存在"
-        # Heal wrong ownership on re-run.
-        local current_owner
-        current_owner="$(stat -c '%u' "$DB_DATA_DIR" 2>/dev/null || echo "?")"
-        if [ "$current_owner" = "$POSTGRES_UID" ]; then
-            return 0
-        fi
-        warn "  当前属主 UID=$current_owner,期望 UID=$POSTGRES_UID — 修正中"
-        sudo_run_or_manual chown "$POSTGRES_UID:$POSTGRES_UID" "$DB_DATA_DIR" \
-            || return 1
-        ok "  chown 修正完成"
-        return 0
-    fi
-
-    info "创建 $DB_DATA_DIR (UID=$POSTGRES_UID,postgres alpine 用户)..."
-    sudo_run_or_manual mkdir -p "$DB_DATA_DIR" \
-        || return 1
-    sudo -n chmod 700 "$DB_DATA_DIR" 2>/dev/null || true
-    sudo_run_or_manual chown "$POSTGRES_UID:$POSTGRES_UID" "$DB_DATA_DIR" \
-        || return 1
-    ok "$DB_DATA_DIR 就绪"
-}
-
-# ─── step_nginx_site_link ─────────────────────────────────────────────
-# Delegate to ops/cvm/nginx/install.sh so the implementation is testable
-# in isolation and re-runnable outside of bootstrap.sh (e.g. after the
-# operator hand-edits /etc/nginx/sites-available).
-step_nginx_site_link() {
-    bash "$PROJECT_DIR/ops/cvm/nginx/install.sh"
-}
-
-# ─── cmd_prepare ─────────────────────────────────────────────────────────
 cmd_prepare() {
     info "=== prod host prepare (idempotent) ==="
     echo ""
     info "  主机层准备:不起容器、不 build image。"
     info "  build image 走 CI(release/build.yml),"
-    info "  起容器走 ./ops/cvm/deploy-if-published.sh(本脚本末步) 或 lifecycle.sh start。"
+    info "  起容器走 ./ops/cvm/deploy-if-published.sh 或 lifecycle.sh start。"
     echo ""
 
-    step_preflight        || return 1
-    echo ""
-    step_secrets          || return 1
-    echo ""
-    step_data_dir         || return 1
-    echo ""
-    step_nginx_site_link  || return 1
-    echo ""
+    bash "$COMMON_DIR/preflight.sh"             || return 1; echo ""
+    bash "$COMMON_DIR/secrets/install.sh"       || return 1; echo ""
+    bash "$COMMON_DIR/data-dir/install.sh"      || return 1; echo ""
+    bash "$COMMON_DIR/nginx/install.sh"         || return 1; echo ""
 
-    # Deploy latest + run IF a published image exists (guarded inside).
-    bash "$PROJECT_DIR/ops/cvm/deploy-if-published.sh"
+    bash "$COMMON_DIR/deploy-if-published.sh"
     echo ""
 
     ok "=== prepare 完成 ==="
