@@ -6,21 +6,42 @@
 #
 #   dev/   - dev host scripts (host-native uvicorn + next dev)
 #   cvm/   - any CVM scripts (prod CVM today, staging CVM tomorrow)
-#           lifecycle.sh / doctor.sh / bootstrap.sh / nginx.conf etc.
-#   ci/    - CI/CD pipeline scripts (called by .github/workflows/*.yml)
-#           resolve-tag.sh / deploy-prod.sh / bring-up-staging.sh / etc.
+#   release/ - CI/CD staging + shared tag helper (called by .github/workflows/*.yml)
+#           resolve-tag.sh / bring-up-staging.sh / write-deploy-record.sh / etc.
+#   publish/ - CI/CD ship-to-prod scripts (called by publish-prod.yml)
+#           deploy-prod.sh / promote.sh / assert-staging-verified.sh
 #
 # lib.sh   - shared helpers (sourced by cvm/ and dev/ scripts)
-
-# No build target lives at the repo root - it is in ci/ (this folder).
 #
-# Architecture: GitHub Actions workflow (yml) calls a small bash script in ci/.
+# ops/cvm/ layout - three groups, by what the file IS:
+#
+#   *.sh              entry points, all sourcing _common.sh
+#     _common.sh      shared setup + the compose() wrapper (see below)
+#     bootstrap.sh    one-time idempotent host prep
+#     lifecycle.sh    start / stop / restart
+#     doctor.sh       read-only health + drift check
+#     logs.sh         docker compose logs -f
+#   compose/          docker-compose.yml (the runtime definition)
+#   nginx/            site.conf (host nginx fragment) + install.sh
+#
+# IMPORTANT - the compose file is NOT at the repo root, and its
+# internal relative paths (secrets file, build contexts) are written
+# relative to the repo root. Never call `docker compose -f
+# ops/cvm/compose/docker-compose.yml` directly; go through
+# _common.sh's compose() wrapper, which pins --project-directory to the
+# repo root. Calling it directly makes compose look for
+# ops/cvm/compose/.secrets/db_password and fail.
+
+# No build target lives at the repo root - it is in release/ (this folder).
+#
+# Architecture: GitHub Actions workflow (yml) calls a small bash script in release/.
 # That bash script does the actual work: scp + ssh, docker compose up, etc.
 # Scripts are also runnable from a workstation (for debugging or manual ops).
 
 # When adding a new script:
 #   - targets a CVM (lifecycle / doctor / bootstrap) -> ops/cvm/
-#   - runs from CI / build host (deploy / build / tag) -> ops/ci/
+#   - runs from CI / build host (staging / build / tag) -> ops/release/
+#   - runs from CI / build host (deploy / promote to prod) -> ops/publish/
 #   - runs on a dev workstation (host-native dev loop) -> ops/dev/
 
 # Conventions (all scripts):
@@ -34,9 +55,10 @@
 # Release pipeline (no Makefile targets for these - done by .github/workflows/):
 #
 #   release-build.yml     produces rc tag + 3 images (db+backend+frontend)
-#   deploy-staging.yml    brings up ephemeral staging on GH runner, smoke+e2e+soak
-#   deploy-staging-review  same, with Cloudflare Tunnel public URL for human review
-#   publish-prod.yml      asserts staging verified, deploys to prod, creates vX.Y.Z
+#   staging.yml           ephemeral staging on GH runner; mode=validate
+#                         (smoke+e2e+soak+write record) | mode=review
+#                         (public Cloudflare Tunnel URL for human review)
+#   publish-prod.yml      asserts staging verified, deploys to prod (ops/publish/), creates vX.Y.Z
 
 # To trigger: GH Actions UI -> Run workflow on the relevant yml.
 # To inspect / test locally: bash <script> [args] from a workstation.

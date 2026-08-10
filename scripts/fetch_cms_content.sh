@@ -39,8 +39,8 @@
 # Idempotent: re-running just refreshes local cms/content/.
 # Side effects: overwrites local cms/content/{vocabulary,sentences}/.
 #
-# Why this lives at scripts/ (not ops/prod/):
-#   Both dev and prod hosts consume CMS content. ops/prod/ is for prod
+# Why this lives at scripts/ (not ops/cvm/):
+#   Both dev and prod hosts consume CMS content. ops/cvm/ is for prod
 #   runtime; scripts/ holds cross-host utilities (cf. scripts/secrets/
 #   fetch_secrets.sh, which has the same shape).
 

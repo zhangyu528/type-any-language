@@ -11,11 +11,40 @@
 #   resolve-tag.sh 0.4.0            # manually specify version
 #   resolve-tag.sh 1.0.0 major      # specify version + bump class
 #   resolve-tag.sh 0.4.0 "" 3       # force rc=3
+#   resolve-tag.sh resolve          # resolve latest rc (auto) or a given rc tag
+#                                    (used by staging.yml / publish-prod.yml)
 #
 # Output (printed to stdout for caller to capture):
 #   NEW_TAG=vX.Y.Z-rc.N
 
 set -euo pipefail
+
+# `resolve <ref>` mode — resolve an EXISTING rc tag to deploy. ref = "auto"
+# (or empty) -> latest rc prerelease tag; ref = a specific tag -> that tag
+# (validated). The caller captures stdout into NEW_TAG and writes it to
+# $GITHUB_OUTPUT.
+if [ "${1:-}" = "resolve" ]; then
+    ref="${2:-}"
+    if [ -z "$ref" ] || [ "$ref" = "auto" ]; then
+        tag=$(git tag -l "v*-rc.*" --sort=-v:refname 2>/dev/null | head -1 || true)
+        if [ -z "$tag" ]; then
+            echo "::error::no rc prerelease tags found (run release-build first)" >&2
+            exit 1
+        fi
+        echo "$tag"
+        exit 0
+    fi
+    if ! git tag -l "$ref" | grep -q .; then
+        echo "::error::ref $ref is not an existing git tag" >&2
+        exit 1
+    fi
+    if ! echo "$ref" | grep -qE "^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$"; then
+        echo "::error::ref $ref is not an rc tag (expected vX.Y.Z-rc.N)" >&2
+        exit 1
+    fi
+    echo "$ref"
+    exit 0
+fi
 
 INPUT_VERSION="${1:-}"
 BUMP_TYPE="${2:-patch}"

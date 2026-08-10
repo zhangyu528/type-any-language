@@ -18,8 +18,8 @@ run-name: bootstrap-prod-on-${{ inputs.host || 'auto' }}
 #        - install Docker Engine + compose plugin (so deploy-prod can run)
 #        - add `deploy` to the `docker` group (run docker without sudo)
 #        - sparse-checkout clone into /opt/type-any-language (owned by
-#          deploy): ONLY docker-compose.yml + Makefile + ops/prod +
-#          ops/lib.sh. Source code is excluded — prod images
+#          deploy): ONLY Makefile + ops/cvm + ops/lib.sh (the compose
+#          file ships inside ops/cvm/compose/). Source code is excluded — prod images
 #          are pulled from GHCR, not built locally on the CVM. The
 #          deployed version comes from the git tag (forwarded as IMAGE_TAG
 #          by deploy-prod), so no VERSION files are cloned.
@@ -193,9 +193,11 @@ jobs:
             # for it.
 
             # Sparse-checkout clone — only the files deploy needs on the CVM:
-            #   docker-compose.yml + Makefile   (compose + make targets)
-            #   ops/prod/*                      (deploy scripts + nginx.conf)
-            #   ops/lib.sh                      (sourced by the prod scripts)
+            #   Makefile        (make targets)
+            #   ops/cvm/*       (lifecycle/doctor/bootstrap + compose/ + nginx/)
+            #   ops/lib.sh       (sourced by the cvm scripts)
+            # The compose file is NOT at the repo root — it lives at
+            # ops/cvm/compose/docker-compose.yml, covered by ops/cvm/.
             # Source code (backend/ frontend/ db/ Dockerfiles, cms/, scripts/)
             # is intentionally excluded: prod images are pulled from GHCR,
             # not built locally on the CVM. The deployed version comes from
@@ -217,12 +219,11 @@ jobs:
                   /opt/type-any-language
                 cd /opt/type-any-language
                 git sparse-checkout set --no-cone \
-                  docker-compose.yml \
                   Makefile \
-                  ops/prod/ \
+                  ops/cvm/ \
                   ops/lib.sh
               '
-              echo "[bootstrap] sparse-cloned repo (compose + ops/prod only)"
+              echo "[bootstrap] sparse-cloned repo (Makefile + ops/cvm + ops/lib.sh)"
             else
               echo "[bootstrap] repo already present"
             fi

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Bring up the ephemeral staging stack (db + backend + frontend + nginx).
-# Used by deploy-staging.yml and deploy-staging-review.yml.
+# Used by staging.yml (mode: validate | review).
 #
 # Required env vars (set by the calling workflow):
 #   DOCKER_REGISTRY  - e.g. ghcr.io/<owner>/type-any-language
@@ -17,7 +17,9 @@ set -euo pipefail
 ALLOWED_ORIGINS="${ALLOWED_ORIGINS:-*}"
 NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-/api}"
 
-cd "$(dirname "$0")/../staging"
+# The staging compose (docker-compose.staging.yml) and its nginx conf live
+# in the SAME folder as this script (ops/release/), so cd to script dir.
+cd "$(dirname "$0")"
 
 echo "[bring-up-staging] pulling images ($DOCKER_REGISTRY/*:$IMAGE_TAG)..."
 docker compose -p tal-staging pull --quiet

@@ -22,7 +22,7 @@ DEPLOY_IDS=$(gh api "repos/$REPO/deployments?ref=$REF" \
 
 if [ -z "$DEPLOY_IDS" ]; then
     echo "::error::no staging deploy record for $REF"
-    echo "  hint: run deploy-staging.yml first and verify it passes"
+    echo "  hint: run staging.yml (mode: validate) first and verify it passes"
     exit 1
 fi
 
@@ -31,7 +31,7 @@ STATE=$(gh api "repos/$REPO/deployments/$LATEST_ID/statuses" --jq ".[0].state" 2
 
 if [ "$STATE" != "success" ]; then
     echo "::error::latest staging deploy for $REF has state=$STATE (expected success)"
-    echo "  hint: re-run deploy-staging.yml and verify it passes"
+    echo "  hint: re-run staging.yml (mode: validate) and verify it passes"
     exit 1
 fi
 

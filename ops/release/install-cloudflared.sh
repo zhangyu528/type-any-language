@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Download + install cloudflared binary (Cloudflare Tunnel client).
-# Called by deploy-staging-review.yml before starting the tunnel.
+# Called by staging.yml (mode: review) before starting the tunnel.
 
 set -euo pipefail
 

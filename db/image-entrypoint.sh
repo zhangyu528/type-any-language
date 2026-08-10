@@ -5,10 +5,12 @@
 # BEFORE bringing postgres to the foreground. Idempotent: importer is
 # UPSERT, safe to run on every container start.
 #
-# Schema migrations are NOT applied here — that responsibility moved
-# to the deploy host (deploy.sh runs db/scripts/migrate.sh before
-# `compose up -d`). The db image is a passive store; the deploy host
-# owns the schema lifecycle. See ops/prod/deploy.sh.
+# Schema migrations are NOT applied here. They run in the BACKEND
+# container's entrypoint (backend/image-entrypoint.sh runs
+# `python3 -m migrations.runner` on boot) — the same "service applies
+# its own migrations" idiom. This db entrypoint only imports CMS
+# content. The db image is a passive store; the backend owns the
+# schema lifecycle.
 #
 # Postgres lifecycle (this script):
 #   1. Start postgres as a background process

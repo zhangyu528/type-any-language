@@ -1,29 +1,33 @@
 #!/bin/bash
-# ops/prod/install-nginx-site.sh — install + enable the
+# ops/cvm/nginx/install.sh — install + enable the
 # type-any-language nginx site on the CVM host.
 #
-# Idempotent. Safe to re-run after editing ops/prod/nginx.conf.
+# Idempotent. Safe to re-run after editing ops/cvm/nginx/site.conf.
+#
+# Called by ops/cvm/bootstrap.sh::step_nginx_site_link, but kept as a
+# standalone script so it can be re-run on its own after the operator
+# hand-edits /etc/nginx/sites-available.
 #
 # Steps:
 #   1. Verify nginx binary present (apt-install if missing — most
 #      ubuntu images ship nginx-common but not nginx itself).
 #   2. Verify the site conf + the default site presence; remove
 #      default if it would shadow us on :80.
-#   3. Install ops/prod/nginx.conf to /etc/nginx/sites-available/ and
-#      enable the site via sites-enabled/ symlink.
+#   3. Install ops/cvm/nginx/site.conf to /etc/nginx/sites-available/
+#      and enable the site via sites-enabled/ symlink.
 #   4. Validate with nginx -t (syntax check).
 #   5. systemctl reload nginx (keeps in-flight reqs; not restart).
 #
 # Exit codes:
 #   0  success
-#   1  missing tool (nginx binary, sudo)
+#   1  missing tool (nginx binary, sudo) or missing source conf
 #   2  nginx -t failed
 #   3  systemctl reload failed
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SRC_CONF="$SCRIPT_DIR/nginx.conf"
+SRC_CONF="$SCRIPT_DIR/site.conf"
 DST_CONF="/etc/nginx/sites-available/type-any-language"
 LINK="/etc/nginx/sites-enabled/type-any-language"
 

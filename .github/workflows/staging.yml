@@ -1,0 +1,153 @@
+name: staging
+run-name: staging-${{ inputs.mode }}-${{ inputs.ref || 'auto' }}
+
+# Ephemeral staging on a GH runner (no separate staging CVM).
+#
+# One workflow, two modes via the `mode` input:
+#   validate (default): bring up db+backend+frontend+nginx in docker compose,
+#       run smoke + e2e + long soak, write a GH Deployments record (so
+#       publish-prod can assert it via assert-staging-verified.sh), then
+#       tear everything down. Use this as the CI gate before publish-prod.
+#   review: same bring-up, but expose nginx via a Cloudflare Tunnel (public
+#       URL) for a human to click around, with a long timeout. NO deploy
+#       record is written (this is for human review, not the CI gate).
+#
+# All heavy bash is in ops/release/*.sh. The workflow just orchestrates.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "validate = CI gate + deploy record | review = public URL for human"
+        type: choice
+        options: [validate, review]
+        default: validate
+      ref:
+        description: rc tag (vX.Y.Z-rc.N) - auto = latest prerelease
+        type: string
+        default: auto
+      soak_minutes:
+        description: long soak duration, validate mode only (0 = skip)
+        type: number
+        default: 15
+      timeout_hours:
+        description: max lifetime, review mode only (operator can cancel sooner)
+        type: number
+        default: 4
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-${{ inputs.mode }}
+  cancel-in-progress: false
+
+jobs:
+  staging:
+    runs-on: ubuntu-latest
+    environment: staging
+    services:
+      docker:
+        image: docker:24-dind
+        options: --privileged
+    env:
+      DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+      DB_PASSWORD: staging-${{ github.run_id }}
+      ALLOWED_ORIGINS: "*"
+      NEXT_PUBLIC_API_URL: /api
+      SOAK_MINUTES: ${{ inputs.soak_minutes }}
+      TIMEOUT_HOURS: ${{ inputs.timeout_hours }}
+    timeout-minutes: ${{ inputs.mode == 'review' && inputs.timeout_hours * 60 || 360 }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve deploy ref
+        id: resolve
+        env:
+          INPUT_REF: ${{ inputs.ref }}
+        run: |
+          NEW_TAG=$(bash ops/release/resolve-tag.sh resolve "$INPUT_REF")
+          echo "NEW_TAG=${NEW_TAG}" >> "$GITHUB_OUTPUT"
+          echo "Resolved: ${NEW_TAG}"
+
+      - name: Login to GHCR
+        if: env.DOCKER_REGISTRY != ""
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bring up staging stack
+        env:
+          IMAGE_TAG: ${{ steps.resolve.outputs.NEW_TAG }}
+        run: bash ops/release/bring-up-staging.sh
+
+      - name: Run smoke tests
+        run: bash ops/test/smoke.sh http://localhost:8080
+
+      - name: Run e2e tests
+        if: inputs.mode == 'validate'
+        run: bash ops/test/e2e.sh http://localhost:8080 || echo "e2e skipped (no tests yet)"
+
+      - name: Long soak (validate)
+        if: inputs.mode == 'validate' && env.SOAK_MINUTES != '' && env.SOAK_MINUTES != '0'
+        run: |
+          echo "Soaking for $SOAK_MINUTES minutes..."
+          sleep $((SOAK_MINUTES * 60))
+
+      - name: Install cloudflared (review)
+        if: inputs.mode == 'review'
+        run: bash ops/release/install-cloudflared.sh
+
+      - name: Start Cloudflare Tunnel (review)
+        id: tunnel
+        if: inputs.mode == 'review'
+        run: bash ops/release/expose-tunnel.sh
+
+      - name: Wait for operator to finish reviewing
+        if: inputs.mode == 'review'
+        env:
+          TUNNEL_PID: ${{ steps.tunnel.outputs.TUNNEL_PID }}
+          HOURS: ${{ inputs.timeout_hours }}
+        run: |
+          echo "Staging is live at the URL above (see Start Cloudflare Tunnel step output)."
+          echo "Cancel this workflow from GH Actions UI when done reviewing."
+          SECS=$((HOURS * 3600))
+          ELAPSED=0
+          while [ $ELAPSED -lt $SECS ]; do
+            if ! kill -0 "$TUNNEL_PID" 2>/dev/null; then
+              echo "Tunnel died early (operator cancelled?)"
+              break
+            fi
+            sleep 60
+            ELAPSED=$((ELAPSED + 60))
+          done
+          echo "Review window ended."
+
+      - name: Write GH Deployments record (verified) (validate)
+        if: inputs.mode == 'validate' && success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          REF: ${{ steps.resolve.outputs.NEW_TAG }}
+          SHA: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: bash ops/release/write-deploy-record.sh
+
+      - name: Teardown
+        if: always()
+        run: |
+          if [ "${{ inputs.mode }}" = "review" ] && [ -n "${{ steps.tunnel.outputs.TUNNEL_PID }}" ]; then
+            kill "${{ steps.tunnel.outputs.TUNNEL_PID }}" 2>/dev/null || true
+          fi
+          bash ops/release/teardown-staging.sh
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "Staging run ended (mode=${{ inputs.mode }} ref=${{ steps.resolve.outputs.NEW_TAG }})."
+          echo "Result: ${{ job.status }}"

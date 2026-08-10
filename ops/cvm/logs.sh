@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 #
-# ops/prod/logs.sh — docker compose logs -f for prod.
+# ops/cvm/logs.sh — docker compose logs -f for the CVM stack.
 #
 # Read-only wrapper. Usage:
-#   ./ops/prod/logs.sh                  # all services
-#   ./ops/prod/logs.sh backend          # one service
-#   ./ops/prod/logs.sh --tail 100 backend
+#   ./ops/cvm/logs.sh                  # all services
+#   ./ops/cvm/logs.sh backend          # one service
+#   ./ops/cvm/logs.sh --tail 100 backend
+#
+# Only covers the compose services (db / backend / frontend). The
+# host's system nginx logs live in /var/log/nginx/.
 
 set -e
 
@@ -15,4 +18,4 @@ source "$COMMON_DIR/_common.sh"
 setup_prod_host_env
 
 require_docker
-exec $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" logs -f "$@"
+compose logs -f "$@"

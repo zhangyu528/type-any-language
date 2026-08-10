@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# ops/prod/doctor.sh — pre-flight env check (read-only).
+# ops/cvm/doctor.sh — pre-flight env check (read-only).
 #
 # Updated 2026-08-04: no longer checks gh CLI (CVM doesn't need gh —
 # DOCKER_REGISTRY is injected by the deploy workflow via SSH env).
 #
-# Validates that everything ops/prod/{lifecycle,bootstrap} need is in
-# place. Does NOT modify anything on disk or call docker compose.
+# Validates that everything ops/cvm/{lifecycle,bootstrap} need is in
+# place. Does NOT modify anything on disk or bring containers up/down.
 #
 # Drift check (running containers vs local VERSION) is appended.
 #
@@ -51,7 +51,7 @@ cmd_doctor() {
         chmod 600 "$DB_PASSWORD_FILE"
     else
         err ".secrets/db_password 不存在 — db 容器无密码"
-        info "  → ./ops/prod/bootstrap.sh       # 首次部署自动生成"
+        info "  → ./ops/cvm/bootstrap.sh       # 首次部署自动生成"
         info "  → 或手动: openssl rand -hex 32 > .secrets/db_password && chmod 600"
         failed=1
     fi
@@ -66,7 +66,7 @@ cmd_doctor() {
             ok "image ${BACKEND_FULL_IMAGE} 存在 (registry 可拉)"
         else
             err "image ${BACKEND_FULL_IMAGE} 缺失 (registry 拉不到)"
-            info "  → 在 BUILD 端跑: make prod-build  或  make release-prod vX.Y.Z -y"
+            info "  → 走 CI 重新出包: .github/workflows/release-build.yml"
             info "  → 或手动: docker pull ${BACKEND_FULL_IMAGE}"
             failed=1
         fi
@@ -74,7 +74,7 @@ cmd_doctor() {
             ok "image ${FRONTEND_FULL_IMAGE} 存在 (registry 可拉)"
         else
             err "image ${FRONTEND_FULL_IMAGE} 缺失 (registry 拉不到)"
-            info "  → 在 BUILD 端跑: make prod-build  或  make release-prod vX.Y.Z -y"
+            info "  → 走 CI 重新出包: .github/workflows/release-build.yml"
             info "  → 或手动: docker pull ${FRONTEND_FULL_IMAGE}"
             failed=1
         fi
@@ -82,7 +82,7 @@ cmd_doctor() {
             ok "image ${DB_FULL_IMAGE} 存在 (registry 可拉)"
         else
             err "image ${DB_FULL_IMAGE} 缺失 (registry 拉不到)"
-            info "  → 在 BUILD 端跑: make prod-build  或  make release-prod vX.Y.Z -y"
+            info "  → 走 CI 重新出包: .github/workflows/release-build.yml"
             info "  → 或手动: docker pull ${DB_FULL_IMAGE}"
             failed=1
         fi
@@ -96,7 +96,7 @@ cmd_doctor() {
         ok "/var/lib/type-any-language/postgres 存在"
     else
         err "/var/lib/type-any-language/postgres 不存在"
-        info "  → 跑: ./ops/prod/bootstrap.sh  (会 sudo mkdir + chown 999:999)"
+        info "  → 跑: ./ops/cvm/bootstrap.sh  (会 sudo mkdir + chown 999:999)"
         failed=1
     fi
 

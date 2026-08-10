@@ -327,7 +327,10 @@ read_version_file() {
 # resolve_image_tag VAR_NAME [path]
 #   If $VAR_NAME is already set and non-empty, leave it alone.
 #   Otherwise, set it (in the caller's scope, exported) to:
-#     ${IMAGE_TAG} if set, else $(read_version_file "$path"), else "v0.0.0".
+#     ${IMAGE_TAG} if set, else $(read_version_file "$path"),
+#     else "latest" (release-build.yml publishes a :latest tag for every
+#     version tag, so a host with no explicit IMAGE_TAG still gets a
+#     concrete, pullable image — the newest published build).
 #
 # Usage (callers should always pass the per-segment path):
 #       resolve_image_tag DB_IMAGE_TAG       db/VERSION
@@ -338,7 +341,10 @@ resolve_image_tag() {
     #   1. Per-image env var (e.g. BACKEND_IMAGE_TAG=v1.2.3)
     #   2. Generic IMAGE_TAG env var (CI convenience — bumps all images at once)
     #   3. The VERSION file path passed in
-    #   4. Fail loud (was: "v0.0.0" fallback — silent failure anti-pattern)
+    #   4. Default to "latest" — CI guarantees this tag exists, so bootstrap
+    #      / lifecycle work zero-config on a host that just wants "newest".
+    #      Non-pinned: warn_if_version_default() flags this so operators know
+    #      they are NOT running a fixed release tag.
     local var="$1"
     local path="${2:-}"
     local cur="${!var:-}"
@@ -350,39 +356,35 @@ resolve_image_tag() {
         export "$var"
         return 0
     fi
-    if [ -z "$path" ]; then
-        err "resolve_image_tag: 缺 path,且 $var / IMAGE_TAG env var 都未设"
-        return 1
+    if [ -n "$path" ] && [ -f "$PROJECT_DIR/$path" ]; then
+        local resolved
+        resolved="$(read_version_file "$path")"
+        if [ -n "$resolved" ]; then
+            printf -v "$var" '%s' "$resolved"
+            export "$var"
+            return 0
+        fi
     fi
-    if [ ! -f "$PROJECT_DIR/$path" ]; then
-        err "$path 不存在,且 $var / IMAGE_TAG env var 都未设"
-        err "  解决: 跑 ./ops/prod/release.sh prod vX.Y.Z(会自动创建)"
-        return 1
-    fi
-    local resolved
-    resolved="$(read_version_file "$path")"
-    if [ -z "$resolved" ]; then
-        err "$path 是空的,version 必填"
-        err "  解决: 跑 ./ops/prod/release.sh prod vX.Y.Z(自动写)"
-        return 1
-    fi
-    printf -v "$var" '%s' "$resolved"
+    # No explicit tag, no VERSION file → fall back to the `latest` tag that
+    # release-build.yml guarantees exists. Non-pinned by design.
+    printf -v "$var" 'latest'
     export "$var"
     return 0
 }
 
 # warn_if_version_default <tag> [path]  — prints a single warn line if the
-# resolved tag is "v0.0.0" (i.e. no VERSION file was found). A per-process
-# guard (_LIB_VERSION_WARNED) keeps the message from repeating.
+# resolved tag is "latest" (i.e. no IMAGE_TAG / VERSION pin was supplied, so
+# the host is running the mutable :latest tag). A per-process guard
+# (_LIB_VERSION_WARNED) keeps the message from repeating.
 warn_if_version_default() {
     local tag="${1:-}"
     local path="${2:-}"
     if [ "${_LIB_VERSION_WARNED:-0}" = "1" ]; then return 0; fi
-    if [ "$tag" = "v0.0.0" ]; then
+    if [ "$tag" = "latest" ]; then
         if [ -n "$path" ]; then
-            warn "VERSION 文件缺失或为空 ($path), 使用默认 v0.0.0"
+            warn "未指定 IMAGE_TAG 且 $path 缺失 → 使用 :latest(非固定版本,可能与线上漂移)"
         else
-            warn "VERSION 文件缺失或为空, 使用默认 v0.0.0 — 在仓库根建一个 VERSION 文件"
+            warn "未指定 IMAGE_TAG → 使用 :latest(非固定版本,可能与线上漂移)"
         fi
         _LIB_VERSION_WARNED=1
     fi

@@ -1,7 +1,7 @@
 ﻿#!/usr/bin/env bash
 #
 # Write a GH Deployments record (env=staging, status=success).
-# Called by deploy-staging.yml after smoke/e2e/soak all pass.
+# Called by staging.yml (mode: validate) after smoke/e2e/soak all pass.
 
 # Required env vars (set by the calling workflow):
 #   GH_TOKEN - GitHub token with deployments: write

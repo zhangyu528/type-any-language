@@ -44,8 +44,8 @@ jobs:
           BUMP_TYPE: ${{ github.event.inputs.bump_type }}
           FORCE_RC: ${{ github.event.inputs.force_rc }}
         run: |
-          chmod +x ops/ci/resolve-tag.sh
-          NEW_TAG=$(bash ops/ci/resolve-tag.sh "$INPUT_VERSION" "$BUMP_TYPE" "$FORCE_RC")
+          chmod +x ops/release/resolve-tag.sh
+          NEW_TAG=$(bash ops/release/resolve-tag.sh "$INPUT_VERSION" "$BUMP_TYPE" "$FORCE_RC")
           echo "NEW_TAG=${NEW_TAG}" >> "$GITHUB_OUTPUT"
           echo "Resolved: ${NEW_TAG}"
 
@@ -80,6 +80,23 @@ jobs:
           docker push "${DOCKER_REGISTRY}/english_backend:${NEW_TAG}"
           docker build --build-arg APP_VERSION="${NEW_TAG}" --build-arg GIT_SHA="${GIT_SHA}" --build-arg NEXT_PUBLIC_API_URL=/ -t "${DOCKER_REGISTRY}/english_frontend:${NEW_TAG}" frontend
           docker push "${DOCKER_REGISTRY}/english_frontend:${NEW_TAG}"
+
+      - name: Tag + push :latest
+        # Publish a mutable `latest` tag for every version tag so a host
+        # with no explicit IMAGE_TAG (e.g. a bare `bootstrap.sh`) can pull
+        # "the newest published build" zero-config. NOTE: if GHCR has
+        # immutable tags enabled for this package, re-pushing :latest fails
+        # — disable immutable tags for the :latest tag or pin via IMAGE_TAG.
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+          NEW_TAG: ${{ steps.resolve.outputs.NEW_TAG }}
+        run: |
+          set -e
+          for img in english_db english_backend english_frontend; do
+            docker tag "${DOCKER_REGISTRY}/${img}:${NEW_TAG}" "${DOCKER_REGISTRY}/${img}:latest"
+            docker push "${DOCKER_REGISTRY}/${img}:latest"
+          done
+          echo "pushed :latest for all 3 images (NEW_TAG=${NEW_TAG})"
 
       - name: Vulnerability scan (trivy)
         uses: aquasecurity/trivy-action@master

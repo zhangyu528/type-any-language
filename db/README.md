@@ -10,7 +10,7 @@ This directory has nothing to do with the application backend (FastAPI / SQLAlch
 
 1. **Schema bootstrap** — `CREATE TABLE IF NOT EXISTS` for fresh dbs, plus ordered versioned `upgrade()` modules for in-place upgrades.
 2. **CMS staging import (L 步)** — read `cms/content/` and UPSERT into the connected db (the local postgres in compose, typically). Idempotent; safe to re-run.
-3. **Schema migrations** — apply pending versioned DDL to the connected db. Idempotent (runner.py stamps `schema_migrations`). Called from `ops/prod/deploy.sh` on first-time bring-up, and from `make dev-migrate` on dev hosts after a code change.
+3. **Schema migrations** — apply pending versioned DDL to the connected db. Idempotent (runner.py stamps `schema_migrations`). Applied by the backend container entrypoint (`backend/image-entrypoint.sh` runs `python3 -m migrations.runner` on boot), and from `make dev-migrate` on dev hosts after a code change.
 
 ## Directory layout
 
@@ -60,8 +60,8 @@ via `docker compose up -d db`. The first-time bootstrap is:
 # dev:
 ./ops/dev/setup.sh                     # 装 venv + node_modules + 起 db
 # prod (RUN 端):
-./ops/prod/bootstrap.sh                  # 生成 .secrets/db_password + sudo chown /var/lib/.../postgres
-./ops/prod/deploy.sh                # 起 db + apply migrations + import content + start full stack
+./ops/cvm/bootstrap.sh                  # 生成 .secrets/db_password + sudo chown /var/lib/.../postgres
+./ops/cvm/lifecycle.sh start            # 起 db + import content + start full stack (migrations 由 backend entrypoint 在 boot 时完成)
 ```
 
 The db password is sourced at runtime from `.secrets/db_password` (chmod 600),
@@ -113,4 +113,4 @@ For dev hosts, `ops/dev/migrate.sh` is a thin wrapper that sources `db/scripts/l
 
 The db segment has no image and therefore no VERSION file. Schema version is the `schema_migrations` row count; content version is the timestamp of the most recent successful `db/scripts/import_staging.sh` run.
 
-Bumping `backend/VERSION` / `frontend/VERSION` is still the canonical release signal (those drive the only two images in the pipeline: `english_backend{,_dev}` + `english_frontend{,_dev}`). Use `ops/prod/release.sh dev|prod [X.Y.Z]` to do that — it has nothing to do with the db anymore.
+Bumping `backend/VERSION` / `frontend/VERSION` is still the canonical release signal (those drive the only two images in the pipeline: `english_backend{,_dev}` + `english_frontend{,_dev}`). Bump them via the build CI (`.github/workflows/release-build.yml`) — it has nothing to do with the db anymore.

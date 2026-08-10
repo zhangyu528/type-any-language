@@ -11,14 +11,17 @@
 # start. Sequence:
 #   1. Start postgres in background
 #   2. Wait for pg_isready
-#   3. Apply pending schema migrations (idempotent — schema_migrations
-#      table tracks applied versions)
-#   4. Import content (idempotent UPSERT — re-runs are safe)
-#   5. Bring postgres to foreground (PID 1)
+#   3. Import content (idempotent UPSERT — re-runs are safe)
+#   4. Bring postgres to foreground (PID 1)
+#
+# NOTE: schema migrations are NOT applied here. The BACKEND container's
+# entrypoint (backend/image-entrypoint.sh) applies pending migrations on
+# boot via `python3 -m migrations.runner`. This image only ships the
+# migrations + importer so they are available; it does not run them.
 #
 # Bind-mount of /var/lib/type-any-language/postgres remains for data
 # persistence across container recreates. The data directory survives;
-# the entrypoint only runs migrations / import if pending.
+# the entrypoint re-imports content only when pending.
 #
 # Build context: repo root (.) so we can COPY backend/, db/, cms/.
 # Build is invoked by `docker compose build` (via publish.sh / build.sh).
@@ -29,7 +32,7 @@ FROM postgres:15-alpine
 
 # Version label — set from build args (mirrors backend/frontend Dockerfiles).
 # Surfaces in `docker inspect` as type-any-language.app.version, which
-# ops/prod/_common.sh::drift_check compares against db/VERSION.
+# ops/cvm/_common.sh::drift_check compares against db/VERSION.
 ARG APP_VERSION=latest
 ARG GIT_SHA=unknown
 LABEL type-any-language.app.version="${APP_VERSION}"

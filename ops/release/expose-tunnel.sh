@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Start a Cloudflare Tunnel exposing localhost:8080 publicly.
-# Called by deploy-staging-review.yml to give operator a public URL.
+# Called by staging.yml (mode: review) to give operator a public URL.
 
 # Required env vars (set by the calling workflow):
 #   TUNNEL_PORT - port to expose (default 8080)

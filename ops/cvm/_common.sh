@@ -1,29 +1,34 @@
 #!/bin/bash
 #
-# ops/prod/_common.sh — shared setup for prod scripts.
+# ops/cvm/_common.sh — shared setup for CVM-side scripts.
 #
-# Sourced by every script in ops/prod/ — does the bootstrap that
+# Sourced by every script in ops/cvm/ — does the bootstrap that
 # otherwise would have to be copy-pasted into each command. Single
-# source of truth for: image tag resolution, port warnings, drift check.
+# source of truth for: image tag resolution, compose invocation,
+# port warnings, drift check.
 #
 # Conventions:
 #   - $COMMON_DIR is set by the caller (every calling script sets it via
 #     `COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"`)
 #   - setup_prod_host_env must be called before any other helper.
+#   - ALWAYS invoke compose through the compose() wrapper below, never
+#     through a bare $DOCKER_COMPOSE_CMD. See the wrapper's comment for
+#     why --project-directory is non-negotiable.
 #
 # Runtime model:
-#   Three services in prod compose, all on a single CVM:
-#     db         — postgres:15-alpine, data bind-mounted to
+#   Three containerised services, all on a single CVM:
+#     db         — english_db (custom image), data bind-mounted to
 #                  /var/lib/type-any-language/postgres. Password comes
 #                  from .secrets/db_password (compose secrets: block).
-#     backend    — FastAPI / uvicorn, no reload. Receives DATABASE_URL
-#                  via compose environment.
-#     nginx      — reverse proxy on :80.
+#                  Its entrypoint applies migrations + imports content
+#                  on every container start.
+#     backend    — FastAPI / uvicorn, no reload. Assembles DATABASE_URL
+#                  at boot from /run/secrets/db_password.
+#     frontend   — Next.js standalone server on :3000.
 #
-#   DATABASE_URL is injected by compose via the `environment:` block
-#   (no DATABASE_URL indirection — that's a docker postgres-era
-#   artifact that's been retired). The backend's entrypoint.sh runs
-#   migrations against the db service on every container start.
+#   nginx is NOT a compose service — it is the host's apt-installed
+#   system nginx, configured from ops/cvm/nginx/site.conf and installed
+#   by ops/cvm/nginx/install.sh (called from bootstrap.sh).
 
 set -e
 
@@ -35,7 +40,10 @@ source "$PROJECT_DIR/ops/lib.sh"
 # ─── Globals set by setup_prod_host_env ─────────────────────────────────────
 SECRETS_DIR=".secrets"
 DB_PASSWORD_FILE="${SECRETS_DIR}/db_password"
-COMPOSE_FILE="docker-compose.yml"
+# Absolute path — the compose file lives in a subfolder, so a bare
+# relative name would resolve against $PWD and break the moment a
+# caller runs from anywhere other than the repo root.
+COMPOSE_FILE="$PROJECT_DIR/ops/cvm/compose/docker-compose.yml"
 # Three image set, all tagged with the same VERSION (one publish = one release)
 BACKEND_IMAGE="english_backend"
 FRONTEND_IMAGE="english_frontend"
@@ -61,8 +69,9 @@ setup_prod_host_env() {
     fi
     info "DOCKER_REGISTRY=$DOCKER_REGISTRY (source=${_DOCKER_REGISTRY_SOURCE:-github}, auto-pull on for all 3 prod images)"
     # Prod image tags come from the IMAGE_TAG env (set by deploy-prod from
-    # the git tag). The per-segment VERSION files were removed (2026-08-06);
-    # the path args below are now only a fallback if IMAGE_TAG is unset.
+    # the git tag). If IMAGE_TAG is unset, resolve_image_tag falls back to
+    # the `latest` tag that release-build.yml publishes for every version
+    # tag — so a host with no explicit pin still pulls a concrete image.
     # All 3 images (db + backend + frontend) share the same tag.
     resolve_image_tag BACKEND_IMAGE_TAG  backend/VERSION
     resolve_image_tag FRONTEND_IMAGE_TAG frontend/VERSION
@@ -79,18 +88,46 @@ setup_prod_host_env() {
     export BACKEND_FULL_IMAGE FRONTEND_FULL_IMAGE DB_FULL_IMAGE
 }
 
+# ─── compose ───────────────────────────────────────────────────────────────
+# The ONLY sanctioned way to call docker compose from ops/cvm/.
+#
+# Why --project-directory is mandatory:
+#   Compose resolves every relative path inside the YAML against the
+#   *compose file's own directory*, not against $PWD. Our compose file
+#   sits at ops/cvm/compose/, but the paths it declares are repo-root
+#   relative:
+#       secrets.db_password.file: ./.secrets/db_password
+#       db.build.context:         .          (+ dockerfile: db/Dockerfile)
+#       backend.build.context:    ./backend
+#   Without --project-directory those would resolve to
+#   ops/cvm/compose/.secrets/db_password etc. — none of which exist.
+#   bootstrap.sh writes the password to the REPO ROOT .secrets/, so we
+#   pin the project directory there and every relative path lines up.
+#
+# Also pins the compose project name so the container/network names stay
+# stable regardless of which directory the operator invoked the script
+# from (compose otherwise derives the project name from the basename of
+# the project directory).
+compose() {
+    $DOCKER_COMPOSE_CMD \
+        --project-directory "$PROJECT_DIR" \
+        --project-name "${COMPOSE_PROJECT_NAME:-type-any-language}" \
+        -f "$COMPOSE_FILE" \
+        "$@"
+}
+
 # ─── drift_check ───────────────────────────────────────────────────────────
 # Note: `gate_preflight` was removed in the 2026-08-04 refactor.
-# All pre-flight checks now live in ops/prod/doctor.sh (single source
-# of truth). lifecycle.sh is pure action (no embedded checks); deploy.sh
-# runs `doctor.sh` pre + post. Run `make prod-doctor` standalone to
-# check current state at any time.
+# All pre-flight checks now live in ops/cvm/doctor.sh (single source
+# of truth). lifecycle.sh is pure action (no embedded checks); the CI
+# deploy script (ops/publish/deploy-prod.sh) runs doctor after the restart.
+# Run `make prod-doctor` standalone to check current state at any time.
 # Compares each running container's image LABEL (`type-any-language.app.version`)
-# against the per-segment VERSION file. Mismatch means compose has been
-# started with a different VERSION than the running image — restart to
+# against the resolved image tag. Mismatch means compose has been
+# started with a different tag than the running image — restart to
 # pull the new one.
 drift_check() {
-    if ! $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" ps -q backend >/dev/null 2>&1; then
+    if ! compose ps -q backend >/dev/null 2>&1; then
         return 0
     fi
     local svc cid expected actual
@@ -100,7 +137,7 @@ drift_check() {
             backend)  expected="$BACKEND_IMAGE_TAG" ;;
             frontend) expected="$FRONTEND_IMAGE_TAG" ;;
         esac
-        cid="$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" ps -q "$svc" 2>/dev/null | head -1)"
+        cid="$(compose ps -q "$svc" 2>/dev/null | head -1)"
         if [ -z "$cid" ]; then
             continue
         fi

@@ -1,8 +1,17 @@
 # ---------------------------------------------------------------------------
 # Production docker-compose for type-any-language.
 #
-# Runtime model: 4 services, all on the CVM, on the same compose project.
-# Pulled/built as a unit and recreated together on `lifecycle.sh restart`.
+# !! DO NOT invoke this file with a bare `docker compose -f <path>` !!
+# Every relative path below (secrets file, build contexts) is written
+# RELATIVE TO THE REPO ROOT, but compose resolves them against this
+# file's own directory (ops/cvm/compose/). Always go through
+# ops/cvm/_common.sh's compose() wrapper, or pass
+# `--project-directory <repo-root>` yourself. Entry points:
+#     ./ops/cvm/lifecycle.sh start|stop|restart
+#     make prod-start | prod-stop | prod-restart
+#
+# Runtime model: 3 services, all on the CVM, on the same compose project.
+# Pulled as a unit and recreated together on `lifecycle.sh restart`.
 #
 # Custom db image (db/Dockerfile):
 #   The db service uses a LOCAL build (not the upstream postgres image
@@ -19,30 +28,31 @@
 #     - New image pulled (new VERSION): apply any new migrations +
 #       re-import any new content automatically
 #
-# Four services, all on the CVM:
+# Three services, all on the CVM:
 #   db       — english_db:${DB_IMAGE_TAG}, custom (see above)
 #   backend  — FastAPI / uvicorn, no reload. Connects to db via
 #              DATABASE_URL env. Does NOT run migrations (db handles it).
 #   frontend — Next.js standalone build, serves the UI on :3000.
 #              Static assets are served by nginx; SSR happens here.
 #              Browser hits nginx, which proxies / to this.
-#   nginx    — reverse proxy on :80. Routes:
-#                /api/  → backend:8000
-#                /      → frontend:3000
 #
-# Run via:  ALLOWED_ORIGINS=https://my.domain ./ops/prod/lifecycle.sh start
+# nginx is NOT a service here — it is the host's apt-installed system
+# nginx, configured from ops/cvm/nginx/site.conf. It routes:
+#   /api/          → 127.0.0.1:8000 (backend)
+#   /_next/static/ → /var/lib/type-any-language/frontend-static (direct)
+#   /              → 127.0.0.1:3000 (frontend)
+#
+# Run via:  ALLOWED_ORIGINS=https://my.domain ./ops/cvm/lifecycle.sh start
 # Image sources:
 #   - db / backend / frontend: PULLED from ${DOCKER_REGISTRY}
 #     (GitHub Container Registry / GHCR — ghcr.io/zhangyu528/type-any-language).
 #     These are custom images built + pushed by release-prod CI.
-#   - nginx: PULLED from Docker Hub (docker.io/library/nginx:alpine) via the
-#     registry mirror configured on the CVM (e.g. Tencent Cloud mirror), so it
-#     does NOT go through GHCR. The CVM can't reach Docker Hub directly, but the
-#     mirror proxies it.
-# lifecycle.sh / deploy.sh run `docker compose up --no-build`, so compose NEVER
-# builds locally; the build side (release-prod CI) is the only place images are
-# produced. DOCKER_REGISTRY is forwarded to the CVM via SSH env by the deploy-prod
-# / bootstrap-prod workflows (single source of truth = GH Variable).
+# lifecycle.sh runs `docker compose up --no-build`, so compose NEVER builds
+# locally; CI (release-build.yml) is the only place images are produced. The
+# build: blocks below exist purely so CI can reuse this file as the build
+# definition — they are never exercised on the CVM.
+# DOCKER_REGISTRY is forwarded to the CVM via SSH env by the publish-prod /
+# bootstrap-prod workflows (single source of truth = GH Variable).
 # ---------------------------------------------------------------------------
 
 secrets:
@@ -133,7 +143,7 @@ services:
     secrets:
       - db_password
     # Expose to host so the system nginx can reverse-proxy to it
-    # (see ops/prod/nginx.conf + ops/prod/site.link). Compose-internal
+    # (see ops/cvm/nginx/site.conf). Compose-internal
     # routing still uses backend:8000 from the frontend container.
     ports:
       - "127.0.0.1:8000:8000"
@@ -160,7 +170,7 @@ services:
     depends_on:
       - backend
     # Expose to host so the system nginx can reverse-proxy to it
-    # (see ops/prod/nginx.conf + ops/prod/site.link). Same 127.0.0.1
+    # (see ops/cvm/nginx/site.conf). Same 127.0.0.1
     # bind as backend — host-only, never reachable from the public
     # internet directly.
     ports:
@@ -190,18 +200,18 @@ services:
     command: sh -c "rm -rf /static-export/.next/static && cp -rf /app/.next-build/static /static-export/.next/static && exec node /app/.next-build/standalone/server.js"
 
   # -------------------------------------------------------------------------
-  # nginx — reverse proxy on :80.
-  # Pulled from ${DOCKER_REGISTRY}/nginx:alpine (our GHCR namespace),
-  # which is itself a copy of docker.io/library/nginx:alpine made by
-  # release-prod via `crane copy`. The reason we don't pull from docker.io
-  # directly: the daemon's OCI-referrer query against registry-1.docker.io
-  # times out from this CVM's egress, which makes `docker compose up -d`
-  # exit non-zero even though the image layers themselves downloaded fine.
-  # Pulling through GHCR sidesteps the referrer query entirely.
+  # nginx — deliberately NOT a service here.
+  #
+  # The dockerised nginx service was removed in favour of the host's
+  # system nginx (this CVM ships nginx via apt). Two reasons it stayed
+  # removed: (1) pulling nginx:alpine from docker.io made `docker
+  # compose up -d` exit non-zero on this CVM — the daemon's OCI-referrer
+  # query against registry-1.docker.io times out even though the layers
+  # download fine; (2) the host nginx can serve /_next/static/ straight
+  # off the bind-mounted export path without another hop.
+  #
+  # The system nginx reads ops/cvm/nginx/site.conf and reverse-proxies to
+  # backend + frontend on host 127.0.0.1 (see the ports: blocks above).
+  # Installed + reloaded by ops/cvm/nginx/install.sh, which
+  # ops/cvm/bootstrap.sh::step_nginx_site_link calls during host prep.
   # -------------------------------------------------------------------------
-  # Note: the dockerised nginx service was removed in favor of the
-  # host's system nginx (this CVM ships nginx via apt). The system
-  # nginx reads ops/prod/nginx.conf and reverse-proxies to the
-  # backend + frontend exposed on host 127.0.0.1 (see ports: above).
-  # bootstrap-prod installs the symlink automatically; see
-  # ops/prod/bootstrap.sh::install_nginx_site_link.

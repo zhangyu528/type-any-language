@@ -10,7 +10,7 @@
 #   - Frontend uses relative NEXT_PUBLIC_API_URL=/api (same-origin, no CORS)
 #   - Only nginx port (8080) is exposed to host (others are internal-only)
 #
-# Triggered by .github/workflows/deploy-staging.yml and deploy-staging-review.yml.
+# Triggered by .github/workflows/staging.yml (mode: validate | review).
 
 services:
   db:
