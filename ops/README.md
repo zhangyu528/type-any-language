@@ -13,24 +13,25 @@
 #
 # lib.sh   - shared helpers (sourced by cvm/ and dev/ scripts)
 #
-# ops/cvm/ layout - three groups, by what the file IS:
+# compose/ - prod stack definition (docker-compose.yml). Consumed by the
+#           CVM runtime scripts via _common.sh's compose() wrapper.
+# nginx/   - host nginx module (site.conf fragment + install.sh).
 #
-#   *.sh              entry points, all sourcing _common.sh
-#     _common.sh      shared setup + the compose() wrapper (see below)
-#     bootstrap.sh    one-time idempotent host prep
-#     lifecycle.sh    start / stop / restart
-#     doctor.sh       read-only health + drift check
-#     logs.sh         docker compose logs -f
-#   compose/          docker-compose.yml (the runtime definition)
-#   nginx/            site.conf (host nginx fragment) + install.sh
+# ops/cvm/ layout - CVM runtime scripts (entry points, all sourcing _common.sh):
+#
+#   _common.sh      shared setup + the compose() wrapper (see below)
+#   bootstrap.sh    one-time idempotent host prep
+#   lifecycle.sh    start / stop / restart
+#   doctor.sh       read-only health + drift check
+#   logs.sh         docker compose logs -f
 #
 # IMPORTANT - the compose file is NOT at the repo root, and its
 # internal relative paths (secrets file, build contexts) are written
 # relative to the repo root. Never call `docker compose -f
-# ops/cvm/compose/docker-compose.yml` directly; go through
+# ops/compose/docker-compose.yml` directly; go through
 # _common.sh's compose() wrapper, which pins --project-directory to the
 # repo root. Calling it directly makes compose look for
-# ops/cvm/compose/.secrets/db_password and fail.
+# ops/compose/.secrets/db_password and fail.
 
 # No build target lives at the repo root - it is in release/ (this folder).
 #

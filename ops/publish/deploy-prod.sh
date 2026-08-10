@@ -31,12 +31,13 @@ printf "%s" "$GHCR_TOKEN" > "$TFILE"
 trap "rm -f $KEYFILE $UFILE $TFILE" EXIT
 
 echo "[deploy-prod] packaging ops scripts..."
-# The CVM only needs its runtime scripts (ops/cvm, which contains
-# compose/docker-compose.yml + nginx/), the shared helpers (ops/lib.sh),
-# and the Makefile (prod-restart / prod-doctor targets). The publish
-# scripts (this file, promote.sh, assert-staging-verified.sh) run on the
-# CI runner, NOT on the CVM, so they are intentionally NOT shipped.
-tar czf /tmp/prod-deploy.tar.gz ops/cvm ops/lib.sh Makefile
+# The CVM only needs its runtime scripts (ops/cvm/*.sh), the prod stack
+# definition (ops/compose/docker-compose.yml), the host nginx module
+# (ops/nginx/), the shared helpers (ops/lib.sh), and the Makefile
+# (prod-restart / prod-doctor targets). The publish scripts (this file,
+# promote.sh, assert-staging-verified.sh) run on the CI runner, NOT on
+# the CVM, so they are intentionally NOT shipped.
+tar czf /tmp/prod-deploy.tar.gz ops/cvm ops/compose ops/nginx ops/lib.sh Makefile
 
 echo "[deploy-prod] scp tarball + creds to CVM..."
 scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "$KEYFILE" /tmp/prod-deploy.tar.gz "$UFILE" "$TFILE" "$CVM_USER@$CVM_HOST:/tmp/"
@@ -51,13 +52,13 @@ cd /opt/type-any-language
 # ops/prod is the pre-rename layout — remove it too so a host that was
 # bootstrapped before the ops/prod -> ops/cvm rename does not keep a
 # stale copy of the old scripts lying around next to the new ones.
-sudo rm -rf ops/prod ops/cvm ops/lib.sh
+sudo rm -rf ops/prod ops/cvm ops/compose ops/nginx ops/lib.sh
 sudo tar xzf /tmp/prod-deploy.tar.gz
 sudo chown -R deploy:deploy ops Makefile
 rm -f /tmp/prod-deploy.tar.gz
 # nginx/install.sh lives in a subfolder, so a flat ops/cvm/*.sh glob
 # would miss it.
-chmod +x ops/cvm/*.sh ops/cvm/nginx/*.sh
+chmod +x ops/cvm/*.sh ops/nginx/*.sh
 export DOCKER_REGISTRY=__DR__
 export IMAGE_TAG=__TAG__
 echo "[cvm-deploy] IMAGE_TAG=\$IMAGE_TAG  DOCKER_REGISTRY=\$DOCKER_REGISTRY"

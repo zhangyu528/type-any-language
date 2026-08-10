@@ -29,16 +29,16 @@
 #      (requires GitHub account + 2FA) so it can't be auto-done.
 #   3. Secrets — generate .secrets/db_password (chmod 600) if missing.
 #      The password is consumed by the compose file's `secrets:` block
-#      (ops/cvm/compose/docker-compose.yml) and POSTGRES_PASSWORD_FILE
+#      (ops/compose/docker-compose.yml) and POSTGRES_PASSWORD_FILE
 #      in the db service. It is written to the REPO ROOT .secrets/,
 #      which is why every compose call goes through _common.sh's
 #      compose() wrapper with --project-directory pinned to the root.
 #   4. Data dir — create /var/lib/type-any-language/postgres owned by
 #      UID 999 (postgres alpine user) if missing. Without this, the
 #      bind-mounted db container fails on first boot with EACCES.
-#   5. nginx site — install ops/cvm/nginx/site.conf into
+#   5. nginx site — install ops/nginx/site.conf into
 #      /etc/nginx/sites-{available,enabled} (delegated to
-#      ops/cvm/nginx/install.sh).
+#      ops/nginx/install.sh).
 #
 # What this script does NOT do (and why):
 #   - Build images — that's .github/workflows/release-build.yml. On the
@@ -197,12 +197,12 @@ step_data_dir() {
 }
 
 # ─── step_nginx_site_link ─────────────────────────────────────────────
-# Delegate to ops/cvm/nginx/install.sh so the implementation is
+# Delegate to ops/nginx/install.sh so the implementation is
 # testable in isolation and can be re-run outside of bootstrap.sh
 # (e.g. after the operator hand-edits /etc/nginx/sites-available).
 # The script itself is idempotent and safe to re-run.
 step_nginx_site_link() {
-    bash "$PROJECT_DIR/ops/cvm/nginx/install.sh"
+    bash "$PROJECT_DIR/ops/nginx/install.sh"
 }
 
 # ─── step_deploy_if_published ──────────────────────────────────────────
@@ -311,7 +311,7 @@ usage() {
   ops/cvm/bootstrap.sh        主机层(幂等,不起容器,不 build)   ← RUN 端
   ops/cvm/lifecycle.sh        日常(start / stop / restart)      ← RUN 端
   ops/cvm/doctor.sh           只读体检(部署前后各跑一次)        ← RUN 端
-  ops/cvm/nginx/install.sh    装 / 重载系统 nginx site          ← RUN 端
+  ops/nginx/install.sh        装 / 重载系统 nginx site          ← RUN 端
   ops/publish/deploy-prod.sh   打包 + scp + 远程编排              ← CI 端
   .github/workflows/          build / release / publish         ← CI 端
 

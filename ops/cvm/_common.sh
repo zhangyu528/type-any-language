@@ -27,8 +27,8 @@
 #     frontend   — Next.js standalone server on :3000.
 #
 #   nginx is NOT a compose service — it is the host's apt-installed
-#   system nginx, configured from ops/cvm/nginx/site.conf and installed
-#   by ops/cvm/nginx/install.sh (called from bootstrap.sh).
+#   system nginx, configured from ops/nginx/site.conf and installed
+#   by ops/nginx/install.sh (called from bootstrap.sh).
 
 set -e
 
@@ -43,7 +43,7 @@ DB_PASSWORD_FILE="${SECRETS_DIR}/db_password"
 # Absolute path — the compose file lives in a subfolder, so a bare
 # relative name would resolve against $PWD and break the moment a
 # caller runs from anywhere other than the repo root.
-COMPOSE_FILE="$PROJECT_DIR/ops/cvm/compose/docker-compose.yml"
+COMPOSE_FILE="$PROJECT_DIR/ops/compose/docker-compose.yml"
 # Three image set, all tagged with the same VERSION (one publish = one release)
 BACKEND_IMAGE="english_backend"
 FRONTEND_IMAGE="english_frontend"
@@ -94,13 +94,13 @@ setup_prod_host_env() {
 # Why --project-directory is mandatory:
 #   Compose resolves every relative path inside the YAML against the
 #   *compose file's own directory*, not against $PWD. Our compose file
-#   sits at ops/cvm/compose/, but the paths it declares are repo-root
+#   sits at ops/compose/, but the paths it declares are repo-root
 #   relative:
 #       secrets.db_password.file: ./.secrets/db_password
 #       db.build.context:         .          (+ dockerfile: db/Dockerfile)
 #       backend.build.context:    ./backend
 #   Without --project-directory those would resolve to
-#   ops/cvm/compose/.secrets/db_password etc. — none of which exist.
+#   ops/compose/.secrets/db_password etc. — none of which exist.
 #   bootstrap.sh writes the password to the REPO ROOT .secrets/, so we
 #   pin the project directory there and every relative path lines up.
 #
