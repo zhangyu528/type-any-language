@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "NEXT_DIST_DIR=.next-build next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "build:pages": "GITHUB_PAGES=1 NEXT_PUBLIC_DEMO_MODE=true NEXT_PUBLIC_API_URL='' npx next build"
   },
   "dependencies": {
     "gsap": "^3.15.0",

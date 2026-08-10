@@ -1,0 +1,18 @@
+# Cloudflare Pages build config — read when this branch is connected
+# via the GitHub integration. Same role vercel.json used to play:
+# tell the build runner which command to run, where the output goes,
+# and what env vars to inject.
+#
+# Cloudflare Pages reads wrangler.toml from the project root (which
+# for us is `frontend/`, set via "Root directory" in the dashboard).
+#
+# Docs: https://developers.cloudflare.com/pages/functions/wrangler-configuration/
+
+[build]
+command = "npm run build:pages"
+directory = "out"
+
+[build.environment]
+GITHUB_PAGES = "1"
+NEXT_PUBLIC_DEMO_MODE = "true"
+NEXT_PUBLIC_API_URL = ""
