@@ -19,7 +19,6 @@
 #               cvm/_common.sh            shared setup + the compose() wrapper
 #               cvm/bootstrap.sh          one-time idempotent host prep
 #               cvm/lifecycle.sh          start / stop / restart
-#               cvm/doctor.sh             read-only health + drift check
 #               cvm/logs.sh               docker compose logs -f
 #
 #   staging/  CI: ephemeral staging env (called by staging.yml)

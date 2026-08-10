@@ -10,7 +10,8 @@
 # Conventions:
 #   - $COMMON_DIR is set by the caller (every calling script sets it via
 #     `COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"`)
-#   - setup_prod_host_env must be called before any other helper.
+#   - setup_prod_host_env is in ops/lib.sh (generic, not CVM-specific).
+#     Call it once at the top of each script before any docker command.
 #   - ALWAYS invoke compose through the compose() wrapper below, never
 #     through a bare $DOCKER_COMPOSE_CMD. See the wrapper's comment for
 #     why --project-directory is non-negotiable.
@@ -37,56 +38,12 @@ cd "$PROJECT_DIR"
 # shellcheck disable=SC1091
 source "$PROJECT_DIR/ops/lib.sh"
 
-# ─── Globals set by setup_prod_host_env ─────────────────────────────────────
-SECRETS_DIR=".secrets"
-DB_PASSWORD_FILE="${SECRETS_DIR}/db_password"
-# Absolute path — the compose file lives in a subfolder, so a bare
-# relative name would resolve against $PWD and break the moment a
-# caller runs from anywhere other than the repo root.
-COMPOSE_FILE="$PROJECT_DIR/docker-compose.yml"
-# Three image set, all tagged with the same VERSION (one publish = one release)
-BACKEND_IMAGE="english_backend"
-FRONTEND_IMAGE="english_frontend"
-DB_IMAGE="english_db"   # custom build (db/Dockerfile) — NOT postgres:15-alpine anymore
-
-# ─── setup_prod_host_env ───────────────────────────────────────────────────
-setup_prod_host_env() {
-    # Detect compose command FIRST (populates $DOCKER_COMPOSE_CMD). Same
-    # bug fix as ops/dev/_common.sh — without this, scripts that don't
-    # transitively call detect_compose_cmd via require_docker would have
-    # an empty DOCKER_COMPOSE_CMD and silently fail.
-    if ! detect_compose_cmd; then
-        err "未找到 docker-compose / docker compose — 安装 Docker Desktop 或 docker-compose"
-        exit 1
-    fi
-
-    # DOCKER_REGISTRY is single source of truth: GitHub Variable.
-    # resolve_docker_registry fails loud if it's not readable.
-    if ! resolve_docker_registry; then
-        err "DOCKER_REGISTRY 解析失败,prod 端必须有 registry 才能拉 3 个 image"
-        info "  解决: gh auth login  +  配 GH repo Variable DOCKER_REGISTRY"
-        exit 1
-    fi
-    info "DOCKER_REGISTRY=$DOCKER_REGISTRY (source=${_DOCKER_REGISTRY_SOURCE:-github}, auto-pull on for all 3 prod images)"
-    # Prod image tags come from the IMAGE_TAG env (set by deploy-prod from
-    # the git tag). If IMAGE_TAG is unset, resolve_image_tag falls back to
-    # the `latest` tag that release-build.yml publishes for every version
-    # tag — so a host with no explicit pin still pulls a concrete image.
-    # All 3 images (db + backend + frontend) share the same tag.
-    resolve_image_tag BACKEND_IMAGE_TAG
-    resolve_image_tag FRONTEND_IMAGE_TAG
-    resolve_image_tag DB_IMAGE_TAG
-    warn_if_version_default "$BACKEND_IMAGE_TAG"
-
-    # DOCKER_REGISTRY is always from GH Variable (single source of truth).
-    # No local-only mode (would require shell-env override, which we
-    # removed in 2026-08-04). If you need a different registry for
-    # testing, change the GH Variable, don't try to set it via shell.
-    BACKEND_FULL_IMAGE="${DOCKER_REGISTRY}/${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"
-    FRONTEND_FULL_IMAGE="${DOCKER_REGISTRY}/${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"
-    DB_FULL_IMAGE="${DOCKER_REGISTRY}/${DB_IMAGE}:${DB_IMAGE_TAG}"
-    export BACKEND_FULL_IMAGE FRONTEND_FULL_IMAGE DB_FULL_IMAGE
-}
+# setup_prod_host_env (in ops/lib.sh) populates these globals before any
+# docker command runs. Defined here as :empty defaults to make the variable
+# set visible to editor tooling — real values are set by setup_prod_host_env.
+BACKEND_FULL_IMAGE=""
+FRONTEND_FULL_IMAGE=""
+DB_FULL_IMAGE=""
 
 # ─── compose ───────────────────────────────────────────────────────────────
 # The ONLY sanctioned way to call docker compose from ops/cvm/.

@@ -615,3 +615,96 @@ warn_port_in_use() {
     fi
     return 0
 }
+
+# ---------------------------------------------------------------------------
+# Image resolution + drift check (generic, used by both cvm/ and ops/ tools)
+# ---------------------------------------------------------------------------
+# These belong in lib.sh rather than cvm/_common.sh because they don't depend
+# on CVM-specific state (compose wrapper, COMPOSE_FILE) — they only need
+# DOCKER_REGISTRY + IMAGE_TAG. The CVM scripts get them transitively via
+# ops/cvm/_common.sh sourcing this file; ops/doctor.sh at the repo root
+# sources this file directly.
+
+# Canonical image names. The 3 prod images the stack is composed of.
+# Centralized here so a 4th image only needs to be added in two places:
+# this constant list, and the build_image_for() helper in ops/release/_common.sh.
+BACKEND_IMAGE="english_backend"
+FRONTEND_IMAGE="english_frontend"
+DB_IMAGE="english_db"   # custom build (db/Dockerfile) - NOT postgres:15-alpine
+
+# setup_prod_host_env - resolve the 3 image tags and assemble the FULL_IMAGE
+# refs ($DOCKER_REGISTRY/<image>:<tag>) that downstream tooling uses.
+# Called by every CVM script before any docker command; also by ops/doctor.sh.
+setup_prod_host_env() {
+    # Detect compose command FIRST (populates $DOCKER_COMPOSE_CMD).
+    if ! detect_compose_cmd; then
+        err "\u672a\u627e\u5230 docker-compose / docker compose \u2014 \u5b89\u88c5 Docker Desktop \u6216 docker-compose"
+        exit 1
+    fi
+
+    # DOCKER_REGISTRY is the single source of truth (GitHub Variable).
+    if ! resolve_docker_registry; then
+        err "DOCKER_REGISTRY \u89e3\u6790\u5931\u8d25,prod \u7aef\u5fc5\u987b\u6709 registry \u624d\u80fd\u62c9 3 \u4e2a image"
+        exit 1
+    fi
+    info "DOCKER_REGISTRY=$DOCKER_REGISTRY (source=${_DOCKER_REGISTRY_SOURCE:-github})"
+
+    # Resolve the 3 tags from IMAGE_TAG env (the primary path in CI/prod).
+    resolve_image_tag BACKEND_IMAGE_TAG
+    resolve_image_tag FRONTEND_IMAGE_TAG
+    resolve_image_tag DB_IMAGE_TAG
+    warn_if_version_default "$BACKEND_IMAGE_TAG"
+
+    # Assemble the full refs the rest of the toolchain uses.
+    BACKEND_FULL_IMAGE="${DOCKER_REGISTRY}/${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG}"
+    FRONTEND_FULL_IMAGE="${DOCKER_REGISTRY}/${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}"
+    DB_FULL_IMAGE="${DOCKER_REGISTRY}/${DB_IMAGE}:${DB_IMAGE_TAG}"
+    export BACKEND_FULL_IMAGE FRONTEND_FULL_IMAGE DB_FULL_IMAGE
+}
+
+# drift_check - post-deploy health verification:
+#   Compares each running container's image LABEL (type-any-language.app.version,
+#   baked at build time via --build-arg APP_VERSION=${IMAGE_TAG}) against the
+#   tag resolved by setup_prod_host_env from the IMAGE_TAG env.
+#
+#   Mismatch = drift. Common causes:
+#     - someone manually ran `docker pull <image>:latest` skipping lifecycle.sh
+#     - IMAGE_TAG env was wrong when lifecycle.sh last ran
+#     - someone bumped the IMAGE_TAG env without restarting containers
+#
+#   Pre-condition: setup_prod_host_env must have been called (populates
+#   the *_IMAGE_TAG and *_FULL_IMAGE vars). If no containers are running,
+#   returns 0 (no drift to report on).
+drift_check() {
+    # No-op when nothing is running. compose() wrapper is from
+    # ops/cvm/_common.sh (which sources this lib.sh); doctor.sh at ops/
+    # root imports it lazily. Fall back to docker ps if compose isn't set up.
+    if type compose >/dev/null 2>&1; then
+        if ! compose ps -q backend >/dev/null 2>&1; then
+            return 0
+        fi
+    elif ! docker ps -q --filter label=type-any-language.app.version >/dev/null 2>&1; then
+        return 0
+    fi
+
+    local svc cid expected actual
+    for svc in db backend frontend; do
+        case "$svc" in
+            db)       expected="$DB_IMAGE_TAG" ;;
+            backend)  expected="$BACKEND_IMAGE_TAG" ;;
+            frontend) expected="$FRONTEND_IMAGE_TAG" ;;
+        esac
+        cid="$(docker ps -q --filter label=type-any-language.app.version --filter name="tal-$svc" 2>/dev/null | head -1)"
+        if [ -z "$cid" ]; then
+            continue
+        fi
+        actual="$(docker inspect "$cid" --format '{{ index .Config.Labels "type-any-language.app.version" }}' 2>/dev/null || echo "")"
+        if [ -z "$actual" ]; then
+            warn "  $svc: \u65e0 type-any-language.app.version LABEL (image \u65e7?rebuild)"
+        elif [ "$actual" != "$expected" ]; then
+            warn "  $svc drift: running=$actual, expected=$expected \u2014 restart \u62c9\u65b0 image"
+        else
+            ok "  $svc drift OK (version=$actual)"
+        fi
+    done
+}

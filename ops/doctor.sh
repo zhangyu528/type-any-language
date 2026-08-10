@@ -1,40 +1,39 @@
 #!/usr/bin/env bash
 #
-# ops/cvm/doctor.sh — read-only health snapshot for the prod CVM.
+# ops/doctor.sh — read-only health snapshot for the prod CVM.
 #
-# External-dependency check: validates the registry side of the deploy
-# (DOCKER_REGISTRY env, image reachability). Read-only — does NOT touch
-# the host or containers.
+# At ops/ root (NOT under cvm/) because it covers things beyond the
+# CVM runtime:
+#
+#   - DOCKER_REGISTRY env + 3-image registry reachability
+#     (external dependencies — registry is "outside" the CVM)
+#   - drift_check
+#     (post-deploy verification: does what's running match what's tagged?)
 #
 # Use:
 #   - bootstrap.sh?    No — bootstrap covers host-side prep (docker,
 #                       secrets, data dir, nginx). Re-run bootstrap if
 #                       those are wrong.
-#   - post-deploy?     Yes — run after publish-prod finishes to confirm
-#                       the registry actually has the images we expect.
+#   - post-deploy?     Yes — publish-prod runs this after a successful
+#                       deploy to confirm registry + drift are clean.
 #   - ad-hoc / debug?  Yes — operators run this when "something feels
-#                       off" to quickly see if the registry side is OK.
+#                       off" to quickly see if external state is OK.
 #
-# Checks:
-#   1. DOCKER_REGISTRY env var    - is the registry namespace set?
-#   2. 3 images pullable           - can we fetch db / backend / frontend
-#                                    from the registry right now?
+# Read-only: does NOT modify anything on disk or touch containers.
 #
 # Exit: 0 if all pass, 1 if any fails.
-#
-# Run standalone:    ./ops/cvm/doctor.sh
-# Also called from:  publish-prod.yml workflow after a deploy (via SSH)
 
 set -euo pipefail
 
-COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=_common.sh
-source "$COMMON_DIR/_common.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=lib.sh
+source "$SCRIPT_DIR/lib.sh"
 setup_prod_host_env
 
 cmd_doctor() {
     local failed=0
-    echo "=== External dependency check ==="
+    echo "=== External + post-deploy health check ==="
     echo ""
 
     # ─── 1. DOCKER_REGISTRY ────────────────────────────────────────────
@@ -72,11 +71,24 @@ cmd_doctor() {
     fi
     echo ""
 
+    # ─── 3. Drift check ────────────────────────────────────────────────
+    # Post-deploy verification: each running container's image LABEL
+    # (type-any-language.app.version, baked at build time from
+    # --build-arg APP_VERSION=${IMAGE_TAG}) should match the tag resolved
+    # from IMAGE_TAG env. Mismatch = drift.
+    #
+    # Pre-condition: setup_prod_host_env already populated the *_IMAGE_TAG
+    # vars from IMAGE_TAG env. If no containers are running, drift_check
+    # returns 0 (no-op).
+    info "--- drift check (running containers vs resolved IMAGE_TAG) ---"
+    drift_check
+    echo ""
+
     if [ $failed -eq 0 ]; then
-        ok "registry 端就绪"
+        ok "external + post-deploy 状态正常"
         return 0
     else
-        err "部分外部依赖未就绪 — 看上面提示"
+        err "部分检查未通过 — 看上面提示"
         return 1
     fi
 }

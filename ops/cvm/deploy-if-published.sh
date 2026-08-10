@@ -3,7 +3,7 @@
 # ops/cvm/deploy-if-published.sh — final step of bootstrap.sh.
 #
 # Probes the registry for a published image; if reachable, pulls + brings
-# up the stack via lifecycle.sh and runs a best-effort doctor.sh. Skips
+# up the stack via lifecycle.sh and runs a best-effort ops/doctor.sh. Skips
 # gracefully (exit 0) when no image is published yet — bootstrap.sh
 # considers host prep the contract, not the deploy.
 #
@@ -62,6 +62,6 @@ fi
 # ─── 3. Bring up + verify ─────────────────────────────────────────────
 bash "$PROJECT_DIR/ops/cvm/lifecycle.sh" start
 # Best-effort health check — don'\''t fail bootstrap if doctor is unhappy.
-bash "$PROJECT_DIR/ops/cvm/doctor.sh" || true
+bash "$PROJECT_DIR/ops/doctor.sh" || true
 ok "=== 部署并启动完成 (tag=$BACKEND_IMAGE_TAG) ==="
 info "  访问: 前端 http://localhost  API http://localhost/api/docs"

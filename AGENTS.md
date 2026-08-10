@@ -324,7 +324,7 @@ export CMS_HOST=user@cms.internal:/opt/type-any-language   # optional, auto-rsyn
 ALLOWED_ORIGINS=https://my.domain ./ops/cvm/lifecycle.sh status
 
 # Daily operations:
-./ops/cvm/doctor.sh
+./ops/doctor.sh
 ALLOWED_ORIGINS=https://my.domain ./ops/cvm/lifecycle.sh start
 ./ops/cvm/lifecycle.sh stop
 ./ops/cvm/lifecycle.sh restart
@@ -458,7 +458,7 @@ The full release flow with `release.sh` (one command per host):
 git push
 
 # On the prod target host — just verify, the images are already in the registry:
-./ops/cvm/doctor.sh    # should show "drift OK (version=v0.3.0)" for backend + frontend
+./ops/doctor.sh    # should show "drift OK (version=v0.3.0)" for backend + frontend
 ./ops/cvm/lifecycle.sh restart   # pull new image and recreate
 ```
 
