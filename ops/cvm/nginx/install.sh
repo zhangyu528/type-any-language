@@ -11,12 +11,14 @@
 # Steps:
 #   1. Verify nginx binary present (apt-install if missing — most
 #      ubuntu images ship nginx-common but not nginx itself).
-#   2. Verify the site conf + the default site presence; remove
+#   2. Fail if port 80 is already bound by another process — our
+#      site WILL fail to bind :80 if so, so hard-fail early here.
+#   3. Verify the site conf + the default site presence; remove
 #      default if it would shadow us on :80.
-#   3. Install ops/nginx/site.conf to /etc/nginx/sites-available/
+#   4. Install ops/nginx/site.conf to /etc/nginx/sites-available/
 #      and enable the site via sites-enabled/ symlink.
-#   4. Validate with nginx -t (syntax check).
-#   5. systemctl reload nginx (keeps in-flight reqs; not restart).
+#   5. Validate with nginx -t (syntax check).
+#   6. systemctl reload nginx (keeps in-flight reqs; not restart).
 #
 # Exit codes:
 #   0  success
@@ -33,7 +35,6 @@ LINK="/etc/nginx/sites-enabled/type-any-language"
 
 info() { printf '[nginx-site] %s\n' "$*"; }
 err()  { printf '[nginx-site] ERROR: %s\n' "$*" >&2; }
-warn() { printf '[nginx-site] WARN:  %s\n' "$*" >&2; }
 
 # 1. nginx present?
 if ! command -v nginx >/dev/null 2>&1; then
@@ -47,11 +48,19 @@ if ! command -v nginx >/dev/null 2>&1; then
     fi
 fi
 
-# Warn if port 80 is already bound by another process — our site will
-# fail to bind :80 if so. Non-fatal (operator may be migrating); just print.
+# Fail if port 80 is already bound by another process — our site WILL
+# fail to bind :80 if so, and a quiet warning just hides the failure
+# until systemctl reload. Hard-fail here so the operator fixes it
+# before nginx even gets to the reload step.
+#
+# Migration scenario: if you're swapping in this config over an existing
+# nginx, stop the old service first (sudo systemctl stop nginx) before
+# re-running this script. Bootstrap is not a migration tool.
 if command -v ss >/dev/null 2>&1 && ss -tln 2>/dev/null | grep -qE ":80\b"; then
-    warn "port 80 已被占用 — 装完 reload 后我们的 nginx site 会无法 bind"
-    warn "  排查占用: ss -tlnp 'sport = :80'   或   lsof -i :80"
+    err "port 80 已被占用 — 本次 bootstrap 注定失败(nginx reload 后无法 bind)"
+    err "  排查占用: ss -tlnp 'sport = :80'   或   lsof -i :80"
+    err "  处理: 停掉占用进程,或 sudo systemctl stop nginx"
+    exit 1
 fi
 
 # 2. remove apt-shipped default site if present (it shadows :80)
