@@ -107,6 +107,28 @@ compose() {
         "$@"
 }
 
+
+# --- sudo_run_or_manual ----------------------------------------------
+# sudo_run_or_manual <cmd> [args...]
+# Run 'sudo -n <cmd> [args...]' non-interactively. On failure (sudo missing,
+# or the command rejected by NOPASSWD sudoers), print a self-run hint with
+# the same command and return 1. Used by bootstrap.sh for root-bound prep
+# steps (mkdir / chown); the operator re-runs the same command interactively
+# if non-interactive sudo is not yet wired up.
+sudo_run_or_manual() {
+    if command -v sudo >/dev/null 2>&1 && sudo -n "$@"; then
+        return 0
+    fi
+    if command -v sudo >/dev/null 2>&1; then
+        err "  sudo 失败 (非交互)"
+        err "  自己跑: sudo $*"
+    else
+        err "  sudo 不存在"
+        err "  自己跑(以 root 身份): $*"
+    fi
+    return 1
+}
+
 # ─── drift_check ───────────────────────────────────────────────────────────
 # Note: `gate_preflight` was removed in the 2026-08-04 refactor.
 # All pre-flight checks now live in ops/cvm/doctor.sh (single source
