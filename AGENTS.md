@@ -162,7 +162,7 @@ in its environment via `$(cat /run/secrets/db_password)`.
 │   │   ├── doctor.sh        # preflight (.secrets/db_password, images, port 80, drift)
 │   │   ├── logs.sh          # docker compose logs -f
 │   │   └── nginx/           # host nginx module (site.conf fragment + install.sh, called from bootstrap.sh)
-│   ├── publish/             # CI: ship-to-prod scripts (called by publish-prod.yml)
+│   ├── publish/             # CI: ship-to-prod scripts (called by release/publish.yml)
 │   │   ├── deploy-prod.sh   # tar+scp + remote SSH (packages ops/cvm + ops/lib.sh + Makefile)
 │   │   ├── promote.sh       # rc -> vX.Y.Z tag + GH release
 │   │   └── assert-staging-verified.sh  # gate before prod (refuses unless staging validated)
@@ -170,7 +170,7 @@ in its environment via `$(cat /run/secrets/db_password)`.
 │   │   ├── bring-up-staging.sh / teardown-staging.sh
 │   │   ├── docker-compose.staging.yml + nginx.staging.conf
 │   │   ├── install-cloudflared.sh / expose-tunnel.sh / write-deploy-record.sh
-│   ├── release/             # CI: image release orchestration (called by release-build.yml)
+│   ├── release/             # CI: image release orchestration (called by release/build.yml)
 │   │   ├── _common.sh       # shared helpers (image list, name assembly, size budget)
 │   │   ├── resolve-tag.sh   # smart vX.Y.Z-rc.N tag arithmetic (also used by staging / publish-prod)
 │   │   ├── build.sh         # docker build + push 3 images (db/backend/frontend)
@@ -185,7 +185,7 @@ in its environment via `$(cat /run/secrets/db_password)`.
 │   │   ├── check-size.sh    # fail if any image > MAX_IMAGE_BYTES (default 500 MB)
 │   │   ├── push-git-tag.sh  # git tag -a + push origin <NEW_TAG>
 │   │   └── create-gh-release.sh  # gh release create --prerelease
-│   └── test/                # smoke + e2e test scripts (called by staging.yml / smoke-test.yml / e2e-test.yml)
+│   └── test/                # smoke + e2e test scripts (called by release/staging.yml / verify/smoke.yml / verify/e2e.yml)
 │       ├── smoke.sh
 │       └── e2e.sh
 │
@@ -338,8 +338,8 @@ ALLOWED_ORIGINS=https://my.domain ./ops/cvm/lifecycle.sh start
 Image construction lives on a separate build host (CI / release machine):
 ```bash
 # On the build host:
-# (legacy: ./ops/prod/release.sh prod v0.3.0 -y)  build/release/deploy now lives in .github/workflows/release-build.yml + publish-prod.yml
-# or step-by-step: see .github/workflows/release-build.yml (build + push to $DOCKER_REGISTRY)
+# (legacy: ./ops/prod/release.sh prod v0.3.0 -y)  build/release/deploy now lives in .github/workflows/release/build.yml + release/publish.yml
+# or step-by-step: see .github/workflows/release/build.yml (build + push to $DOCKER_REGISTRY)
 ```
 
 No `.env` is needed on the prod host. `ALLOWED_ORIGINS` defaults to
@@ -414,11 +414,11 @@ Prod releases are deliberate, dated points in the project's life: each prod imag
 
 ```bash
 # Prod — bump version, build, push:
-release-build.yml → publish-prod.yml  (gh workflow run)
+release/build.yml → release/publish.yml  (gh workflow run)
 # → english_backend:v0.4.0  (and pushed to ${DOCKER_REGISTRY} if set)
 ```
 
-For a full release (bump + build + push), trigger release-build.yml + publish-prod.yml from GH Actions instead of running scripts locally scripts individually — see "Release flow" below.
+For a full release (bump + build + push), trigger release/build.yml + release/publish.yml from GH Actions instead of running scripts locally scripts individually — see "Release flow" below.
 
 Prod `lifecycle.sh` reads the same tags at start time, so what gets pulled from the registry matches what was built.
 
@@ -428,7 +428,7 @@ Every prod image carries the `type-any-language.app.version` LABEL (sourced from
 
 ### Release flow
 
-`release-build.yml` + `publish-prod.yml` are the single point of release orchestration; together they bump VERSION, build, push, and deploy prod images.
+`release/build.yml` + `release/publish.yml` are the single point of release orchestration; together they bump VERSION, build, push, and deploy prod images.
 
 | Subcommand | Touches VERSION files | Builds + pushes |
 |---|---|---|
@@ -442,16 +442,16 @@ Local vs remote is controlled by `DOCKER_REGISTRY` (chain: shell env → `./REGI
 ```bash
 # Remote mode — uses REGISTRY file (committed, shared team namespace)
 # (or override via shell env if pushing to a one-off namespace)
-# Run release-build.yml + publish-prod.yml from GH Actions
+# Run release/build.yml + release/publish.yml from GH Actions
 
-# Re-publish current VERSION (no bump) — re-trigger release-build.yml with the existing tag
+# Re-publish current VERSION (no bump) — re-trigger release/build.yml with the existing tag
 ```
 
 The full release flow with `release.sh` (one command per host):
 
 ```bash
 # On the workstation — after merging changes to master:
-# release-build.yml prod v0.3.0          (bump backend/VERSION + frontend/VERSION + build + push prod b/f)
+# release/build.yml prod v0.3.0          (bump backend/VERSION + frontend/VERSION + build + push prod b/f)
 git push
 
 # On the prod target host — just verify, the images are already in the registry:
@@ -483,7 +483,7 @@ If you upgraded from a release that used `:latest` (or hardcoded) tags, expect t
 
 1. **`lifecycle.sh start` may fail with "image 未构建"** — the compose file now references a tagged tag (`:v0.1.0` or whatever the stream's VERSION file says), not `:latest`. Fix once:
    ```bash
-   # ./ops/prod/build/image.sh  (retired; see .github/workflows/release-build.yml)
+   # ./ops/prod/build/image.sh  (retired; see .github/workflows/release/build.yml)
    ```
    Old `:latest` images on the host will still exist as stale tags. They're harmless; clean up later with `docker rmi english_backend:latest english_frontend:latest`.
 
@@ -512,7 +512,7 @@ dev/prod split — its image is prod-bound content shared by both
 targets). The CMS segment's `cms/VERSION` is a placeholder for a
 future CMS pipeline version stamp; no reader is wired to it today.
 
-`release-build.yml` now bumps a single file per stream (prod bumps just
+`release/build.yml` now bumps a single file per stream (prod bumps just
 `backend/VERSION` + `frontend/VERSION`; prod bumps `db/VERSION` +
 `backend/VERSION` + `frontend/VERSION`), and `show` prints all 4
 per-segment files. The resolution chain is unchanged — every read site
@@ -701,7 +701,7 @@ For multi-host CMS or production, set `CLOUD_PROVIDER=tencent_cos` (plus `CLOUD_
 `DOCKER_REGISTRY` is shared project config that lives in the GH repo Variable `DOCKER_REGISTRY` (env: prod) (see [Image registry namespace](#image-registry-namespace) above). Override at push time via shell env if you need a one-off namespace:
 ```bash
 export DOCKER_REGISTRY=ghcr.io/zhangyu528/type-any-language   # overrides REGISTRY file (only affects prod app images — no db image to push)
-# ./ops/prod/build/push.sh -y  (retired; see .github/workflows/release-build.yml)
+# ./ops/prod/build/push.sh -y  (retired; see .github/workflows/release/build.yml)
 ```
 
 #### Where the database URL comes from
