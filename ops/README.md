@@ -1,7 +1,7 @@
 # ops/
 #
 # Target-host operations + image build/release orchestrator (CVM + CI only;
-# dev/ lives at the repo root as a sibling — see README.md for the top-level
+# dev-tools/ lives at the repo root as a sibling — see README.md for the top-level
 # layout).
 #
 # Layout rule: each subfolder that USES a compose file keeps that file in
@@ -53,7 +53,7 @@
 #   test/     smoke + e2e test scripts (called by staging.yml / smoke-test.yml /
 #               e2e-test.yml)
 #
-# lib.sh     shared helpers (sourced by cvm/ scripts; dev/ sources it too
+# lib.sh     shared helpers (sourced by cvm/ scripts; dev-tools/ sources it too
 #            via the repo-root relative path ops/lib.sh)
 #
 # IMPORTANT - the prod compose file lives at the repo root
@@ -85,8 +85,8 @@
 #   - runs from CI / build host (image release: tag, build, push,
 #     size-check, git tag, GH release) -> ops/release/
 #   - runs from CI / build host (deploy / promote to prod) -> ops/publish/
-#   - runs on a dev workstation (host-native dev loop) -> ../dev/  (sibling of
-#     ops/, NOT under it; put dev's compose file in ../dev/ too)
+#   - runs on a dev workstation (host-native dev loop) -> ../dev-tools/  (sibling of
+#     ops/, NOT under it; put dev's compose file in ../dev-tools/ too)
 
 # Conventions (all scripts):
 #   - SCRIPT_DIR = $(cd $(dirname $0) && pwd)

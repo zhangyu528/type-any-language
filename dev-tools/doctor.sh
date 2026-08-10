@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# dev/doctor.sh — pre-flight env check (read-only).
+# dev-tools/doctor.sh — pre-flight env check (read-only).
 #
 # Validates that everything the host-native dev loop needs is in
 # place — docker (for the postgres container), compose, the host

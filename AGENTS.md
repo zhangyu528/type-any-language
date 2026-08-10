@@ -13,7 +13,7 @@ This project intentionally separates **content production** from **content servi
 | Host / Service | Role | What lives here | What runs here |
 |---|---|---|---|
 | **CMS host** | Content production (writes staging files) | `cms/` (env, scripts, source, tools) | Python + Docker |
-| **Target host** (dev or prod) | Content serving (3 services in one compose file) | dev/ + ops/cvm/ (compose files at the repo root; see Layout rule below) | Docker (backend + frontend + db) |
+| **Target host** (dev or prod) | Content serving (3 services in one compose file) | dev-tools/ + ops/cvm/ (compose files at the repo root; see Layout rule below) | Docker (backend + frontend + db) |
 | **DB layer** (each target host's compose) | Runtime database | `docker-compose{,.dev}.yml` `db` service → `postgres:15-alpine` | Docker container, data on host volume |
 
 The CMS host produces **staging files** (vocabulary JSON + sentences JSONL) via the
@@ -62,7 +62,7 @@ If you genuinely need a clean db for a feature branch:
 docker compose -f docker-compose.dev.yml down   # stop services
 rm -rf ./.dev/data/postgres                    # nuke the bind-mount target
 docker compose -f docker-compose.dev.yml up -d # restart with empty db
-./dev/migrate.sh                              # apply all migrations from scratch
+./dev-tools/migrate.sh                              # apply all migrations from scratch
 make dev-import-content                        # re-import cms/content/
 ```
 
@@ -83,7 +83,7 @@ make dev-import-content                        # re-import cms/content/
 
 The "target hosts are a pure read-layer" rule above has two dev-only opt-ins:
 
-- **`dev/migrate.sh`** — apply pending schema migrations to the live cloud
+- **`dev-tools/migrate.sh`** — apply pending schema migrations to the live cloud
   db (host-side runner, no sidecar container). Use after editing
   `backend/migrations/versions/*.py`.
 - **`db/scripts/import_staging.sh`** — UPSERT `cms/content/` into the docker postgres.
@@ -189,7 +189,7 @@ in its environment via `$(cat /run/secrets/db_password)`.
 │       ├── smoke.sh
 │       └── e2e.sh
 │
-├── dev/                     # dev workstation scripts (host-native uvicorn + next dev; not an ops env)
+├── dev-tools/                # dev workstation scripts (host-native uvicorn + next dev; not an ops env)
 │   ├── _common.sh           # shared setup (docker postgres contract, staging-files helpers)
 │   ├── native.sh            # host-native dev driver (uvicorn + next dev on host; db in docker)
 │   ├── setup.sh             # first-time: preflight + install native deps + start docker db
@@ -282,7 +282,7 @@ in `docker-compose.dev.yml`. There is no dev image, no `compose watch`, no
 ```bash
 # Host-native dev — host Python venv + host Node + host ports 8000/3000
 make dev-setup                       # preflight + venv + node_modules + start docker db
-make dev-start                       # = ./dev/native.sh start (uvicorn + next dev on host)
+make dev-start                       # = ./dev-tools/native.sh start (uvicorn + next dev on host)
 make dev-stop
 make dev-status                      # pid + uptime + port + db health
 make dev-logs [backend|frontend|both]  # tail host-native process logs
@@ -587,10 +587,10 @@ When you add or change a migration in `backend/migrations/versions/`:
 # Live docker postgres (the one your backend is actually querying): in-place
 # upgrade via the host-side runner. No sidecar container, no image
 # bake, no registry push.
-./dev/migrate.sh        # source db/scripts/lib.sh; db_assemble_url; exec db/scripts/migrate.sh
+./dev-tools/migrate.sh        # source db/scripts/lib.sh; db_assemble_url; exec db/scripts/migrate.sh
 ```
 
-`dev/migrate.sh` requires `python3` + `psycopg2-binary` + `sqlalchemy`
+`dev-tools/migrate.sh` requires `python3` + `psycopg2-binary` + `sqlalchemy`
 on the host (the same deps `db/scripts/init_schema.sh` and
 `import_staging.sh` need). Idempotent — re-runs are no-ops. The backend
 picks up the new schema on the next request (no restart needed; uvicorn
@@ -643,7 +643,7 @@ git commit -m "experiment: phonetic-lookup btree (branch-local, will not merge)"
 ```
 
 **Merge rules**:
-- Shared migrations (`0001`-`8999`) merge into master and stay. They are applied to every dev's db on next `./dev/migrate.sh` (or equivalent).
+- Shared migrations (`0001`-`8999`) merge into master and stay. They are applied to every dev's db on next `./dev-tools/migrate.sh` (or equivalent).
 - Branch-local migrations (`9000`-`9999`):
   - If the experiment succeeds, **promote it to shared**: rename to the next shared prefix, drop the `<branch-slug>` slug, merge.
   - If the experiment is abandoned, do **not** merge the branch at all, or `git rm` the migration file in the merge commit.

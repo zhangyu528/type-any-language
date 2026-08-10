@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# dev/restart_backend.sh — backend-only restart that ACTUALLY frees :8000.
+# dev-tools/restart_backend.sh — backend-only restart that ACTUALLY frees :8000.
 #
 # Why this exists alongside dev/native.sh restart:
 #
