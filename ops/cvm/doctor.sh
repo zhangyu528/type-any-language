@@ -1,21 +1,24 @@
 #!/usr/bin/env bash
 #
-# ops/cvm/doctor.sh — verify external dependencies for the prod CVM.
+# ops/cvm/doctor.sh — read-only health snapshot for the prod CVM.
 #
-# Reads the host + reports whether things-from-outside-this-host are in
-# place. Read-only: does NOT modify anything on disk or touch containers.
+# External-dependency check: validates the registry side of the deploy
+# (DOCKER_REGISTRY env, image reachability). Read-only — does NOT touch
+# the host or containers.
 #
-# Scope: external dependencies only. The host-side prep steps
-# (docker, secrets, data dir, nginx site, port 80) are handled by
-# bootstrap.sh's install/init scripts — re-run bootstrap.sh if any of
-# those are missing, no need to call doctor for them.
+# Use:
+#   - bootstrap.sh?    No — bootstrap covers host-side prep (docker,
+#                       secrets, data dir, nginx). Re-run bootstrap if
+#                       those are wrong.
+#   - post-deploy?     Yes — run after publish-prod finishes to confirm
+#                       the registry actually has the images we expect.
+#   - ad-hoc / debug?  Yes — operators run this when "something feels
+#                       off" to quickly see if the registry side is OK.
 #
 # Checks:
-#   1. DOCKER_REGISTRY env var       - is the registry namespace set?
-#   2. 3 images pullable             - can we fetch db / backend / frontend
-#                                     from the registry right now?
-#   3. drift check                    - if containers are running, do their
-#                                     image LABELs match the resolved VERSION?
+#   1. DOCKER_REGISTRY env var    - is the registry namespace set?
+#   2. 3 images pullable           - can we fetch db / backend / frontend
+#                                    from the registry right now?
 #
 # Exit: 0 if all pass, 1 if any fails.
 #
@@ -69,18 +72,8 @@ cmd_doctor() {
     fi
     echo ""
 
-    # ─── 3. Drift check ────────────────────────────────────────────────
-    # Compares each running container's image LABEL
-    # (`type-any-language.app.version`) against the resolved image tag.
-    # Mismatch means compose was started with a different tag than the
-    # running image — usually means someone pulled an image manually and
-    # skipped lifecycle.sh restart.
-    info "--- drift check (running containers vs local VERSION) ---"
-    drift_check
-    echo ""
-
     if [ $failed -eq 0 ]; then
-        ok "所有外部依赖就绪"
+        ok "registry 端就绪"
         return 0
     else
         err "部分外部依赖未就绪 — 看上面提示"

@@ -73,10 +73,10 @@ setup_prod_host_env() {
     # the `latest` tag that release-build.yml publishes for every version
     # tag — so a host with no explicit pin still pulls a concrete image.
     # All 3 images (db + backend + frontend) share the same tag.
-    resolve_image_tag BACKEND_IMAGE_TAG  backend/VERSION
-    resolve_image_tag FRONTEND_IMAGE_TAG frontend/VERSION
-    resolve_image_tag DB_IMAGE_TAG       db/VERSION
-    warn_if_version_default "$BACKEND_IMAGE_TAG" backend/VERSION
+    resolve_image_tag BACKEND_IMAGE_TAG
+    resolve_image_tag FRONTEND_IMAGE_TAG
+    resolve_image_tag DB_IMAGE_TAG
+    warn_if_version_default "$BACKEND_IMAGE_TAG"
 
     # DOCKER_REGISTRY is always from GH Variable (single source of truth).
     # No local-only mode (would require shell-env override, which we
@@ -129,38 +129,3 @@ sudo_run_or_manual() {
     return 1
 }
 
-# ─── drift_check ───────────────────────────────────────────────────────────
-# Note: `gate_preflight` was removed in the 2026-08-04 refactor.
-# All pre-flight checks now live in ops/cvm/doctor.sh (single source
-# of truth). lifecycle.sh is pure action (no embedded checks); the CI
-# deploy script (ops/publish/deploy-prod.sh) runs doctor after the restart.
-# Run `make prod-doctor` standalone to check current state at any time.
-# Compares each running container's image LABEL (`type-any-language.app.version`)
-# against the resolved image tag. Mismatch means compose has been
-# started with a different tag than the running image — restart to
-# pull the new one.
-drift_check() {
-    if ! compose ps -q backend >/dev/null 2>&1; then
-        return 0
-    fi
-    local svc cid expected actual
-    for svc in db backend frontend; do
-        case "$svc" in
-            db)       expected="$DB_IMAGE_TAG" ;;
-            backend)  expected="$BACKEND_IMAGE_TAG" ;;
-            frontend) expected="$FRONTEND_IMAGE_TAG" ;;
-        esac
-        cid="$(compose ps -q "$svc" 2>/dev/null | head -1)"
-        if [ -z "$cid" ]; then
-            continue
-        fi
-        actual="$(docker inspect "$cid" --format '{{ index .Config.Labels "type-any-language.app.version" }}' 2>/dev/null || echo "")"
-        if [ -z "$actual" ]; then
-            warn "  $svc: 无 type-any-language.app.version LABEL (image 旧?rebuild)"
-        elif [ "$actual" != "$expected" ]; then
-            warn "  $svc drift: running=$actual, expected=$expected — restart 拉新 image"
-        else
-            ok "  $svc drift OK (version=$actual)"
-        fi
-    done
-}

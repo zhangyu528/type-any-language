@@ -117,7 +117,6 @@ in its environment via `$(cat /run/secrets/db_password)`.
 ```
 ├── REGISTRY              # DOCKER_REGISTRY namespace for push/pull (committed shared config)
 ├── backend/              # FastAPI + SQLAlchemy — pure read-layer
-│   ├── VERSION           # tag for english_backend (one file per segment)
 │   ├── app/
 │   │   ├── main.py      # FastAPI entry, CORS, no static mounts
 │   │   ├── config.py    # pydantic-settings with _FILE indirection
@@ -128,7 +127,6 @@ in its environment via `$(cat /run/secrets/db_password)`.
 │   └── requirements.txt
 │
 ├── frontend/             # Next.js 14 (App Router) + React 18 + TypeScript
-│   ├── VERSION           # tag for english_frontend
 │   └── src/app/         # API client + main page
 │
 ├── cms/              # The content service — produces + ships the content image
@@ -394,21 +392,26 @@ The `REGISTRY` file's inline comment block has more detail on this path. The sam
 
 ## Image version tags
 
-The 2 prod app images (`english_backend`, `english_frontend`) carry an explicit tag, sourced from their respective VERSION files.
+Prod image tags are the **git tags** created by `release/build.yml` — one tag (`vX.Y.Z-rc.N` or `vX.Y.Z`) covers all prod images for that release. The tag is delivered to every environment as the `IMAGE_TAG` env var:
 
-| Image | Default tag source | Who bumps it |
-|---|---|---|
-| `english_backend`            | `backend/VERSION` (semver, e.g. `v0.4.0`)    | `release.sh prod X.Y.Z` (manual) |
-| `english_frontend`           | `frontend/VERSION` (semver, e.g. `v1.2.3`)   | `release.sh prod X.Y.Z` (manual) |
+  - CI builds with `--build-arg APP_VERSION=${IMAGE_TAG}` (bakes `type-any-language.app.version` LABEL into the image)
+  - CI pushes the image with tag `${IMAGE_TAG}` to the registry
+  - `publish-prod.yml` forwards `IMAGE_TAG` to the CVM via SSH env
+  - CVM's `lifecycle.sh` reads `IMAGE_TAG`, calls `docker pull ...:${IMAGE_TAG}`, starts the container
 
-Prod releases are deliberate, dated points in the project's life: each prod image carries an explicit semver (`v0.4.0`, not auto-bumped from git). VERSION-file edits are reserved for prod release markers; they happen via `release.sh prod X.Y.Z -y` which writes the new value, commits it, then builds + tags + pushes the prod image. There is no dev image — dev runs on host processes.
+There is no per-segment VERSION file. The tag is the single source of truth, set by CI at release time and forwarded through the deploy pipeline.
 
 ### Prod tag resolution chain (`ops/lib.sh` → `resolve_image_tag`)
 
-1. Per-image env var, e.g. `BACKEND_IMAGE_TAG=v1.2.3`
-2. Generic `IMAGE_TAG` (CI convenience — bumps all images at once)
-3. The VERSION file path passed to the helper (e.g. `backend/VERSION`) — first non-empty, non-comment line
-4. Literal `v0.0.0` (won't break a build, but warns once via `warn_if_version_default`)
+1. Per-image env var, e.g. `BACKEND_IMAGE_TAG=v1.2.3` (rarely used)
+2. Generic `IMAGE_TAG` env var (the primary path — CI/prod)
+3. Fall back to `:latest` (CI guarantees this tag exists; non-pinned = `warn_if_version_default` flags it)
+
+### Prod tag resolution chain (`ops/lib.sh` → `resolve_image_tag`)
+
+1. Per-image env var, e.g. `BACKEND_IMAGE_TAG=v1.2.3` (rarely used)
+2. Generic `IMAGE_TAG` env var (the primary path — CI/prod)
+3. Fall back to `:latest` (CI guarantees this tag exists; non-pinned = `warn_if_version_default` flags it)
 
 ### Examples
 
