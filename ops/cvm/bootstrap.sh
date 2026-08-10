@@ -3,11 +3,12 @@
 # ops/cvm/bootstrap.sh — host-level preparation for the prod CVM.
 #
 # Thin orchestrator. Each step is a separate script in ops/cvm/:
-#   preflight.sh          - read-only env check (docker / compose / :80)
-#   secrets/install.sh    - generate .secrets/db_password
-#   data-dir/install.sh   - mkdir + chown UID 999 for postgres bind-mount
-#   nginx/install.sh      - install ops/cvm/nginx/site.conf to system nginx
-#   deploy-if-published.sh - probe registry, pull, lifecycle.sh start, doctor
+#   docker/install.sh        - install Docker Engine + Compose plugin if missing
+#   preflight.sh             - read-only env check (docker / compose / :80)
+#   secrets/install.sh       - generate .secrets/db_password
+#   data-dir/install.sh      - mkdir + chown UID 999 for postgres bind-mount
+#   nginx/install.sh         - install ops/cvm/nginx/site.conf to system nginx
+#   deploy-if-published.sh   - probe registry, pull, lifecycle.sh start, doctor
 #
 # Each step is idempotent and standalone-runnable (handy for re-runs
 # after operator hand-edits + for debugging one step at a time).
@@ -32,6 +33,8 @@ cmd_prepare() {
     info "  起容器走 ./ops/cvm/deploy-if-published.sh 或 lifecycle.sh start。"
     echo ""
 
+    # docker first — preflight needs docker to be installed to be useful.
+    bash "$COMMON_DIR/docker/install.sh"        || return 1; echo ""
     bash "$COMMON_DIR/preflight.sh"             || return 1; echo ""
     bash "$COMMON_DIR/secrets/install.sh"       || return 1; echo ""
     bash "$COMMON_DIR/data-dir/install.sh"      || return 1; echo ""
@@ -54,7 +57,7 @@ usage() {
 
 命令:
   (default) | setup | bootstrap | prepare
-      主机层准备(preflight + secrets + data dir + nginx site)。
+      主机层准备(docker install + preflight + secrets + data dir + nginx site)。
       准备完成后尝试部署并启动最新镜像(可跳)。
 
   -h | --help | help
@@ -67,7 +70,7 @@ usage() {
   - BOOTSTRAP_SKIP_DEPLOY=1 → 强制跳过部署,仅做主机层准备。
   - IMAGE_TAG=vX.Y.Z → 部署该固定版本而非最新的 :latest。
 
-前置依赖: docker, compose, python3, git, openssl, sudo
+前置依赖: sudo(其他前置如 git / openssl / python3 通常 CVM 镜像自带)。
 
 首次流程 / 日常流程 / 与 publish-prod workflow 的对接见 AGENTS.md。
 EOF
