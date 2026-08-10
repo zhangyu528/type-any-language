@@ -12,6 +12,10 @@
  * 负责列表本身。早期版本是内联 section 自带大标题 + "← 返回",
  * 那让它看起来像跳了一个新页面(实际没有),所以收进 modal。
  *
+ * 动画:打开 modal 时词库卡片用 motion 的 stagger 级联入场 ——
+ * "继续上次"先现身,然后其余卡片按 staggerChildren 间隔依次
+ * 上浮+淡入。整段动画一次性触发,不再循环(repeat: 1)。
+ *
  * 数据流:
  *   - libs 由 dashboard/page.tsx 通过 getContentCatalog 拉取
  *   - recentLibId 来自 prefs.libId localStorage(landing/data.ts::readRecentLibId)
@@ -19,8 +23,10 @@
  */
 
 import { useMemo } from 'react';
+import { motion } from 'motion/react';
 import { VocabularyLib } from '../api';
 import { readRecentLibId } from '../landing/data';
+import { riseIn, staggerParent } from '../ds/motion';
 import styles from './LibPicker.module.css';
 
 export interface LibPickerProps {
@@ -40,28 +46,41 @@ export default function LibPicker({ libs, onPick }: LibPickerProps) {
   return (
     <div className={styles.root}>
       {recentLib ? (
-        <div className={styles.sectionWrap}>
+        <motion.div
+          className={styles.sectionWrap}
+          variants={riseIn}
+          initial="hidden"
+          animate="show"
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+        >
           <p className={styles.sectionLabel}>继续上次</p>
           <LibCard lib={recentLib} onClick={() => onPick(recentLib.id)} recent />
-        </div>
+        </motion.div>
       ) : null}
 
-      <div className={styles.sectionWrap}>
-        <p className={styles.sectionLabel}>
+      <motion.div
+        className={styles.sectionWrap}
+        variants={staggerParent}
+        initial="hidden"
+        animate="show"
+      >
+        <motion.p className={styles.sectionLabel} variants={riseIn}>
           {recentLib ? '所有词库' : '可用词库'}
-        </p>
+        </motion.p>
         {otherLibs.length === 0 ? (
-          <p className={styles.empty}>暂无可用词库。</p>
+          <motion.p className={styles.empty} variants={riseIn}>
+            暂无可用词库。
+          </motion.p>
         ) : (
-          <ul className={styles.grid}>
+          <motion.ul className={styles.grid} variants={staggerParent}>
             {otherLibs.map((lib) => (
-              <li key={lib.id}>
+              <motion.li key={lib.id} variants={riseIn}>
                 <LibCard lib={lib} onClick={() => onPick(lib.id)} />
-              </li>
+              </motion.li>
             ))}
-          </ul>
+          </motion.ul>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 }

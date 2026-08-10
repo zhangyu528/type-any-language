@@ -1,158 +1,253 @@
-/* Hero — small-fresh / 软自然 */
+/* Hero — 单屏 Bento(Q2 骨架)
+ *   左半:标题 + 副标
+ *   右半:TiltedCard demo + 三块 stats
+ *   底部:深色 CTA 横条,横跨整屏
+ *   小屏 fallback: @media (max-width: 980px) 退化为单列垂直堆叠 */
 
-.root {
+.bento {
   position: relative;
   width: 100%;
   min-height: calc(100vh - 52px);
   padding: clamp(var(--space-12), 12vh, 140px) var(--space-5) clamp(var(--space-12), 14vh, 128px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  grid-template-rows: 1fr auto;
+  gap: var(--space-5);
+  align-content: center;
   overflow: hidden;
   isolation: isolate;
-  background: var(--ds-bg);
+  background: transparent;
   color: var(--ds-ink);
   scroll-snap-align: start;
 }
 
-/* Paper grain removed — was barely-visible mint noise (opacity 0.06)
-   but still one more continuous animation competing with the demo's
-   per-char settle and backspace chains. The near-white bg now
-   reads cleanly without competing texture. */
+/* Scrim — radial veil behind content so aurora doesn't wash out text */
+.bento::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 110%;
+  max-width: 1200px;
+  height: 70%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--ds-bg) 35%, transparent) 0%, color-mix(in srgb, var(--ds-bg) 12%, transparent) 45%, transparent 72%);
+  pointer-events: none;
+  z-index: 0;
+}
+[data-theme="light"] .bento::before {
+  background: radial-gradient(ellipse, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.2) 45%, transparent 72%);
+}
 
-.inner {
+/* ---- 左半:标题区 ---- */
+.bentoLeft {
   position: relative;
   z-index: 1;
-  max-width: var(--content-max);
-  width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding-right: var(--space-3);
+  text-align: left;
 }
 
-/* Caption row + caption removed — AppHeader already shows the brand
-   mark + name on the same screen, so a second "type any language"
-   line under the title would just repeat the brand. */
-
-/* Title — Fraunces serif, intentionally small. The demo is the hero's
-   focal point; the title here is just a quiet tagline, not a billboard. */
+/* ShinyText h1 — 浅/深 baby-blue 下用 --shiny-base / --shiny-shine token */
 .title {
   font-family: var(--font-display);
-  font-size: clamp(20px, 2.2vw, 26px);
+  font-size: clamp(28px, 3.6vw, 42px);
   font-weight: var(--weight-medium);
-  color: var(--ds-ink);
-  letter-spacing: -0.01em;
-  line-height: 1.3;
-  margin: 0 0 var(--space-4);
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+  margin: 0;
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
   gap: 0.02em;
-  opacity: 0.78;
+  filter: drop-shadow(0 2px 12px color-mix(in srgb, var(--ds-ink) 25%, transparent));
 }
-.char {
-  display: inline-block;
-  opacity: 0;
-  transform: translateY(0.5em);
-  animation: sfCharRise 720ms var(--ease-spring) forwards;
-}
-@keyframes sfCharRise {
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Rule — single editorial hairline under the title, decorative. */
-.rule {
-  width: 40px;
-  height: 1px;
-  background: var(--ds-border);
-  margin: 0 0 var(--space-4);
-  transform-origin: left center;
-  transform: scaleX(0);
-  opacity: 0;
-  transition:
-    transform var(--dur-base) var(--ease-out),
-    opacity var(--dur-base) var(--ease-out);
-}
-.ruleIn {
-  transform: scaleX(1);
-  opacity: 1;
+[data-theme="light"] .title {
+  filter: drop-shadow(0 2px 8px rgba(255, 255, 255, 0.4));
 }
 
 .subtitle {
   font-family: var(--font-sans);
-  font-size: clamp(13px, 1.2vw, 14px);
+  font-size: clamp(14px, 1.4vw, 17px);
   color: var(--ds-ink-soft);
   line-height: 1.55;
   letter-spacing: 0.005em;
-  margin: 0 0 var(--space-3);
-  max-width: 52ch;
+  margin: 0;
+  max-width: 46ch;
   opacity: 0;
   transform: translateY(8px);
   transition:
     opacity var(--dur-base) var(--ease-out),
     transform var(--dur-base) var(--ease-out);
+  text-shadow: 0 1px 8px color-mix(in srgb, var(--ds-bg) 60%, transparent);
+}
+[data-theme="light"] .subtitle {
+  text-shadow: 0 1px 8px rgba(255, 255, 255, 0.5);
 }
 .subtitleIn {
-  opacity: 0.72;
+  opacity: 0.85;
   transform: translateY(0);
 }
 
-/* Demo — soft card wrap, centered. */
-.demo {
+/* ---- 右半:demo + stats ---- */
+.bentoRight {
   position: relative;
   z-index: 1;
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  padding: var(--space-5) 0;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: var(--space-3);
+  min-width: 0;
 }
 
-/* Demo card — centerpiece of the hero. Big, generous, hairline border,
-   soft white. Demo card width is the largest visual block on the page
-   so the demo animation reads as "the thing we're showing off". */
+/* TiltedCard demo 卡 — 玻璃态 + 投影 */
 .demoCard {
   position: relative;
-  width: min(100%, 720px);
-  padding: var(--space-6) var(--space-6) var(--space-6);
-  background: var(--ds-surface);
-  border: 1px solid var(--ds-border);
+  width: 100%;
+  padding: var(--space-5) var(--space-5);
+  background: color-mix(in srgb, var(--ds-surface) 75%, transparent);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid color-mix(in srgb, var(--ds-border) 70%, transparent);
   border-radius: var(--radius-xl);
   box-shadow: var(--elev-1);
-}
-/* demoChip removed — "live drill · sample" was redundant with the
-   demo's own visible zh → en + backspace animation. */
-.demoZh {
-  margin: 0 0 var(--space-3);
-  font-family: var(--font-sans);
-  font-size: clamp(16px, 1.6vw, 19px);
-  color: var(--ds-ink-soft);
-  opacity: 0.85;
-  text-align: center;
-  letter-spacing: 0.005em;
-  line-height: 1.55;
-}
-.demoEn {
-  margin: 0;
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: clamp(20px, 2.4vw, 28px);
-  color: var(--ds-ink);
-  text-align: center;
-  letter-spacing: -0.01em;
-  line-height: 1.4;
-  animation: sfDemoFade 600ms var(--ease-out);
-}
-@keyframes sfDemoFade {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
+  perspective: 1000px;
 }
 
-/* CTA — 由 ds/components/Button 提供(variant="primary" size="lg"),
-   薄荷填充,全页唯一主行动;FinalCTA 是次级,走另外的视觉。
-   这一行只占位,真正的样式改下一轮(Plan B 视觉修饰)再加。 */
+/* Light 主题下 demo 卡需要更明确的边+阴影,与 --ds-bg 拉开层次 */
+[data-theme="light"] .demoCard {
+  background: color-mix(in srgb, var(--ds-surface) 92%, transparent);
+  border-color: color-mix(in srgb, var(--ds-border-strong) 30%, transparent);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 4px 16px rgba(14, 26, 46, 0.06),
+    0 12px 32px rgba(14, 26, 46, 0.05);
+}
+
+/* stats 三块 —— 数据全部从 libs 派生 */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+  width: 100%;
+}
+.stat {
+  padding: 10px 12px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--ds-tint) 50%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.statNum {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ds-ink);
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.statName {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ds-ink);
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.statLbl {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  color: var(--ds-ink-soft);
+  letter-spacing: 0.04em;
+}
+
+/* ---- CTA 按钮:放到右栏底部 ----
+   原"深色横条 + 左侧文字"组合重复展示了 stats + bento 大卡已有的首推信息。
+   现在只保留按钮,作为 demo + stats 之下的转化锚点。 */
+.bentoCta {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  /* 不设 background / padding / shadow —— SpecularButton 自带 WebGL 镜面背景 */
+}
+.ctaText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ctaTitle {
+  font-family: var(--font-sans);
+  font-size: clamp(15px, 1.6vw, 18px);
+  font-weight: 500;
+  color: inherit;
+  letter-spacing: 0.005em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ctaMeta {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, #E8F4FC 55%, transparent);
+}
+.ctaBtn {
+  /* 缩小 SpecularButton 在横条里的视觉锚点 */
+  flex-shrink: 0;
+}
+
+/* ---- 小屏 fallback:退化为单列垂直堆叠 ---- */
+@media (max-width: 980px) {
+  .bento {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    min-height: auto;
+    padding: clamp(var(--space-8), 8vh, 96px) var(--space-5);
+    gap: var(--space-4);
+  }
+  .bentoLeft {
+    text-align: center;
+    align-items: center;
+    padding-right: 0;
+  }
+  .title {
+    justify-content: center;
+  }
+  .subtitle {
+    text-align: center;
+  }
+  .stats {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .bentoCta {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+    padding: 14px 16px;
+  }
+  .ctaBtn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  /* 极小屏:stats 降为 1 列纵排,保证每块不挤 */
+  .stats {
+    grid-template-columns: 1fr;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .char { animation: none; opacity: 1; transform: none; }
+  .title { transition: none; }
+  .subtitle { transition: none; }
 }

@@ -22,18 +22,23 @@
   padding-bottom: var(--space-3);
 }
 
-.caption {
-  font-family: var(--font-sans);
-  font-size: var(--text-caption);
-  font-weight: var(--weight-regular);
-  color: var(--ds-ink-soft);
-  letter-spacing: 0.06em;
-  user-select: none;
-  font-variant-numeric: tabular-nums;
-  margin: 0;
+/* Word card — the focal point of a translation step. Wrapped in a
+   shadcn <Card> (bg-card = --ds-surface, border, radius-lg, elev0)
+   so it matches the dashboard's card surfaces. The shell adds the
+   inner padding + max width; the inner .wordCard keeps the vertical
+   flex layout. */
+.wordCardShell {
+  width: 100%;
+  max-width: 560px;
+  padding: var(--space-5) var(--space-6);
 }
 
-/* Word card — the focal point of a translation step. */
+/* Kicker under the word card — shadcn <Badge variant="slate">,
+   letter-spacing matches the old .caption kicker feel. */
+.captionBadge {
+  letter-spacing: 0.06em;
+}
+
 .wordCard {
   display: flex;
   flex-direction: column;
@@ -285,52 +290,6 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) 0;
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  padding: 0 var(--space-5);
-  font-family: var(--font-sans);
-  font-size: var(--text-body);
-  font-weight: 600;
-  letter-spacing: 0.005em;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition:
-    background-color var(--dur-fast) var(--ease-out),
-    color            var(--dur-fast) var(--ease-out),
-    border-color     var(--dur-fast) var(--ease-out);
-  white-space: nowrap;
-}
-
-.btn:focus-visible {
-  outline: 2px solid var(--ds-focus);
-  outline-offset: 2px;
-}
-
-.btnPrimary {
-  background: var(--ds-action);
-  color: var(--ds-on-action);
-  border: 1px solid var(--ds-action);
-}
-
-.btnPrimary:hover {
-  background: var(--ds-action-deep);
-  border-color: var(--ds-action-deep);
-}
-
-.btnGhost {
-  background: transparent;
-  color: var(--ds-ink);
-  border: 1px solid var(--ds-border);
-}
-
-.btnGhost:hover {
-  border-color: var(--ds-ink-faint);
-  color: var(--ds-ink);
 }
 
 /* Empty / loading / error / finished / empty-step variants */

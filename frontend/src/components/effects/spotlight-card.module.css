@@ -1,0 +1,43 @@
+/* SpotlightCard — reactbits spotlight-card 移植
+   纯 CSS radial gradient 跟随鼠标,无 WebGL/无 GSAP。 */
+
+.root {
+  position: relative;
+  overflow: hidden;
+  /* 默认坐标在视口外,避免初始闪现 */
+  --spotlight-x: -200px;
+  --spotlight-y: -200px;
+  --spotlight-color: rgba(255, 255, 255, 0.25);
+}
+
+/* 顶层 spotlight 覆盖层 —— 跟随鼠标位置的 radial gradient。
+   透明边缘 60% 让光晕自然消散,不形成硬边。 */
+.overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at var(--spotlight-x) var(--spotlight-y),
+    var(--spotlight-color),
+    transparent 60%
+  );
+  opacity: 0;
+  transition: opacity 0.32s ease;
+  z-index: 1;
+}
+
+/* 内容层在 spotlight 之上,保证可点击 */
+.content {
+  position: relative;
+  z-index: 2;
+}
+
+/* hover / active 时显示 spotlight */
+.root.active .overlay {
+  opacity: 1;
+}
+
+/* reduced-motion:完全隐藏 spotlight,不做鼠标跟随 */
+.root[data-reduced='true'] .overlay {
+  display: none;
+}

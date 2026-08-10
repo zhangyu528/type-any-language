@@ -1,0 +1,96 @@
+/* DataBento — 方案 B SECTION 4
+   4 数据横排(产品口径)
+   --------------------------------------------------------------
+   - 4 列等宽 grid;md 退 2x2;sm 单列
+   - 每格:Fraunces display 大数字(蓝)+ 副标题(slate-500)
+   - 数字走 AnimatedCounter,进视口才从 0 滚到目标 */
+
+.root {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: clamp(var(--space-10), 9vh, 96px) var(--space-5);
+  box-sizing: border-box;
+  scroll-snap-align: start;
+}
+
+.header {
+  margin-bottom: var(--space-5);
+}
+
+.kicker {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-mono), monospace;
+  font-size: var(--text-caption);
+  letter-spacing: 0.1em;
+  color: var(--ds-ink-soft);
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display), var(--font-sans), serif;
+  font-size: clamp(20px, 2.2vw, 26px);
+  font-weight: 600;
+  color: var(--ds-ink);
+  letter-spacing: -0.005em;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-5) var(--space-4);
+  background: var(--ds-surface);
+  border: 1px solid color-mix(in srgb, var(--ds-border) 70%, transparent);
+  border-radius: var(--radius-lg);
+  /* 不让 cell 沾染背景暖色 —— 这是数据展示,要冷静 */
+}
+
+.big {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--font-display), var(--font-sans), serif;
+  font-size: clamp(36px, 4vw, 56px);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--ds-action-deep);
+  font-variant-numeric: tabular-nums;
+}
+
+.unit {
+  font-family: var(--font-display), serif;
+  font-size: clamp(20px, 2vw, 28px);
+  font-weight: 500;
+  color: var(--ds-action);
+}
+
+.sub {
+  margin: var(--space-2) 0 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+  letter-spacing: 0.02em;
+}
+
+/* ---------- 响应式 ---------- */
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -1,81 +1,117 @@
 /* ============================================================
-   Dashboard — page layout
-   ------------------------------------------------------------
-   Only page-level structure (grid, container, loading, error).
-   Each child component owns its own module CSS; this file is
-   intentionally minimal.
+   Dashboard — Immersive Hero layout with Aurora background
    ============================================================ */
 
 .root {
-  max-width: var(--content-max);
-  margin: 0 auto;
-  /* AppHeader is fixed 52px; every page owns its padding-top to
-     keep its first content from sitting under the chrome. /me / /
-     /login etc. each declare this themselves; dashboard matches. */
-  padding: calc(52px + var(--space-4)) var(--space-4) var(--space-7);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
+  position: relative;
+  min-height: 100vh;
+  background: transparent;
+  color: var(--ds-ink);
   font-family: var(--font-sans);
 }
 
-/* Overview main grid — left stack (ContinueCard over DailyGoal)
-   beside the calendar. Pairing them keeps the calendar from
-   stretching to the full 1080px content width, which blew each day
-   cell up to ~145px (aspect-ratio 1/1) and made the grid ~725px
-   tall — taller than everything above it combined. At 1fr/1fr the
-   cells land around 60px, and the left stack's two 160px cards
-   roughly match the calendar's height. */
-.mainGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--space-4);
-}
-
-.stack {
+/* Hero section - full width, behind aurora */
+.hero {
+  position: relative;
+  z-index: 1;
+  padding: calc(52px + var(--space-6)) var(--space-5) var(--space-6);
   display: flex;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+/* Cards grid - horizontal layout on desktop.
+   G1: 加 margin-bottom 让 section 之间有统一节奏,否则 hero 底 padding
+   + 下一个 section 自身 padding 容易混淆。 */
+.cardsGrid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: var(--space-4);
+  max-width: var(--content-max);
+  width: 100%;
+  margin: 0 auto var(--space-6);
+  padding: 0 var(--space-4);
+  box-sizing: border-box;
 }
 
-/* Let the two left cards divide whatever height the calendar column
-   ends up at, so the row reads as two balanced columns instead of a
-   short stack floating beside a tall calendar. `1 0 auto` grows but
-   never shrinks below each card's own min-height (160px); both cards
-   pin their CTA with margin-top:auto, so the extra height lands as
-   breathing room above the button rather than stretched text. */
-.stack > * {
-  flex: 1 0 auto;
+/* Glassmorphism card wrapper */
+.cardGlass {
+  /* flex column so GlowCard (left) and DailyGoal (right) both stretch
+     to the row height — without this, ContinueCard sits at top with
+     empty space below the CTA while DailyGoal fills the full row. */
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(16px) saturate(135%);
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
 }
 
-/* Tablet (<=1023): calendar drops below the stack. */
+[data-theme="dark"] .cardGlass {
+  background: rgba(20, 22, 30, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* GlowCard wrapper for ContinueCard — fills the rounded cardGlass interior
+   and keeps the cursor-following glow clipped to the rounded corners. */
+.continueGlow {
+  position: relative;
+  border-radius: var(--radius-xl);
+  /* Fill the cardGlass column so the inner ContinueCard grid can
+     stretch to row height (matches DailyGoal's full-height fill). */
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  /* GlowCard is a div; it inherits overflow-hidden from its own base class,
+     so the radial gradient stays inside the rounded glass. */
+}
+
+/* Tablet (<=1023): stack cards */
 @media (max-width: 1023px) {
-  .mainGrid {
+  .cardsGrid {
     grid-template-columns: 1fr;
   }
 }
 
-.row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-4);
+/* Section wrappers - transparent for aurora visibility.
+   G1: 加 margin-bottom 让三段 section 之间节奏统一。 */
+.weekRhythmSection,
+.progressSection {
+  position: relative;
+  z-index: 1;
+  max-width: var(--content-max);
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--space-4);
+  box-sizing: border-box;
 }
 
-/* Tablet (640-1023): stack Continue + DailyGoal. */
-@media (max-width: 1023px) {
-  .row {
-    grid-template-columns: 1fr;
-  }
+/* WeekRhythm is narrower than the old calendar (no 7×5 grid any
+   more), so cap the section width so the strip doesn't sprawl edge
+   to edge. ~720px fits 7 × 56px dots + gaps with comfortable margins. */
+.weekRhythmSection {
+  max-width: 760px;
+  margin-bottom: var(--space-6);
 }
 
-/* In-session frame — TranslationSession renders inline under the
-   GreetingBar when practiceMode === 'in-session'. The session owns
-   its own internal layout; this wrapper only re-establishes the
-   vertical rhythm the dashboard grid would otherwise provide. */
-.sessionFrame {
-  display: flex;
-  flex-direction: column;
-  min-height: 60vh;
+/* ProgressSnapshot panel — Z-pattern step: widens back to the
+   cardsGrid max-width so the section rhythm goes wide→wide→mid
+   →wide→mid (Z) instead of monotonically narrowing (funnel).
+   The 3-col internal layout uses the extra horizontal room so
+   the three KPI tiles each get a proper column. */
+.progressSection {
+  max-width: var(--content-max);
+  margin-bottom: var(--space-6);
+}
+
+/* Last section doesn't need trailing gap */
+.progressSection:last-child {
+  margin-bottom: 0;
 }
 
 .modalState {

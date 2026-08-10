@@ -14,6 +14,9 @@ import {
 } from './api';
 import { useAuth } from './lib/auth';
 import SunkenShortcutBar from './SunkenShortcutBar';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import styles from './practice/TranslationStage.module.css';
 
 interface TranslationStageProps {
@@ -163,7 +166,11 @@ export default function TranslationStage({
     const refocus = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null;
       if (!target) return;
-      if (target.closest('input:not(.typewriter-input), textarea, [contenteditable="true"]')) return;
+      // Typewriter input owns its own focus — never steal it. See the
+      // note in `isEditableTarget` above for why we match by data-attr
+      // instead of class name.
+      if (target.closest('input[data-typewriter="true"]')) return;
+      if (target.closest('input, textarea, [contenteditable="true"]')) return;
       if (target.closest('[role="menu"], [role="listbox"]')) return;
       inputRef.current?.focus();
     };
@@ -321,8 +328,17 @@ export default function TranslationStage({
     const isEditableTarget = (target: EventTarget | null) => {
       const el = target as HTMLElement | null;
       if (!el) return false;
+      // The hidden typewriter input is intentionally focusable — it owns
+      // per-word typing — and its CSS-module class name is hashed
+      // (`.typewriterInput` → `TranslationStage_typewriterInput__…`), so
+      // the `:not(.typewriter-input)` selector doesn't match. We mark
+      // it with `data-typewriter="true"` and short-circuit here. Without
+      // this, the global handler bailed out for the very input we
+      // designed to capture keystrokes, which silently disabled Tab and
+      // `/` (and Space→audio) on the drill.
+      if (el.matches('input[type="text"][data-typewriter="true"]')) return false;
       return !!el.closest(
-        'input:not(.typewriter-input), textarea, [contenteditable="true"]'
+        'input, textarea, [contenteditable="true"]'
       );
     };
 
@@ -406,16 +422,18 @@ export default function TranslationStage({
   return (
     <div className={styles.translation}>
       <header className={styles.header}>
-        <div className={styles.wordCard}>
-          <h2 className={styles.wordCardWord}>{targetWord.word}</h2>
-          {showPhonetic && targetWord.phonetic && (
-            <span className={styles.wordCardPhonetic}>{targetWord.phonetic}</span>
-          )}
-          {targetWord.translation && (
-            <p className={styles.wordCardTranslation}>{targetWord.translation}</p>
-          )}
-        </div>
-        <p className={styles.caption}>看中文写英文</p>
+        <Card className={styles.wordCardShell}>
+          <div className={styles.wordCard}>
+            <h2 className={styles.wordCardWord}>{targetWord.word}</h2>
+            {showPhonetic && targetWord.phonetic && (
+              <span className={styles.wordCardPhonetic}>{targetWord.phonetic}</span>
+            )}
+            {targetWord.translation && (
+              <p className={styles.wordCardTranslation}>{targetWord.translation}</p>
+            )}
+          </div>
+        </Card>
+        <Badge variant="slate" className={styles.captionBadge}>看中文写英文</Badge>
       </header>
 
       <div className={styles.sentence}>
@@ -483,6 +501,7 @@ export default function TranslationStage({
             ref={inputRef}
             type="text"
             className={styles.typewriterInput}
+            data-typewriter="true"
             value={userInputs[currentWordIndex] || ''}
             onChange={(e) => handleWordChange(currentWordIndex, e.target.value)}
             onKeyDown={handleTypewriterKeyDown}
@@ -529,9 +548,7 @@ export default function TranslationStage({
       />
 
       <div className={styles.actions}>
-        <button type="button" className={`${styles.btn} ${styles.btnGhost}`} onClick={skip}>
-          跳过 ⏭
-        </button>
+        <Button type="button" variant="ghost" onClick={skip}>跳过 ⏭</Button>
       </div>
     </div>
   );

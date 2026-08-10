@@ -1,0 +1,197 @@
+/* ScenariosSection — 方案 B SECTION 2
+   --------------------------------------------------------------
+   4 个真实场景卡 — 走 MagicBento 组件(reactbits.dev/components/
+   magic-bento 的本地 port),提供 cursor-following border glow +
+   global spotlight + click ripple.
+
+   本文件只剩 3 件事:
+     - 标题区(kicker / title / subtitle)
+     - MagicBento 容器的 grid 调整(覆盖默认 1/2/3 列,
+       让 landing 走 4 列横排)
+     - SpecularButton 主题感知变量(light 走婴儿蓝 tint + 深字,
+       dark 保留"白字蓝玻璃"强对比)
+   -------------------------------------------------------------- */
+
+.root {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: clamp(var(--space-10), 9vh, 96px) var(--space-5);
+  box-sizing: border-box;
+  scroll-snap-align: start;
+}
+
+/* ---------- 标题区 ---------- */
+
+.header {
+  margin-bottom: var(--space-6);
+}
+
+.kicker {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-mono), monospace;
+  font-size: var(--text-caption);
+  letter-spacing: 0.1em;
+  color: var(--ds-ink-soft);
+  text-transform: uppercase;
+}
+
+.kickerText {
+  font-family: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display), var(--font-sans), serif;
+  font-size: clamp(24px, 2.8vw, 36px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ds-ink);
+}
+
+.subtitle {
+  margin: var(--space-2) 0 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  color: var(--ds-ink-soft);
+}
+
+/* ---------- MagicBento 容器覆盖 ----------
+   默认 grid 是 1/2/3 列响应;landing 要 4 列横排(1100px 以下退 2 列,
+   600px 以下退 1 列)。
+   padding / gap 用全站 token,跟其他 section 节奏对齐。 */
+
+.bento {
+  max-width: none !important;
+  padding: 0 !important;
+  gap: var(--space-4) !important;
+  font-size: 1rem !important;       /* 抑制 magic-bento 内嵌 clamp,统一走 token */
+}
+
+.bento > div {
+  aspect-ratio: auto !important;
+  min-height: 280px !important;
+  padding: var(--space-5) !important;
+  border-radius: var(--radius-lg) !important;
+  /* 主题感知:light 白玻璃 / dark 深空蓝.落地主题感知变量同时给
+     SpecularButton 用(子组件消费 --specular-tint / --specular-text)。
+     --glow-color 给 MagicBento 的 border-glow conic-gradient 用 —
+     light 走 #2F80C0(deep baby blue)在白卡上才看得见,dark 走
+     #8FCBF0(浅婴儿蓝)在深空蓝上更亮。 */
+  background: var(--ds-surface) !important;
+  border-color: color-mix(in srgb, var(--ds-action) 22%, transparent) !important;
+  color: var(--ds-ink) !important;
+  --specular-tint: #DCEFFB;
+  --specular-text: #0C447C;
+  --glow-color: 47, 128, 192;
+}
+
+[data-theme="dark"] .bento > div {
+  background: color-mix(in srgb, #0A1428 88%, transparent) !important;
+  color: #FFFFFF !important;
+  --specular-tint: #CFE3F2;
+  --specular-text: #FFFFFF;
+  --glow-color: 143, 203, 240;
+}
+
+/* MagicBento 默认 box-shadow / hover lift 在主题里偏弱,补一组更"产品化"的;
+   hover 时再来一次边框加深(给用户明确反馈)。 */
+.bento > div:hover {
+  border-color: color-mix(in srgb, var(--ds-action) 38%, transparent) !important;
+}
+
+@media (min-width: 1101px) {
+  .bento {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 1100px) {
+  .bento {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .bento {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+/* ---------- SpecularButton 容器 ----------
+   MagicBento 的 cardContent 默认从顶部排(justify-content: space-between);
+   我们让 button 贴底。 */
+.practiceBtn {
+  margin-top: var(--space-4);
+  align-self: stretch;
+}
+
+/* ---------- MagicBento children 内部布局 ----------
+   MagicBento children 模式下跳过默认的 cardTitle + cardDescription,
+   所以场景名 / 引文 / 中文都塞在 children 里。这里控制它们的样式,
+   跟之前的 ScenariosSection 视觉对齐。 */
+.cardInner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  height: 100%;
+}
+
+/* emoji 在 MagicBento .cardIcon slot 里渲染,占满自己的盒子 */
+.emoji {
+  font-size: 1.6rem;
+  line-height: 1;
+  display: inline-block;
+}
+
+.cardSceneName {
+  font-family: var(--font-display), serif;
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  color: var(--ds-ink);
+  margin: 0;
+}
+
+[data-theme="dark"] .cardSceneName {
+  color: #FFFFFF;
+}
+
+.cardQuote {
+  margin: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--ds-ink);
+  font-style: italic;
+}
+
+[data-theme="dark"] .cardQuote {
+  color: #E8F4FC;
+}
+
+.cardZh {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+}
+
+[data-theme="dark"] .cardZh {
+  color: #9AB6CE;
+}
+
+.cardSpacer {
+  flex: 1;
+}
+
+/* ---------- reduced-motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .bento > div,
+  .bento > div:hover {
+    transition: none !important;
+  }
+}

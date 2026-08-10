@@ -1,13 +1,14 @@
 /* ============================================================
    TAL Mint · globals.css
    ------------------------------------------------------------
-   全局只做四件事:
-     1) 引入设计系统 tokens(themes.css 暴露 --ds-* 语义层)
-     2) reset + body 基座
-     3) 全局 chrome(AppHeader)与通用 section-header
-     4) 全局 reduced-motion 降级
-   组件样式一律进各 *.module.css,并只允许使用 --ds-* 语义 token。
+   Tailwind + shadcn/ui layer + 原有 TAL 设计系统共存。
+   --ds-* 语义 token 仍由 tokens.css / themes.css 提供,
+   Tailwind 颜色/字体/圆角均映射到这些 token,双范式共享同一色板。
    ============================================================ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 @import './ds/tokens.css';
 @import './ds/themes.css';
@@ -226,13 +227,13 @@ a:focus-visible {
 
 /* Landing 变体:依然浮于 hero 上,但保留半透底 + 细 hairline,
    避免 header 与 hero bg 撞色(裸透明会让登录按钮看起来像悬浮塑料)。
-   color-mix 64% 比默认的 78% 更轻,hero 透过来仍能隐约读到底色,
+   color-mix 72% 比默认的 78% 更轻,hero 透过来仍能隐约读到底色,
    但能跟下面的 hero bg 拉开一个层级。 */
 .app-header--landing {
-  background: color-mix(in srgb, var(--ds-bg) 64%, transparent);
-  backdrop-filter: blur(16px) saturate(140%);
-  -webkit-backdrop-filter: blur(16px) saturate(140%);
-  border-bottom-color: color-mix(in srgb, var(--ds-border) 60%, transparent);
+  background: color-mix(in srgb, var(--ds-bg) 72%, transparent);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border-bottom-color: color-mix(in srgb, var(--ds-border) 70%, transparent);
 }
 
 /* ============================================================
@@ -269,6 +270,148 @@ a:focus-visible {
   line-height: var(--text-body-lh);
   margin: 0;
   max-width: 56ch;
+}
+
+/* ============================================================
+   Aurora mesh gradient — base layer beneath the aurora canvas
+   ============================================================ */
+.aurora-mesh {
+  background:
+    radial-gradient(ellipse 600px 400px at 20% 10%, color-mix(in srgb, var(--ds-action) 12%, transparent), transparent 70%),
+    radial-gradient(ellipse 500px 350px at 80% 60%, color-mix(in srgb, var(--ds-cta) 8%, transparent), transparent 70%),
+    radial-gradient(ellipse 700px 500px at 50% 100%, color-mix(in srgb, var(--ds-action) 10%, transparent), transparent 70%),
+    linear-gradient(180deg, var(--ds-bg) 0%, var(--ds-bg) 50%, var(--ds-bg) 100%);
+  transition: background 0.6s ease;
+}
+
+/* Light 主题下压低 mesh 渐变强度,避免 hero 整片"婴儿蓝水彩" */
+[data-theme="light"] .aurora-mesh {
+  background:
+    radial-gradient(ellipse 600px 400px at 20% 10%, color-mix(in srgb, var(--ds-action) 6%, transparent), transparent 70%),
+    radial-gradient(ellipse 500px 350px at 80% 60%, color-mix(in srgb, var(--ds-cta) 4%, transparent), transparent 70%),
+    radial-gradient(ellipse 700px 500px at 50% 100%, color-mix(in srgb, var(--ds-action) 5%, transparent), transparent 70%),
+    linear-gradient(180deg, var(--ds-bg) 0%, var(--ds-bg) 50%, var(--ds-bg) 100%);
+}
+
+/* ============================================================
+   Hero text readability scrim — radial veil behind hero text
+   so the aurora doesn't wash out foreground content.
+   ============================================================ */
+.aurora-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: radial-gradient(
+    ellipse 110% 70% at 50% 50%,
+    color-mix(in srgb, var(--ds-bg) 55%, transparent),
+    transparent 70%
+  );
+}
+[data-theme="light"] .aurora-scrim {
+  background: radial-gradient(
+    ellipse 110% 70% at 50% 50%,
+    rgba(255, 255, 255, 0.5),
+    transparent 70%
+  );
+}
+
+/* ============================================================
+   ShinyText — sweep keyframes (light-bg variant)
+   base color + a brighter band sweeping across; see
+   components/effects/shiny-text.tsx
+   ============================================================ */
+@keyframes shiny-sweep {
+  0%   { background-position: 135% 0; }
+  100% { background-position: -35% 0; }
+}
+
+/* ShinyText theme tokens — resting base + bright sweep band.
+   The band must contrast with the base or the shimmer is invisible
+   (esp. on dark, where a light base + near-white band wash out). */
+:root {
+  --shiny-base:  var(--ds-action-deep);
+  --shiny-shine: #EAF7FF;
+}
+
+/* ============================================================
+   Baby-blue theme — scoped via [data-babyblue].
+   Set on LandingPage root, (auth)/layout.tsx, and /me/layout.tsx.
+   Dashboard keeps the Slate+Amber tokens (data-babyblue NOT set).
+   Cool primary (slate) → baby blue; warm accent (amber) → soft
+   coral. Matches the approved baby-blue preview.
+   (The always-dark FinalCTA block reads --ds-tint here, so this
+   light override also fixes its dark-theme contrast bug.)
+   ============================================================ */
+[data-babyblue] {
+  --ds-action: #8FCBF0;
+  --ds-action-deep: #2F80C0;
+  --ds-action-soft: #DCEFFB;
+  --ds-cta: #F4A6B0;
+  --ds-cta-deep: #E98A97;
+  --ds-bg: #F2F8FE;
+  --ds-surface: #FFFFFF;
+  --ds-tint: #E6F2FB;
+  --ds-border: #D7E8F6;
+  --ds-on-action: #0C447C;
+  --shiny-base:  #0C447C;              /* 深蓝,静态文字清晰 */
+  --shiny-shine: #5BB3F0;              /* 高饱和亮婴儿蓝,跟 base 形成强对比,
+                                          拉开足够亮度让 shimmer band 显眼.
+                                          避免 #CDEBFB 在 #F2F8FE 上消失(曾导致
+                                          "读完一句" 4 个字完全看不见) */
+}
+
+/* ------------------------------------------------------------
+   Dark variant of the baby-blue theme (Option B).
+   Deep navy surfaces + light baby-blue text, so the global dark
+   toggle stays meaningful on the landing page. Specificity
+   (0,2,0) beats both the plain [data-babyblue] (0,1,0) and the
+   global [data-theme="dark"] (0,1,0), so it wins on the landing
+   root and is inherited by its descendants.
+   ------------------------------------------------------------ */
+[data-theme="dark"] [data-babyblue] {
+  --ds-bg:            #0A1E33;   /* 深空蓝底,婴儿蓝微调 */
+  --ds-surface:       #102A45;   /* 卡片浮于深空蓝 */
+  --ds-tint:          #16314F;   /* chip / 轨道 / 次级底 */
+  --ds-tint-deep:     #1E3E5F;   /* section 切色块 */
+  --ds-on-tint:       #DCEAF6;
+  --ds-border:        #1E3E5F;
+  --ds-border-strong: #5BA8F0;
+
+  --ds-ink:           #E8F4FC;   /* 浅婴儿蓝白,主文 */
+  --ds-ink-soft:      #A9C4DB;
+  --ds-ink-faint:     #6E8DA8;
+
+  --ds-action:        #8FCBF0;   /* 填充:婴儿蓝 */
+  --ds-action-soft:   #1E3E5F;
+  --ds-action-deep:   #BFE3F7;   /* 文字级 / ShinyText 基色(浅,暗底可读) */
+  --ds-action-ink:    #CDEBFB;   /* 标题级 */
+  --ds-on-action:     #0A2A47;   /* 婴儿蓝按钮上的深字 */
+
+  --ds-correct:       #6FD3A8;
+  --ds-correct-fill:  #3FD17A;
+  --ds-correct-tint:  #14352A;
+
+  --ds-error:         #F0997B;
+  --ds-error-ink:     #F5C4B3;
+  --ds-error-line:    #D85A30;
+
+  --ds-cta:           #F4A6B0;   /* 软珊瑚强调 */
+  --ds-cta-deep:      #FAC2C9;
+  --ds-on-cta:        #3A1018;
+
+  --ds-focus:         #8FCBF0;
+
+  --ds-char-untyped:  #6E8DA8;
+  --ds-char-correct:  #6FD3A8;
+  --ds-char-error:    #F0997B;
+  --ds-char-error-line: #D85A30;
+  --ds-caret:         #8FCBF0;
+  /* ShinyText — 暗底:文字用浅色(与页面一致,静止态可读),
+     流光用深蓝暗带(比文字深得多,比背景 --ds-bg=#0A1E33 仍稍亮一档)→
+     移动暗带在浅文字上对比强烈,且不会糊进背景 */
+  --shiny-base:  #E8F4FC;
+  --shiny-shine: #1F3A5F;
 }
 
 /* ============================================================

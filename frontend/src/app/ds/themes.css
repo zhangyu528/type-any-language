@@ -1,36 +1,39 @@
 /* ============================================================
-   TAL Mint · Design System — Layer 2: SEMANTIC THEMES
+   TAL Slate · Design System — Layer 2: SEMANTIC THEMES
    ------------------------------------------------------------
    把 raw token 映射为语义 token(--ds-*)。组件与页面只允许
    引用本文件暴露的 --ds-* 变量。
    light 为默认主题;[data-theme="dark"] 换映射表,组件零改动。
+
+   调色板:Slate 冷蓝专注意象 —— 蓝灰底 + 冷蓝主色 + 琥珀 CTA。
+   correct/error 保留薄荷/珊瑚以便通行记忆,主色变冷蓝。
    ============================================================ */
 
 :root {
   /* 表面 */
-  --ds-bg:            var(--mint-50);
-  --ds-surface:       var(--white);        /* 白卡片浮于薄荷底上 */
-  --ds-tint:          var(--mint-100);     /* chip / 轨道 / 次级底 */
-  --ds-tint-deep:     var(--mint-200);     /* section 切色块(HowItWorks / FinalCTA 内部) */
-  --ds-on-tint:       var(--ink-900);      /* tint-deep 上的字色 */
-  --ds-border:        var(--mint-200);
-  --ds-border-strong: var(--mint-300);
+  --ds-bg:            var(--slate-50);
+  --ds-surface:       var(--white);        /* 白卡片浮于蓝灰底上 */
+  --ds-tint:          var(--slate-100);    /* chip / 轨道 / 次级底 */
+  --ds-tint-deep:     var(--slate-200);    /* section 切色块(HowItWorks / FinalCTA 内部) */
+  --ds-on-tint:       var(--slate-900);    /* tint-deep 上的字色 */
+  --ds-border:        var(--slate-200);
+  --ds-border-strong: var(--slate-300);
 
   /* 文字 */
   --ds-ink:           var(--ink-900);
   --ds-ink-soft:      var(--ink-500);
   --ds-ink-faint:     var(--ink-300);
 
-  /* 主行动(薄荷) */
-  --ds-action:        var(--mint-400);     /* 填充专用(禁小字) */
-  --ds-action-soft:   var(--mint-200);     /* 浅底:hover / ghost border,比 --ds-tint 更绿一点 */
-  --ds-action-deep:   var(--mint-600);     /* 文字级:链接/小字/hover */
-  --ds-action-ink:    var(--mint-800);     /* 标题级 */
+  /* 主行动(冷蓝) */
+  --ds-action:        var(--slate-400);    /* 填充专用(禁小字) */
+  --ds-action-soft:   var(--slate-200);    /* 浅底:hover / ghost border */
+  --ds-action-deep:   var(--slate-600);    /* 文字级:链接/小字/hover */
+  --ds-action-ink:    var(--slate-800);    /* 标题级 */
   --ds-on-action:     var(--white);
 
-  /* 反馈:正确 */
-  --ds-correct:       var(--mint-600);     /* 文字级 */
-  --ds-correct-fill:  var(--mint-400);     /* 图形填充 */
+  /* 反馈:正确(保留薄荷通行色) */
+  --ds-correct:       var(--mint-600);
+  --ds-correct-fill:  var(--mint-400);
   --ds-correct-tint:  var(--mint-100);
 
   /* 反馈:错误 / 批改(珊瑚) */
@@ -38,45 +41,45 @@
   --ds-error-ink:     var(--coral-600);    /* 小字错误文本 */
   --ds-error-line:    var(--coral-300);    /* 错误下划线 */
 
-  /* CTA 强调(珊瑚填充 = 全页最强视觉焦点,一页至多一处) */
-  --ds-cta:           var(--coral-400);
-  --ds-cta-deep:      var(--coral-600);
+  /* CTA 强调(琥珀填充 = 全页最强视觉焦点,一页至多一处) */
+  --ds-cta:           var(--amber-400);
+  --ds-cta-deep:      var(--amber-600);
   --ds-on-cta:        var(--white);
 
   /* focus 环 */
-  --ds-focus:         var(--mint-300);
+  --ds-focus:         var(--slate-300);
 
   /* 打字字符五态 */
   --ds-char-untyped:  var(--ink-300);
   --ds-char-correct:  var(--mint-600);
   --ds-char-error:    var(--coral-400);
   --ds-char-error-line: var(--coral-300);
-  --ds-caret:         var(--mint-400);
+  --ds-caret:         var(--slate-400);
 }
 
 /* ------------------------------------------------------------
-   Dark —— 薄荷夜。仅改映射,组件无需感知。
+   Dark —— 深空蓝夜。仅改映射,组件无需感知。
    ------------------------------------------------------------ */
 [data-theme="dark"] {
-  --ds-bg:            #0F1A15;
-  --ds-surface:       #18281F;
-  --ds-tint:          #1F3227;
-  --ds-tint-deep:     #2E4A3B;            /* 比 --ds-tint 深一档,对应 mint-200 */
-  --ds-on-tint:       #E8F4EC;
-  --ds-border:        #2E4A3B;
-  --ds-border-strong: #3FD17A;
+  --ds-bg:            #0A1428;            /* 深空蓝底 */
+  --ds-surface:       #142135;            /* 卡片浮于深空蓝 */
+  --ds-tint:          #1B2B45;
+  --ds-tint-deep:     #243859;            /* 比 --ds-tint 深一档 */
+  --ds-on-tint:       #E8EFF8;
+  --ds-border:        #243859;
+  --ds-border-strong: #5BA8F0;            /* 亮蓝描边 */
 
-  --ds-ink:           #E8F4EC;
-  --ds-ink-soft:      #A8C2B2;
-  --ds-ink-faint:     #5F7A6B;
+  --ds-ink:           #E8EFF8;
+  --ds-ink-soft:      #A2B4CC;
+  --ds-ink-faint:     #5F7896;
 
-  --ds-action:        #3FD17A;
-  --ds-action-soft:   #2E4A3B;
-  --ds-action-deep:   #5DE89A;
-  --ds-action-ink:    #9FE1CB;
-  --ds-on-action:     #04342C;
+  --ds-action:        #5BA8F0;            /* 亮蓝主色 */
+  --ds-action-soft:   #243859;
+  --ds-action-deep:   #7DC0FF;
+  --ds-action-ink:    #A8D0FF;
+  --ds-on-action:     #042C53;
 
-  --ds-correct:       #5DE89A;
+  --ds-correct:       #5DE89A;            /* 通行绿高亮 */
   --ds-correct-fill:  #3FD17A;
   --ds-correct-tint:  #1F3227;
 
@@ -84,94 +87,70 @@
   --ds-error-ink:     #F5C4B3;
   --ds-error-line:    #D85A30;
 
-  --ds-cta:           #F0997B;
-  --ds-cta-deep:      #F5C4B3;
-  --ds-on-cta:        #4A1B0C;
+  --ds-cta:           #EFA535;            /* 琥珀 */
+  --ds-cta-deep:      #FAC775;
+  --ds-on-cta:        #412402;
 
-  --ds-focus:         #3FD17A;
+  --ds-focus:         #5BA8F0;
 
-  --ds-char-untyped:  #5F7A6B;
+  --ds-char-untyped:  #5F7896;
   --ds-char-correct:  #5DE89A;
   --ds-char-error:    #F0997B;
   --ds-char-error-line: #D85A30;
-  --ds-caret:         #3FD17A;
+  --ds-caret:         #5BA8F0;
 
-  /* 暗色下薄荷投影失效,改纯黑软影 */
+  /* 暗色下 slate 投影失效,改纯黑软影 */
   --elev-0: 0 1px 0 rgba(0, 0, 0, 0.3);
   --elev-1: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.4);
-  --elev-focus: 0 0 0 2px #0F1A15, 0 0 0 4px var(--ds-focus);
+  --elev-focus: 0 0 0 2px #0A1428, 0 0 0 4px var(--ds-focus);
 }
 
 /* 用户未手动选择时跟随系统(与 layout.tsx 的 bootstrap 脚本一致) */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
-    --ds-bg:            #0F1A15;
-    --ds-surface:       #18281F;
-    --ds-tint:          #1F3227;
-    --ds-border:        #2E4A3B;
-    --ds-border-strong: #3FD17A;
-    --ds-ink:           #E8F4EC;
-    --ds-ink-soft:      #A8C2B2;
-    --ds-ink-faint:     #5F7A6B;
-    --ds-action:        #3FD17A;
-    --ds-action-deep:   #5DE89A;
-    --ds-action-ink:    #9FE1CB;
-    --ds-on-action:     #04342C;
+    --ds-bg:            #0A1428;
+    --ds-surface:       #142135;
+    --ds-tint:          #1B2B45;
+    --ds-border:        #243859;
+    --ds-border-strong: #5BA8F0;
+    --ds-ink:           #E8EFF8;
+    --ds-ink-soft:      #A2B4CC;
+    --ds-ink-faint:     #5F7896;
+    --ds-action:        #5BA8F0;
+    --ds-action-deep:   #7DC0FF;
+    --ds-action-ink:    #A8D0FF;
+    --ds-on-action:     #042C53;
     --ds-correct:       #5DE89A;
     --ds-correct-fill:  #3FD17A;
     --ds-correct-tint:  #1F3227;
     --ds-error:         #F0997B;
     --ds-error-ink:     #F5C4B3;
     --ds-error-line:    #D85A30;
-    --ds-cta:           #F0997B;
-    --ds-cta-deep:      #F5C4B3;
-    --ds-on-cta:        #4A1B0C;
-    --ds-focus:         #3FD17A;
-    --ds-char-untyped:  #5F7A6B;
+    --ds-cta:           #EFA535;
+    --ds-cta-deep:      #FAC775;
+    --ds-on-cta:        #412402;
+    --ds-focus:         #5BA8F0;
+    --ds-char-untyped:  #5F7896;
     --ds-char-correct:  #5DE89A;
     --ds-char-error:    #F0997B;
     --ds-char-error-line: #D85A30;
-    --ds-caret:         #3FD17A;
+    --ds-caret:         #5BA8F0;
     --elev-0: 0 1px 0 rgba(0, 0, 0, 0.3);
     --elev-1: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.4);
-    --elev-focus: 0 0 0 2px #0F1A15, 0 0 0 4px var(--ds-focus);
+    --elev-focus: 0 0 0 2px #0A1428, 0 0 0 4px var(--ds-focus);
   }
 }
 
 /* ------------------------------------------------------------
-   Calendar surface — Dashboard 4-week grid
+   Calendar surface — REMOVED
 
-   The dashboard's calendar grid uses 4 cell tones for one day's
-   activity level. Tuned to the mint palette so the grid reads as
-   "more practice = more mint", not "more practice = more blue"
-   (which would clash with the rest of the system).
+   The dashboard used to render a 7×5 heatmap (WeeklyCalendar +
+   CalendarCell) with 4 cell tones. That component was replaced
+   by WeekRhythm (7 dots, no per-cell tints) on the 2026-08-07
+   framework refresh. The --cal-* tokens are no longer referenced
+   from any TS/TSX file; removing them keeps the palette surface
+   tight.
 
-   Background tints are color-mix()s off the existing --ds-action
-   token, so any future palette tweak propagates automatically.
-
-   Used by:
-     frontend/src/app/dashboard/WeeklyCalendar.tsx
+   If a future "month heatmap" feature returns, restore the block
+   here and add a `--cal-*` consumer.
    ------------------------------------------------------------ */
-:root {
-  /* Empty / future — neutral tint, no activity signal */
-  --cal-empty:        var(--ds-tint-deep);
-  /* Below today's daily_goal */
-  --cal-under:        color-mix(in srgb, var(--ds-action) 18%, var(--ds-surface));
-  /* Goal hit but not exceeded */
-  --cal-hit:          color-mix(in srgb, var(--ds-action) 50%, var(--ds-surface));
-  /* 1.5x goal or more — the "you crushed it" tone */
-  --cal-over:         color-mix(in srgb, var(--ds-action-deep) 88%, var(--ds-surface));
-  /* Today's outline — coral CTA, the strongest colour on the page */
-  --cal-today-border: var(--ds-cta);
-  /* Numbers inside cells. Default: ink. When the cell is darker
-     (--cal-over), flip to on-action for contrast. */
-  --cal-num:          var(--ds-ink);
-  --cal-num-strong:   var(--ds-on-action);
-}
-
-[data-theme="dark"] {
-  --cal-empty:        var(--ds-tint);
-  --cal-under:        color-mix(in srgb, var(--ds-action) 28%, var(--ds-surface));
-  --cal-hit:          color-mix(in srgb, var(--ds-action) 62%, var(--ds-surface));
-  --cal-over:         color-mix(in srgb, var(--ds-action-deep) 92%, var(--ds-surface));
-}

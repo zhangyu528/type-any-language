@@ -1,0 +1,107 @@
+/* DriftWall — React Bits "Drift Wall" 风格漂浮场景卡墙
+   卡片只在中下部活动，顶部留给输入框与提示语，底部留给注册链接。 */
+
+.layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.4;
+  pointer-events: none;
+  overflow: hidden;
+  /* 顶部 30% 完全透明（覆盖提示语区域），中部 30%-75% 显示卡片，
+     底部 82% 之后淡出到注册链接。 */
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0) 30%,
+    rgba(0, 0, 0, 1) 38%,
+    rgba(0, 0, 0, 1) 75%,
+    rgba(0, 0, 0, 0) 82%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0) 30%,
+    rgba(0, 0, 0, 1) 38%,
+    rgba(0, 0, 0, 1) 75%,
+    rgba(0, 0, 0, 0) 82%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+
+.chip {
+  position: absolute;
+  background: color-mix(in srgb, var(--ds-surface) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ds-action) 20%, transparent);
+  border-radius: 12px;
+  padding: 10px 13px;
+  box-shadow: 0 8px 22px -8px color-mix(in srgb, var(--ds-ink) 16%, transparent);
+  backdrop-filter: blur(5px);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 148px;
+  opacity: 0.8;
+  animation: drift 18s ease-in-out infinite;
+}
+
+.cat {
+  font-family: var(--font-mono), monospace;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ds-action-deep);
+}
+
+.en {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ds-ink);
+  line-height: 1.35;
+}
+
+/* 4 张卡分布在中部空白区，避免互相重叠。 */
+.chip:nth-child(1) {
+  left: 8%;
+  top: 40%;
+  animation-delay: 0s;
+}
+.chip:nth-child(2) {
+  left: 38%;
+  top: 48%;
+  animation-delay: -4s;
+}
+.chip:nth-child(3) {
+  left: 12%;
+  top: 60%;
+  animation-delay: -8s;
+}
+.chip:nth-child(4) {
+  left: 44%;
+  top: 68%;
+  animation-delay: -12s;
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  25% {
+    transform: translate(14px, -10px) rotate(0.5deg);
+  }
+  50% {
+    transform: translate(-8px, 8px) rotate(-0.5deg);
+  }
+  75% {
+    transform: translate(10px, 6px) rotate(0.3deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chip {
+    animation: none;
+  }
+}

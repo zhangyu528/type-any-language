@@ -1,14 +1,15 @@
 /* DailyGoal — ring + count */
 
+/* L1 简化: 去掉自身 bg/border/shadow,让外层 .cardGlass 单独负责视觉。
+   这里只保留 flex 结构 + padding。min-height 仍保留以保证两栏卡片等高。*/
 .root {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   padding: var(--space-5);
-  background: var(--ds-surface);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--ds-border);
-  box-shadow: var(--elev-1);
+  /* Fill the cardGlass column so the card matches ContinueCard's
+     height (matches ContinueCard). min-height kept as a fallback. */
+  flex: 1;
   min-height: 160px;
 }
 
@@ -56,32 +57,32 @@
 .copy {
   margin: 0;
   font-size: var(--text-body);
-  color: var(--ds-action-deep);
+  /* Secondary copy, not a CTA — use ink-soft (gray) so the eye doesn't
+     confuse it with the blue Practice-now button below. */
+  color: var(--ds-ink-soft);
   font-weight: var(--weight-medium);
 }
 
+/* SpecularButton (reactbits.dev port) renders its own WebGL rim;
+   we add a static outer-glow shadow so the button reads as
+   "premium / elevated" even before the cursor lands on it.
+   The box-shadow layer amplifies on hover for a clear lift cue.
+   (No `transform` here — SpecularButton owns :active { scale(0.97) }
+   and any conflicting transform would override the press feedback.) */
 .cta {
-  appearance: none;
-  background: var(--ds-action);
-  color: var(--ds-on-action);
-  border: none;
-  border-radius: var(--radius-md);
-  padding: var(--space-3) var(--space-5);
-  font: inherit;
-  font-size: var(--text-body);
-  font-weight: var(--weight-medium);
-  cursor: pointer;
   align-self: flex-start;
   margin-top: auto;
-  transition: transform var(--dur-fast) var(--ease-out),
-              box-shadow var(--dur-fast) var(--ease-out);
+  white-space: nowrap;
+  box-shadow:
+    0 0 0 1px rgba(55, 138, 221, 0.30),
+    0 8px 22px -8px rgba(55, 138, 221, 0.50),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transition: box-shadow 200ms ease-out;
 }
 
 .cta:hover {
-  transform: translateY(-1px);
-}
-
-.cta:focus-visible {
-  outline: 2px solid var(--ds-focus);
-  outline-offset: 2px;
+  box-shadow:
+    0 0 0 1px rgba(55, 138, 221, 0.55),
+    0 14px 30px -10px rgba(55, 138, 221, 0.60),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }

@@ -3,6 +3,10 @@ build/
 
 # Next.js
 .next/
+# Dev server cache — `next dev` writes to .next-dev (or .next-dev2,
+# .next-dev3… if earlier ports were busy and Next picked a new dir).
+# Wildcard covers any suffix Next.js appends on port collision.
+.next-dev*/
 # dev/build 隔离目录 — `NEXT_DIST_DIR=.next-build npx next build` 写到这
 .next-build/
 
@@ -25,6 +29,25 @@ npm-debug.log*
 # TypeScript incremental build cache
 tsconfig.tsbuildinfo
 *.tsbuildinfo
+
+# Agent scratch scripts — `*-tmp.mjs` (e.g. click-recording
+# helpers, exploratory Playwright probes). Suffix `-tmp.mjs`
+# is the convention for "I generated this just now, don't ship
+# it". Pattern only matches this suffix, not legitimate scripts.
+*-tmp.mjs
+
+# One-off debug / snapshot / measurement scripts generated during
+# UI development. These are exploratory Playwright probes, not
+# production code — never commit.
+scripts/debug-*.mjs
+scripts/snap-*.mjs
+scripts/check-*.mjs
+scripts/measure-*.mjs
+scripts/inspect-*.mjs
+scripts/test-*.mjs
+
+# Project uses npm (package-lock.json), not pnpm.
+pnpm-lock.yaml
 
 # Playwright test output (HTML reports, screenshots, traces).
 # Never commit; regenerated on every `npx playwright test`.

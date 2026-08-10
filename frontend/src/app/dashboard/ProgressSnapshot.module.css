@@ -1,14 +1,35 @@
-/* ProgressSnapshot — 3 KPI tiles */
+/* ProgressSnapshot — magazine spec sheet.
+   Three KPI cards scattered with subtle rotations, divided by a bold
+   horizontal band. Reads like a design weekly's data spread: hero
+   on the left, accent band through the middle, side stats stacked
+   on the right with their own slight tilts. */
+
+.glass {
+  /* GlassSurface handles its own sizing via props. */
+}
 
 .root {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
   padding: var(--space-5);
-  background: var(--ds-surface);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--ds-border);
-  box-shadow: var(--elev-1);
+  background: transparent;
+  border-radius: inherit;
+  /* GlassSurface wraps us in a flex .content with justify-content:
+     center. Without width:100% the section shrinks to its content
+     (the 3-col specSheet's natural width) and gets centered with
+     empty glass on both sides — visible as the panel being narrower
+     than its parent. Fill the full width so the panel spans. */
+  width: 100%;
+}
+
+/* ----- Section header ----- */
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
 }
 
 .heading {
@@ -17,58 +38,322 @@
   font-weight: var(--weight-medium);
   color: var(--ds-ink-soft);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-3);
+.headDate {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--ds-ink-faint);
+  font-variant-numeric: tabular-nums;
 }
+
+/* ----- Spec sheet layout ----- */
+
+/* Grid: three equal columns (hero + sideA + sideB) — Z-pattern
+   change from the original 1.4fr/1fr split. Each tile gets its own
+   column, no magazine-seam band needed. Equal columns keep the
+   tile heights symmetric and the rotations won't push tiles past
+   panel boundaries. */
+
+.specSheet {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+  padding: var(--space-3) 0;
+  min-height: 220px;
+}
+
+/* The bold horizontal band. Lives at the seam between hero and
+   sideStack — vertically positioned to roughly bisect the panel.
+   `mix-blend-mode: difference` so it adapts to whichever color is
+   behind it (slate aurora on light, dark slate on dark). */
+/* Spec band — was a wide horizontal block that overlapped the side
+   tiles' content. Replaced with a vertical column rule that sits in
+   the actual gap between hero (1.4fr) and sideStack (1fr). The rule
+   is narrow enough to fit between the tiles' padding boxes so it
+   never touches tile content. The label is floated above the rule as
+   a small caption so the magazine feel survives without the band
+   having to be wide enough to host text. */
+/* Spec band removed for Z-pattern 3-col layout — there is no
+   seam to cross. Tile rotations + gap do the editorial work
+   instead. The element still renders in JSX for ARIA reasons
+   but is visually hidden. */
+.specBand,
+.specBandLabel {
+  display: none;
+}
+
+/* ----- Side stack (right column) ----- */
+
+.sideStack {
+  /* Used as the inner column for the two side stats when the
+     specSheet is in its 1-col mobile stack. On desktop the
+     sideStack renders its two tiles as direct flex children
+     (display:contents) so they sit in their own grid columns
+     rather than nesting a sub-grid. */
+  display: contents;
+}
+
+/* ----- Tile base ----- */
 
 .tile {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-3);
-  background: var(--ds-tint);
-  border-radius: var(--radius-md);
+  gap: var(--space-2);
+  background: rgba(255, 255, 255, 0.72);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  /* F1: lighter shadow than the original 24px/8px stack — a tiny
+     diffuse so the tile reads as a separate card against the
+     glass panel, without the heavy "card above page" feel. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 2px 10px rgba(17, 17, 26, 0.05);
+  z-index: 1;
 }
 
-.value {
-  margin: 0;
+[data-theme="dark"] .tile {
+  background: rgba(15, 22, 36, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 2px 10px rgba(0, 0, 0, 0.18);
+}
+
+/* ----- Hero (accuracy) — micro-rotation only ----- */
+/* Rotations softened from -1.2° / +1.8° / -2.4° to ±0.6° so the
+   tiles no longer push past the panel edge after the specSheet
+   widened to full content-max. The visual variation stays — just
+   stays inside the box. */
+
+.tileHero {
+  transform: rotate(-0.6deg) translateY(-2px);
+}
+
+.tileHero:hover {
+  transform: rotate(-0.6deg) translateY(-10px);
+  transition: transform 200ms var(--ease-out);
+}
+
+/* ----- Side stats — micro rotations ----- */
+
+.tileScatterA {
+  transform: rotate(0.6deg) translateY(2px);
+}
+
+.tileScatterA:hover {
+  transform: rotate(0.6deg) translateY(-6px);
+  transition: transform 200ms var(--ease-out);
+}
+
+.tileScatterB {
+  transform: rotate(-0.6deg) translateY(4px);
+}
+
+.tileScatterB:hover {
+  transform: rotate(-0.6deg) translateY(-4px);
+  transition: transform 200ms var(--ease-out);
+}
+
+/* ----- Kicker ----- */
+
+.kicker {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.kickerLabel {
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: var(--weight-medium);
+}
+
+/* ----- Hero number ----- */
+
+.number {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
   font-family: var(--font-display);
-  font-size: var(--text-display);
+  /* S4: clamp 区间收窄到 6.5vw,让 600px-1290px 中段屏也能插值,
+     而不是到 1290 一下顶到 88px 后突然停滞。 */
+  font-size: clamp(48px, 6.5vw, 80px);
   font-weight: var(--weight-medium);
   color: var(--ds-ink);
   font-variant-numeric: tabular-nums;
-  line-height: 1.1;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  margin: var(--space-2) 0;
 }
 
-.label {
-  margin: 0;
+.counter {
+  display: inline-block;
+}
+
+.unit {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 3.6vw, 36px);
+  color: var(--ds-ink-soft);
+  font-weight: var(--weight-regular);
+  margin-left: 4px;
+}
+
+/* ----- Gauge ----- */
+
+.gauge {
+  position: relative;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--ds-border);
+}
+
+[data-theme="dark"] .gauge {
+  background: rgba(255, 255, 255, 0.10);
+}
+
+.gaugeFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    var(--ds-action) 0%,
+    var(--ds-action-deep) 100%
+  );
+  transition: width 600ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.gaugeTarget {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--ds-cta);
+  border-radius: 1px;
+}
+
+.gaugeTarget::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ds-cta);
+  box-shadow: 0 0 0 4px rgba(186, 117, 23, 0.18);
+}
+
+.gaugeLegend {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-1);
+  font-size: var(--text-caption);
+  color: var(--ds-ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.gaugeTargetLabel {
+  color: var(--ds-cta);
+  font-weight: var(--weight-medium);
+}
+
+/* ----- Side number ----- */
+
+.sideNumber {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-family: var(--font-display);
+  /* S4: 与 .number 同步收窄 clamp 区间。 */
+  font-size: clamp(30px, 4vw, 44px);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.sideUnit {
+  font-family: var(--font-sans);
   font-size: var(--text-body);
   color: var(--ds-ink-soft);
+  font-weight: var(--weight-regular);
+  margin-left: 2px;
 }
+
+/* Decorative thin bar under side stats — reads as "progress track"
+   placeholder; static, no animation. Gives each card visual bottom
+   weight so it doesn't look like "number floating in space". */
+.sideBar {
+  margin-top: auto;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--ds-border);
+}
+
+[data-theme="dark"] .sideBar {
+  background: rgba(255, 255, 255, 0.10);
+}
+
+/* ----- Delta (shared) ----- */
 
 .delta {
   margin: 0;
   font-size: var(--text-caption);
   font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .delta-up { color: var(--ds-correct); }
 .delta-down { color: var(--ds-error); }
 .delta-flat { color: var(--ds-ink-faint); }
 
-/* Tablet: still 3 across but tighter */
-@media (max-width: 1023px) {
-  .value { font-size: var(--text-h1); }
+/* ----- Responsive ----- */
+
+@media (max-width: 767px) {
+  .specSheet {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+  /* On mobile the specSheet collapses to 1 column, so there's no
+     horizontal seam between hero and side stack. The vertical rule
+     and its caption would float in dead space and add visual noise
+     next to the stacked tiles. Hide both entirely on small screens
+     — the tiles carry the section on their own. */
+  .specBand,
+  .specBandLabel {
+    display: none;
+  }
+  .sideStack {
+    grid-template-rows: auto auto;
+  }
+  .tileHero,
+  .tileScatterA,
+  .tileScatterB,
+  .tileHero:hover,
+  .tileScatterA:hover,
+  .tileScatterB:hover {
+    transform: none;
+  }
 }
 
-/* Mobile: stack vertically */
-@media (max-width: 639px) {
-  .grid {
-    grid-template-columns: 1fr;
+@media (max-width: 479px) {
+  .number {
+    font-size: clamp(48px, 14vw, 72px);
+  }
+  .sideNumber {
+    font-size: clamp(28px, 9vw, 40px);
   }
 }

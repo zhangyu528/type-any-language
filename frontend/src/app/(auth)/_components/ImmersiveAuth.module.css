@@ -1,0 +1,573 @@
+/* ImmersiveAuth — step-wizard form with one CurvedInput
+   per step. Composition: TiltCard → GlowCard → shadcn Card → CurvedInput */
+
+.shell {
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+/* ============================================================
+   双栏布局(桌面端):
+   ┌──────────────────┬──────────────────┐
+   │ 左侧 黑色场景演示  │ 右侧 玻璃登录卡     │
+   │ "听一句,写一句"   │  email → password │
+   │ 4 场景 demo 卡    │                   │
+   └──────────────────┴──────────────────┘
+   窄屏(<920px) 自动退化为单栏垂直堆叠。
+   ============================================================ */
+.shellGrid {
+
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(420px, 1.1fr);
+  gap: var(--space-5);
+  max-width: 1080px;
+  width: 100%;
+  margin: 0 auto;
+  /* v7.5: was `align-items: center` — both cards sized to their own
+     content height, leaving a 65px gap (left 444px vs right 379px).
+     Now `stretch` so both grid items expand to the taller one
+     (the scene panel on the left). The right card already uses
+     display:flex; flex-direction:column; justify-content:space-between
+     inside, so the extra height gets distributed by the existing
+     v5 layout — no further changes needed inside the right card. */
+  align-items: stretch;
+}
+
+/* 左面板场景卡 — light 主题下走浅蓝玻璃 (与 ScenariosSection/FinalCTA
+   light 变体一致),dark 主题保留原 #0a1e33 → #050f1f 深空蓝渐变。
+   用 [data-theme="dark"] 选择器覆盖回原值。 */
+.scenePanel {
+  position: relative;
+  background:
+    radial-gradient(ellipse at 20% 0%, color-mix(in srgb, var(--ds-action) 14%, transparent) 0%, transparent 50%),
+    linear-gradient(180deg, var(--ds-surface) 0%, color-mix(in srgb, var(--ds-action-soft) 80%, var(--ds-surface)) 100%);
+  color: var(--ds-ink);
+  border: 1px solid color-mix(in srgb, var(--ds-action) 22%, transparent);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6) var(--space-5);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #FFFFFF 60%, transparent),
+    0 30px 60px -16px color-mix(in srgb, var(--ds-ink) 12%, transparent);
+  overflow: hidden;
+}
+
+[data-theme='dark'] .scenePanel {
+  background:
+    radial-gradient(ellipse at 20% 0%, color-mix(in srgb, var(--ds-action) 12%, transparent) 0%, transparent 50%),
+    linear-gradient(180deg, #0a1e33 0%, #050f1f 100%);
+  color: var(--ds-on-dark, #E8F4FC);
+  border-color: color-mix(in srgb, var(--ds-action) 20%, #1E3E5F);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 30px 60px -16px rgba(0, 0, 0, 0.5);
+}
+
+.sceneKicker {
+  margin: 0 0 6px;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ds-action-deep);
+}
+
+.sceneTitle {
+  margin: 0 0 4px;
+  font-family: var(--font-display), var(--font-sans), serif;
+  font-size: clamp(20px, 2vw, 24px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ds-ink);
+  line-height: 1.25;
+}
+
+[data-theme='dark'] .sceneTitle {
+  color: #ffffff;
+}
+
+.sceneSubtitle {
+  margin: 0 0 var(--space-4);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ds-ink-soft);
+}
+
+/* 4 个场景 demo 小卡 */
+.sceneList {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: var(--space-4);
+}
+
+.sceneItem {
+  position: relative;
+  background: color-mix(in srgb, var(--ds-action-soft) 70%, var(--ds-surface));
+  border: 1.5px solid color-mix(in srgb, var(--ds-action) 45%, transparent);
+  border-radius: 12px;
+  padding: 12px 14px 12px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s var(--ease-out);
+}
+
+/* 左 4px 强调条 — 每个 card 用 nth-child 给不同 accent,
+   让 4 张卡在视觉上一眼能区分;dark 主题下 accent 加亮 */
+.sceneItem::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 4px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--scene-accent, var(--ds-action));
+}
+
+/* v5: all 4 scene cards share the same accent (--ds-action-deep).
+   Was 4 different colors (orange/blue/purple/coral) — too visually
+   noisy, looked like 4 different "stickers" pasted on the card. */
+.sceneItem {
+  --scene-accent: var(--ds-action-deep);
+}
+
+[data-theme='dark'] .sceneItem {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(143, 203, 240, 0.28);
+  --scene-accent: var(--ds-action);
+}
+
+.sceneItem:hover {
+  background: color-mix(in srgb, var(--ds-action) 22%, var(--ds-surface));
+  border-color: color-mix(in srgb, var(--ds-action) 65%, transparent);
+  transform: translateY(-2px);
+}
+
+[data-theme='dark'] .sceneItem:hover {
+  background: rgba(143, 203, 240, 0.10);
+  border-color: rgba(143, 203, 240, 0.45);
+}
+
+.sceneEmoji {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.sceneName {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-action-deep);
+}
+
+[data-theme='dark'] .sceneName {
+  color: var(--ds-action, #8FCBF0);
+}
+
+.sceneEn {
+  font-family: var(--font-display), var(--font-sans), serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ds-ink);
+  line-height: 1.4;
+}
+
+[data-theme='dark'] .sceneEn {
+  color: #ffffff;
+}
+
+.sceneZh {
+  font-size: 11px;
+  color: var(--ds-ink-faint);
+}
+
+[data-theme='dark'] .sceneZh {
+  color: color-mix(in srgb, #E8F4FC 60%, transparent);
+}
+
+/* 底部说明 */
+.sceneFooter {
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--ds-action) 25%, transparent);
+  font-size: 11px;
+  color: var(--ds-ink-soft);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+[data-theme='dark'] .sceneFooter {
+  border-top-color: rgba(255, 255, 255, 0.08);
+  color: color-mix(in srgb, #E8F4FC 55%, transparent);
+}
+
+/* 右面板 — 玻璃登录卡(原 .card 不变,只是加一层 wrapper) */
+.authCard {
+  /* 透明,继承原 .card 的玻璃样式 */
+}
+
+@media (max-width: 920px) {
+  .shellGrid {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+  .scenePanel {
+    order: -1;          /* 窄屏场景卡放上面 */
+    padding: var(--space-5) var(--space-4);
+  }
+}
+
+@media (max-width: 540px) {
+  .sceneList {
+    grid-template-columns: 1fr;       /* 极窄屏场景卡单列 */
+  }
+}
+
+.glow {
+  border-radius: 28px;
+  /* v9.5: fill the TiltCard wrapper so its .card child can
+     size to 100%. */
+  height: 100%;
+  display: flex;
+  /* v10: the inner content wrapper (Tailwind class "relative
+     z-10" inside GlowCard) has no explicit width, so it sizes
+     to its content — and since .card has width: 100% relative
+     to its parent, .card collapses to its own intrinsic width
+     (225px). Force the content wrapper to fill .glow so the
+     100% chain resolves to 523px. We use :global() to reach
+     GlowCard's internal "relative z-10" class without
+     modifying the shared GlowCard component. */
+  & :global(.relative.z-10) {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+.card {
+  position: relative;
+  background: var(--ds-surface);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid var(--ds-border);
+  border-radius: 28px;
+  box-shadow:
+    0 30px 60px -16px rgba(0, 0, 0, 0.18),
+    0 16px 32px -10px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  /* v9.5: fill the .glow (TiltCard wrapper) so the white card
+     area actually covers the full 444px. Without this, .card
+     sizes to its content (~252px) and the lower half of the
+     card stays transparent — making the right card look
+     "shorter" than the left even though the outer boxes are
+     equal height. The flex column + justify-content:space-between
+     below (from v4/v5) then distribute header / content /
+     footer across the full 444px. */
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  /* v5: space-between distributes header (top), content (middle),
+     footer (bottom) across the card height. Without this the 3
+     sections cluster at the top and the bottom 1/3 stays empty. */
+  justify-content: space-between;
+}
+
+.content {
+  /* v10: stack children from the top so input, feedback and
+     hint form one tight group. DriftWall (absolute, behind)
+     fills the remaining middle space; footer stays at the
+     bottom because .card uses justify-content: space-between. */
+  flex: 1 1 auto;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 8px 32px 12px;
+}
+
+[data-theme='dark'] .card {
+  box-shadow:
+    0 30px 60px -16px rgba(0, 0, 0, 0.55),
+    0 16px 32px -10px rgba(0, 0, 0, 0.35);
+}
+
+/* ============== Header ============== */
+
+.header {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 36px 32px 8px;
+  animation: fadeUp 0.45s var(--ease-out) both;
+}
+
+/* Close button — top-right corner of card */
+.closeBtn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  color: var(--ds-ink-faint);
+  cursor: pointer;
+  transition: color 0.18s ease, background-color 0.18s ease, transform 0.18s var(--ease-out);
+  z-index: 2;
+}
+
+.closeBtn:hover {
+  color: var(--ds-ink);
+  background: var(--ds-tint);
+  transform: rotate(90deg);
+}
+
+.closeBtn:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+
+.closeIcon {
+  width: 18px;
+  height: 18px;
+}
+
+
+/* ME-Q6: eyebrow above the title — product name in small
+   caps + wide letter-spacing + action-deep color. Reads as
+   a brand mark, not a description. Replaces the old subtitle
+   that was sitting under the title. */
+.eyebrow {
+  display: inline-block;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ds-action-deep);
+  margin: 0 0 var(--space-2);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--ds-ink);
+  margin: 0 0 var(--space-3);
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--ds-ink-soft);
+  letter-spacing: 0.01em;
+}
+
+/* ============== Content (CurvedInput stage) ============== */
+
+.stage {
+  position: relative;
+  min-height: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.step {
+  width: 100%;
+}
+
+/* feedback row holds either helper hint or error */
+.feedbackRow {
+  min-height: 18px;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.error {
+  font-size: 13px;
+  color: var(--ds-error);
+  letter-spacing: 0.01em;
+  text-align: center;
+  animation: shake 0.32s var(--ease-out);
+}
+
+/* ============== Nav row (back + hint) ============== */
+
+.navRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  min-height: 36px;
+  animation: fadeUp 0.5s var(--ease-out) 0.15s both;
+}
+
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: var(--ds-ink-soft);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 0.18s ease, background-color 0.18s ease, transform 0.18s var(--ease-out);
+}
+
+.backBtn:hover:not(:disabled) {
+  color: var(--ds-ink);
+  background: var(--ds-tint);
+}
+
+.backBtn:active:not(:disabled) {
+  transform: translateX(-1px);
+}
+
+.backBtn:disabled {
+  cursor: default;
+}
+
+/* 1. Forgot password link — sits in the navRow's right side,
+   ghost text-link style so it doesn't compete with the primary
+   button. Lighter than backBtn to signal a secondary escape
+   hatch. */
+.forgotBtn {
+  background: none;
+  border: none;
+  color: var(--ds-ink-faint);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 6px 4px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, var(--ds-action) 30%, transparent);
+  transition: color 0.18s ease;
+}
+
+.forgotBtn:hover {
+  color: var(--ds-action-deep);
+  text-decoration-color: var(--ds-action);
+}
+
+.backBtnHidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.backIcon {
+  width: 16px;
+  height: 16px;
+}
+
+.hintRow {
+  position: relative;
+  z-index: 2;
+  text-align: right;
+  padding-right: 22px;
+  margin-top: 4px;
+  animation: fadeUp 0.5s var(--ease-out) 0.1s both;
+}
+
+.hint {
+  display: inline-block;
+  font-size: 12px;
+  color: var(--ds-ink-faint);
+  letter-spacing: 0.01em;
+}
+
+/* ============== Footer (switch mode) ============== */
+
+.footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 32px 28px;
+  background: transparent;
+  border-top: none;
+  position: relative;
+  z-index: 1;
+  animation: fadeUp 0.5s var(--ease-out) 0.3s both;
+}
+
+/* 切换登录/注册 — 次要操作,降级为低调文字链接,
+   不再用醒目按钮与主表单抢注意力。 */
+.switchBtn {
+  background: none;
+  border: none;
+  color: var(--ds-action-deep);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 8px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, var(--ds-action) 35%, transparent);
+  transition: color 0.18s ease, text-decoration-color 0.18s ease;
+}
+
+.switchBtn:hover {
+  color: var(--ds-action);
+  text-decoration-color: var(--ds-action);
+}
+
+/* ============== Keyframes ============== */
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-3px); }
+  40%, 60% { transform: translateX(3px); }
+}
+
+/* ============== Responsive ============== */
+
+@media (max-width: 540px) {
+  .shell { max-width: 100%; }
+  .header { padding: 28px 20px 0; }
+  .content { padding: 14px 16px 8px; }
+  .footer { padding: 0 20px 24px; }
+  .title  { font-size: 28px; }
+  .closeBtn { top: 8px; right: 8px; width: 32px; height: 32px; }
+  .closeIcon { width: 16px; height: 16px; }
+}
+
+/* ============== Reduced motion ============== */
+
+@media (prefers-reduced-motion: reduce) {
+  .header,
+  .navRow,
+  .footer {
+    animation: none;
+    opacity: 1;
+  }
+  .switchBtn::after,
+  .switchBtn,
+  .backBtn,
+  .closeBtn {
+    transition: none;
+  }
+}

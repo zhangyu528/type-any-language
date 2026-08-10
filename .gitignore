@@ -31,6 +31,15 @@
 .DS_Store
 Thumbs.db
 
+# Agent / scratch — local temp folders written by automation
+# (Playwright screenshot runs, click-recording scripts, etc.).
+# These live INSIDE the repo so they ARE visible to git;
+# without this entry they show up as untracked every time.
+# Matches the repo-internal path "tmp/" — does NOT affect OS
+# /tmp (which is outside the repo and git can't see anyway).
+# Naming convention: tmp/screenshots/*.png, tmp/<other>/.
+tmp/
+
 # IDE
 .vscode/
 .idea/
@@ -55,6 +64,12 @@ ENV/
 # Node
 node_modules/
 npm-debug.log*
+
+# Next.js build output (root-level; frontend/.gitignore covers frontend/.next/)
+.next/
+
+# Playwright test output (root-level; frontend/.gitignore covers frontend/test-results/)
+test-results/
 
 # Logs
 *.log

@@ -1,15 +1,28 @@
-/* ContinueCard — Resume CTA */
+/* ContinueCard — Resume CTA + black scenario demo card
+ * 两栏布局(桌面):左文字 + CTA,右黑色 demo 卡(方案 B 标志性元素)
+ * 窄屏(<640px)退化为单栏垂直堆叠 */
 
 .root {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: stretch;
+  /* Fill the column so the left body and right demo card both stretch
+     to the row's full height (matched with DailyGoal). min-height
+     kept as a fallback for when the row has not been stretched yet
+     (e.g. when the page first renders without snapshot). */
+  height: 100%;
+  min-height: 180px;
+}
+
+/* 左栏:文字 + SpecularButton。
+   L1 简化: 去掉自身的 bg/border/shadow,让外层 .cardGlass 单独负责视觉;
+   这里只保留 flex 结构 + padding + 间距。*/
+.body {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-5);
-  background: var(--ds-surface);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--ds-border);
-  box-shadow: var(--elev-1);
-  min-height: 160px;
 }
 
 .caption {
@@ -37,34 +50,163 @@
   font-weight: var(--weight-medium);
 }
 
+/* SpecularButton (reactbits.dev port) renders its own WebGL rim;
+   we add a static outer-glow shadow so the button reads as
+   "premium / elevated" even before the cursor lands on it. */
 .cta {
-  appearance: none;
-  background: var(--ds-cta);
-  color: var(--ds-on-cta);
-  border: none;
-  border-radius: var(--radius-md);
-  padding: var(--space-3) var(--space-5);
-  font: inherit;
-  font-size: var(--text-body);
-  font-weight: var(--weight-medium);
-  cursor: pointer;
   align-self: flex-start;
   margin-top: auto;
-  transition: transform var(--dur-fast) var(--ease-out),
-              box-shadow var(--dur-fast) var(--ease-out);
-  box-shadow: var(--elev-0);
+  /* Keep "Start your first lesson →" on one line — without this
+     the long label wraps the arrow onto a second line inside
+     the SpecularButton. */
+  white-space: nowrap;
+  box-shadow:
+    0 0 0 1px rgba(186, 117, 23, 0.32),
+    0 8px 22px -8px rgba(186, 117, 23, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transition: box-shadow 200ms ease-out;
 }
 
 .cta:hover {
-  transform: translateY(-1px);
+  box-shadow:
+    0 0 0 1px rgba(186, 117, 23, 0.55),
+    0 14px 30px -10px rgba(186, 117, 23, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* 右栏:场景演示卡
+   —— 方案 B 的标志性元素。
+   V3 light-theme 适配: 默认 (light/babyblue) 走 `var(--ds-*)` token 的浅玻璃,
+   `[data-theme="dark"]` 选区覆盖回原来的深空蓝。
+   S1 字号: demoEn 18→22,让右栏视觉重量跟左栏 preview 平衡。 */
+.demoCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* 6px wasn't a token (4px base grid). Use --space-2 (8px) which
+     keeps the demo card's tight reading rhythm but stays on-grid. */
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background:
+    radial-gradient(ellipse at 80% 100%, color-mix(in srgb, var(--ds-action) 16%, transparent) 0%, transparent 55%),
+    linear-gradient(180deg, var(--ds-surface) 0%, var(--ds-action-soft) 100%);
+  color: var(--ds-ink);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--radius-lg);
   box-shadow: var(--elev-1);
+  overflow: hidden;
 }
 
-.cta:active {
-  transform: translateY(0);
+[data-theme="dark"] .demoCard {
+  background:
+    radial-gradient(ellipse at 80% 100%, color-mix(in srgb, var(--ds-action) 14%, transparent) 0%, transparent 50%),
+    linear-gradient(180deg, #0a1e33 0%, #050f1f 100%);
+  color: #E8F4FC;
+  border-color: #1E3E5F;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 8px 24px -8px rgba(0, 0, 0, 0.4);
 }
 
-.cta:focus-visible {
-  outline: 2px solid var(--ds-focus);
-  outline-offset: 2px;
+.demoKicker {
+  margin: 0;
+  /* Switched from --font-mono to --font-sans to match the other
+     captions on the dashboard (Continue / Daily Goal / 本周).
+     Kept the 10px + uppercase + letter-spacing for the editorial
+     micro-label feel. */
+  font-family: var(--font-sans);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ds-action-deep);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+[data-theme="dark"] .demoKicker {
+  color: var(--ds-action, #8FCBF0);
+}
+
+.demoKicker::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ds-action);
+  box-shadow: 0 0 6px var(--ds-action);
+  animation: pulse 2.4s ease-in-out infinite;
+}
+
+.demoZh {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ds-ink-soft);
+}
+
+[data-theme="dark"] .demoZh {
+  color: color-mix(in srgb, #E8F4FC 80%, transparent);
+}
+
+.demoEn {
+  margin: 0;
+  font-family: var(--font-display), var(--font-sans), serif;
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--ds-ink);
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+}
+
+[data-theme="dark"] .demoEn {
+  color: #ffffff;
+}
+
+.demoHint {
+  margin: auto 0 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--ds-border);
+  font-size: 11px;
+  color: var(--ds-ink-faint);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+[data-theme="dark"] .demoHint {
+  border-top-color: rgba(255, 255, 255, 0.08);
+  color: color-mix(in srgb, #E8F4FC 55%, transparent);
+}
+
+.demoHintBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ds-action-soft);
+  color: var(--ds-action-deep);
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+[data-theme="dark"] .demoHintBadge {
+  background: rgba(143, 203, 240, 0.15);
+  color: var(--ds-action, #8FCBF0);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.6; transform: scale(0.9); }
+  50%      { opacity: 1.0; transform: scale(1.0); }
+}
+
+/* 窄屏(<640px):单栏垂直堆叠,demo 卡在 body 之下 */
+@media (max-width: 640px) {
+  .root {
+    grid-template-columns: 1fr;
+  }
 }

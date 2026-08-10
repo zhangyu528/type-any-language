@@ -18,6 +18,8 @@ import PracticeHintCard, {
   type PracticeHintCardKind,
 } from './practice/PracticeHintCard';
 import LoadingMark from './components/LoadingMark';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import styles from './practice/TranslationStage.module.css';
 
 interface TranslationSessionProps {
@@ -413,9 +415,7 @@ export default function TranslationSession({
     return (
       <div className={`${styles.translation} ${styles.errorVariant}`}>
         <p className={styles.errorText}>{error}</p>
-        <button type="button" className={`${styles.btn} ${styles.btnGhost}`} onClick={onBack}>
-          返回
-        </button>
+        <Button type="button" variant="ghost" onClick={onBack}>返回</Button>
       </div>
     );
   }
@@ -423,14 +423,12 @@ export default function TranslationSession({
   if (sessionState === 'empty-lib' || !currentStep) {
     return (
       <div className={`${styles.translation} ${styles.emptyStep}`}>
-        <p className={styles.caption}>本词库</p>
+        <Badge variant="slate">本词库</Badge>
         <p className={styles.emptyText}>
           该词库暂无可练习的句子
         </p>
         <div className={styles.actions}>
-          <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={onBack}>
-            返回词库列表
-          </button>
+          <Button type="button" variant="default" onClick={onBack}>返回词库列表</Button>
         </div>
       </div>
     );

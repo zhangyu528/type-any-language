@@ -1,0 +1,2108 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TAL Aurora — UX Redesign Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   TAL AURORA — Design System
+   ============================================================ */
+
+/* ---------- Theme: Dark (Default) ---------- */
+[data-theme="dark"] {
+  --bg-base: #080C0A;
+  --bg-grad-1: #0D1814;
+  --bg-grad-2: #0A1410;
+  --bg-grad-3: #061008;
+
+  --surface: rgba(18, 32, 26, 0.55);
+  --surface-hover: rgba(24, 42, 34, 0.70);
+  --surface-solid: #121A16;
+  --surface-raised: rgba(28, 48, 38, 0.65);
+
+  --border: rgba(93, 202, 165, 0.10);
+  --border-strong: rgba(93, 202, 165, 0.22);
+  --border-hover: rgba(93, 202, 165, 0.35);
+
+  --ink: #EAF5EF;
+  --ink-soft: #8FA39A;
+  --ink-faint: #4F5E57;
+  --ink-dim: #364039;
+
+  --mint: #5DCAA5;
+  --mint-bright: #7AE4C0;
+  --mint-deep: #1D9E75;
+  --mint-dark: #0F6E56;
+  --mint-glow: rgba(93, 202, 165, 0.25);
+  --mint-glow-soft: rgba(93, 202, 165, 0.08);
+
+  --coral: #F0997B;
+  --coral-bright: #FFB095;
+  --coral-deep: #D85A30;
+  --coral-glow: rgba(240, 153, 123, 0.20);
+
+  --amber: #F5C84B;
+  --amber-glow: rgba(245, 200, 75, 0.15);
+
+  --gradient-mint: linear-gradient(135deg, #5DCAA5 0%, #1D9E75 100%);
+  --gradient-mint-bright: linear-gradient(135deg, #7AE4C0 0%, #5DCAA5 50%, #1D9E75 100%);
+  --gradient-coral: linear-gradient(135deg, #F0997B 0%, #D85A30 100%);
+  --gradient-hero: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(29, 158, 117, 0.12) 0%, transparent 60%),
+                   radial-gradient(ellipse 60% 40% at 80% 30%, rgba(240, 153, 123, 0.06) 0%, transparent 50%);
+
+  --shadow-card: 0 1px 0 rgba(93, 202, 165, 0.06), 0 12px 40px rgba(0, 0, 0, 0.40);
+  --shadow-float: 0 1px 0 rgba(93, 202, 165, 0.08), 0 20px 60px rgba(0, 0, 0, 0.50);
+  --shadow-glow: 0 0 40px rgba(93, 202, 165, 0.15);
+
+  --blur-bg: 24px;
+  --blur-sat: 160%;
+}
+
+/* ---------- Theme: Light ---------- */
+[data-theme="light"] {
+  --bg-base: #F5FBF8;
+  --bg-grad-1: #EDF8F3;
+  --bg-grad-2: #F0FAF5;
+  --bg-grad-3: #E8F5EE;
+
+  --surface: rgba(255, 255, 255, 0.65);
+  --surface-hover: rgba(255, 255, 255, 0.85);
+  --surface-solid: #FFFFFF;
+  --surface-raised: rgba(255, 255, 255, 0.80);
+
+  --border: rgba(15, 110, 86, 0.08);
+  --border-strong: rgba(15, 110, 86, 0.15);
+  --border-hover: rgba(15, 110, 86, 0.25);
+
+  --ink: #1A2B25;
+  --ink-soft: #5F6B66;
+  --ink-faint: #9AA8A1;
+  --ink-dim: #C4D0CA;
+
+  --mint: #1D9E75;
+  --mint-bright: #2DB889;
+  --mint-deep: #0F6E56;
+  --mint-dark: #085041;
+  --mint-glow: rgba(29, 158, 117, 0.15);
+  --mint-glow-soft: rgba(29, 158, 117, 0.05);
+
+  --coral: #D85A30;
+  --coral-bright: #F0997B;
+  --coral-deep: #993C1D;
+  --coral-glow: rgba(216, 90, 48, 0.12);
+
+  --amber: #E6A817;
+  --amber-glow: rgba(230, 168, 23, 0.10);
+
+  --gradient-mint: linear-gradient(135deg, #2DB889 0%, #0F6E56 100%);
+  --gradient-mint-bright: linear-gradient(135deg, #5DCAA5 0%, #2DB889 50%, #0F6E56 100%);
+  --gradient-coral: linear-gradient(135deg, #F0997B 0%, #D85A30 100%);
+  --gradient-hero: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(29, 158, 117, 0.18) 0%, transparent 60%),
+                   radial-gradient(ellipse 60% 40% at 80% 30%, rgba(240, 153, 123, 0.10) 0%, transparent 50%);
+
+  --shadow-card: 0 1px 0 rgba(8, 80, 65, 0.04), 0 8px 30px rgba(8, 80, 65, 0.06);
+  --shadow-float: 0 1px 0 rgba(8, 80, 65, 0.06), 0 16px 50px rgba(8, 80, 65, 0.10);
+  --shadow-glow: 0 0 30px rgba(29, 158, 117, 0.12);
+
+  --blur-bg: 20px;
+  --blur-sat: 140%;
+}
+
+/* ---------- Reset & Base ---------- */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg-base);
+  color: var(--ink);
+  min-height: 100vh;
+  overflow-x: hidden;
+  transition: background-color 0.4s cubic-bezier(0.16,1,0.3,1), color 0.4s ease;
+}
+
+/* Animated gradient mesh background */
+.bg-mesh {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 600px 400px at 20% 10%, var(--mint-glow-soft), transparent 70%),
+    radial-gradient(ellipse 500px 350px at 80% 60%, var(--coral-glow), transparent 70%),
+    radial-gradient(ellipse 700px 500px at 50% 100%, var(--mint-glow-soft), transparent 70%),
+    linear-gradient(180deg, var(--bg-grad-1) 0%, var(--bg-base) 50%, var(--bg-grad-3) 100%);
+  transition: background 0.6s ease;
+}
+[data-theme="light"] .bg-mesh {
+  background:
+    radial-gradient(ellipse 600px 400px at 20% 10%, rgba(29, 158, 117, 0.04), transparent 70%),
+    radial-gradient(ellipse 500px 350px at 80% 60%, rgba(216, 90, 48, 0.03), transparent 70%),
+    radial-gradient(ellipse 700px 500px at 50% 100%, rgba(29, 158, 117, 0.03), transparent 70%),
+    linear-gradient(180deg, var(--bg-grad-2) 0%, var(--bg-base) 50%, var(--bg-grad-3) 100%);
+}
+
+/* Aurora canvas — flowing light curtains (React Bits style) */
+#aurora-canvas {
+  position: fixed; inset: 0; z-index: 1; pointer-events: none;
+  filter: blur(50px);
+  -webkit-filter: blur(50px);
+}
+
+/* Particle canvas */
+#particles {
+  position: fixed; inset: 0; z-index: 2; pointer-events: none;
+}
+
+/* ---------- Typography ---------- */
+.font-display { font-family: 'Fraunces', Georgia, serif; }
+.font-mono { font-family: 'JetBrains Mono', monospace; }
+
+.text-display { font-size: clamp(36px, 6vw, 64px); line-height: 1.1; letter-spacing: -0.02em; font-weight: 600; }
+.text-h1 { font-size: clamp(24px, 3.5vw, 36px); line-height: 1.2; letter-spacing: -0.015em; font-weight: 600; }
+.text-h2 { font-size: clamp(18px, 2.5vw, 24px); line-height: 1.3; font-weight: 500; }
+.text-body { font-size: 15px; line-height: 1.6; }
+.text-caption { font-size: 12px; line-height: 1.5; letter-spacing: 0.04em; }
+.text-mono { font-family: 'JetBrains Mono', monospace; font-size: 14px; }
+
+/* ---------- Layout ---------- */
+.container { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+/* ---------- Navigation ---------- */
+.nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  height: 56px; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 clamp(20px, 4vw, 48px);
+  background: color-mix(in srgb, var(--bg-base) 70%, transparent);
+  backdrop-filter: blur(var(--blur-bg)) saturate(var(--blur-sat));
+  -webkit-backdrop-filter: blur(var(--blur-bg)) saturate(var(--blur-sat));
+  border-bottom: 1px solid var(--border);
+  transition: all 0.3s ease;
+}
+.nav__brand { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.nav__brand-mark {
+  width: 28px; height: 28px; border-radius: 8px;
+  background: var(--gradient-mint);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 16px var(--mint-glow);
+}
+.nav__brand-mark svg { width: 16px; height: 16px; }
+.nav__brand-name { font-family: 'Fraunces', serif; font-size: 16px; font-weight: 600; color: var(--ink); }
+.nav__center { display: flex; gap: 4px; }
+.nav__tab {
+  padding: 8px 16px; border-radius: 999px; border: none; background: transparent;
+  color: var(--ink-soft); font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16,1,0.3,1);
+  font-family: inherit;
+}
+.nav__tab:hover { color: var(--ink); background: var(--mint-glow-soft); }
+.nav__tab.active {
+  color: var(--mint); background: var(--mint-glow-soft);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+.nav__right { display: flex; align-items: center; gap: 12px; }
+
+/* Theme toggle */
+.theme-toggle {
+  width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--surface); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all 0.25s ease; color: var(--ink-soft);
+}
+.theme-toggle:hover { border-color: var(--border-hover); color: var(--mint); box-shadow: 0 0 12px var(--mint-glow-soft); }
+.theme-toggle svg { width: 18px; height: 18px; transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1); }
+.theme-toggle:hover svg { transform: rotate(180deg); }
+
+/* ---------- Buttons ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 44px; padding: 0 24px; border-radius: 999px; border: none;
+  font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16,1,0.3,1); text-decoration: none;
+  position: relative; overflow: hidden;
+}
+.btn--primary {
+  background: var(--gradient-mint); color: #fff;
+  box-shadow: 0 4px 20px var(--mint-glow), inset 0 1px 0 rgba(255,255,255,0.15);
+}
+.btn--primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px var(--mint-glow), inset 0 1px 0 rgba(255,255,255,0.2); }
+.btn--primary:active { transform: translateY(0); }
+.btn--cta {
+  background: var(--gradient-coral); color: #fff;
+  box-shadow: 0 4px 20px var(--coral-glow), inset 0 1px 0 rgba(255,255,255,0.15);
+}
+.btn--cta:hover { transform: translateY(-2px); box-shadow: 0 8px 30px var(--coral-glow); }
+.btn--ghost {
+  background: transparent; color: var(--ink-soft); border: 1px solid var(--border-strong);
+}
+.btn--ghost:hover { color: var(--ink); border-color: var(--border-hover); background: var(--surface); }
+.btn--lg { height: 52px; padding: 0 32px; font-size: 15px; }
+.btn--sm { height: 36px; padding: 0 16px; font-size: 13px; }
+
+/* Shimmer effect on primary buttons */
+.btn--primary::after, .btn--cta::after {
+  content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.6s ease;
+}
+.btn--primary:hover::after, .btn--cta:hover::after { left: 100%; }
+
+/* ---------- Glass Card ---------- */
+.glass {
+  background: var(--surface);
+  backdrop-filter: blur(var(--blur-bg)) saturate(var(--blur-sat));
+  -webkit-backdrop-filter: blur(var(--blur-bg)) saturate(var(--blur-sat));
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow-card);
+  transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
+}
+.glass--hover:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-float);
+  transform: translateY(-3px);
+}
+.glass--raised {
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-float);
+}
+
+/* ---------- Badge ---------- */
+.badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+}
+.badge--mint { background: var(--mint-glow-soft); color: var(--mint); border: 1px solid var(--border-strong); }
+.badge--coral { background: var(--coral-glow); color: var(--coral); border: 1px solid var(--coral-glow); }
+.badge--amber { background: var(--amber-glow); color: var(--amber); }
+
+/* ---------- Progress Ring ---------- */
+.ring-track { stroke: var(--border-strong); }
+.ring-fill { stroke: url(#ringGradient); stroke-linecap: round; transition: stroke-dashoffset 1s cubic-bezier(0.16,1,0.3,1); }
+
+/* ---------- Stat Counter ---------- */
+.stat-number {
+  font-family: 'Fraunces', serif; font-size: 32px; font-weight: 600;
+  background: var(--gradient-mint-bright); -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+
+/* ---------- Screens ---------- */
+.screen { display: none; animation: screenIn 0.5s cubic-bezier(0.16,1,0.3,1); }
+.screen.active { display: block; position: relative; z-index: 3; }
+@keyframes screenIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- Landing: Hero ---------- */
+.hero {
+  min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  position: relative; padding: 80px 24px 40px; text-align: center;
+  isolation: isolate; /* create stacking context so ::before z-index:-1 stays within hero */
+}
+/* Scrim — darkens/lightens area behind text for readability (Plan A) */
+.hero::before {
+  content: '';
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 110%; max-width: 1000px; height: 70%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(10, 12, 20, 0.35) 0%, rgba(10, 12, 20, 0.12) 45%, transparent 72%);
+  pointer-events: none; z-index: -1;
+}
+[data-theme="light"] .hero::before {
+  background: radial-gradient(ellipse, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.2) 45%, transparent 72%);
+}
+.hero__bg-glow {
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 800px; height: 600px; border-radius: 50%;
+  background: radial-gradient(circle, var(--mint-glow) 0%, transparent 70%);
+  opacity: 0.6; pointer-events: none; z-index: -1;
+  animation: breathe 6s ease-in-out infinite;
+}
+[data-theme="light"] .hero__bg-glow { opacity: 0.8; }
+@keyframes breathe {
+  0%, 100% { opacity: 0.4; transform: translateX(-50%) scale(1); }
+  50% { opacity: 0.7; transform: translateX(-50%) scale(1.1); }
+}
+[data-theme="light"] .hero__bg-glow { animation: breatheLight 6s ease-in-out infinite; }
+@keyframes breatheLight {
+  0%, 100% { opacity: 0.55; transform: translateX(-50%) scale(1); }
+  50% { opacity: 0.85; transform: translateX(-50%) scale(1.1); }
+}
+.hero__badge { margin-bottom: 24px; opacity: 0; animation: fadeUp 0.6s 0.1s forwards; }
+.hero__title {
+  font-family: 'Fraunces', serif; font-size: clamp(36px, 6vw, 60px); line-height: 1.1;
+  font-weight: 600; letter-spacing: -0.02em; max-width: 800px; margin-bottom: 20px;
+  filter: drop-shadow(0 2px 16px rgba(0, 0, 0, 0.3)); /* readability fallback for gradient text */
+}
+[data-theme="light"] .hero__title {
+  filter: drop-shadow(0 2px 8px rgba(255, 255, 255, 0.4));
+}
+.hero__title .char {
+  display: inline-block; opacity: 0; transform: translateY(20px);
+  animation: charIn 0.5s forwards;
+}
+@keyframes charIn {
+  to { opacity: 1; transform: translateY(0); }
+}
+.hero__title .accent {
+  background: var(--gradient-mint-bright); -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.hero__subtitle {
+  font-size: 17px; color: var(--ink-soft); max-width: 560px; margin-bottom: 36px;
+  line-height: 1.6; opacity: 0; animation: fadeUp 0.6s 1.2s forwards;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.25);
+}
+[data-theme="light"] .hero__subtitle {
+  text-shadow: 0 1px 8px rgba(255, 255, 255, 0.5);
+}
+.hero__cta { display: flex; gap: 16px; opacity: 0; animation: fadeUp 0.6s 1.5s forwards; }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Hero demo card — 3D tilt */
+.hero__demo {
+  margin-top: 48px; width: 100%; max-width: 560px; padding: 28px;
+  opacity: 0; animation: fadeUp 0.8s 0.2s cubic-bezier(0.16,1,0.3,1) forwards;
+  perspective: 1000px;
+}
+.hero__demo-inner {
+  transform-style: preserve-3d; transition: transform 0.2s ease;
+}
+.hero__demo-label { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.hero__demo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 8px var(--mint-glow); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+.hero__demo-zh { font-size: 18px; color: var(--ink-soft); margin-bottom: 16px; }
+.hero__demo-typing {
+  font-family: 'JetBrains Mono', monospace; font-size: 20px; line-height: 2;
+  letter-spacing: 0.02em; min-height: 80px;
+}
+.tchar { display: inline-block; transition: color 0.15s, transform 0.15s; position: relative; }
+.tchar--untyped { color: var(--ink-faint); }
+.tchar--correct { color: var(--mint); }
+.tchar--error { color: var(--coral); }
+.tchar--current { color: var(--ink); }
+.tchar--current::after {
+  content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 2px;
+  background: var(--mint); border-radius: 1px; animation: blink 1s infinite;
+}
+@keyframes blink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
+.hero__demo-wave { display: flex; align-items: center; gap: 3px; height: 24px; margin-top: 12px; }
+.hero__demo-wave span {
+  width: 3px; border-radius: 2px; background: var(--mint); opacity: 0.6;
+  animation: waveBar 1.2s ease-in-out infinite;
+}
+@keyframes waveBar {
+  0%, 100% { height: 4px; opacity: 0.4; }
+  50% { height: 20px; opacity: 1; }
+}
+
+/* ---------- Landing: How It Works ---------- */
+.howitworks { padding: 120px 24px; }
+.section-header { text-align: center; margin-bottom: 64px; }
+.section-header__badge { margin-bottom: 16px; }
+.section-header__title { font-family: 'Fraunces', serif; font-size: clamp(28px, 4vw, 40px); font-weight: 600; margin-bottom: 12px; }
+.section-header__hint { color: var(--ink-soft); font-size: 16px; max-width: 480px; margin: 0 auto; }
+
+.cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 1080px; margin: 0 auto; }
+@media (max-width: 768px) { .cards-grid { grid-template-columns: 1fr; } }
+
+/* 3D Tilt Card */
+.tilt-card {
+  padding: 32px; border-radius: 20px; position: relative; overflow: hidden;
+  transform-style: preserve-3d; transition: transform 0.15s ease, box-shadow 0.3s ease;
+  cursor: pointer; min-height: 320px; display: flex; flex-direction: column;
+}
+.tilt-card__num {
+  font-family: 'Fraunces', serif; font-size: 48px; font-weight: 600;
+  background: var(--gradient-mint-bright); -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; margin-bottom: 16px; line-height: 1;
+}
+.tilt-card__title { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+.tilt-card__desc { color: var(--ink-soft); font-size: 14px; line-height: 1.6; margin-bottom: 20px; }
+.tilt-card__demo { margin-top: auto; min-height: 60px; display: flex; align-items: center; }
+
+/* Glow on hover */
+.tilt-card::before {
+  content: ''; position: absolute; inset: 0; border-radius: 20px; opacity: 0;
+  background: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), var(--mint-glow), transparent 50%);
+  transition: opacity 0.3s ease; pointer-events: none;
+}
+.tilt-card:hover::before { opacity: 1; }
+.tilt-card:hover { box-shadow: var(--shadow-float), var(--shadow-glow); border-color: var(--border-hover); }
+
+/* Mini demos inside cards */
+.demo-listen { display: flex; align-items: center; gap: 4px; height: 32px; }
+.demo-listen span {
+  width: 4px; border-radius: 2px; background: var(--mint);
+  animation: waveBar 1s ease-in-out infinite;
+}
+.demo-type { font-family: 'JetBrains Mono', monospace; font-size: 14px; }
+.demo-type .keycap {
+  display: inline-block; padding: 2px 8px; border-radius: 6px;
+  background: var(--surface-raised); border: 1px solid var(--border-strong);
+  box-shadow: 0 2px 0 var(--border-strong); margin-right: 4px;
+  transition: all 0.15s ease;
+}
+.demo-type .keycap.active {
+  background: var(--mint-glow-soft); border-color: var(--mint); color: var(--mint);
+  box-shadow: 0 0 12px var(--mint-glow), 0 2px 0 var(--mint-dark);
+  transform: translateY(2px);
+}
+.demo-fix { font-family: 'JetBrains Mono', monospace; font-size: 14px; }
+.demo-fix .fix-correct { color: var(--mint); }
+.demo-fix .fix-error { color: var(--coral); text-decoration: underline; text-decoration-color: var(--coral); }
+
+/* ---------- Landing: Showcase ---------- */
+.showcase { padding: 120px 24px; }
+.showcase__grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 1080px; margin: 0 auto; }
+@media (max-width: 768px) { .showcase__grid { grid-template-columns: 1fr; } }
+
+.lib-card { padding: 28px; border-radius: 20px; display: flex; flex-direction: column; gap: 12px; }
+.lib-card__header { display: flex; justify-content: space-between; align-items: flex-start; }
+.lib-card__name { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 600; }
+.lib-card__words { font-size: 13px; color: var(--ink-soft); }
+.lib-card__desc { font-size: 14px; color: var(--ink-soft); line-height: 1.5; }
+.lib-card__progress { height: 4px; border-radius: 2px; background: var(--border-strong); overflow: hidden; }
+.lib-card__progress-fill { height: 100%; border-radius: 2px; background: var(--gradient-mint); transition: width 1s ease; }
+.lib-card__cta { display: flex; align-items: center; gap: 4px; color: var(--mint); font-size: 13px; font-weight: 500; margin-top: 8px; }
+
+/* ---------- Landing: Final CTA ---------- */
+.final-cta { padding: 120px 24px; position: relative; overflow: hidden; }
+.final-cta__inner {
+  max-width: 720px; margin: 0 auto; text-align: center; padding: 64px 40px;
+  border-radius: 32px; position: relative; overflow: hidden;
+}
+.final-cta__glow {
+  position: absolute; width: 300px; height: 300px; border-radius: 50%; filter: blur(80px);
+  pointer-events: none; opacity: 0.4;
+}
+[data-theme="light"] .final-cta__glow { opacity: 0.25; filter: blur(100px); }
+.final-cta__glow--1 { top: -100px; left: -50px; background: var(--mint); animation: drift1 8s ease-in-out infinite; }
+.final-cta__glow--2 { bottom: -100px; right: -50px; background: var(--coral); animation: drift2 10s ease-in-out infinite; }
+@keyframes drift1 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(40px,30px); } }
+@keyframes drift2 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-40px,-30px); } }
+.final-cta__title { font-family: 'Fraunces', serif; font-size: clamp(28px, 4vw, 40px); font-weight: 600; margin-bottom: 16px; position: relative; }
+.final-cta__hint { color: var(--ink-soft); margin-bottom: 32px; position: relative; }
+.final-cta__btns { display: flex; gap: 16px; justify-content: center; position: relative; }
+
+/* ---------- Dashboard (Immersive Hero) ---------- */
+.dash {
+  padding: 72px 24px 40px; max-width: 1080px; margin: 0 auto;
+  position: relative; z-index: 2;
+}
+
+/* Greeting */
+.dash__greeting { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
+.dash__greeting-text h2 { font-family: 'Fraunces', serif; font-size: 26px; font-weight: 600; }
+.dash__greeting-text p { color: var(--ink-soft); font-size: 14px; margin-top: 4px; }
+.dash__streak { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 999px; }
+.dash__streak-flame { font-size: 20px; animation: flicker 2s infinite; }
+@keyframes flicker { 0%,100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+
+/* Hero Card — Immersive Continue Practice */
+.hero-card {
+  position: relative; border-radius: 28px; overflow: hidden;
+  padding: clamp(40px, 6vw, 64px); min-height: clamp(360px, 52vh, 460px);
+  display: flex; flex-direction: column; justify-content: space-between;
+  background: var(--surface); border: 1px solid var(--border);
+  box-shadow: var(--shadow-float);
+  transform-style: preserve-3d; transition: transform 0.15s ease-out;
+  will-change: transform;
+}
+.hero-card__bg {
+  position: absolute; inset: 0; z-index: 0; overflow: hidden; border-radius: 28px;
+}
+.hero-card__blob {
+  position: absolute; border-radius: 50%; filter: blur(80px); pointer-events: none;
+  animation: blobFloat 8s ease-in-out infinite;
+}
+.hero-card__blob--1 {
+  width: 400px; height: 400px; top: -100px; right: -80px;
+  background: var(--mint); opacity: 0.12;
+}
+.hero-card__blob--2 {
+  width: 300px; height: 300px; bottom: -80px; left: -60px;
+  background: var(--coral); opacity: 0.08; animation-delay: -3s;
+}
+.hero-card__blob--3 {
+  width: 200px; height: 200px; top: 40%; left: 60%;
+  background: var(--mint-light); opacity: 0.06; animation-delay: -5s;
+}
+@keyframes blobFloat {
+  0%,100% { transform: translate(0,0) scale(1); }
+  33%     { transform: translate(20px,-15px) scale(1.05); }
+  66%     { transform: translate(-15px,10px) scale(0.95); }
+}
+.hero-card__content { position: relative; z-index: 2; }
+.hero-card__label {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--ink-soft); letter-spacing: 0.08em; text-transform: uppercase;
+  margin-bottom: 16px;
+}
+.hero-card__label-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--mint); animation: pulse-dot 2s infinite; }
+@keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+.hero-card__title {
+  font-family: 'Fraunces', serif; font-size: clamp(32px, 5vw, 44px); font-weight: 600;
+  line-height: 1.1; margin-bottom: 12px;
+}
+.hero-card__desc { font-size: 15px; color: var(--ink-soft); max-width: 480px; line-height: 1.6; }
+.hero-card__footer {
+  position: relative; z-index: 2; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;
+  margin-top: 32px;
+}
+.hero-card__progress { flex: 1; max-width: 360px; }
+.hero-card__progress-header { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-soft); margin-bottom: 8px; }
+.hero-card__progress-bar { height: 6px; border-radius: 3px; background: var(--border-strong); overflow: hidden; }
+.hero-card__progress-fill {
+  height: 100%; border-radius: 3px; background: var(--gradient-mint);
+  box-shadow: 0 0 12px var(--mint-glow);
+  animation: fillGrow 1.2s cubic-bezier(0.16,1,0.3,1) 0.3s both;
+}
+@keyframes fillGrow { from { width: 0 !important; } }
+.hero-card__cta {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 14px 28px; border-radius: 14px; border: none; cursor: pointer;
+  font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600;
+  background: var(--mint); color: #fff;
+  box-shadow: 0 4px 20px var(--mint-glow), inset 0 1px 0 rgba(255,255,255,0.2);
+  transition: all 0.2s ease; white-space: nowrap;
+}
+.hero-card__cta:hover {
+  transform: translateY(-2px); box-shadow: 0 8px 30px var(--mint-glow), inset 0 1px 0 rgba(255,255,255,0.3);
+}
+.hero-card__cta:active { transform: translateY(0); }
+
+/* Stats Shelf — floating glass cards */
+.stats-shelf {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+  margin-top: -28px; position: relative; z-index: 3; padding: 0 4px;
+}
+@media (max-width: 768px) { .stats-shelf { grid-template-columns: 1fr; margin-top: 16px; } }
+.stat-tile {
+  padding: 20px; border-radius: 18px; position: relative; overflow: hidden;
+  transition: transform 0.2s ease;
+}
+.stat-tile:hover { transform: translateY(-3px); }
+.stat-tile__top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.stat-tile__icon {
+  width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+}
+.stat-tile__icon--mint { background: var(--mint-glow-soft); color: var(--mint); }
+.stat-tile__icon--coral { background: var(--coral-glow); color: var(--coral); }
+.stat-tile__icon--amber { background: var(--amber-glow); color: var(--amber); }
+.stat-tile__delta {
+  font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 6px;
+  display: inline-flex; align-items: center; gap: 3px;
+}
+.stat-tile__delta--up { color: var(--mint); background: var(--mint-glow-soft); }
+.stat-tile__delta--down { color: var(--coral); background: var(--coral-glow); }
+.stat-tile__value { font-family: 'Fraunces', serif; font-size: 36px; font-weight: 600; line-height: 1; margin-bottom: 4px; }
+.stat-tile__label { font-size: 12px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.06em; }
+.sparkline { height: 28px; margin-top: 10px; }
+.sparkline path { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Bottom Section — asymmetric */
+.dash__bottom {
+  display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; margin-top: 24px;
+}
+@media (max-width: 768px) { .dash__bottom { grid-template-columns: 1fr; } }
+
+/* Weekly Calendar */
+.cal-card { padding: 24px; }
+.cal-card__header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.cal-card__title { font-size: 15px; font-weight: 600; }
+.cal-card__grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.cal-cell {
+  aspect-ratio: 1; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  font-size: 10px; transition: all 0.2s ease; cursor: pointer; position: relative;
+}
+.cal-cell--0 { background: var(--border); opacity: 0.5; }
+.cal-cell--1 { background: rgba(93, 202, 165, 0.15); }
+.cal-cell--2 { background: rgba(93, 202, 165, 0.35); }
+.cal-cell--3 { background: rgba(93, 202, 165, 0.6); }
+.cal-cell--today { box-shadow: 0 0 0 2px var(--coral); }
+.cal-cell:hover { transform: scale(1.1); z-index: 2; }
+
+/* Daily Goal + Library Progress stacked */
+.dash__sidebar { display: flex; flex-direction: column; gap: 20px; }
+
+/* Daily Goal */
+.daily-goal { padding: 24px; display: flex; align-items: center; gap: 20px; }
+.daily-goal__ring { position: relative; width: 80px; height: 80px; flex-shrink: 0; }
+.daily-goal__ring-text {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.daily-goal__ring-num { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 600; }
+.daily-goal__ring-label { font-size: 10px; color: var(--ink-soft); }
+.daily-goal__info h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.daily-goal__info p { font-size: 13px; color: var(--ink-soft); }
+
+/* Library Progress */
+.lib-card { padding: 24px; }
+.lib-card__title { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+.lib-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.lib-row:last-child { margin-bottom: 0; }
+.lib-row__bar { flex: 1; height: 6px; border-radius: 3px; background: var(--border-strong); overflow: hidden; }
+.lib-row__fill { height: 100%; border-radius: 3px; animation: fillGrow 1s cubic-bezier(0.16,1,0.3,1) 0.5s both; }
+.lib-row__pct { font-size: 12px; color: var(--ink-soft); font-family: 'JetBrains Mono', monospace; flex-shrink: 0; width: 36px; text-align: right; }
+
+/* ---------- Practice (preserves original layout & logic) ---------- */
+.practice {
+  min-height: 100vh; width: 100%; display: flex; flex-direction: column;
+  align-items: center; padding: clamp(40px, 8vh, 96px) clamp(24px, 5vw, 80px);
+  background: var(--bg-base); position: relative; z-index: 4;
+}
+.practice__content {
+  width: 100%; max-width: 680px; display: flex; flex-direction: column;
+  align-items: stretch; gap: clamp(48px, 10vh, 96px); position: relative; z-index: 2;
+  animation: practice-rise 0.5s cubic-bezier(0.16,1,0.3,1);
+}
+@keyframes practice-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Masthead */
+.practice__masthead { display: flex; align-items: baseline; justify-content: space-between; }
+.practice__back {
+  font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 500;
+  color: var(--ink); letter-spacing: -0.01em; line-height: 1;
+  text-decoration: none; cursor: pointer; background: none; border: none; padding: 0;
+  transition: opacity 0.15s ease;
+}
+.practice__back:hover { opacity: 0.7; }
+
+/* Translation stage */
+.practice__stage {
+  display: flex; flex-direction: column; align-items: stretch;
+  gap: var(--space-5, 24px); width: 100%;
+  animation: practice-rise 0.3s cubic-bezier(0.16,1,0.3,1);
+}
+
+/* Word card — centered text, no glass */
+.practice__header { display: flex; flex-direction: column; align-items: center; gap: 8px; padding-bottom: 12px; }
+.practice__word-card { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0 4px; }
+.practice__word { font-family: 'Inter', sans-serif; font-size: clamp(2rem, 5vw, 2.5rem); font-weight: 500; color: var(--ink); letter-spacing: -0.02em; line-height: 1.1; margin: 0; text-align: center; }
+.practice__phonetic { font-family: 'JetBrains Mono', monospace; font-size: 15px; color: var(--ink-soft); letter-spacing: 0.02em; line-height: 1.3; }
+.practice__word-trans { font-family: 'Inter', sans-serif; font-size: 15px; color: var(--ink); letter-spacing: 0.005em; line-height: 1.5; margin: 0; text-align: center; max-width: 480px; }
+.practice__caption { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 400; color: var(--ink-soft); letter-spacing: 0.06em; user-select: none; margin: 0; }
+
+/* Prompt row — Chinese text + star */
+.practice__sentence { display: flex; flex-direction: column; align-items: center; gap: clamp(40px, 6vh, 64px); width: 100%; position: relative; padding: clamp(20px, 4vh, 40px) 0; }
+.practice__prompt-row { display: flex; align-items: center; justify-content: center; gap: 12px; position: relative; max-width: 560px; margin: 0 auto; width: 100%; }
+.practice__prompt {
+  font-family: 'Inter', sans-serif; font-size: clamp(1.5rem, 5vw, 2.25rem);
+  font-weight: 500; color: var(--ink); text-align: center; letter-spacing: -0.005em;
+  line-height: 1.4; flex: 1; padding: 24px 0; margin: 0; max-width: 560px;
+  word-wrap: break-word; overflow-wrap: anywhere;
+}
+
+/* Star button */
+.practice__star {
+  position: relative; flex-shrink: 0; width: 40px; height: 40px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 22px; line-height: 1; background: transparent;
+  border: 1px solid var(--border-strong); border-radius: 999px;
+  color: var(--ink-faint); cursor: pointer; padding: 0;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.practice__star:hover { color: var(--amber); border-color: var(--amber); background: rgba(245,200,75,0.08); }
+.practice__star:active { transform: scale(0.94); }
+.practice__star.active { color: var(--amber); border-color: var(--amber); background: rgba(245,200,75,0.10); }
+.practice__star.popping { animation: star-pop 320ms cubic-bezier(0.34,1.56,0.64,1) both; }
+@keyframes star-pop { 0%{transform:scale(1)} 40%{transform:scale(1.3)} 100%{transform:scale(1)} }
+.practice__star.popping::before,
+.practice__star.popping::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px;
+  margin: -2px 0 0 -2px; border-radius: 50%; background: var(--amber); pointer-events: none;
+}
+.practice__star.popping::before { animation: star-particle-1 480ms ease both; box-shadow: 0 0 0 0 var(--amber), 12px 0 0 0 var(--amber); }
+.practice__star.popping::after { animation: star-particle-2 480ms ease both; box-shadow: -12px 0 0 0 var(--amber), 0 12px 0 0 var(--amber); }
+@keyframes star-particle-1 { 0%{transform:translate(0,0) scale(1);opacity:1} 100%{transform:translate(12px,0) scale(0);opacity:0} }
+@keyframes star-particle-2 { 0%{transform:translate(0,0) scale(1);opacity:1} 100%{transform:translate(-12px,0) scale(0);opacity:0} }
+
+/* Cells — per-word dictation grid */
+.practice__cells-wrap { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; line-height: 2.4; position: relative; width: 100%; cursor: text; }
+.practice__cells { display: flex; align-items: flex-start; flex-wrap: wrap; justify-content: center; gap: 1.4em; line-height: 2.4; padding: 8px 0; }
+.practice__cell-item { display: inline-flex; flex-direction: column; align-items: center; gap: 0.5em; }
+.practice__cell {
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  padding: 0 0 4px 0; position: relative; text-align: center; letter-spacing: -0.005em;
+  font-family: 'Inter', sans-serif; font-size: clamp(2rem, 6vw, 2.75rem); line-height: 1; font-weight: 500;
+  color: var(--ink-soft);
+}
+.practice__cell-ghost { visibility: hidden; font-family: 'Inter', sans-serif; font-size: clamp(2rem,6vw,2.75rem); line-height: 1; font-weight: 500; padding: 0 4px; pointer-events: none; user-select: none; display: inline-block; }
+.practice__cell::after { content: ''; display: block; width: 100%; height: 1px; background: var(--border-strong); margin-top: 10px; transform-origin: left center; transition: transform 0.3s cubic-bezier(0.16,1,0.3,1), opacity 0.3s cubic-bezier(0.16,1,0.3,1); }
+.practice__cell--correct { color: var(--mint); font-weight: 600; }
+.practice__cell--correct .practice__cell-text { color: var(--mint); }
+.practice__cell--correct::after { opacity: 0; transform: scaleX(0); }
+.practice__cell--active { color: var(--ink); }
+.practice__cell--active::after { height: 1.5px; background: var(--mint); transform: scaleX(1); animation: cell-underline-in 0.3s cubic-bezier(0.16,1,0.3,1) forwards; }
+@keyframes cell-underline-in { from{transform:scaleX(0);opacity:0.4} to{transform:scaleX(1);opacity:1} }
+.practice__cell-text, .practice__cell-input, .practice__cell-peek {
+  position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: center;
+}
+.practice__cell-peek { color: var(--mint); font-weight: 600; }
+.practice__cell-input { display: flex; align-items: center; justify-content: flex-start; width: 100%; padding: 0 4px; font-family: 'Inter', sans-serif; font-size: clamp(2rem,6vw,2.75rem); line-height: 1; font-weight: 500; color: transparent; }
+.practice__cell-char { display: inline-block; font-family: 'Inter', sans-serif; font-size: clamp(2rem,6vw,2.75rem); line-height: 1; width: 0.625em; text-align: center; font-weight: 500; transition: color 0.15s ease; }
+.practice__cell-char--correct { color: var(--ink); }
+.practice__cell-char--wrong { color: var(--ink-soft); text-decoration: line-through; text-decoration-color: var(--ink-soft); text-decoration-thickness: 1.5px; text-decoration-skip-ink: none; }
+.practice__cell-cursor { display: inline-block; width: 1.5px; height: 0.95em; background: var(--mint); animation: cursor-blink 1.4s ease-in-out infinite; margin-right: 2px; }
+@keyframes cursor-blink { 0%,50%{opacity:1} 50.01%,100%{opacity:0} }
+.practice__cell--shake { animation: cell-shake 0.4s ease-in-out; }
+@keyframes cell-shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-3px)} 75%{transform:translateX(3px)} }
+
+/* Sunken shortcut bar */
+.practice__shortcuts { width: 100%; margin: 0 auto; padding: 12px 16px; background: var(--surface-solid); border-radius: var(--radius-lg, 16px); user-select: none; border: 1px solid var(--border); }
+.practice__shortcuts-list { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 16px; }
+.practice__shortcut-row { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.practice__shortcut-keys { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.practice__kbd {
+  display: inline-flex; align-items: center; justify-content: center; height: 24px; min-width: 24px;
+  padding: 0 6px; background: var(--bg-base); color: var(--mint-deep);
+  border: 0.5px solid var(--border-strong); border-bottom: 2.5px solid var(--border-hover);
+  border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500;
+  letter-spacing: 0.02em; line-height: 1; transition: all 0.1s ease;
+}
+.practice__kbd.active {
+  background: var(--mint-deep); color: var(--bg-base); transform: translateY(1px);
+  box-shadow: 0 0 0 1px var(--mint-deep), 0 0 12px var(--mint-glow);
+}
+.practice__shortcut-label { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 400; color: var(--ink); letter-spacing: 0.02em; line-height: 1.3; white-space: nowrap; }
+
+/* Skip button */
+.practice__actions { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; padding: 12px 0; }
+.practice__skip-btn {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 20px;
+  font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600; letter-spacing: 0.005em;
+  border-radius: 12px; cursor: pointer; background: transparent; color: var(--ink);
+  border: 1px solid var(--border-strong); transition: all 0.15s ease; white-space: nowrap;
+}
+.practice__skip-btn:hover { border-color: var(--ink-faint); }
+
+/* Meta line */
+.practice__meta {
+  font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 400; color: var(--ink-soft);
+  letter-spacing: 0.02em; text-align: center; margin: 0; padding: 8px 0 0; user-select: none;
+}
+
+/* Hint card (guest) */
+.practice__hint-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 12px 16px; margin-top: 16px; border-radius: 10px;
+  background: var(--surface-solid); border: 1px solid var(--border-strong);
+  color: var(--ink); font-size: 14px; line-height: 1.5;
+}
+.practice__hint-text { flex: 1 1 auto; min-width: 0; }
+.practice__hint-actions { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.practice__hint-login {
+  background: var(--mint); color: var(--bg-base); border: none; border-radius: 6px;
+  padding: 6px 14px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s ease;
+}
+.practice__hint-login:hover { background: var(--mint-bright); transform: translateY(-1px); }
+.practice__hint-close {
+  background: transparent; color: var(--ink); border: none; border-radius: 6px;
+  width: 28px; height: 28px; font-size: 18px; line-height: 1; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; transition: all 0.15s ease;
+}
+.practice__hint-close:hover { background: var(--surface-hover); color: var(--mint); }
+
+/* Scroll reveal */
+.reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.6s cubic-bezier(0.16,1,0.3,1), transform 0.6s cubic-bezier(0.16,1,0.3,1); }
+.reveal.visible { opacity: 1; transform: translateY(0); }
+.reveal-stagger > * { opacity: 0; transform: translateY(20px); transition: opacity 0.5s ease, transform 0.5s ease; }
+.reveal-stagger.visible > * { opacity: 1; transform: translateY(0); }
+.reveal-stagger.visible > *:nth-child(1) { transition-delay: 0ms; }
+.reveal-stagger.visible > *:nth-child(2) { transition-delay: 100ms; }
+.reveal-stagger.visible > *:nth-child(3) { transition-delay: 200ms; }
+
+/* Waveform */
+.waveform { display: flex; align-items: center; gap: 3px; height: 28px; }
+.waveform span {
+  width: 3px; border-radius: 2px; background: var(--mint);
+  animation: waveBar 1s ease-in-out infinite;
+}
+
+/* Auth preview (mini) */
+.auth-preview { padding: 80px 24px; max-width: 400px; margin: 0 auto; }
+.auth-card { padding: 40px 32px; text-align: center; }
+.auth-card__brand { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 24px; }
+.auth-card__title { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 600; margin-bottom: 8px; }
+.auth-card__subtitle { color: var(--ink-soft); font-size: 14px; margin-bottom: 28px; }
+.auth-card__input-group { margin-bottom: 16px; text-align: left; }
+.auth-card__label { font-size: 12px; color: var(--ink-soft); margin-bottom: 6px; display: block; }
+.auth-card__input {
+  width: 100%; height: 44px; padding: 0 16px; border-radius: 12px;
+  background: var(--surface-raised); border: 1px solid var(--border-strong);
+  color: var(--ink); font-family: inherit; font-size: 14px; transition: all 0.2s ease;
+}
+.auth-card__input:focus { outline: none; border-color: var(--mint); box-shadow: 0 0 0 3px var(--mint-glow-soft); }
+.auth-card__btn { width: 100%; margin-top: 8px; }
+
+/* Footer */
+.footer { padding: 40px 24px; text-align: center; color: var(--ink-faint); font-size: 13px; border-top: 1px solid var(--border); }
+
+/* Utility */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+.gap-4 { gap: 16px; }
+.mt-4 { margin-top: 16px; }
+.mt-8 { margin-top: 32px; }
+.mb-4 { margin-bottom: 16px; }
+.text-center { text-align: center; }
+.relative { position: relative; }
+.hidden { display: none; }
+
+/* Design system section */
+.design-system { padding: 80px 24px; max-width: 1080px; margin: 0 auto; }
+.ds-section { margin-bottom: 48px; }
+.ds-section__title { font-family: 'Fraunces', serif; font-size: 24px; font-weight: 600; margin-bottom: 20px; }
+.color-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+.color-chip { padding: 16px; border-radius: 12px; border: 1px solid var(--border); }
+.color-chip__swatch { height: 48px; border-radius: 8px; margin-bottom: 8px; }
+.color-chip__name { font-size: 12px; font-family: 'JetBrains Mono', monospace; color: var(--ink-soft); }
+
+</style>
+</head>
+<body>
+
+<!-- Background layers -->
+<div class="bg-mesh"></div>
+<canvas id="aurora-canvas"></canvas>
+<canvas id="particles"></canvas>
+
+<!-- Navigation -->
+<nav class="nav">
+  <div class="nav__brand" onclick="switchScreen('landing')">
+    <div class="nav__brand-mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round">
+        <circle cx="12" cy="12" r="3" fill="white" stroke="none"/>
+        <circle cx="12" cy="4" r="1.5" fill="white" stroke="none" opacity="0.55"/>
+        <circle cx="12" cy="20" r="1.5" fill="white" stroke="none" opacity="0.55"/>
+        <circle cx="4" cy="12" r="1.5" fill="white" stroke="none" opacity="0.55"/>
+        <circle cx="20" cy="12" r="1.5" fill="white" stroke="none" opacity="0.55"/>
+      </svg>
+    </div>
+    <span class="nav__brand-name">Type Any Language</span>
+  </div>
+  <div class="nav__center">
+    <button class="nav__tab active" onclick="switchScreen('landing')">Landing</button>
+    <button class="nav__tab" onclick="switchScreen('dashboard')">Dashboard</button>
+    <button class="nav__tab" onclick="switchScreen('practice')">Practice</button>
+    <button class="nav__tab" onclick="switchScreen('design')">Design System</button>
+  </div>
+  <div class="nav__right">
+    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+      <svg id="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+    </button>
+    <button class="btn btn--primary btn--sm" onclick="switchScreen('practice')">立即开始</button>
+  </div>
+</nav>
+
+<!-- ============================================================
+     SCREEN: LANDING
+     ============================================================ -->
+<div id="screen-landing" class="screen active">
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero__bg-glow"></div>
+
+    <div class="hero__badge">
+      <span class="badge badge--mint">✦ TAL Aurora · 全新设计</span>
+    </div>
+
+    <h1 class="hero__title" id="hero-title">
+      <span class="char" style="animation-delay:0.1s">听</span><span class="char" style="animation-delay:0.15s">一</span><span class="char" style="animation-delay:0.2s">句</span><span class="char" style="animation-delay:0.25s">，</span><span class="char" style="animation-delay:0.3s">写</span><span class="char" style="animation-delay:0.35s">一</span><span class="char" style="animation-delay:0.4s">句</span><span class="char" style="animation-delay:0.45s">，</span><br>
+      <span class="accent char" style="animation-delay:0.55s">把</span><span class="accent char" style="animation-delay:0.6s">英</span><span class="accent char" style="animation-delay:0.65s">语</span><span class="accent char" style="animation-delay:0.7s">练</span><span class="accent char" style="animation-delay:0.75s">出</span><span class="accent char" style="animation-delay:0.8s">肌</span><span class="accent char" style="animation-delay:0.85s">肉</span><span class="accent char" style="animation-delay:0.9s">记</span><span class="accent char" style="animation-delay:0.95s">忆</span><span class="accent char" style="animation-delay:1.0s">。</span>
+    </h1>
+
+    <p class="hero__subtitle">
+      语料取自日常场景，不是课本例句。沉浸式听写训练，每一次按键都在塑造你的英语直觉。
+    </p>
+
+    <div class="hero__cta">
+      <button class="btn btn--primary btn--lg" onclick="switchScreen('practice')">
+        立即开始练习
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+      <button class="btn btn--ghost btn--lg" onclick="scrollToSection('howitworks')">了解词库</button>
+    </div>
+
+    <!-- 3D Tilt Demo Card -->
+    <div class="hero__demo glass" id="tilt-card">
+      <div class="hero__demo-inner">
+        <div class="hero__demo-label">
+          <span class="hero__demo-dot"></span>
+          <span style="font-size:12px;color:var(--ink-soft);letter-spacing:0.06em;">DEMO · 实时打字</span>
+        </div>
+        <div class="hero__demo-zh">她在悉尼住了很多年。</div>
+        <div class="hero__demo-typing" id="typing-demo">
+          <span class="tchar tchar--correct">S</span><span class="tchar tchar--correct">h</span><span class="tchar tchar--correct">e</span><span class="tchar tchar--untyped">&nbsp;</span>
+          <span class="tchar tchar--correct">l</span><span class="tchar tchar--correct">i</span><span class="tchar tchar--correct">v</span><span class="tchar tchar--correct">e</span><span class="tchar tchar--correct">d</span><span class="tchar tchar--untyped">&nbsp;</span>
+          <span class="tchar tchar--correct">i</span><span class="tchar tchar--correct">n</span><span class="tchar tchar--untyped">&nbsp;</span>
+          <span class="tchar tchar--current">S</span><span class="tchar tchar--untyped">y</span><span class="tchar tchar--untyped">d</span><span class="tchar tchar--untyped">n</span><span class="tchar tchar--untyped">e</span><span class="tchar tchar--untyped">y</span><span class="tchar tchar--untyped">.</span>
+        </div>
+        <div class="hero__demo-wave">
+          <span style="animation-delay:0s"></span>
+          <span style="animation-delay:0.1s"></span>
+          <span style="animation-delay:0.2s"></span>
+          <span style="animation-delay:0.3s"></span>
+          <span style="animation-delay:0.4s"></span>
+          <span style="animation-delay:0.5s"></span>
+          <span style="animation-delay:0.6s"></span>
+          <span style="animation-delay:0.7s"></span>
+          <span style="animation-delay:0.8s"></span>
+          <span style="animation-delay:0.9s"></span>
+          <span style="animation-delay:1.0s"></span>
+          <span style="animation-delay:1.1s"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works -->
+  <section class="howitworks" id="howitworks">
+    <div class="section-header reveal">
+      <span class="badge badge--mint section-header__badge">HOW IT WORKS</span>
+      <h2 class="section-header__title">三步循环，形成肌肉记忆</h2>
+      <p class="section-header__hint">听 → 写 → 改。每个循环都在强化你的英语直觉。</p>
+    </div>
+
+    <div class="cards-grid reveal-stagger">
+      <!-- Card 1: Listen -->
+      <div class="tilt-card glass glass--hover" data-tilt>
+        <div class="tilt-card__num">01</div>
+        <h3 class="tilt-card__title">听</h3>
+        <p class="tilt-card__desc">真实场景语料，原声发音。不是机械重复，而是像听播客一样自然吸收。</p>
+        <div class="tilt-card__demo">
+          <div class="demo-listen">
+            <span style="animation-delay:0s;height:8px"></span>
+            <span style="animation-delay:0.1s;height:20px"></span>
+            <span style="animation-delay:0.2s;height:14px"></span>
+            <span style="animation-delay:0.3s;height:24px"></span>
+            <span style="animation-delay:0.4s;height:10px"></span>
+            <span style="animation-delay:0.5s;height:18px"></span>
+            <span style="animation-delay:0.6s;height:6px"></span>
+            <span style="animation-delay:0.7s;height:22px"></span>
+            <span style="animation-delay:0.8s;height:12px"></span>
+            <span style="animation-delay:0.9s;height:16px"></span>
+            <span style="animation-delay:1.0s;height:8px"></span>
+            <span style="animation-delay:1.1s;height:20px"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 2: Type -->
+      <div class="tilt-card glass glass--hover" data-tilt>
+        <div class="tilt-card__num">02</div>
+        <h3 class="tilt-card__title">写</h3>
+        <p class="tilt-card__desc">看中文写英文，逐词输入。每个字母都有实时反馈，正确变绿，错误标红。</p>
+        <div class="tilt-card__demo">
+          <div class="demo-type">
+            <span class="keycap">S</span><span class="keycap">h</span><span class="keycap active">e</span>
+            <span style="color:var(--ink-faint);margin:0 4px;">·</span>
+            <span style="color:var(--mint);">She</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 3: Fix -->
+      <div class="tilt-card glass glass--hover" data-tilt>
+        <div class="tilt-card__num">03</div>
+        <h3 class="tilt-card__title">改</h3>
+        <p class="tilt-card__desc">即时纠错，错了立刻知道哪里错。退格重写，直到完全正确，记忆才会扎根。</p>
+        <div class="tilt-card__demo">
+          <div class="demo-fix">
+            <span class="fix-error">Sydnei</span>
+            <span style="color:var(--ink-faint);margin:0 4px;">→</span>
+            <span class="fix-correct">Sydney</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Library Showcase -->
+  <section class="showcase">
+    <div class="section-header reveal">
+      <span class="badge badge--mint section-header__badge">LIBRARIES</span>
+      <h2 class="section-header__title">从日常对话到考试冲刺</h2>
+      <p class="section-header__hint">多个主题词库，覆盖不同场景和难度。</p>
+    </div>
+
+    <div class="showcase__grid reveal-stagger">
+      <div class="lib-card glass glass--hover" onclick="switchScreen('practice')">
+        <div class="lib-card__header">
+          <div>
+            <span class="badge badge--mint">CET-4</span>
+          </div>
+          <span class="lib-card__words">1,200 词</span>
+        </div>
+        <h3 class="lib-card__name">大学英语四级</h3>
+        <p class="lib-card__desc">覆盖四级高频词汇和常考句型，适合备考和日常巩固。</p>
+        <div class="lib-card__progress">
+          <div class="lib-card__progress-fill" style="width: 68%"></div>
+        </div>
+        <div class="lib-card__cta">开始这个词库 →</div>
+      </div>
+
+      <div class="lib-card glass glass--hover" onclick="switchScreen('practice')">
+        <div class="lib-card__header">
+          <div>
+            <span class="badge badge--coral">CET-6</span>
+          </div>
+          <span class="lib-card__words">2,500 词</span>
+        </div>
+        <h3 class="lib-card__name">大学英语六级</h3>
+        <p class="lib-card__desc">进阶词汇与长难句训练，冲刺六级高分。</p>
+        <div class="lib-card__progress">
+          <div class="lib-card__progress-fill" style="width: 32%"></div>
+        </div>
+        <div class="lib-card__cta">开始这个词库 →</div>
+      </div>
+
+      <div class="lib-card glass glass--hover" onclick="switchScreen('practice')">
+        <div class="lib-card__header">
+          <div>
+            <span class="badge badge--amber">DAILY</span>
+          </div>
+          <span class="lib-card__words">800 词</span>
+        </div>
+        <h3 class="lib-card__name">日常对话</h3>
+        <p class="lib-card__desc">旅行、购物、社交场景实用表达，学了就能用。</p>
+        <div class="lib-card__progress">
+          <div class="lib-card__progress-fill" style="width: 0%"></div>
+        </div>
+        <div class="lib-card__cta">开始这个词库 →</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <section class="final-cta">
+    <div class="final-cta__inner glass glass--raised">
+      <div class="final-cta__glow final-cta__glow--1"></div>
+      <div class="final-cta__glow final-cta__glow--2"></div>
+      <h2 class="final-cta__title">练出英语肌肉记忆，从今天开始。</h2>
+      <p class="final-cta__hint">无需注册 · 30 秒开始第一句</p>
+      <div class="final-cta__btns">
+        <button class="btn btn--cta btn--lg" onclick="switchScreen('practice')">
+          立即开始练习
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+        <button class="btn btn--ghost btn--lg" onclick="switchScreen('dashboard')">查看进度</button>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>TAL Aurora · UX Redesign Prototype · 2026</p>
+  </footer>
+</div>
+
+<!-- ============================================================
+     SCREEN: DASHBOARD
+     ============================================================ -->
+<div id="screen-dashboard" class="screen">
+  <div class="dash">
+    <!-- Greeting -->
+    <div class="dash__greeting reveal">
+      <div class="dash__greeting-text">
+        <h2>Good afternoon, Eric</h2>
+        <p>今天再练 5 句就能完成目标</p>
+      </div>
+      <div class="dash__streak glass">
+        <span class="dash__streak-flame">🔥</span>
+        <span style="font-weight:600;font-size:14px;">12 天连续</span>
+      </div>
+    </div>
+
+    <!-- Immersive Hero Card -->
+    <div class="hero-card reveal" id="hero-card" data-tilt>
+      <div class="hero-card__bg">
+        <div class="hero-card__blob hero-card__blob--1"></div>
+        <div class="hero-card__blob hero-card__blob--2"></div>
+        <div class="hero-card__blob hero-card__blob--3"></div>
+      </div>
+      <div class="hero-card__content">
+        <div class="hero-card__label">
+          <span class="hero-card__label-dot"></span>
+          CONTINUE PRACTICE
+        </div>
+        <h1 class="hero-card__title">大学英语四级</h1>
+        <p class="hero-card__desc">第 3 课 · 听写翻译练习 · 上次练习 2 小时前</p>
+      </div>
+      <div class="hero-card__footer">
+        <div class="hero-card__progress">
+          <div class="hero-card__progress-header">
+            <span>课程进度</span>
+            <span style="color:var(--mint);font-weight:600;font-family:'JetBrains Mono',monospace;">68%</span>
+          </div>
+          <div class="hero-card__progress-bar">
+            <div class="hero-card__progress-fill" style="width:68%;"></div>
+          </div>
+        </div>
+        <button class="hero-card__cta" onclick="switchScreen('practice')">
+          继续练习
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats Shelf -->
+    <div class="stats-shelf">
+      <div class="stat-tile glass glass--hover reveal">
+        <div class="stat-tile__top">
+          <div class="stat-tile__icon stat-tile__icon--mint">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <span class="stat-tile__delta stat-tile__delta--up">▲ 3.2%</span>
+        </div>
+        <div class="stat-tile__value" style="color:var(--mint);" data-count="92" data-suffix="%">0%</div>
+        <div class="stat-tile__label">正确率</div>
+        <svg class="sparkline" viewBox="0 0 100 32" preserveAspectRatio="none">
+          <path d="M0,24 L14,20 L28,22 L42,14 L56,16 L70,10 L84,8 L100,4" stroke="var(--mint)" />
+        </svg>
+      </div>
+
+      <div class="stat-tile glass glass--hover reveal">
+        <div class="stat-tile__top">
+          <div class="stat-tile__icon stat-tile__icon--coral">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <span class="stat-tile__delta stat-tile__delta--up">▲ 12</span>
+        </div>
+        <div class="stat-tile__value" style="color:var(--coral);" data-count="48">0</div>
+        <div class="stat-tile__label">本周句数</div>
+        <svg class="sparkline" viewBox="0 0 100 32" preserveAspectRatio="none">
+          <path d="M0,28 L14,24 L28,26 L42,18 L56,20 L70,12 L84,14 L100,8" stroke="var(--coral)" />
+        </svg>
+      </div>
+
+      <div class="stat-tile glass glass--hover reveal">
+        <div class="stat-tile__top">
+          <div class="stat-tile__icon stat-tile__icon--amber">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg>
+          </div>
+          <span class="stat-tile__delta stat-tile__delta--down">▼ 8</span>
+        </div>
+        <div class="stat-tile__value" style="color:var(--amber);" data-count="156">0</div>
+        <div class="stat-tile__label">本周新词</div>
+        <svg class="sparkline" viewBox="0 0 100 32" preserveAspectRatio="none">
+          <path d="M0,8 L14,12 L28,10 L42,14 L56,18 L70,16 L84,20 L100,22" stroke="var(--amber)" />
+        </svg>
+      </div>
+    </div>
+
+    <!-- Bottom: Calendar (wide) + Sidebar (narrow) -->
+    <div class="dash__bottom">
+      <!-- Weekly Calendar -->
+      <div class="cal-card glass reveal">
+        <div class="cal-card__header">
+          <span class="cal-card__title">近 4 周练习</span>
+          <span style="font-size:12px;color:var(--ink-soft);">7月 → 8月</span>
+        </div>
+        <div class="cal-card__grid" id="calendar-grid">
+          <!-- Generated by JS -->
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:16px;font-size:11px;color:var(--ink-soft);">
+          <span>少</span>
+          <div style="display:flex;gap:3px;">
+            <div style="width:12px;height:12px;border-radius:3px;background:var(--border);"></div>
+            <div style="width:12px;height:12px;border-radius:3px;background:rgba(93,202,165,0.15);"></div>
+            <div style="width:12px;height:12px;border-radius:3px;background:rgba(93,202,165,0.35);"></div>
+            <div style="width:12px;height:12px;border-radius:3px;background:rgba(93,202,165,0.6);"></div>
+          </div>
+          <span>多</span>
+        </div>
+      </div>
+
+      <!-- Sidebar: Daily Goal + Library Progress -->
+      <div class="dash__sidebar">
+        <!-- Daily Goal -->
+        <div class="daily-goal glass reveal">
+          <div class="daily-goal__ring">
+            <svg width="80" height="80" viewBox="0 0 80 80">
+              <defs>
+                <linearGradient id="ringGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#7AE4C0"/>
+                  <stop offset="100%" stop-color="#1D9E75"/>
+                </linearGradient>
+              </defs>
+              <circle cx="40" cy="40" r="34" fill="none" class="ring-track" stroke-width="6"/>
+              <circle cx="40" cy="40" r="34" fill="none" class="ring-fill" stroke-width="6"
+                stroke-dasharray="213.6" stroke-dashoffset="64.1"
+                transform="rotate(-90 40 40)"/>
+            </svg>
+            <div class="daily-goal__ring-text">
+              <span class="daily-goal__ring-num">15</span>
+              <span class="daily-goal__ring-label">/ 20</span>
+            </div>
+          </div>
+          <div class="daily-goal__info">
+            <h3>今日目标</h3>
+            <p>再练 5 句即可完成 ✨</p>
+          </div>
+        </div>
+
+        <!-- Library Progress -->
+        <div class="lib-card glass reveal">
+          <h3 class="lib-card__title">词库进度</h3>
+          <div class="lib-row">
+            <span class="badge badge--mint" style="flex-shrink:0;">CET-4</span>
+            <div class="lib-row__bar">
+              <div class="lib-row__fill" style="width:68%;background:var(--gradient-mint);"></div>
+            </div>
+            <span class="lib-row__pct">68%</span>
+          </div>
+          <div class="lib-row">
+            <span class="badge badge--coral" style="flex-shrink:0;">CET-6</span>
+            <div class="lib-row__bar">
+              <div class="lib-row__fill" style="width:32%;background:var(--gradient-coral);"></div>
+            </div>
+            <span class="lib-row__pct">32%</span>
+          </div>
+          <div class="lib-row">
+            <span class="badge badge--amber" style="flex-shrink:0;">DAILY</span>
+            <div class="lib-row__bar">
+              <div class="lib-row__fill" style="width:12%;background:var(--amber);"></div>
+            </div>
+            <span class="lib-row__pct">12%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SCREEN: PRACTICE
+     ============================================================ -->
+<div id="screen-practice" class="screen">
+  <div class="practice">
+    <div class="practice__content">
+      <!-- Masthead — simple back link -->
+      <header class="practice__masthead">
+        <button class="practice__back" onclick="switchScreen('dashboard')">← 返回</button>
+      </header>
+
+      <!-- Translation Stage -->
+      <div class="practice__stage">
+        <!-- Word Card — centered text, no glass -->
+        <div class="practice__header">
+          <div class="practice__word-card">
+            <h2 class="practice__word">lived</h2>
+            <span class="practice__phonetic">/lɪvd/</span>
+            <p class="practice__word-trans">v. 居住（过去式）</p>
+          </div>
+          <p class="practice__caption">看中文写英文</p>
+        </div>
+
+        <!-- Sentence: prompt + star + cells -->
+        <div class="practice__sentence">
+          <div class="practice__prompt-row">
+            <p class="practice__prompt" lang="zh">她在悉尼住了很多年。</p>
+            <button class="practice__star active" onclick="togglePracticeStar(this)" aria-label="收藏这句" title="收藏这句">★</button>
+          </div>
+
+          <!-- Per-word cells -->
+          <div class="practice__cells-wrap">
+            <div class="practice__cells">
+              <!-- correct -->
+              <span class="practice__cell-item">
+                <span class="practice__cell practice__cell--correct">
+                  <span class="practice__cell-ghost" aria-hidden="true">She</span>
+                  <span class="practice__cell-text">She</span>
+                </span>
+              </span>
+              <!-- correct -->
+              <span class="practice__cell-item">
+                <span class="practice__cell practice__cell--correct">
+                  <span class="practice__cell-ghost" aria-hidden="true">lived</span>
+                  <span class="practice__cell-text">lived</span>
+                </span>
+              </span>
+              <!-- active (typing) -->
+              <span class="practice__cell-item">
+                <span class="practice__cell practice__cell--active">
+                  <span class="practice__cell-ghost" aria-hidden="true">in</span>
+                  <span class="practice__cell-input">
+                    <span class="practice__cell-char practice__cell-char--correct">i</span>
+                    <span class="practice__cell-cursor" aria-hidden="true">|</span>
+                  </span>
+                </span>
+              </span>
+              <!-- untyped -->
+              <span class="practice__cell-item">
+                <span class="practice__cell">
+                  <span class="practice__cell-ghost" aria-hidden="true">Sydney</span>
+                  <span class="practice__cell-text" style="display:none;">Sydney</span>
+                </span>
+              </span>
+              <!-- untyped -->
+              <span class="practice__cell-item">
+                <span class="practice__cell">
+                  <span class="practice__cell-ghost" aria-hidden="true">.</span>
+                  <span class="practice__cell-text" style="display:none;">.</span>
+                </span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sunken Shortcut Bar -->
+        <div class="practice__shortcuts">
+          <div class="practice__shortcuts-list">
+            <div class="practice__shortcut-row">
+              <span class="practice__shortcut-keys">
+                <kbd class="practice__kbd" id="practice-key-space">Space</kbd>
+              </span>
+              <span class="practice__shortcut-label">播放</span>
+            </div>
+            <div class="practice__shortcut-row">
+              <span class="practice__shortcut-keys">
+                <kbd class="practice__kbd" id="practice-key-tab">Tab</kbd>
+              </span>
+              <span class="practice__shortcut-label">切换格子</span>
+            </div>
+            <div class="practice__shortcut-row">
+              <span class="practice__shortcut-keys">
+                <kbd class="practice__kbd" id="practice-key-slash">/</kbd>
+              </span>
+              <span class="practice__shortcut-label">偷看</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Skip button -->
+        <div class="practice__actions">
+          <button class="practice__skip-btn" onclick="practiceNext()">跳过 ⏭</button>
+        </div>
+
+        <!-- Meta line -->
+        <p class="practice__meta" aria-label="练习进度">
+          已答 9 / 20 句 (45%) · 本词 3 句
+        </p>
+
+        <!-- Hint card (guest, shown conditionally) -->
+        <div class="practice__hint-card" id="practice-hint-card" style="display:none;">
+          <span class="practice__hint-text">比上一句更好 · 登录后保留这份进度</span>
+          <div class="practice__hint-actions">
+            <button class="practice__hint-login" onclick="switchScreen('auth')">登录</button>
+            <button class="practice__hint-close" onclick="document.getElementById('practice-hint-card').style.display='none'">×</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SCREEN: DESIGN SYSTEM
+     ============================================================ -->
+<div id="screen-design" class="screen">
+  <div class="design-system">
+    <div class="section-header reveal" style="text-align:left;">
+      <span class="badge badge--mint">DESIGN SYSTEM</span>
+      <h2 class="section-header__title" style="text-align:left;">TAL Aurora 设计系统</h2>
+      <p class="section-header__hint" style="margin:0;">双主题 · 玻璃态 · 电影级动效</p>
+    </div>
+
+    <!-- Colors -->
+    <div class="ds-section reveal">
+      <h3 class="ds-section__title">色彩系统</h3>
+      <div class="color-grid">
+        <div class="color-chip">
+          <div class="color-chip__swatch" style="background:var(--mint);"></div>
+          <div class="color-chip__name">--mint</div>
+        </div>
+        <div class="color-chip">
+          <div class="color-chip__swatch" style="background:var(--mint-bright);"></div>
+          <div class="color-chip__name">--mint-bright</div>
+        </div>
+        <div class="color-chip">
+          <div class="color-chip__swatch" style="background:var(--mint-deep);"></div>
+          <div class="color-chip__name">--mint-deep</div>
+        </div>
+        <div class="color-chip">
+          <div class="color-chip__swatch" style="background:var(--coral);"></div>
+          <div class="color-chip__name">--coral</div>
+        </div>
+        <div class="color-chip">
+          <div class="color-chip__swatch" style="background:var(--coral-deep);"></div>
+          <div class="color-chip__name">--coral-deep</div>
+        </div>
+        <div class="color-chip">
+          <div class="color-chip__swatch" style="background:var(--amber);"></div>
+          <div class="color-chip__name">--amber</div>
+        </div>
+        <div class="color-chip">
+          <div class="color-chip__swatch" style="background:var(--ink);"></div>
+          <div class="color-chip__name">--ink</div>
+        </div>
+        <div class="color-chip">
+          <div class="color-chip__swatch" style="background:var(--ink-soft);"></div>
+          <div class="color-chip__name">--ink-soft</div>
+        </div>
+        <div class="color-chip">
+          <div class="color-chip__swatch" style="background:var(--bg-base);border:1px solid var(--border);"></div>
+          <div class="color-chip__name">--bg-base</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Typography -->
+    <div class="ds-section reveal">
+      <h3 class="ds-section__title">字体系统</h3>
+      <div class="glass" style="padding:32px;display:flex;flex-direction:column;gap:20px;">
+        <div>
+          <div style="font-size:11px;color:var(--ink-soft);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:4px;">DISPLAY · Fraunces</div>
+          <div class="font-display" style="font-size:36px;font-weight:600;">听一句，写一句</div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--ink-soft);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:4px;">BODY · Inter</div>
+          <div style="font-size:16px;">语料取自日常场景，不是课本例句。</div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--ink-soft);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:4px;">MONO · JetBrains Mono</div>
+          <div class="font-mono" style="font-size:16px;">She lived in Sydney.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Components -->
+    <div class="ds-section reveal">
+      <h3 class="ds-section__title">组件预览</h3>
+      <div class="glass" style="padding:32px;display:flex;flex-direction:column;gap:24px;">
+        <div>
+          <div style="font-size:11px;color:var(--ink-soft);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px;">BUTTONS</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;">
+            <button class="btn btn--primary">Primary</button>
+            <button class="btn btn--cta">CTA</button>
+            <button class="btn btn--ghost">Ghost</button>
+            <button class="btn btn--primary btn--sm">Small</button>
+            <button class="btn btn--primary btn--lg">Large</button>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--ink-soft);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px;">BADGES</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;">
+            <span class="badge badge--mint">MINT</span>
+            <span class="badge badge--coral">CORAL</span>
+            <span class="badge badge--amber">AMBER</span>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--ink-soft);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px;">GLASS CARDS</div>
+          <div style="display:flex;gap:16px;flex-wrap:wrap;">
+            <div class="glass" style="padding:20px;width:200px;">
+              <div style="font-weight:600;margin-bottom:4px;">Default Glass</div>
+              <div style="font-size:13px;color:var(--ink-soft);">Standard surface</div>
+            </div>
+            <div class="glass glass--hover" style="padding:20px;width:200px;">
+              <div style="font-weight:600;margin-bottom:4px;">Hover Glass</div>
+              <div style="font-size:13px;color:var(--ink-soft);">Floats on hover</div>
+            </div>
+            <div class="glass glass--raised" style="padding:20px;width:200px;">
+              <div style="font-weight:600;margin-bottom:4px;">Raised Glass</div>
+              <div style="font-size:13px;color:var(--ink-soft);">Extra elevation</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Animation Specs -->
+    <div class="ds-section reveal">
+      <h3 class="ds-section__title">动效规范</h3>
+      <div class="glass" style="padding:32px;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border);">
+              <th style="text-align:left;padding:8px 0;color:var(--ink-soft);font-weight:500;">名称</th>
+              <th style="text-align:left;padding:8px 0;color:var(--ink-soft);font-weight:500;">曲线</th>
+              <th style="text-align:left;padding:8px 0;color:var(--ink-soft);font-weight:500;">时长</th>
+              <th style="text-align:left;padding:8px 0;color:var(--ink-soft);font-weight:500;">用途</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 0;font-family:'JetBrains Mono',monospace;">ease-out</td>
+              <td style="padding:8px 0;font-family:'JetBrains Mono',monospace;">cubic-bezier(0.16,1,0.3,1)</td>
+              <td style="padding:8px 0;">250ms</td>
+              <td style="padding:8px 0;color:var(--ink-soft);">标准过渡</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 0;font-family:'JetBrains Mono',monospace;">spring</td>
+              <td style="padding:8px 0;font-family:'JetBrains Mono',monospace;">cubic-bezier(0.34,1.56,0.64,1)</td>
+              <td style="padding:8px 0;">400ms</td>
+              <td style="padding:8px 0;color:var(--ink-soft);">Q弹过冲 · 卡片入场</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 0;font-family:'JetBrains Mono',monospace;">stagger</td>
+              <td style="padding:8px 0;font-family:'JetBrains Mono',monospace;">ease-out + 80ms step</td>
+              <td style="padding:8px 0;">80ms/item</td>
+              <td style="padding:8px 0;color:var(--ink-soft);">列表逐项入场</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 0;font-family:'JetBrains Mono',monospace;">breathe</td>
+              <td style="padding:8px 0;font-family:'JetBrains Mono',monospace;">ease-in-out infinite</td>
+              <td style="padding:8px 0;">6s loop</td>
+              <td style="padding:8px 0;color:var(--ink-soft);">背景辉光呼吸</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0;font-family:'JetBrains Mono',monospace;">charIn</td>
+              <td style="padding:8px 0;font-family:'JetBrains Mono',monospace;">ease-out</td>
+              <td style="padding:8px 0;">500ms + stagger</td>
+              <td style="padding:8px 0;color:var(--ink-soft);">标题逐字入场</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Celebration overlay -->
+<div class="celebration" id="celebration"></div>
+
+<script>
+/* ============================================================
+   TAL Aurora — Interactions
+   ============================================================ */
+
+// ---------- Theme Toggle ----------
+function toggleTheme() {
+  const html = document.documentElement;
+  const current = html.getAttribute('data-theme');
+  const next = current === 'dark' ? 'light' : 'dark';
+  html.setAttribute('data-theme', next);
+
+  const icon = document.getElementById('theme-icon');
+  if (next === 'light') {
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  } else {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+  }
+
+  // Re-init particles for new theme
+  initParticles();
+  // Aurora auto-adapts via theme check in draw loop
+}
+
+// ---------- Screen Switching ----------
+function switchScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  document.querySelectorAll('.nav__tab').forEach(t => t.classList.remove('active'));
+
+  // Find matching tab
+  const tabs = document.querySelectorAll('.nav__tab');
+  tabs.forEach(t => {
+    if (t.textContent.toLowerCase().includes(name) || (name === 'design' && t.textContent.includes('Design'))) {
+      t.classList.add('active');
+    }
+  });
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  // Re-trigger reveals
+  setTimeout(triggerReveals, 100);
+
+  // Generate calendar if dashboard
+  if (name === 'dashboard') {
+    generateCalendar();
+    setTimeout(animateCounters, 300);
+  }
+}
+
+function scrollToSection(id) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: 'smooth' });
+}
+
+// ---------- 3D Tilt Cards ----------
+document.addEventListener('mousemove', (e) => {
+  document.querySelectorAll('[data-tilt]').forEach(card => {
+    const rect = card.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    if (x < 0 || x > rect.width || y < 0 || y > rect.height) {
+      card.style.transform = 'perspective(1000px) rotateX(0) rotateY(0)';
+      return;
+    }
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+    const rx = ((y - cy) / cy) * -8;
+    const ry = ((x - cx) / cx) * 8;
+    card.style.transform = `perspective(1000px) rotateX(${rx}deg) rotateY(${ry}deg)`;
+    card.style.setProperty('--mx', `${(x/rect.width)*100}%`);
+    card.style.setProperty('--my', `${(y/rect.height)*100}%`);
+  });
+
+  // Hero demo tilt
+  const heroDemo = document.getElementById('tilt-card');
+  if (heroDemo) {
+    const rect = heroDemo.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+      const cx = rect.width / 2;
+      const cy = rect.height / 2;
+      const rx = ((y - cy) / cy) * -4;
+      const ry = ((x - cx) / cx) * 4;
+      heroDemo.querySelector('.hero__demo-inner').style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`;
+    } else {
+      heroDemo.querySelector('.hero__demo-inner').style.transform = 'rotateX(0) rotateY(0)';
+    }
+  }
+});
+
+// ---------- Scroll Reveal ----------
+function triggerReveals() {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.reveal, .reveal-stagger').forEach(el => observer.observe(el));
+}
+
+// ---------- Calendar Generation ----------
+function generateCalendar() {
+  const grid = document.getElementById('calendar-grid');
+  if (!grid || grid.children.length > 0) return;
+
+  const days = [];
+  const today = new Date();
+  for (let i = 27; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const level = Math.random() > 0.4 ? Math.floor(Math.random() * 4) : 0;
+    const isToday = i === 0;
+    days.push({ date: d, level, isToday });
+  }
+
+  // Add day labels
+  const labels = ['一', '二', '三', '四', '五', '六', '日'];
+  // Pad to align with weekday
+  const firstDay = days[0].date;
+  let firstWeekday = firstDay.getDay() || 7; // Monday = 1
+  firstWeekday--;
+
+  for (let i = 0; i < firstWeekday; i++) {
+    const empty = document.createElement('div');
+    empty.style.aspectRatio = '1';
+    grid.appendChild(empty);
+  }
+
+  days.forEach(d => {
+    const cell = document.createElement('div');
+    cell.className = `cal-cell cal-cell--${d.level}`;
+    if (d.isToday) cell.classList.add('cal-cell--today');
+    cell.textContent = d.date.getDate();
+    cell.title = `${d.date.getMonth() + 1}月${d.date.getDate()}日 · ${d.level === 0 ? '未练习' : `练习 ${d.level * 5 + 3} 句`}`;
+    grid.appendChild(cell);
+  });
+}
+
+// ---------- Animated Number Counters ----------
+function animateCounters() {
+  document.querySelectorAll('[data-count]').forEach(el => {
+    if (el.dataset.counted) return;
+    el.dataset.counted = '1';
+    const target = parseInt(el.dataset.count);
+    const suffix = el.dataset.suffix || '';
+    const duration = 1200;
+    const start = performance.now();
+    function tick(now) {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const value = Math.round(target * eased);
+      el.textContent = value + suffix;
+      if (progress < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  });
+}
+
+// ---------- Aurora Flow System (React Bits style: 3 flowing color curtains) ----------
+function initAurora() {
+  const canvas = document.getElementById('aurora-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const html = document.documentElement;
+
+  function resize() {
+    // Render at 60% resolution for performance — blur hides the difference
+    canvas.width = window.innerWidth * 0.6;
+    canvas.height = window.innerHeight * 0.6;
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // 3 flowing aurora curtains — colors blend together via blur + screen blend
+  // Inspired by React Bits Aurora: colorStops + amplitude + speed + blend
+  // Each curtain has multi-axis dynamics: wave + pulse + drift + sweep + breathe
+  const curtains = [
+    {
+      color: [93, 202, 165],  baseY: 0.30, amp: 40, freq: 0.0012, speed: 0.12, opacity: 0.55, width: 320, phase: 0,
+      // Dynamic parameters
+      pulseSpeed: 0.35,  pulseDepth: 0.35,  // brightness breathing
+      driftSpeed: 0.08,  driftRange: 0.08,  // vertical position drift
+      sweepSpeed: 0.06,  sweepRange: 30,    // horizontal sweep
+      breatheSpeed: 0.10, breatheRange: 60, // width expansion/contraction
+      ampSpeed: 0.15,    ampRange: 0.4,     // amplitude flare (calm → dramatic → calm)
+    },
+    {
+      color: [29, 158, 117],  baseY: 0.50, amp: 55, freq: 0.0010, speed: 0.10, opacity: 0.50, width: 380, phase: Math.PI * 0.7,
+      pulseSpeed: 0.28,  pulseDepth: 0.30,
+      driftSpeed: 0.06,  driftRange: 0.06,
+      sweepSpeed: 0.05,  sweepRange: 40,
+      breatheSpeed: 0.08, breatheRange: 70,
+      ampSpeed: 0.12,    ampRange: 0.35,
+    },
+    {
+      color: [240, 153, 123], baseY: 0.42, amp: 35, freq: 0.0014, speed: 0.15, opacity: 0.35, width: 300, phase: Math.PI * 1.3,
+      pulseSpeed: 0.42,  pulseDepth: 0.40,
+      driftSpeed: 0.10,  driftRange: 0.07,
+      sweepSpeed: 0.07,  sweepRange: 25,
+      breatheSpeed: 0.12, breatheRange: 50,
+      ampSpeed: 0.18,    ampRange: 0.5,
+    },
+  ];
+
+  let time = 0;
+
+  function drawCurtain(c) {
+    const isDark = html.getAttribute('data-theme') === 'dark';
+    const opMul = isDark ? 1 : 1.6;
+    const [r, g, b] = c.color;
+
+    // --- Dynamic modulation ---
+    // 1. Brightness pulse — slow breathing fade in/out
+    const pulse = 1 + Math.sin(time * c.pulseSpeed + c.phase) * c.pulseDepth;
+    const opacity = Math.min(1, Math.max(0.05, c.opacity * opMul * pulse));
+
+    // 2. Vertical drift — baseY slowly moves up and down
+    const driftY = Math.sin(time * c.driftSpeed + c.phase * 0.5) * c.driftRange;
+    const effectiveBaseY = c.baseY + driftY;
+
+    // 3. Horizontal sweep — entire curtain drifts sideways
+    const sweepX = Math.sin(time * c.sweepSpeed + c.phase * 1.3) * c.sweepRange;
+
+    // 4. Width breathing — curtain expands and contracts
+    const breathe = 1 + Math.sin(time * c.breatheSpeed + c.phase * 0.8) * 0.2;
+    const effectiveWidth = c.width * breathe;
+
+    // 5. Amplitude flare — waves get more/less dramatic over time (like real aurora flaring)
+    const ampFlare = 1 + Math.sin(time * c.ampSpeed + c.phase * 1.5) * c.ampRange;
+    const effectiveAmp = c.amp * ampFlare;
+
+    const points = [];
+    const step = 16; // coarse — CSS blur(50px) smooths everything
+
+    for (let x = -80; x <= canvas.width + 80; x += step) {
+      const px = x + sweepX;
+      const y = canvas.height * effectiveBaseY
+        + Math.sin(px * c.freq + time * c.speed + c.phase) * effectiveAmp
+        + Math.sin(px * c.freq * 0.5 + time * c.speed * 0.6) * effectiveAmp * 0.4;
+      points.push({ x: px, y });
+    }
+
+    // Filled curtain shape
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y - effectiveWidth);
+    for (let i = 0; i < points.length; i++) {
+      ctx.lineTo(points[i].x, points[i].y - effectiveWidth * 0.3);
+    }
+    for (let i = points.length - 1; i >= 0; i--) {
+      ctx.lineTo(points[i].x, points[i].y + effectiveWidth * 0.3);
+    }
+    ctx.closePath();
+
+    const cy = canvas.height * effectiveBaseY;
+    const grad = ctx.createLinearGradient(0, cy - effectiveWidth, 0, cy + effectiveWidth);
+    grad.addColorStop(0,   `rgba(${r}, ${g}, ${b}, 0)`);
+    grad.addColorStop(0.3, `rgba(${r}, ${g}, ${b}, ${opacity * 0.3})`);
+    grad.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, ${opacity})`);
+    grad.addColorStop(0.7, `rgba(${r}, ${g}, ${b}, ${opacity * 0.3})`);
+    grad.addColorStop(1,   `rgba(${r}, ${g}, ${b}, 0)`);
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+
+  function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    time += 0.016;
+
+    const isDark = html.getAttribute('data-theme') === 'dark';
+    ctx.globalCompositeOperation = isDark ? 'screen' : 'source-over';
+    curtains.forEach(drawCurtain);
+    ctx.globalCompositeOperation = 'source-over';
+
+    requestAnimationFrame(animate);
+  }
+
+  animate();
+}
+
+// ---------- Particle System ----------
+function initParticles() {
+  const canvas = document.getElementById('particles');
+  const ctx = canvas.getContext('2d');
+  const html = document.documentElement;
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  const particles = [];
+  const count = 30;
+  const isDark = html.getAttribute('data-theme') === 'dark';
+
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.3,
+      r: Math.random() * 2 + 0.5,
+      o: Math.random() * 0.3 + 0.05
+    });
+  }
+
+  function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const currentDark = html.getAttribute('data-theme') === 'dark';
+    const color = currentDark ? '93, 202, 165' : '13, 110, 86';
+    const opMul = currentDark ? 1 : 3.0;   // boost opacity in light theme
+    const lineMul = currentDark ? 1 : 3.5; // boost connection lines in light theme
+    const radMul = currentDark ? 1 : 1.3;  // slightly bigger dots in light theme
+
+    particles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      if (p.x < 0) p.x = canvas.width;
+      if (p.x > canvas.width) p.x = 0;
+      if (p.y < 0) p.y = canvas.height;
+      if (p.y > canvas.height) p.y = 0;
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r * radMul, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${color}, ${Math.min(p.o * opMul, 0.6)})`;
+      ctx.fill();
+    });
+
+    // Draw connections
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 120) {
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.strokeStyle = `rgba(${color}, ${Math.min(0.04 * lineMul * (1 - dist / 120), 0.25)})`;
+          ctx.lineWidth = currentDark ? 0.5 : 0.8;
+          ctx.stroke();
+        }
+      }
+    }
+
+    requestAnimationFrame(animate);
+  }
+  animate();
+}
+
+// ---------- Typing Demo (Hero) ----------
+function runTypingDemo() {
+  const demo = document.getElementById('typing-demo');
+  if (!demo) return;
+
+  const sentences = [
+    { zh: '她在悉尼住了很多年。', en: 'She lived in Sydney.' },
+    { zh: '这个发现改变了一切。', en: 'The discovery changed everything.' },
+    { zh: '我们有勇气继续前行。', en: 'We had courage to go on.' },
+  ];
+
+  let sentIdx = 0;
+
+  function renderSentence(sentence, typed, current, error) {
+    const chars = sentence.en.split('');
+    demo.innerHTML = chars.map((ch, i) => {
+      let cls = 'tchar--untyped';
+      if (i < typed) cls = error && i >= error.start && i <= error.end ? 'tchar--error' : 'tchar--correct';
+      else if (i === current) cls = 'tchar--current';
+      return `<span class="tchar ${cls}">${ch === ' ' ? '&nbsp;' : ch}</span>`;
+    }).join('');
+  }
+
+  function typeSentence() {
+    const sentence = sentences[sentIdx];
+    const chars = sentence.en.split('');
+    let pos = 0;
+    let errorPos = -1;
+
+    // Type correctly up to a "mistake" point
+    const mistakeAt = Math.floor(chars.length * 0.6);
+
+    function type() {
+      if (pos < chars.length) {
+        if (pos === mistakeAt) {
+          // Type wrong character
+          errorPos = pos;
+          renderSentence(sentence, pos, pos, { start: pos, end: pos });
+          setTimeout(() => {
+            // Backspace
+            renderSentence(sentence, pos, pos, null);
+            setTimeout(() => {
+              pos++;
+              renderSentence(sentence, pos, pos, null);
+              setTimeout(type, 120);
+            }, 300);
+          }, 500);
+          return;
+        }
+        pos++;
+        renderSentence(sentence, pos, pos, null);
+        setTimeout(type, 120 + Math.random() * 80);
+      } else {
+        // Complete - wait then next sentence
+        setTimeout(() => {
+          sentIdx = (sentIdx + 1) % sentences.length;
+          typeSentence();
+        }, 2500);
+      }
+    }
+
+    renderSentence(sentence, 0, 0, null);
+    setTimeout(type, 500);
+  }
+
+  typeSentence();
+}
+
+// ---------- Star Toggle ----------
+function toggleStar(el) {
+  el.classList.toggle('active');
+  if (el.classList.contains('active')) {
+    triggerCelebration();
+  }
+}
+
+// ---------- Celebration ----------
+function triggerCelebration() {
+  const container = document.getElementById('celebration');
+  const colors = ['var(--mint)', 'var(--coral)', 'var(--amber)'];
+
+  for (let i = 0; i < 20; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.left = '50%';
+    p.style.top = '50%';
+    p.style.background = colors[Math.floor(Math.random() * colors.length)];
+    p.style.setProperty('--tx', (Math.random() - 0.5) * 300 + 'px');
+    p.style.setProperty('--ty', (Math.random() - 0.5) * 300 + 'px');
+    p.style.animationDelay = Math.random() * 0.2 + 's';
+    container.appendChild(p);
+    setTimeout(() => p.remove(), 1200);
+  }
+}
+
+// ---------- Practice Star Toggle (preserves original logic) ----------
+function togglePracticeStar(el) {
+  const isCollected = el.classList.toggle('active');
+  el.textContent = isCollected ? '★' : '☆';
+  el.setAttribute('aria-label', isCollected ? '从收藏移除' : '收藏这句');
+  el.setAttribute('aria-pressed', isCollected ? 'true' : 'false');
+  if (isCollected) {
+    el.classList.add('popping');
+    setTimeout(() => el.classList.remove('popping'), 480);
+  }
+}
+
+// ---------- Practice Skip ----------
+function practiceNext() {
+  // In real app: onComplete(false) → pickNextStep
+  // Prototype: just flash the stage
+  const stage = document.querySelector('.practice__stage');
+  if (stage) {
+    stage.style.animation = 'none';
+    stage.offsetHeight; // reflow
+    stage.style.animation = 'practice-rise 0.3s cubic-bezier(0.16,1,0.3,1)';
+  }
+}
+
+// ---------- Practice Keyboard Shortcuts ----------
+document.addEventListener('keydown', (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const practiceScreen = document.getElementById('screen-practice');
+  if (!practiceScreen || !practiceScreen.classList.contains('active')) return;
+
+  const trackedKey = e.key === ' ' || e.code === 'Space' ? 'space'
+    : e.key === 'Tab' ? 'tab'
+    : e.key === '/' ? '/'
+    : null;
+  if (!trackedKey) return;
+
+  e.preventDefault();
+  const id = 'practice-key-' + trackedKey;
+  const el = document.getElementById(id);
+  if (el) el.classList.add('active');
+});
+document.addEventListener('keyup', (e) => {
+  const trackedKey = e.key === ' ' || e.code === 'Space' ? 'space'
+    : e.key === 'Tab' ? 'tab'
+    : e.key === '/' ? '/'
+    : null;
+  if (!trackedKey) return;
+  const el = document.getElementById('practice-key-' + trackedKey);
+  if (el) el.classList.remove('active');
+});
+window.addEventListener('blur', () => {
+  document.querySelectorAll('.practice__kbd.active').forEach(el => el.classList.remove('active'));
+});
+
+// ---------- Init ----------
+window.addEventListener('load', () => {
+  initAurora();
+  initParticles();
+  triggerReveals();
+  setTimeout(runTypingDemo, 1500);
+});
+
+// Re-trigger reveals on scroll
+let scrollTimeout;
+window.addEventListener('scroll', () => {
+  clearTimeout(scrollTimeout);
+  scrollTimeout = setTimeout(triggerReveals, 100);
+});
+</script>
+
+</body>
+</html>

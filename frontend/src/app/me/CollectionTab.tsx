@@ -26,6 +26,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'motion/react';
 import {
   Catalog,
   Collection,
@@ -36,6 +37,8 @@ import {
   readPrefAudioRate,
   removeFromCollection,
 } from '../api';
+import { Particles, SpecularButton, VariableProximity } from '@/components/effects';
+import { riseIn, staggerParent } from '../ds/motion';
 import styles from '../me/me-page.module.css';
 
 interface CollectionTabProps {
@@ -294,18 +297,48 @@ export default function CollectionTab({
 
   if (sentenceCount === 0 && wordCount === 0) {
     return (
+      /* Empty state — mirrors LearnedLibProgress's pattern:
+         Particles decoration so the area doesn't feel dead, with
+         the hint and CTA layered on top. CTA uses SpecularButton
+         for the same premium glass-rim affordance as dashboard
+         ContinueCard / DailyGoal. */
       <div className={styles['me-wrong-empty']}>
+        <Particles
+          count={14}
+          minSize={0.8}
+          maxSize={2.0}
+          speed={0.18}
+          connectDistance={80}
+          color="55, 138, 221"
+          className={styles['me-wrong-empty__particles']}
+        />
         <p className={styles['me-wrong-empty__title']}>还没有收藏</p>
         <p className={styles['me-wrong-empty__hint']}>
           在练习时看到喜欢的句子或单词,点 ★ 加入收藏 — 之后可以在这里复习。
         </p>
-        <button
-          type="button"
-          className={`${styles['me-btn']} ${styles['me-btn--primary']}`}
+        <SpecularButton
+          size="md"
           onClick={() => router.push('/')}
+          radius={14}
+          /* ME-8: switched tint/base to the babyblue palette
+             (--ds-action / --ds-action-deep) so the empty-state
+             button matches the page theme. Was hardcoded slate-400
+             (#378ADD / #1F5A99) which clashed with the
+             data-babyblue scope. */
+          tint="#8FCBF0"
+          tintOpacity={1}
+          textColor="#FFFFFF"
+          lineColor="#FFFFFF"
+          baseColor="#2F80C0"
+          blur={8}
+          followMouse
+          proximity={400}
+          intensity={1.5}
+          shineSize={14}
+          className={styles['me-wrong-empty__cta']}
         >
           去练习
-        </button>
+        </SpecularButton>
       </div>
     );
   }
@@ -313,8 +346,19 @@ export default function CollectionTab({
   return (
     <div className={styles['me-wrong']}>
       <header className={styles['me-wrong__header']}>
+        <h2 className={styles['me-section-title']}>
+          <VariableProximity
+            label="收藏夹"
+            from={{ wght: 400 }}
+            to={{ wght: 700 }}
+            radius={80}
+            falloff="linear"
+            as="span"
+            className={styles['me-section-title__prox']}
+          />
+        </h2>
         <p className={styles['me-wrong__count']}>
-          收藏夹 ·
+          共
           {view === 'sentences' ? (
             <>
               <strong> {filtered.length}</strong> 句
@@ -382,11 +426,17 @@ export default function CollectionTab({
 
       {view === 'sentences' ? (
         <>
-          <ul className={styles['me-wrong-list']}>
-            {filtered.map((row, i) => (
-              <li
+          <motion.ul
+            className={styles['me-wrong-list']}
+            variants={staggerParent}
+            initial="hidden"
+            animate="show"
+            key={`${view}-${sortKey}-${activeLibs ? [...activeLibs].join(',') : 'all'}`}
+          >
+            {filtered.map((row) => (
+              <motion.li
                 key={`${row.libId}:${row.sentenceId}`}
-                style={{ animationDelay: `${Math.min(i * 30, 240)}ms` }}
+                variants={riseIn}
               >
                 <CollectionCard
                   row={row}
@@ -394,35 +444,44 @@ export default function CollectionTab({
                   onPractice={onPractice}
                   onRemove={onRemoveSentence}
                 />
-              </li>
+              </motion.li>
             ))}
-          </ul>
+          </motion.ul>
           {!allLoaded ? (
             <p className={styles['me-wrong__loading']}>正在加载句子内容…</p>
           ) : null}
         </>
       ) : (
-        <div className={styles['me-wrong-filters__libs']} role="list" aria-label="收藏的单词">
+        <motion.div
+          className={styles['me-wrong-filters__libs']}
+          role="list"
+          aria-label="收藏的单词"
+          variants={staggerParent}
+          initial="hidden"
+          animate="show"
+          key={`words-${wordRows.length}`}
+        >
           {wordRows.length === 0 ? (
             <p className={styles['me-empty']}>还没有收藏的单词</p>
           ) : (
             wordRows.map(({ word, addedAt }) => (
-              <button
+              <motion.button
                 key={word}
                 type="button"
                 className={styles['me-chip']}
                 data-active="true"
                 onClick={() => onRemoveWord(word)}
                 title={`点击移除 · 收藏于 ${formatRelative(addedAt)}`}
+                variants={riseIn}
               >
                 {word}
                 <span style={{ marginLeft: 6, opacity: 0.7, fontWeight: 400 }}>
                   ×
                 </span>
-              </button>
+              </motion.button>
             ))
           )}
-        </div>
+        </motion.div>
       )}
     </div>
   );

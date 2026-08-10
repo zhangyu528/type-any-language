@@ -3,10 +3,24 @@
   flex-direction: column;
   gap: var(--space-3);
   padding: var(--space-5);
-  background: var(--ds-surface);
-  border: 1px solid var(--ds-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--elev-1);
+  /* F1: same softening as WeekRhythm — aurora bleeds more. */
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--radius-xl);
+  /* Z-pattern: cap this section at the same width as weekRhythm
+     (760px). The wider progressSection above wraps it, so this
+     constraint keeps the bottom of the page from being a single
+     uninterrupted wide block. The card re-centers via auto margins. */
+  max-width: 760px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+[data-theme="dark"] .root {
+  background: rgba(20, 22, 30, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .header {
@@ -18,11 +32,15 @@
 
 .heading {
   margin: 0;
-  color: var(--ds-ink-soft);
-  font-size: var(--text-caption);
+  /* Was --text-caption (12px uppercase). Promote to --text-h2 (16px)
+     display weight so the section heading reads as a real h2, not as
+     a side-note. The other dashboard section headers (本周, 本周进度)
+     sit at --text-h2 medium too, so this brings learned libs into
+     the same hierarchy. */
+  color: var(--ds-ink);
+  font-family: var(--font-display);
+  font-size: var(--text-h2);
   font-weight: var(--weight-medium);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
 }
 
 .count {
@@ -32,9 +50,21 @@
 }
 
 .list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* BounceCards sets its own flex container; we extend here for the
+     2-col grid + mobile stack. card flex-basis: calc(50% - gap) for
+     desktop, 100% on mobile. */
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--space-3);
+  width: 100%;
+}
+
+.list > * {
+  /* Each bounce-card child takes half the row on desktop, full width
+     on mobile. BounceCards wraps each child in a wrapper div with
+     class="bounce-card bounce-card-N", so .list > * matches. */
+  flex: 1 1 calc(50% - var(--space-3));
+  min-width: 0;
 }
 
 .card {
@@ -89,6 +119,15 @@
   font-family: var(--font-mono), monospace;
   font-size: var(--text-caption);
   font-weight: var(--weight-medium);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+}
+
+/* AnimatedCounter ticks inside .percentCounter; sits next to "%" so
+   the unit doesn't dance during the count-up. */
+.percentCounter {
+  display: inline-block;
 }
 
 .track {
@@ -98,12 +137,12 @@
   background: var(--ds-border);
 }
 
+/* Motion animates .fill's width inline; no CSS transition needed. */
 .fill {
   display: block;
   height: 100%;
   border-radius: inherit;
   background: var(--ds-action);
-  transition: width 400ms var(--ease-out);
 }
 
 .meta {
@@ -118,8 +157,44 @@
   font-size: var(--text-body);
 }
 
+/* Empty state — Particles canvas covers the area as a subtle accent,
+   .empty copy sits centered above the canvas. The container needs
+   position:relative so the absolutely-positioned <canvas> from
+   Particles anchors to it. */
+.emptyState {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Was 140px: with the card's outer padding + section margin, the
+     empty state took ~220px of vertical space for a single line of
+     copy. Drop to 96px so the area feels intentional, not abandoned. */
+  min-height: 96px;
+  padding: var(--space-3) 0;
+  border-radius: var(--radius-md);
+  background: var(--ds-tint);
+  overflow: hidden;
+}
+
+.emptyState .empty {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 0 var(--space-4);
+  /* Allow the copy to fill the inner width so the Chinese sentence
+     doesn't break with a one-character orphan ("度。") on a second
+     line. Previously capped at 420px which forced that wrap. */
+  line-height: 1.5;
+  max-width: none;
+  margin: 0;
+}
+
+[data-theme="dark"] .emptyState {
+  background: rgba(255, 255, 255, 0.02);
+}
+
 @media (max-width: 639px) {
-  .list {
-    grid-template-columns: 1fr;
+  .list > * {
+    flex: 1 1 100%;
   }
 }

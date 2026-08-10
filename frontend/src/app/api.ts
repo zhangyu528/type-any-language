@@ -8,6 +8,9 @@ export interface VocabularyLib {
   name: string;
   level: string;
   word_count: number;
+  /** Total sentences in this lib (across all difficulty buckets).
+   *  Backed by `Sentence.lib_id` COUNT(*) in the catalog endpoint. */
+  sentence_count: number;
   /** Optional tagline shown on the home card. Null/undefined for libs baked
    *  before migration 0009. UI hides the line when missing. */
   description?: string | null;

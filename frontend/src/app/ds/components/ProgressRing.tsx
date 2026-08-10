@@ -45,8 +45,14 @@ export default function ProgressRing({
         cy={size / 2}
         r={r}
         fill="none"
-        stroke="var(--ds-tint)"
+        /* --ds-tint was too close to the card surface in both light
+           and dark themes; at 0% the ring read as missing/broken
+           rather than "empty progress". --ds-border-strong gives
+           the track a clear outline without competing with the
+           filled stroke (--ds-correct-fill) when progress > 0. */
+        stroke="var(--ds-border-strong)"
         strokeWidth={strokeWidth}
+        opacity="0.6"
       />
       <motion.circle
         cx={size / 2}
@@ -63,6 +69,18 @@ export default function ProgressRing({
         viewport={{ once: true, margin: '-10% 0px' }}
         transition={spring.soft}
       />
+      {/* 12-o'clock anchor dot — visible when percent is 0 so the
+          ring reads as "progress starts here" rather than "broken".
+          Stays hidden once the fill sweeps past 12 o'clock because
+          the cap of the filled stroke covers it. */}
+      {clamped === 0 && (
+        <circle
+          cx={size / 2}
+          cy={strokeWidth / 2}
+          r={strokeWidth * 0.55}
+          fill="var(--ds-correct-fill)"
+        />
+      )}
     </svg>
   );
 }
