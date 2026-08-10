@@ -1,4 +1,4 @@
-# Makefile - single entry point for the type-any-language repo.
+# Makefile - discoverable entry points for the type-any-language repo.
 #
 # Why a Makefile: cross-platform executable-bit pain. macOS needs +x on
 # *.sh, Windows NTFS ignores it. By routing every script invocation
@@ -6,11 +6,15 @@
 # entirely - every script runs identically on macOS, Linux, and Windows
 # (Git Bash / WSL).
 #
+# What's in here: dev-* (workstation daily driver) + cms-* (content
+# production on the CMS host). prod-* + db-* are NOT here — prod ops
+# go through .github/workflows/{release,publish-prod,infra/bootstrap-prod}.yml
+# and operators call the underlying bash scripts directly
+# (e.g. `bash ops/cvm/lifecycle.sh restart`). No workflow in this repo
+# depends on a Makefile target, so dropping a target is a one-line edit.
+#
 # Conventions:
-#   - Group targets by host role: dev / cvm / cms / db / meta.
-#   - The bash invocation is the truth; the .sh files are still
-#     executable (for users who prefer `./ops/cvm/...` or `./dev-tools/...` directly), but no
-#     Makefile target depends on it.
+#   - Each target is a 1-line `@bash <script>` wrapper for cross-platform.
 #   - `make help` (default goal) lists all targets + 1-line purpose.
 
 SHELL := /usr/bin/env bash
@@ -70,41 +74,6 @@ dev-migrate:
 dev-import-content:
 	@bash dev-tools/import_content.sh
 
-# ---------------------------------------------------------------------------
-# prod target host - pre-built, no watch, registry-pulled
-#
-# Scripts in ops/cvm/ run ON the CVM. Makefile targets below are
-# for OPERATOR use from a workstation (or via deploy-prod.sh).
-#
-# Note: build/release/deploy are now done by .github/workflows/,
-#       not by Makefile. There are no make prod-build / release-prod /
-#       prod-deploy targets by design.
-# ---------------------------------------------------------------------------
-
-## prod-bootstrap: host-level preparation on the RUN env (ONE-TIME per host, idempotent)
-prod-bootstrap:
-	@bash ops/cvm/bootstrap.sh
-
-## prod-start: start prod containers (auto-pulls from registry)
-prod-start:
-	@bash ops/cvm/lifecycle.sh start
-
-## prod-stop: stop prod containers
-prod-stop:
-	@bash ops/cvm/lifecycle.sh stop
-
-## prod-restart: recreate prod containers + re-read .secrets
-prod-restart:
-	@bash ops/cvm/lifecycle.sh restart
-
-## prod-doctor: preflight check for prod host (includes cloud-db probe)
-prod-doctor:
-	@bash ops/cvm/doctor.sh
-
-## prod-logs [svc]: tail prod container logs
-prod-logs:
-	@bash ops/cvm/logs.sh
-
 ## cms-fetch [auto|rsync|git|from PATH]: pull cms/content/ from CMS host (rsync if $CMS_HOST set) or git pull. Default = auto.
 cms-fetch:
 	@bash scripts/fetch_cms_content.sh $(filter-out $@,$(MAKECMDGOALS))
@@ -149,26 +118,6 @@ cms-staging-doctor:
 ## cms-run: full CMS pipeline (vocab + sentences + audio, no db import)
 cms-run:
 	@bash cms/run.sh
-
-# ---------------------------------------------------------------------------
-# db - cloud-db (TencentDB) side: bootstrap + import + migrate
-# ---------------------------------------------------------------------------
-
-## db-import: import cms/content/* into cloud db (UPSERT)
-db-import:
-	@bash db/scripts/import_staging.sh all
-
-## db-init-schema: apply base schema (idempotent CREATE TABLE IF NOT EXISTS)
-db-init-schema:
-	@bash db/scripts/init_schema.sh
-
-## db-migrate: apply pending schema migrations to cloud db
-db-migrate:
-	@bash db/scripts/migrate.sh
-
-## db-next-migration-prefix: print next available 4-digit prefix for a shared migration on origin/master
-db-next-migration-prefix:
-	@bash db/scripts/next_migration_prefix.sh
 
 # ---------------------------------------------------------------------------
 # meta

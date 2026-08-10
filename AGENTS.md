@@ -662,8 +662,7 @@ ls backend/migrations/versions/*.py \
 # Or, automated:
 ./db/scripts/next_migration_prefix.sh           # next shared prefix on origin/master
 ./db/scripts/next_migration_prefix.sh --local   # next prefix in working tree
-# Make wrapper:
-make db-next-migration-prefix
+# (no Make wrapper; the Makefile target was removed when prod-/db- targets went to workflow. Run the script directly.)
 ```
 
 The runner (`backend/migrations/runner.py::_discover_versions`) sorts by the `version` string attribute of each module (not the filename), so renames are safe as long as `version = "..."` stays consistent.

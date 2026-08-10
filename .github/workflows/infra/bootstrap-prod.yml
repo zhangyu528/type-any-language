@@ -24,7 +24,7 @@ run-name: bootstrap-prod-on-${{ inputs.host || 'auto' }}
 #          are pulled from GHCR, not built locally on the CVM. The
 #          deployed version comes from the git tag (forwarded as IMAGE_TAG
 #          by deploy-prod), so no VERSION files are cloned.
-#   3. SSH into the CVM as `ubuntu` again and run `make prod-bootstrap`
+#   3. SSH into the CVM as `ubuntu` again and run bash ops/cvm/bootstrap.sh
 #      via `sudo -u deploy` (preflight + .secrets/db_password + data dir).
 #      deploy-prod reuses the SAME bootstrap key + `sudo -u deploy`, so
 #      NO separate deploy SSH key and NO GH_PAT are needed.
@@ -104,7 +104,7 @@ jobs:
               echo "[bootstrap] user $DEPLOY_USER already exists"
             fi
 
-            # NOPASSWD sudoers for the commands make prod-bootstrap + the
+            # NOPASSWD sudoers for the commands bash ops/cvm/bootstrap.sh invokes + the
             # nginx-site install need. Keep this list small — each entry
             # is a real attack surface. Things that aren't here require
             # an interactive sudo, which is fine (we'd rather have a
@@ -194,7 +194,7 @@ jobs:
             # for it.
 
             # Sparse-checkout clone — only the files deploy needs on the CVM:
-            #   Makefile        (make targets)
+            #   Makefile (this workflow no longer needs any target; runs the bash script directly)
             #   docker-compose.yml (prod stack definition — at the repo root,
             #                      NOT under ops/cvm/, since its build contexts
             #                      are repo-root-relative: ./backend, ./frontend,
@@ -236,8 +236,8 @@ jobs:
             fi
             sudo chown -R "$DEPLOY_USER:$DEPLOY_USER" /opt/type-any-language
 
-      # -------- Run make prod-bootstrap via sudo -u deploy --------
-      - name: Run make prod-bootstrap (as deploy via sudo)
+      # -------- Run bash ops/cvm/bootstrap.sh via sudo -u deploy --------
+      - name: Run bash ops/cvm/bootstrap.sh (as deploy via sudo)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.CVM_HOST }}

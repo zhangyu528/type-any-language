@@ -71,7 +71,7 @@ fi
 # targets that do exist: restart pulls the new tags + recreates, then
 # doctor verifies the result. sudo resets the environment, so the two
 # vars the scripts need are re-exported inside the deploy user's shell.
-sudo -u deploy bash -lc "cd /opt/type-any-language && export DOCKER_REGISTRY='__DR__' IMAGE_TAG='__TAG__' && make prod-restart && make prod-doctor"
+sudo -u deploy bash -lc "cd /opt/type-any-language && export DOCKER_REGISTRY='__DR__' IMAGE_TAG='__TAG__' && bash ops/cvm/lifecycle.sh restart && bash ops/doctor.sh"
 XEOF
 )"
 
