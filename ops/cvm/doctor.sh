@@ -1,18 +1,28 @@
 #!/usr/bin/env bash
 #
-# ops/cvm/doctor.sh — pre-flight env check (read-only).
+# ops/cvm/doctor.sh — verify external dependencies for the prod CVM.
 #
-# Updated 2026-08-04: no longer checks gh CLI (CVM doesn't need gh —
-# DOCKER_REGISTRY is injected by the deploy workflow via SSH env).
+# Reads the host + reports whether things-from-outside-this-host are in
+# place. Read-only: does NOT modify anything on disk or touch containers.
 #
-# Validates that everything ops/cvm/{lifecycle,bootstrap} need is in
-# place. Does NOT modify anything on disk or bring containers up/down.
+# Scope: external dependencies only. The host-side prep steps
+# (docker, secrets, data dir, nginx site, port 80) are handled by
+# bootstrap.sh's install/init scripts — re-run bootstrap.sh if any of
+# those are missing, no need to call doctor for them.
 #
-# Drift check (running containers vs local VERSION) is appended.
+# Checks:
+#   1. DOCKER_REGISTRY env var       - is the registry namespace set?
+#   2. 3 images pullable             - can we fetch db / backend / frontend
+#                                     from the registry right now?
+#   3. drift check                    - if containers are running, do their
+#                                     image LABELs match the resolved VERSION?
 #
-# Exit: 0 if all required checks pass; 1 otherwise.
+# Exit: 0 if all pass, 1 if any fails.
+#
+# Run standalone:    ./ops/cvm/doctor.sh
+# Also called from:  publish-prod.yml workflow after a deploy (via SSH)
 
-set -e
+set -euo pipefail
 
 COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_common.sh
@@ -21,115 +31,59 @@ setup_prod_host_env
 
 cmd_doctor() {
     local failed=0
-    echo "=== Production environment check ==="
+    echo "=== External dependency check ==="
     echo ""
 
-    if check_docker_installed; then
-        ok "docker 已安装: $(docker --version 2>&1 | head -1)"
-    else
-        err "docker 未安装"; failed=1
-    fi
-
-    if check_docker_daemon_running; then
-        ok "docker daemon 运行中"
-    else
-        err "docker daemon 未运行"; failed=1
-    fi
-
-    if detect_compose_cmd 2>/dev/null; then
-        ok "compose: $DOCKER_COMPOSE_CMD"
-    else
-        err "未找到 docker-compose / docker compose"; failed=1
-    fi
-
-    # Db contract: prod compose reads .secrets/db_password via the
-    # `secrets:` block; the db service uses POSTGRES_PASSWORD_FILE.
-    # DATABASE_URL is built at compose env-block evaluation time using
-    # $(cat /run/secrets/db_password) — not stored anywhere on host.
-    if [ -f "$DB_PASSWORD_FILE" ]; then
-        ok ".secrets/db_password 存在 — compose 会通过 secrets: 注入 db 容器"
-        chmod 600 "$DB_PASSWORD_FILE"
-    else
-        err ".secrets/db_password 不存在 — db 容器无密码"
-        info "  → ./ops/cvm/bootstrap.sh       # 首次部署自动生成"
-        info "  → 或手动: openssl rand -hex 32 > .secrets/db_password && chmod 600"
-        failed=1
-    fi
-
-    # Note: doctor also used to check db reachability via psql, but the
-    # prod compose does NOT expose db's 5432 to host — only backend talks
-    # to db via the internal network. Reachability is verified through
-    # backend's verify_schema_up_to_date startup check, not here.
-
-    if check_docker_installed && check_docker_daemon_running; then
-        if image_pullable "${BACKEND_FULL_IMAGE}"; then
-            ok "image ${BACKEND_FULL_IMAGE} 存在 (registry 可拉)"
-        else
-            err "image ${BACKEND_FULL_IMAGE} 缺失 (registry 拉不到)"
-            info "  → 走 CI 重新出包: .github/workflows/release-build.yml"
-            info "  → 或手动: docker pull ${BACKEND_FULL_IMAGE}"
-            failed=1
-        fi
-        if image_pullable "${FRONTEND_FULL_IMAGE}"; then
-            ok "image ${FRONTEND_FULL_IMAGE} 存在 (registry 可拉)"
-        else
-            err "image ${FRONTEND_FULL_IMAGE} 缺失 (registry 拉不到)"
-            info "  → 走 CI 重新出包: .github/workflows/release-build.yml"
-            info "  → 或手动: docker pull ${FRONTEND_FULL_IMAGE}"
-            failed=1
-        fi
-        if image_pullable "${DB_FULL_IMAGE}"; then
-            ok "image ${DB_FULL_IMAGE} 存在 (registry 可拉)"
-        else
-            err "image ${DB_FULL_IMAGE} 缺失 (registry 拉不到)"
-            info "  → 走 CI 重新出包: .github/workflows/release-build.yml"
-            info "  → 或手动: docker pull ${DB_FULL_IMAGE}"
-            failed=1
-        fi
-    fi
-
-    # Data directory: db container bind-mounts /var/lib/.../postgres.
-    # Required on the host BEFORE first deploy. If missing, the
-    # container will create it but with wrong ownership (root), and
-    # postgres will fail to start with EACCES.
-    if [ -d "/var/lib/type-any-language/postgres" ]; then
-        ok "/var/lib/type-any-language/postgres 存在"
-    else
-        err "/var/lib/type-any-language/postgres 不存在"
-        info "  → 跑: ./ops/cvm/bootstrap.sh  (会 sudo mkdir + chown 999:999)"
-        failed=1
-    fi
-
-    warn_port_in_use 80  "nginx 端口 (宿主机 80)"
-
+    # ─── 1. DOCKER_REGISTRY ────────────────────────────────────────────
+    # setup_prod_host_env above already validated + exported DOCKER_REGISTRY
+    # (fails loud if missing). Here we just report + hint for manual runs.
     if [ -z "$DOCKER_REGISTRY" ]; then
-        # Should not happen — setup_prod_host_env fails loud on missing
-        # DOCKER_REGISTRY. But print a clear hint for manual runs.
         err "DOCKER_REGISTRY 未设置"
-        info "  这个值应该由 deploy-prod workflow 通过 SSH env 注入"
-        info "  release-prod/deploy-prod workflow 跑时自动注入"
+        info "  deploy-prod workflow 通过 SSH env 自动注入"
         info "  手动跑: export DOCKER_REGISTRY=ghcr.io/zhangyu528/type-any-language"
         failed=1
     else
         ok "DOCKER_REGISTRY=$DOCKER_REGISTRY (source=${_DOCKER_REGISTRY_SOURCE:-workflow})"
     fi
-
-    # gh CLI: NO LONGER required on CVM (2026-08-04).
-    # DOCKER_REGISTRY is now injected by the deploy workflow via SSH env.
-    # If CVM is being used manually, operator sets `export DOCKER_REGISTRY=...` once.
-    # Doctor just verifies the env var is non-empty + format is sane (via
-    # setup_prod_host_env which calls resolve_docker_registry).
-
     echo ""
-    echo "--- drift check (running containers vs local VERSION) ---"
+
+    # ─── 2. Image reachability ─────────────────────────────────────────
+    # docker manifest inspect requires creds for private repos; our GHCR
+    # packages are public so this is unauthenticated by default.
+    info "--- image reachability (3 images) ---"
+    if ! check_docker_installed || ! check_docker_daemon_running; then
+        err "  docker daemon 不可用 — 跳过 image 探测"
+        failed=1
+    else
+        local img
+        for img in "$DB_FULL_IMAGE" "$BACKEND_FULL_IMAGE" "$FRONTEND_FULL_IMAGE"; do
+            if image_pullable "$img"; then
+                ok "  $img 存在"
+            else
+                err "  $img 缺失(registry 拉不到)"
+                info "    走 CI 重新出包: .github/workflows/release/build.yml"
+                info "    或手动: docker pull $img"
+                failed=1
+            fi
+        done
+    fi
+    echo ""
+
+    # ─── 3. Drift check ────────────────────────────────────────────────
+    # Compares each running container's image LABEL
+    # (`type-any-language.app.version`) against the resolved image tag.
+    # Mismatch means compose was started with a different tag than the
+    # running image — usually means someone pulled an image manually and
+    # skipped lifecycle.sh restart.
+    info "--- drift check (running containers vs local VERSION) ---"
     drift_check
-
     echo ""
+
     if [ $failed -eq 0 ]; then
-        ok "所有必需检查通过"
+        ok "所有外部依赖就绪"
         return 0
     else
-        err "部分必需检查未通过"
+        err "部分外部依赖未就绪 — 看上面提示"
         return 1
     fi
 }
