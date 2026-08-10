@@ -33,6 +33,7 @@ LINK="/etc/nginx/sites-enabled/type-any-language"
 
 info() { printf '[nginx-site] %s\n' "$*"; }
 err()  { printf '[nginx-site] ERROR: %s\n' "$*" >&2; }
+warn() { printf '[nginx-site] WARN:  %s\n' "$*" >&2; }
 
 # 1. nginx present?
 if ! command -v nginx >/dev/null 2>&1; then
@@ -44,6 +45,13 @@ if ! command -v nginx >/dev/null 2>&1; then
         err "nginx missing AND no sudo available — install nginx manually first"
         exit 1
     fi
+fi
+
+# Warn if port 80 is already bound by another process — our site will
+# fail to bind :80 if so. Non-fatal (operator may be migrating); just print.
+if command -v ss >/dev/null 2>&1 && ss -tln 2>/dev/null | grep -qE ":80\b"; then
+    warn "port 80 已被占用 — 装完 reload 后我们的 nginx site 会无法 bind"
+    warn "  排查占用: ss -tlnp 'sport = :80'   或   lsof -i :80"
 fi
 
 # 2. remove apt-shipped default site if present (it shadows :80)
