@@ -7,26 +7,19 @@
 #     source "$SCRIPT_DIR/lib.sh"
 #
 # Provides:
-#   - ok / warn / err / info      (colored printers)
-#   - detect_compose_cmd         (sets DOCKER_COMPOSE_CMD global)
 #   - check_docker_installed     (returns 0/1, no print)
-#   - check_docker_daemon_running
 #   - require_docker             (exit 1 on fail, with friendly error)
-#   - file_exists                (returns 0/1)
-#   - require_file               (exit 1 on fail)
-#   - image_exists               (returns 0/1)
-#   - require_image              (exit 1 on fail)
 #   - port_in_use                (returns 0/1, no print)
 #   - warn_port_in_use           (prints warning if in use)
 #   - gen_secret                 (random URL-safe string)
-#   - find_repo_root             (walk up to .git or any VERSION* file; "" if neither)
-#   - read_version_file [path]   (echo first non-empty/non-comment line of path,
-#                                or any VERSION* under repo root; falls back to "v0.0.0")
-#   - resolve_image_tag VAR [path] (per-image env > IMAGE_TAG > version file > "v0.0.0")
-#   - warn_if_version_default    (one-shot warn when VERSION file is missing/empty)
-#   - resolve_docker_registry    (GitHub Variable via `gh`; fail loud; single source of truth)
-#   - sed_inplace                (portable sed -i; GNU vs BSD/macOS)
-#
+#   - resolve_image_tag VAR      (per-image env > IMAGE_TAG > :latest)
+#   - warn_if_version_default    (one-shot warn when IMAGE_TAG is unset → :latest)
+#   - resolve_docker_registry    (GitHub Variable; fail loud; single source of truth)
+#   - sudo_run_or_manual         (run with sudo -n; fall back to "self-run" hint)
+#   - setup_prod_host_env        (resolves DOCKER_REGISTRY + 3 image tags + full refs)
+#   - drift_check                (post-deploy: container LABEL vs IMAGE_TAG)
+#   - image_pullable             (registry reachability check; used by doctor.sh)
+
 
 # ---------------------------------------------------------------------------
 # Colors
@@ -69,25 +62,6 @@ check_docker_installed() {
 # `docker info` can hang for ~30s when the daemon is not running (e.g. Docker
 # Desktop is launching). Bound the wait so that doctor / start don't appear
 # frozen. 5 seconds is plenty for a healthy daemon to respond.
-check_docker_daemon_running() {
-    # Check for GNU timeout (Linux) not Windows timeout (Git Bash on Windows)
-    # Windows timeout returns error for --version, GNU timeout returns version info
-    if command -v timeout &> /dev/null && timeout --version 2>&1 | grep -q "^timeout"; then
-        timeout 5 docker info &> /dev/null
-    else
-        # Fallback: run in background, kill after timeout.
-        # This works on macOS, Git Bash, and Windows
-        docker info &> /dev/null &
-        local pid=$!
-        # shellcheck disable=SC2064
-        (python -c "import time; time.sleep(5)" && kill -0 $pid 2>/dev/null && kill $pid 2>/dev/null) &
-        local watchdog=$!
-        wait $pid
-        local rc=$?
-        kill $watchdog 2>/dev/null
-        return $rc
-    fi
-}
 
 # Strict check: prints a friendly error and exits 1 on failure.
 # Use at the start of any command that touches Docker.
@@ -109,7 +83,6 @@ require_docker() {
 # ---------------------------------------------------------------------------
 # File / image existence
 # ---------------------------------------------------------------------------
-file_exists() { [ -f "$1" ]; }
 
 # py_cmd <args...> — run a python interpreter on the rest of the args.
 # Picks host python3 / python (no docker fallback; use run_python_step
@@ -126,31 +99,6 @@ py_cmd() {
     fi
 }
 
-require_file() {
-    local path="$1"
-    local hint="${2:-}"
-    if [ ! -f "$path" ]; then
-        err "$path 不存在"
-        [ -n "$hint" ] && info "  → $hint"
-        exit 1
-    fi
-}
-
-# image_exists <name>  → returns 0 if Docker image is present locally.
-image_exists() {
-    # Try the name as-given first. If that misses and the name has a
-    # registry prefix (e.g. "docker.io/me/foo:tag" → strip to "me/foo:tag"
-    # or further to "foo:tag"), retry without it — local images built via
-    # bake_image.sh / build_image.sh are tagged without the registry
-    # prefix, so callers asking with the prefix should still find them.
-    docker image inspect "$1" &> /dev/null && return 0
-    local stripped="${1#*/}"          # docker.io/me/foo:tag → me/foo:tag
-    [ "$stripped" != "$1" ] && docker image inspect "$stripped" &> /dev/null && return 0
-    local bare="${stripped#*/}"       # me/foo:tag → foo:tag
-    [ "$bare" != "$stripped" ] && docker image inspect "$bare" &> /dev/null && return 0
-    return 1
-}
-
 # image_pullable <full-ref>  → returns 0 if the image exists in the
 # registry and can be PULLED (no docker login needed for PUBLIC registries
 # like GHCR). Uses `docker manifest inspect` — a small network call that does
@@ -161,42 +109,6 @@ image_exists() {
 # that image_exists's bare-name check can't match.
 image_pullable() {
     docker manifest inspect "$1" &> /dev/null
-}
-
-# resolve_image_ref <name> — print a docker-inspectable reference for the
-# image (image ID if found, empty if not). Mirrors image_exists's prefix
-# stripping so callers asking with a registry prefix still find locally-
-# tagged images. Use this before reading labels / config so the inspect
-# call doesn't fail on the prefix mismatch.
-resolve_image_ref() {
-    docker image inspect "$1" --format '{{.Id}}' 2>/dev/null | head -1 | grep -v '^$' && return 0
-    local stripped="${1#*/}"
-    [ "$stripped" != "$1" ] && docker image inspect "$stripped" --format '{{.Id}}' 2>/dev/null | head -1 | grep -v '^$' && return 0
-    local bare="${stripped#*/}"
-    [ "$bare" != "$stripped" ] && docker image inspect "$bare" --format '{{.Id}}' 2>/dev/null | head -1 | grep -v '^$' && return 0
-    return 1
-}
-
-# image_label <name> <label-key> — print the value of an OCI label on the
-# given image, or empty string. Uses resolve_image_ref internally so it
-# works whether the caller passes a registry-prefixed name or the bare
-# local tag. Pairs nicely with image_exists for the gate-check.
-image_label() {
-    local ref
-    ref="$(resolve_image_ref "$1")" || return 1
-    [ -z "$ref" ] && return 1
-    docker inspect "$ref" --format "{{ index .Config.Labels \"$2\" }}" 2>/dev/null
-}
-
-# require_image <name> <fix-hint>  → exits 1 if missing, prints fix hint.
-require_image() {
-    local name="$1"
-    local hint="${2:-run the appropriate build script first}"
-    if ! image_exists "$name"; then
-        err "image $name 未构建"
-        info "  → $hint"
-        exit 1
-    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -256,74 +168,10 @@ gen_secret() {
 #      deprecated — files removed, only reached if IMAGE_TAG is unset)
 #   4. Literal "v0.0.0" fallback (won't break a build, but warns once)
 
-# find_repo_root [start] → echoes the absolute path of the repo root, or "".
-# Walks up from $start (default: dir of BASH_SOURCE) until it finds a .git
-# directory or any VERSION* file. Returns "" if neither is found.
-find_repo_root() {
-    local start="${1:-$(dirname "${BASH_SOURCE[0]}")}"
-    local dir f
-    dir="$(cd "$start" 2>/dev/null && pwd)" || return 0
-    while [ -n "$dir" ] && [ "$dir" != "/" ]; do
-        if [ -d "$dir/.git" ]; then
-            echo "$dir"
-            return 0
-        fi
-        # Match any VERSION* file: catches the per-segment files
-        # (db/VERSION, backend/VERSION, ...). The glob is intentionally
-        # permissive — repo-root detection doesn't care which segment the
-        # file belongs to. nullglob means an empty expansion doesn't
-        # produce a literal pattern.
-        local _saved; _saved="$(shopt -p nullglob 2>/dev/null || true)"
-        shopt -s nullglob
-        for f in "$dir"/VERSION*; do
-            if [ -f "$f" ]; then
-                # shellcheck disable=SC2164
-                [ -n "$_saved" ] && eval "$_saved" || shopt -u nullglob
-                echo "$dir"
-                return 0
-            fi
-        done
-        # shellcheck disable=SC2164
-        [ -n "$_saved" ] && eval "$_saved" || shopt -u nullglob
-        dir="$(dirname "$dir")"
-    done
-    echo ""
-}
-
 # read_version_file <path>  → echoes the first non-empty, non-comment line
 # of $path (stripped of BOM / CR / surrounding whitespace), or "v0.0.0" if
 # the file is missing or contains no usable content.
 #
-# $path is REQUIRED and must be relative to find_repo_root (e.g.
-# `db/VERSION`, `backend/VERSION`). The previous back-compat that
-# scanned root-level VERSION / VERSION.prod / VERSION.dev was removed when
-# the layout moved per-segment — there's nothing at the root to scan now.
-# If you forget to pass a path, you get v0.0.0 + a warn_if_version_default
-# warning, not a silent fallback to a stale file.
-read_version_file() {
-    local path="${1:-}"
-    if [ -z "$path" ]; then
-        echo "v0.0.0"
-        return 0
-    fi
-    if [ ! -f "$path" ]; then
-        echo "v0.0.0"
-        return 0
-    fi
-    local v
-    v="$(awk 'NF && substr($0,1,1) != "#" {
-            gsub(/\r/, "");
-            gsub(/^[[:space:]]+|[[:space:]]+$/, "");
-            print;
-            exit
-        }' "$path")"
-    if [ -z "$v" ]; then
-        echo "v0.0.0"
-    else
-        echo "$v"
-    fi
-}
-
 # resolve_image_tag VAR_NAME [path]
 #   If $VAR_NAME is already set and non-empty, leave it alone.
 #   Otherwise, set it (in the caller's scope, exported) to:
@@ -336,17 +184,15 @@ read_version_file() {
 #       resolve_image_tag DB_IMAGE_TAG       db/VERSION
 #       resolve_image_tag BACKEND_IMAGE_TAG  backend/VERSION
 #       resolve_image_tag FRONTEND_IMAGE_TAG frontend/VERSION
+# Resolution order (highest priority first):
+#   1. Per-image env var, e.g. BACKEND_IMAGE_TAG=v1.2.3
+#   2. Generic IMAGE_TAG env var (CI convenience — bumps all images at once)
+#   3. Fall back to :latest (release-build.yml guarantees this tag exists;
+#      non-pinned = warn_if_version_default() flags it for the operator).
+# No VERSION-file fallback — per-segment VERSION files were removed 2026-08-06.
+# The version is now delivered to every environment as IMAGE_TAG env.
 resolve_image_tag() {
-    # Resolution order (highest priority first):
-    #   1. Per-image env var (e.g. BACKEND_IMAGE_TAG=v1.2.3)
-    #   2. Generic IMAGE_TAG env var (CI convenience — bumps all images at once)
-    #   3. The VERSION file path passed in
-    #   4. Default to "latest" — CI guarantees this tag exists, so bootstrap
-    #      / lifecycle work zero-config on a host that just wants "newest".
-    #      Non-pinned: warn_if_version_default() flags this so operators know
-    #      they are NOT running a fixed release tag.
     local var="$1"
-    local path="${2:-}"
     local cur="${!var:-}"
     if [ -n "$cur" ]; then
         return 0
@@ -356,17 +202,9 @@ resolve_image_tag() {
         export "$var"
         return 0
     fi
-    if [ -n "$path" ] && [ -f "$PROJECT_DIR/$path" ]; then
-        local resolved
-        resolved="$(read_version_file "$path")"
-        if [ -n "$resolved" ]; then
-            printf -v "$var" '%s' "$resolved"
-            export "$var"
-            return 0
-        fi
-    fi
-    # No explicit tag, no VERSION file → fall back to the `latest` tag that
-    # release-build.yml guarantees exists. Non-pinned by design.
+    # No explicit tag → fall back to :latest (release-build.yml publishes it
+    # for every version). Non-pinned by design; warn_if_version_default
+    # flags this for the operator.
     printf -v "$var" 'latest'
     export "$var"
     return 0
@@ -511,16 +349,6 @@ resolve_docker_registry() {
 # (does NOT exit). Callers decide whether to fail hard or carry on with
 # the unset value (e.g. build.sh exits; doctor subcommands warn).
 
-# db_url_defaults — echo "user:db:host:port" with code defaults applied
-# to any unset component. Doesn't touch the password.
-db_url_defaults() {
-    local user="${POSTGRES_USER:-english_user}"
-    local db="${POSTGRES_DB:-english_learning}"
-    local host="${POSTGRES_HOST:-localhost}"
-    local port="${POSTGRES_PORT:-5432}"
-    echo "$user:$db:$host:$port"
-}
-
 # db_resolve_password — set POSTGRES_PASSWORD from .secrets/ if not already
 # in the environment. Echoes the resolved password (empty on failure).
 db_resolve_password() {
@@ -566,22 +394,6 @@ db_assemble_url() {
         DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}"
     fi
     export DATABASE_URL
-}
-
-# ---------------------------------------------------------------------------
-# Portable sed -i
-# ---------------------------------------------------------------------------
-# sed_inplace PATTERN FILE — in-place edit, compatible with GNU sed (Linux)
-# and BSD sed (macOS). BSD requires an explicit empty argument after -i.
-# (Previously used by cms/scripts/env.sh to inject smart defaults into
-# cms/.env — that script is gone, but sed_inplace is kept as a generic
-# helper since other in-place file edits still benefit from it.)
-sed_inplace() {
-    if sed --version >/dev/null 2>&1; then
-        sed -i "$1" "$2"
-    else
-        sed -i '' "$1" "$2"
-    fi
 }
 
 # ---------------------------------------------------------------------------
