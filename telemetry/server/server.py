@@ -135,9 +135,15 @@ def _git_short_sha() -> str | None:
     return None
 
 def _probe_port(port: int) -> tuple[bool, int | None, str | None]:
-    """Return (is_listening, pid, command) for a given TCP port. Uses
-    `ss` (preferred, near-universal) with `lsof` as fallback. Tolerates
-    both being absent (returns False,None,None)."""
+    """Return (is_listening, pid, command) for a given TCP port. Tries
+    ss (Linux), lsof (macOS/BSD), and netstat (Windows + Linux) in
+    that order. Tolerates all being absent (returns False,None,None).
+
+    netstat is the broadest fallback: it ships with Windows out of the
+    box, and is installed on basically every Linux distro. Its `-ano`
+    output is `TCP  local_addr:port  remote  state  PID`. PID is the
+    5th whitespace-delimited column."""
+    # 1. ss (Linux) — extracts pid + users:(("cmd",pid=...)) in one shot
     rc, stdout, _ = _run(["ss", "-tlnp", f"sport = :{port}"])
     if rc == 0 and stdout:
         for line in stdout.splitlines()[1:]:
@@ -147,12 +153,32 @@ def _probe_port(port: int) -> tuple[bool, int | None, str | None]:
                 cmd_m = re.search(r'users:(("([^"]+)"', line)
                 cmd = cmd_m.group(1) if cmd_m else None
                 return True, pid, cmd
+    # 2. lsof (macOS / BSD)
     rc, stdout, _ = _run(["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"])
     if rc == 0 and stdout:
         for line in stdout.splitlines()[1:]:
             parts = line.split()
             if len(parts) >= 2 and parts[1].isdigit():
                 return True, int(parts[1]), parts[0]
+    # 3. netstat (Windows + Linux fallback)
+    rc, stdout, _ = _run(["netstat", "-ano", "-p", "TCP"])
+    if rc == 0 and stdout:
+        for line in stdout.splitlines():
+            parts = line.split()
+            if len(parts) < 5 or parts[0] != "TCP":
+                continue
+            local_addr = parts[1]
+            state = parts[3]
+            if state != "LISTENING":
+                continue
+            # local_addr is host:port or [ipv6]:port
+            if not local_addr.endswith(f":{port}"):
+                continue
+            try:
+                pid = int(parts[4])
+                return True, pid, None
+            except ValueError:
+                continue
     return False, None, None
 
 def _pid_start_time(pid: int) -> str | None:
