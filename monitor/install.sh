@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 #
-# telemetry/install.sh - install the CVM telemetry monitor as a systemd service.
+# monitor/install.sh - install the CVM monitor monitor as a systemd service.
 #
 # Idempotent. Safe to re-run after edits to web/dist/ (just restarts the service).
 #
 # Run on the CVM as the deploy user (or with sudo):
-#   bash /opt/type-any-language/telemetry/install.sh
+#   bash /opt/type-any-language/monitor/install.sh
 #
 # What it does:
 #   1. Verifies python3 + docker are on PATH (the runtime requirements).
-#   2. Creates /opt/type-any-language/telemetry as the install root.
-#   3. Installs the systemd unit from systemd/tal-telemetry.service.
+#   2. Creates /opt/type-any-language/monitor as the install root.
+#   3. Installs the systemd unit from systemd/tal-monitor.service.
 #   4. daemon-reload + enable + (re)start the service.
 #   5. Prints the dashboard URL + how to tail logs / stop the service.
 
@@ -18,12 +18,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-TELEMETRY_DIR="$PROJECT_DIR/telemetry"
-SERVICE_NAME="tal-telemetry.service"
+MONITOR_DIR="$PROJECT_DIR/monitor"
+SERVICE_NAME="tal-monitor.service"
 SYSTEMD_DIR="/etc/systemd/system"
 
-info() { printf '[telemetry-install] %s\n' "$*"; }
-err()  { printf '[telemetry-install] ERROR: %s\n' "$*" >&2; }
+info() { printf '[monitor-install] %s\n' "$*"; }
+err()  { printf '[monitor-install] ERROR: %s\n' "$*" >&2; }
 
 # --- preflight ---------------------------------------------------------------
 for cmd in python3 systemctl docker; do
@@ -38,21 +38,21 @@ for cmd in python3 systemctl docker; do
     fi
 done
 
-if [ ! -d "$TELEMETRY_DIR/web/dist" ]; then
-    err "web/dist/ not found at $TELEMETRY_DIR/web/dist"
+if [ ! -d "$MONITOR_DIR/web/dist" ]; then
+    err "web/dist/ not found at $MONITOR_DIR/web/dist"
     info "  on the dev host: cd web && npm install && npm run build"
     info "  then commit web/dist/ and re-run this script"
     exit 1
 fi
 
 # --- install unit ------------------------------------------------------------
-if [ ! -f "$TELEMETRY_DIR/systemd/$SERVICE_NAME" ]; then
-    err "systemd unit missing: $TELEMETRY_DIR/systemd/$SERVICE_NAME"
+if [ ! -f "$MONITOR_DIR/systemd/$SERVICE_NAME" ]; then
+    err "systemd unit missing: $MONITOR_DIR/systemd/$SERVICE_NAME"
     exit 1
 fi
 
 info "installing systemd unit: $SYSTEMD_DIR/$SERVICE_NAME"
-sudo install -m 0644 "$TELEMETRY_DIR/systemd/$SERVICE_NAME" "$SYSTEMD_DIR/$SERVICE_NAME"
+sudo install -m 0644 "$MONITOR_DIR/systemd/$SERVICE_NAME" "$SYSTEMD_DIR/$SERVICE_NAME"
 
 # --- reload + enable + (re)start ----------------------------------------------
 info "daemon-reload + enable + restart"
@@ -63,7 +63,7 @@ sudo systemctl restart "$SERVICE_NAME"
 # --- wait for boot ----------------------------------------------------------
 info "waiting for service to become healthy (max 10s)..."
 for i in 1 2 3 4 5 6 7 8 9 10; do
-    if curl -fsS -o /dev/null "http://127.0.0.1:9090/api/v1/telemetry/version" 2>/dev/null; then
+    if curl -fsS -o /dev/null "http://127.0.0.1:9090/api/v1/monitor/version" 2>/dev/null; then
         ok=1; break
     fi
     sleep 1
@@ -72,10 +72,10 @@ done
 # --- summary ----------------------------------------------------------------
 cat <<EOF
 
-[telemetry-install] ✓ installed
+[monitor-install] ✓ installed
 
   dashboard:  http://127.0.0.1:9090
-  api root:   http://127.0.0.1:9090/api/v1/telemetry/snapshot
+  api root:   http://127.0.0.1:9090/api/v1/monitor/snapshot
   service:    sudo systemctl status $SERVICE_NAME
   logs:       sudo journalctl -u $SERVICE_NAME -f
   stop:       sudo systemctl stop $SERVICE_NAME

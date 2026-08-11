@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-telemetry server — read-only CVM monitor + static-file host for the React
+monitor server — read-only CVM monitor + static-file host for the React
 dashboard. Listens on 127.0.0.1:9090 (localhost only — SSH tunnel for
 remote access; do not expose publicly without auth in front).
 
 Routes:
-  GET  /                              -> serves web/dist/index.html (or fallback)
-  GET  /<static>                      -> serves web/dist/<static>
-  GET  /api/v1/telemetry/snapshot      -> full snapshot (version + containers + host)
-  GET  /api/v1/telemetry/version       -> just the version/drift section
-  GET  /api/v1/telemetry/containers   -> just the container list
-  GET  /api/v1/telemetry/host         -> just the host resources
-  GET  /api/v1/telemetry/logs/<svc>   -> last N log lines (default N=100)
+  GET  /                          -> serves web/dist/index.html (or fallback)
+  GET  /<static>                  -> serves web/dist/<static>
+  GET  /api/v1/monitor/snapshot   -> full snapshot (version + containers + host)
+  GET  /api/v1/monitor/version    -> just the version/drift section
+  GET  /api/v1/monitor/containers -> just the container list
+  GET  /api/v1/monitor/host       -> just the host resources
+  GET  /api/v1/monitor/logs/<svc> -> last N log lines (default N=100)
 
 No external deps. Stdlib only. Reads docker via the daemon socket;
 tolerates docker being down (returns 503-shaped JSON).
@@ -37,8 +37,8 @@ from urllib.parse import urlparse, parse_qs
 # Config
 # ---------------------------------------------------------------------------
 
-HOST = os.environ.get("TAL_TELEMETRY_HOST", "127.0.0.1")
-PORT = int(os.environ.get("TAL_TELEMETRY_PORT", "9090"))
+HOST = os.environ.get("TAL_MONITOR_HOST", "127.0.0.1")
+PORT = int(os.environ.get("TAL_MONITOR_PORT", "9090"))
 
 # web/dist/ relative to this file's parent
 STATIC_DIR = Path(__file__).resolve().parent.parent / "web" / "dist"
@@ -58,7 +58,7 @@ SERVICE_PORTS = {
 
 # Host ports probed in dev mode (when IMAGE_TAG is unset). In dev,
 # backend runs as a host uvicorn (no docker) and frontend runs as
-# host next dev -- telemetry needs to discover them via lsof/ss rather
+# host next dev -- monitor needs to discover them via lsof/ss rather
 # than docker ps. These port numbers mirror SERVICE_PORTS above.
 DEV_PROBE_PORTS = {
     "backend": 8000,
@@ -74,7 +74,7 @@ DEV_HOST_SERVICES = {"backend", "frontend"}
 # Errors (always JSON for the API; pages get the standard 500)
 # ---------------------------------------------------------------------------
 
-class TelemetryError(Exception):
+class MonitorError(Exception):
     def __init__(self, message: str, status: int = 500):
         super().__init__(message)
         self.status = status
@@ -124,7 +124,7 @@ def compose_project() -> str | None:
 def _is_dev_mode() -> bool:
     """Dev mode = no IMAGE_TAG env var. In dev, we don't deploy from a
     git tag, so drift check is N/A and backend/frontend run as host
-    processes (uvicorn / next dev) rather than in docker. telemetry
+    processes (uvicorn / next dev) rather than in docker. monitor
     auto-detects this and adapts its checks."""
     return not bool(os.environ.get("IMAGE_TAG"))
 
@@ -588,7 +588,7 @@ MIME = {
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "telemetry/0.1"
+    server_version = "monitor/0.1"
 
     def log_message(self, fmt: str, *args: Any) -> None:
         # Quieter access log; keep it short.
@@ -601,12 +601,12 @@ class Handler(BaseHTTPRequestHandler):
             url = urlparse(self.path)
             path = url.path
             # API
-            if path.startswith("/api/v1/telemetry/"):
-                self._handle_api(path[len("/api/v1/telemetry/"):], parse_qs(url.query))
+            if path.startswith("/api/v1/monitor/"):
+                self._handle_api(path[len("/api/v1/monitor/"):], parse_qs(url.query))
                 return
             # Everything else: static file, or fall back to index.html (SPA)
             self._handle_static(path)
-        except TelemetryError as e:
+        except MonitorError as e:
             self._send_json({"error": str(e)}, status=e.status)
         except Exception as e:  # last-ditch safety net
             sys.stderr.write(f"[ERROR] {type(e).__name__}: {e}\n")
@@ -631,7 +631,7 @@ class Handler(BaseHTTPRequestHandler):
                 "lines": collect_logs(service, tail),
             })
         else:
-            raise TelemetryError(f"unknown endpoint: /{sub}", status=404)
+            raise MonitorError(f"unknown endpoint: /{sub}", status=404)
 
     # --- Static file serving ---------------------------------------------
 
@@ -649,14 +649,14 @@ class Handler(BaseHTTPRequestHandler):
         # Sanitize path
         rel = path.lstrip("/")
         if ".." in rel.split("/"):
-            raise TelemetryError("bad path", status=400)
+            raise MonitorError("bad path", status=400)
         target = (STATIC_DIR / rel).resolve()
 
         # If it's a real file inside STATIC_DIR, serve it
         try:
             target.relative_to(STATIC_DIR)
         except ValueError:
-            raise TelemetryError("bad path", status=400)
+            raise MonitorError("bad path", status=400)
 
         if target.is_file():
             self._send_file(target)
@@ -668,7 +668,7 @@ class Handler(BaseHTTPRequestHandler):
             if idx.is_file():
                 self._send_file(idx)
                 return
-        raise TelemetryError(f"not found: {rel}", status=404)
+        raise MonitorError(f"not found: {rel}", status=404)
 
     # --- senders --------------------------------------------------------
 
@@ -688,7 +688,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             data = path.read_bytes()
         except OSError as e:
-            raise TelemetryError(f"read error: {e}", status=500)
+            raise MonitorError(f"read error: {e}", status=500)
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
@@ -712,13 +712,30 @@ class Handler(BaseHTTPRequestHandler):
 def main() -> int:
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     sys.stderr.write(
-        f"telemetry listening on http://{HOST}:{PORT} (static: {STATIC_DIR})\n"
+        f"monitor listening on http://{HOST}:{PORT} (static: {STATIC_DIR})\n"
     )
+    # Optional: write our PID to a file so the dev.sh wrapper can detect
+    # "I'm still running" on a re-invocation. Only when TAL_PID_FILE is
+    # set — production callers (systemd, install.sh) don't want a stale
+    # PID file in the install dir. Clean up on shutdown so re-runs find
+    # the file missing (= stale) rather than pointing at the wrong PID.
+    pid_file = os.environ.get("TAL_PID_FILE")
+    if pid_file:
+        try:
+            Path(pid_file).write_text(f"{os.getpid()}\n")
+        except OSError as exc:
+            sys.stderr.write(f"[warn] could not write {pid_file}: {exc}\n")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         sys.stderr.write("shutting down\n")
         server.shutdown()
+    finally:
+        if pid_file:
+            try:
+                Path(pid_file).unlink()
+            except OSError:
+                pass
     return 0
 
 

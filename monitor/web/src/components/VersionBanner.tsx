@@ -51,7 +51,7 @@ export function VersionBanner({ version }: { version: Version | null }) {
             <Server className="h-4 w-4 text-muted-foreground" />
             <div>
               <div className="text-xs uppercase tracking-wider text-muted-foreground">host</div>
-              <div className="font-mono text-sm font-medium">telemetry.cvm</div>
+              <div className="font-mono text-sm font-medium">monitor.cvm</div>
             </div>
           </div>
 

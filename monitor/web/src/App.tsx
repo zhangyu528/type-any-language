@@ -51,7 +51,7 @@ export default function App() {
             <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground">
               <span className="rounded bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">tal</span>
               <span>›</span>
-              <span>telemetry</span>
+              <span>monitor</span>
             </div>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight">type-any-language · cvm monitor</h1>
           </div>
@@ -135,7 +135,7 @@ export default function App() {
             <TabsContent value="info">
               <Card>
                 <CardContent className="py-5 font-mono text-xs text-muted-foreground">
-                  <div>endpoint: /api/v1/telemetry/snapshot</div>
+                  <div>endpoint: /api/v1/monitor/snapshot</div>
                   <div>poll: every 5s (in-flight requests skip)</div>
                   <div>data sources: docker inspect · docker ps · /proc/stat · /proc/meminfo · df</div>
                   <div className="mt-3 text-foreground">refresh via header button or wait for next poll</div>
@@ -146,7 +146,7 @@ export default function App() {
         </div>
 
         <footer className="mt-10 text-center text-xs text-muted-foreground">
-          telemetry · runs on 127.0.0.1:9090 · {snapshot.data ? "live" : "offline"}
+          monitor · runs on 127.0.0.1:9090 · {snapshot.data ? "live" : "offline"}
         </footer>
       </div>
     </div>

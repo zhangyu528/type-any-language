@@ -1,7 +1,7 @@
 // Type definitions matching the Python server's JSON responses.
-// Backend is at /api/v1/telemetry/* — see server/server.py.
+// Backend is at /api/v1/monitor/* — see server/server.py.
 
-const BASE = "/api/v1/telemetry"
+const BASE = "/api/v1/monitor"
 
 export type ContainerStatus = "running" | "exited" | "restarting" | "paused" | "dead" | "created" | "unknown"
 

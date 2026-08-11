@@ -1,4 +1,4 @@
-# telemetry
+# monitor
 
 Read-only CVM monitor: deployment version, container health, host
 resources, logs. Single-page React dashboard (dark, shadcn-style)
@@ -22,7 +22,7 @@ backed by a Python stdlib HTTP server (no third-party deps).
 ## Layout
 
 ```
-telemetry/
+monitor/
 ├── web/                  # Vite + React + shadcn/ui frontend
 │   ├── src/
 │   │   ├── App.tsx
@@ -34,7 +34,7 @@ telemetry/
 ├── server/               # Python stdlib HTTP server
 │   └── server.py
 ├── systemd/              # systemd unit file
-│   └── tal-telemetry.service
+│   └── tal-monitor.service
 ├── install.sh            # installer (CVM)
 └── README.md
 ```
@@ -42,7 +42,7 @@ telemetry/
 ## Develop (on a workstation)
 
 ```bash
-cd telemetry/web
+cd monitor/web
 npm install
 npm run dev          # vite dev server on :5173, proxies /api/* to :9090
 ```
@@ -51,7 +51,7 @@ For a full end-to-end test, in another terminal run the Python server
 (it reads docker inspect from the host you're on):
 
 ```bash
-TAL_TELEMETRY_PORT=9090 python3 telemetry/server/server.py
+TAL_MONITOR_PORT=9090 python3 monitor/server/server.py
 ```
 
 …then open `http://localhost:5173`. (The dev container does not need
@@ -61,7 +61,7 @@ workstation, it just shows an empty container list.)
 ## Build for production
 
 ```bash
-cd telemetry/web
+cd monitor/web
 npm run build       # outputs web/dist/
 ```
 
@@ -74,26 +74,26 @@ The CVM needs Python 3 + Docker (already present per the
 `ops/cvm/bootstrap.sh` flow). It does NOT need Node.
 
 ```bash
-# 1. Copy this directory to /opt/type-any-language/telemetry
+# 1. Copy this directory to /opt/type-any-language/monitor
 #    (rsync, scp -r, or whatever release flow you use)
 # 2. Run the installer
-sudo bash /opt/type-any-language/telemetry/install.sh
+sudo bash /opt/type-any-language/monitor/install.sh
 ```
 
 The installer:
 
 1. Verifies `python3` / `docker` / `systemctl` are present
 2. Verifies `web/dist/` was built
-3. Installs `tal-telemetry.service` into `/etc/systemd/system/`
+3. Installs `tal-monitor.service` into `/etc/systemd/system/`
 4. `daemon-reload` + `enable` + `restart`
 5. Waits up to 10 s for the service to respond to the first API call
 
 After install:
 
 - Dashboard: `http://127.0.0.1:9090`
-- Service status: `sudo systemctl status tal-telemetry`
-- Logs: `sudo journalctl -u tal-telemetry -f`
-- Stop: `sudo systemctl stop tal-telemetry`
+- Service status: `sudo systemctl status tal-monitor`
+- Logs: `sudo journalctl -u tal-monitor -f`
+- Stop: `sudo systemctl stop tal-monitor`
 
 ## Network surface
 
@@ -114,11 +114,11 @@ All endpoints return JSON. The Python server is read-only — there are
 no mutating endpoints.
 
 ```
-GET /api/v1/telemetry/snapshot
-GET /api/v1/telemetry/version
-GET /api/v1/telemetry/containers
-GET /api/v1/telemetry/host
-GET /api/v1/telemetry/logs/<service>?tail=100
+GET /api/v1/monitor/snapshot
+GET /api/v1/monitor/version
+GET /api/v1/monitor/containers
+GET /api/v1/monitor/host
+GET /api/v1/monitor/logs/<service>?tail=100
 ```
 
 `<service>` is one of `db`, `backend`, `frontend`, or `all` (combined).
@@ -140,7 +140,7 @@ without telling anyone" failure mode.
 
 ## Dev mode (running on a workstation)
 
-telemetry auto-detects when it is running on a dev workstation vs the CVM:
+monitor auto-detects when it is running on a dev workstation vs the CVM:
 
     IMAGE_TAG env unset  ->  dev mode
     IMAGE_TAG env set    ->  CVM mode
@@ -155,9 +155,9 @@ In dev mode:
 
 To run the dashboard locally:
 
-    cd telemetry/web && npm run dev          # Vite dev :5173
+    cd monitor/web && npm run dev          # Vite dev :5173
     # in another terminal:
-    python3 telemetry/server/server.py       # :9090, reads host docker
+    python3 monitor/server/server.py       # :9090, reads host docker
     # open http://localhost:5173
 
 The Vite dev server proxies /api/* to :9090 (see vite.config.ts), so the React
@@ -174,13 +174,13 @@ stack that still looks great.
 
 ```bash
 # on dev host
-cd telemetry/web
+cd monitor/web
 npm run build
-git add telemetry/web/dist
-git commit -m "telemetry: rebuild"
+git add monitor/web/dist
+git commit -m "monitor: rebuild"
 
 # on CVM
 cd /opt/type-any-language
 git pull
-sudo bash telemetry/install.sh   # reinstalls the unit + restarts
+sudo bash monitor/install.sh   # reinstalls the unit + restarts
 ```

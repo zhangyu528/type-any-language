@@ -1,5 +1,5 @@
 {
-  "name": "tal-telemetry-web",
+  "name": "tal-monitor-web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
