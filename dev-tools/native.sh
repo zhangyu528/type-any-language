@@ -441,6 +441,20 @@ _start_one() {
     fi
     if ! _alive "$pid_file"; then
         err "  $name 启动后立刻退出 — tail $log_file 看错"
+        # Windows kernel-leaked socket detector. uvicorn/next-dev sometimes
+        # fails to bind with WinError 10048 ("address in use") even though
+        # the previous listener is dead and our sweep ran — the kernel
+        # holds the socket in TIME_WAIT or a state invisible to tasklist.
+        # Print the only two known escape hatches so the operator is not
+        # stuck guessing. (Linux doesn't have this failure mode; the
+        # netstat/ss grep above catches its orphans cleanly.)
+        if grep -q "10048\|address in use\|Only one usage" "$log_file" 2>/dev/null; then
+            err "  ↳ WinError 10048: 内核还在占着 :$port (kernel-leaked socket)"
+            err "  ↳ 兜底(任选其一):"
+            err "    1. 重启电脑 (最稳)"
+            err "    2. netsh winsock reset  (会断网 + 需重启)"
+            err "    3. 等 30s-2min 让内核回收 TIME_WAIT 后再试"
+        fi
         return 1
     fi
     ok "  $name PID=$(cat "$pid_file")"
