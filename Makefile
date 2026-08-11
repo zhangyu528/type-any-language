@@ -74,10 +74,6 @@ dev-migrate:
 dev-import-content:
 	@bash dev-tools/import_content.sh
 
-## cms-fetch [auto|rsync|git|from PATH]: pull cms/content/ from CMS host (rsync if $CMS_HOST set) or git pull. Default = auto.
-cms-fetch:
-	@bash scripts/fetch_cms_content.sh $(filter-out $@,$(MAKECMDGOALS))
-
 # ---------------------------------------------------------------------------
 # cms - content production (OpenAI + Tencent TTS)
 # Lives on the CMS host, NOT on target hosts. See cms/README.md.
@@ -85,8 +81,8 @@ cms-fetch:
 
 ## cms-env-init: first-time create cms/.env + smart defaults
 # retired - secrets come from GitHub Environments via
-#   eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"
-# (see scripts/secrets/fetch_secrets.sh and CLAUDE.md "CMS host -
+#   eval "$(cms/secrets/fetch_secrets.sh eval-cms)"
+# (see cms/secrets/fetch_secrets.sh and CLAUDE.md "CMS host -
 # secrets come from GitHub Environments"). Use cms-doctor as the
 # pre-flight to confirm fetch_secrets.sh was eval d.
 
