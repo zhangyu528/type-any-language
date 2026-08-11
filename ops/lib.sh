@@ -327,7 +327,7 @@ resolve_docker_registry() {
 # db_assemble_url here is the *ad-hoc CLI* fallback — it builds a DSN from
 # POSTGRES_USER / DB / HOST / PORT + a password resolved via:
 #   1. POSTGRES_PASSWORD env
-#   2. .secrets/postgres_password (the legacy self-hosted db password file;
+#   2. .dbcreds/postgres_password (the legacy self-hosted db password file;
 #      orphaned after target hosts move to cloud-db — see migration notes
 #      in CLAUDE.md "Migrating an existing host")
 # It's still useful for ad-hoc CLI use against a self-hosted Postgres
@@ -337,7 +337,7 @@ resolve_docker_registry() {
 # Resolution order (matches the per-script inline blocks this replaced):
 #   1. Explicit shell env:    DATABASE_URL already set → use as-is
 #   2. POSTGRES_USER / POSTGRES_DB / POSTGRES_HOST / POSTGRES_PORT defaults
-#   3. POSTGRES_PASSWORD:    shell env > .secrets/postgres_password > fail
+#   3. POSTGRES_PASSWORD:    shell env > .dbcreds/postgres_password > fail
 #   4. url-encode each component (defensive — gen_secret output is
 #      URL-safe, but operator-supplied passwords may not be)
 #
@@ -349,7 +349,7 @@ resolve_docker_registry() {
 # (does NOT exit). Callers decide whether to fail hard or carry on with
 # the unset value (e.g. build.sh exits; doctor subcommands warn).
 
-# db_resolve_password — set POSTGRES_PASSWORD from .secrets/ if not already
+# db_resolve_password — set POSTGRES_PASSWORD from .dbcreds/ if not already
 # in the environment. Echoes the resolved password (empty on failure).
 db_resolve_password() {
     if [ -n "${POSTGRES_PASSWORD:-}" ]; then
@@ -357,8 +357,8 @@ db_resolve_password() {
         return 0
     fi
     local root="${PROJECT_DIR:-$(find_repo_root)}"
-    if [ -f "$root/.secrets/postgres_password" ]; then
-        cat "$root/.secrets/postgres_password"
+    if [ -f "$root/.dbcreds/postgres_password" ]; then
+        cat "$root/.dbcreds/postgres_password"
         return 0
     fi
     return 1
@@ -376,7 +376,7 @@ db_assemble_url() {
     fi
     local password
     if ! password="$(db_resolve_password)"; then
-        err "POSTGRES_PASSWORD missing — export it, or copy .secrets/postgres_password from the dev/prod host"
+        err "POSTGRES_PASSWORD missing — export it, or copy .dbcreds/postgres_password from the dev/prod host"
         return 1
     fi
     POSTGRES_USER="${POSTGRES_USER:-english_user}"

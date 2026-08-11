@@ -13,7 +13,7 @@
 # Key differences from prod/docker-compose.yml:
 #   - Nginx IS in compose (prod uses host system nginx; ephemeral has no host)
 #   - No bind-mounts for data (ephemeral - gone when workflow ends)
-#   - No .secrets/ file - password passed via DB_PASSWORD env var
+#   - No .dbcreds/ file - password passed via DB_PASSWORD env var
 #   - Frontend uses relative NEXT_PUBLIC_API_URL=/api (same-origin, no CORS)
 #   - Only nginx port (8080) is exposed to host (others are internal-only)
 #

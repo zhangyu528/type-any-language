@@ -18,7 +18,7 @@
 #
 # No more:
 #   - TENCENT_DB_HOST / TENCENT_DB_USER / TENCENT_DB_PASSWORD env vars
-#   - .secrets/db_password / tencent_db_prod_* files
+#   - .dbcreds/db_password / tencent_db_prod_* files
 #   - per-branch db name derivation (the mode-2 design was specific to
 #     a shared docker postgres; local docker means one fixed db per host)
 

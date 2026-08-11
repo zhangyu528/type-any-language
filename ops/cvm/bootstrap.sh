@@ -10,7 +10,7 @@
 #
 # Steps:
 #   docker/install.sh        - install Docker Engine + Compose plugin if missing
-#   db-credentials/init.sh   - initialize .secrets/db_password
+#   db-credentials/init.sh   - initialize .dbcreds/db_password
 #   postgres-data/init.sh    - mkdir + chown UID 999 for postgres bind-mount
 #   nginx/install.sh         - install ops/cvm/nginx/site.conf to system nginx
 #                              (hard-fails if port 80 is already bound)

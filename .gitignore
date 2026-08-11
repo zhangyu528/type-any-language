@@ -4,9 +4,11 @@
 .env.*.local
 .env.dev
 
-# Runtime secrets — written by run.sh's write_secrets() (chmod 600).
-# Never commit: each host generates its own on first start.
-.secrets/
+# Runtime DB credentials — local postgres password + DATABASE_URL files
+# (chmod 600). Written by ops/cvm/db-credentials/init.sh on first host
+# bootstrap (or run.sh's write_secrets() in legacy paths). Never commit:
+# each host generates its own on first start.
+.dbcreds/
 
 # Per-call artifact download dir used by cms/secrets/fetch_secrets.sh.
 # Bound to the script's lifetime via `trap rm -rf RETURN`, but the

@@ -20,7 +20,7 @@
 #   Three containerised services, all on a single CVM:
 #     db         — english_db (custom image), data bind-mounted to
 #                  /var/lib/type-any-language/postgres. Password comes
-#                  from .secrets/db_password (compose secrets: block).
+#                  from .dbcreds/db_password (compose secrets: block).
 #                  Its entrypoint applies migrations + imports content
 #                  on every container start.
 #     backend    — FastAPI / uvicorn, no reload. Assembles DATABASE_URL

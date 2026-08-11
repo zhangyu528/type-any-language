@@ -60,11 +60,11 @@ via `docker compose up -d db`. The first-time bootstrap is:
 # dev:
 ./ops/dev/setup.sh                     # 装 venv + node_modules + 起 db
 # prod (RUN 端):
-./ops/cvm/bootstrap.sh                  # 生成 .secrets/db_password + sudo chown /var/lib/.../postgres
+./ops/cvm/bootstrap.sh                  # 生成 .dbcreds/db_password + sudo chown /var/lib/.../postgres
 ./ops/cvm/lifecycle.sh start            # 起 db + import content + start full stack (migrations 由 backend entrypoint 在 boot 时完成)
 ```
 
-The db password is sourced at runtime from `.secrets/db_password` (chmod 600),
+The db password is sourced at runtime from `.dbcreds/db_password` (chmod 600),
 mounted via compose's `secrets:` block into the db container. No external
 cloud db, no ROLE/DB bootstrap dance.
 
@@ -103,8 +103,8 @@ For dev hosts, `ops/dev/migrate.sh` is a thin wrapper that sources `db/scripts/l
 ## Conventions worth knowing
 
 - **DATABASE_URL assembly** has two paths:
-  - **Cloud-db path (canonical)**: `db/scripts/lib.sh::db_assemble_url` / `db_assemble_url`. Reads `DATABASE_URL` (written by bootstrap), falls back to computing from `.secrets/tencent_db_*` files. Used by `bootstrap_tencent.sh` and `ops/dev/migrate.sh`.
-  - **Self-host fallback**: `ops/lib.sh::db_assemble_url` (priority: explicit env > `POSTGRES_PASSWORD` env > `.secrets/postgres_password` > fail). Kept for ad-hoc CLI use where the operator composes `POSTGRES_*` env vars by hand.
+  - **Cloud-db path (canonical)**: `db/scripts/lib.sh::db_assemble_url` / `db_assemble_url`. Reads `DATABASE_URL` (written by bootstrap), falls back to computing from `.dbcreds/tencent_db_*` files. Used by `bootstrap_tencent.sh` and `ops/dev/migrate.sh`.
+  - **Self-host fallback**: `ops/lib.sh::db_assemble_url` (priority: explicit env > `POSTGRES_PASSWORD` env > `.dbcreds/postgres_password` > fail). Kept for ad-hoc CLI use where the operator composes `POSTGRES_*` env vars by hand.
 - **Migrations are hand-written.** No Alembic. Each `versions/NNNN_*.py` exposes `upgrade(conn)` / `downgrade(conn)` and is applied in numeric order.
 - **No db image**, no db container. The runtime db is a managed Postgres service. `db/data/` lives on the cloud provider, not in a Docker volume. There is no `docker-compose` `db` service.
 - **Audio is NOT in the db.** Audio URLs live in the `sentences.audio_url` column and point at Tencent Cloud COS. The browser streams MP3s directly from COS — no `/audio` endpoint, no nginx location, no shared-audio volume.

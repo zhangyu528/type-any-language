@@ -14,7 +14,7 @@ Validation contract:
     do not connect to the database — they only write files to
     cms/content/. The db side (db/scripts/bootstrap_tencent.sh /
     init_schema.sh / migrate.sh / import_staging.sh) resolves DATABASE_URL
-    itself from shell env or .secrets/database_url before invoking
+    itself from shell env or .dbcreds/database_url before invoking
     db-side Python.
   - AI_API_KEY / AI_BASE_URL / AI_MODEL are OPTIONAL at load time.
     Each is `str | None`. Consumer modules that talk to OpenAI should

@@ -11,7 +11,7 @@
 > **当前架构再次演进:本地 docker postgres** — 运行时数据库就是 prod compose
 > 里的 `db` 服务(`postgres:15-alpine`,绑 mount 到 `/var/lib/type-any-language/postgres`),
 > 目标机不再直连云 db,也不再需要 db image / `db-data` 卷 / `bake_image.sh` /
-> TencentDB。db 密码通过 `ops/prod/bootstrap.sh` 生成到 `.secrets/db_password`,
+> TencentDB。db 密码通过 `ops/prod/bootstrap.sh` 生成到 `.dbcreds/db_password`,
 > 由 compose 的 `secrets:` block 注入。
 > 完整当前架构见仓库根 `CLAUDE.md` 和 `db/README.md`。
 > 本文档保留作为**架构演进历史参考**,章节里具体到 bake / 烤 image /
@@ -199,7 +199,7 @@
 | 主要任务 | 烤内容到 db image | 跑容器服务用户 |
 
 
-| 配置文件 | `cms/.env` | 无（shell env + `.secrets/`） |
+| 配置文件 | `cms/.env` | 无（shell env + `.dbcreds/`） |
 
 
 | 入口脚本 | `cms/scripts/*.sh` | `ops/{dev,prod}/*.sh` |
@@ -806,7 +806,7 @@ CSV 文件位于 `cms/seed/vocabulary/*.csv`（已提交到仓库，运维同学
 ./ops/dev/doctor.sh
 
 
-./ops/dev/lifecycle.sh start        # 首次会自动生成 .secrets/postgres_password
+./ops/dev/lifecycle.sh start        # 首次会自动生成 .dbcreds/postgres_password
 
 
 ```
@@ -854,13 +854,13 @@ ALLOWED_ORIGINS=https://my.domain ./ops/prod/lifecycle.sh start
 - `cms/.env` 全部 gitignore，仅 `.env.example.cms` 入库。
 
 
-- 目标机**不需要 .env 文件**：`POSTGRES_PASSWORD` 由 `run.sh` 首次启动时现场生成（24 字符 URL-safe），写到 `.secrets/postgres_password`（chmod 600），由 compose 的 `secrets:` block + `*_FILE` 环境变量注入容器。**不会出现在 image 层或环境变量列表里**。
+- 目标机**不需要 .env 文件**：`POSTGRES_PASSWORD` 由 `run.sh` 首次启动时现场生成（24 字符 URL-safe），写到 `.dbcreds/postgres_password`（chmod 600），由 compose 的 `secrets:` block + `*_FILE` 环境变量注入容器。**不会出现在 image 层或环境变量列表里**。
 
 
 - `ALLOWED_ORIGINS` 通过 shell 环境变量传入；不传时走 compose 内置的兜底值。
 
 
-- `.secrets/` 加入 `.gitignore`,永远不 commit。
+- `.dbcreds/` 加入 `.gitignore`,永远不 commit。
 
 
 - db image 通过 OCI label 携带 `db.user` / `db.name` / `content.version` / `content.baked-at`，目标机启动时由 `run.sh` 用 `docker inspect` 读出。

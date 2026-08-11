@@ -25,7 +25,7 @@ run-name: bootstrap-prod-on-${{ inputs.host || 'auto' }}
 #          deployed version comes from the git tag (forwarded as IMAGE_TAG
 #          by deploy-prod), so no VERSION files are cloned.
 #   3. SSH into the CVM as `ubuntu` again and run bash ops/cvm/bootstrap.sh
-#      via `sudo -u deploy` (preflight + .secrets/db_password + data dir).
+#      via `sudo -u deploy` (preflight + .dbcreds/db_password + data dir).
 #      deploy-prod reuses the SAME bootstrap key + `sudo -u deploy`, so
 #      NO separate deploy SSH key and NO GH_PAT are needed.
 #
@@ -198,7 +198,7 @@ jobs:
             #   docker-compose.yml (prod stack definition — at the repo root,
             #                      NOT under ops/cvm/, since its build contexts
             #                      are repo-root-relative: ./backend, ./frontend,
-            #                      ./.secrets/db_password, ./db/Dockerfile)
+            #                      ./.dbcreds/db_password, ./db/Dockerfile)
             #   ops/cvm/*       (lifecycle/doctor/bootstrap runtime scripts +
             #                      cvm/nginx/ — host nginx module)
             #   ops/lib.sh       (sourced by the cvm scripts)

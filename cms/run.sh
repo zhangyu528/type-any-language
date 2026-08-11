@@ -24,7 +24,7 @@
 # files. DATABASE_URL is therefore NOT needed by this script (or any
 # pipeline.* Python module). The db side (db/scripts/bootstrap_tencent.sh
 # / import_staging.sh / migrate.sh) resolves DATABASE_URL itself from shell
-# env or .secrets/database_url.
+# env or .dbcreds/database_url.
 #
 # 历史:旧 staging.sh vocab / sentences / audio 入口被拆分到
 # cms/scripts/cmd_*.sh。run.sh 现在直接 exec 这三个 cmd_*.sh(不走
