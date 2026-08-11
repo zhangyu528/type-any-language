@@ -2,7 +2,7 @@
 cms/pipeline/env.py — typed Config loader for the data pipeline.
 
 Reads every value from `os.environ` (populated by
-`scripts/secrets/fetch_secrets.sh eval-cms` on a workstation) and
+`cms/secrets/fetch_secrets.sh eval-cms` on a workstation) and
 exposes a typed `Config` object to the other pipeline modules.
 Centralising the env-reading logic here means individual scripts
 (import_vocab, generate_sentences, ...) can just do
@@ -108,7 +108,7 @@ class Config:
             sys.exit(
                 f"{', '.join(missing)} missing — required for "
                 f"`staging.sh sentences`. Run "
-                f"`eval \"$(scripts/secrets/fetch_secrets.sh eval-cms)\"` "
+                f"`eval \"$(cms/secrets/fetch_secrets.sh eval-cms)\"` "
                 f"or export the values in the current shell."
             )
 
@@ -130,7 +130,7 @@ class Config:
             sys.exit(
                 f"{', '.join(missing)} missing — required for "
                 f"`staging.sh audio`. Run "
-                f"`eval \"$(scripts/secrets/fetch_secrets.sh eval-cms)\"` "
+                f"`eval \"$(cms/secrets/fetch_secrets.sh eval-cms)\"` "
                 f"or export the values in the current shell."
             )
 
@@ -150,7 +150,7 @@ class Config:
             sys.exit(
                 f"{', '.join(missing)} missing — required for "
                 f"CLOUD_PROVIDER={self.cloud_provider!r}. "
-                f"Run `eval \"$(scripts/secrets/fetch_secrets.sh eval-cms)\"` "
+                f"Run `eval \"$(cms/secrets/fetch_secrets.sh eval-cms)\"` "
                 f"or set the CLOUD_* values in the current shell."
             )
 

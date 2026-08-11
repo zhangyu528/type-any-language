@@ -92,7 +92,7 @@ usage() {
   Step 4: 打印 eval 行,操作员粘贴进 shell 注 secrets
 
 成功完成后,跑:
-    eval "\$(./scripts/secrets/fetch_secrets.sh eval-cms)"
+    eval "\$(./cms/secrets/fetch_secrets.sh eval-cms)"
     ./cms/run.sh
 
 (run.sh 不再自己 check secrets — 假设 bootstrap 已经做完了。)
@@ -132,7 +132,7 @@ echo ""
 # ---------------------------------------------------------------------------
 if [ "$SKIP_FETCH" = "0" ]; then
     info "Step 1/4: fetch_secrets.sh check (gh / auth / repo)"
-    if ! ./scripts/secrets/fetch_secrets.sh check; then
+    if ! ./cms/secrets/fetch_secrets.sh check; then
         err "fetch_secrets.sh check 失败 — 上面已经打了原因"
         err "  → gh 没装:https://cli.github.com"
         err "  → 没登录:gh auth login (需要 actions:read scope)"
@@ -215,7 +215,7 @@ echo ""
 if [ "$SKIP_FETCH" = "0" ]; then
     ok "所有检查通过 — 现在可以:"
     info "  1. 在当前 shell 注入 AI_*/TENCENT_*/CLOUD_* 到 process env:"
-    info "       eval \"\$(./scripts/secrets/fetch_secrets.sh eval-cms)\""
+    info "       eval \"\$(./cms/secrets/fetch_secrets.sh eval-cms)\""
     info "  2. 跑 CMS driver:"
     info "       ./cms/run.sh"
     info ""

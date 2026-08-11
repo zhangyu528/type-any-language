@@ -8,7 +8,7 @@
 # files in cms/content/ and want them applied to your local dev db.
 #
 # The CMS host typically does this:
-#   eval "$(./scripts/secrets/fetch_secrets.sh eval-cms)"   # AI/TENCENT/CLOUD
+#   eval "$(./cms/secrets/fetch_secrets.sh eval-cms)"   # AI/TENCENT/CLOUD
 #   ./cms/run.sh                                          # produce content
 #   ./db/scripts/import_staging.sh all                     # UPSERT to db
 #

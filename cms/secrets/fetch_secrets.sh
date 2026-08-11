@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# scripts/secrets/fetch_secrets.sh — central GitHub Secrets fetcher.
+# cms/secrets/fetch_secrets.sh — central GitHub Secrets fetcher.
 #
 # Purpose: replace local cms/.env + .secrets/ with a single source of
 # truth (GitHub Actions Secrets). Operators call
 #
-#     eval "$(./scripts/secrets/fetch_secrets.sh eval-cms)"
-#     eval "$(./scripts/secrets/fetch_secrets.sh eval-db)"
-#     eval "$(./scripts/secrets/fetch_secrets.sh eval-all)"
+#     eval "$(./cms/secrets/fetch_secrets.sh eval-cms)"
+#     eval "$(./cms/secrets/fetch_secrets.sh eval-db)"
+#     eval "$(./cms/secrets/fetch_secrets.sh eval-all)"
 #
 # and the script dispatches .github/workflows/sync-secrets.yml,
 # downloads the resulting artifact, sources it into a sub-shell env, and prints
@@ -298,7 +298,7 @@ Shorthand:
 
 Typical workflow (CMS host, dev):
   cd ~/<repo>
-  eval "\$(scripts/secrets/fetch_secrets.sh eval-cms)"
+  eval "\$(cms/secrets/fetch_secrets.sh eval-cms)"
   ./cms/scripts/staging.sh sentences
   ./cms/scripts/staging.sh audio
 
@@ -310,7 +310,7 @@ Typical workflow (dev host):
 
 Typical workflow (CMS host, prod tier):
   cd ~/<repo>
-  eval "\$(scripts/secrets/fetch_secrets.sh eval-cms)"
+  eval "\$(cms/secrets/fetch_secrets.sh eval-cms)"
   ./cms/scripts/staging.sh sentences
   ./cms/scripts/staging.sh audio
 

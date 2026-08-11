@@ -8,7 +8,7 @@
 # Never commit: each host generates its own on first start.
 .secrets/
 
-# Per-call artifact download dir used by scripts/secrets/fetch_secrets.sh.
+# Per-call artifact download dir used by cms/secrets/fetch_secrets.sh.
 # Bound to the script's lifetime via `trap rm -rf RETURN`, but the
 # ignore entry is belt-and-suspenders against a crash mid-fetch.
 /.fetch-*

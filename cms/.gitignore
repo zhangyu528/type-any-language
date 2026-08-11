@@ -5,7 +5,7 @@
 # .gitignore so they apply uniformly.
 
 # CMS-host secrets now live in GitHub Environments. Operators fetch them
-# into the process env via `eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"`
+# into the process env via `eval "$(cms/secrets/fetch_secrets.sh eval-cms)"`
 # before running cms/run.sh or cms/scripts/staging.sh. There is no longer
 # a local cms/.env file to gitignore.
 #

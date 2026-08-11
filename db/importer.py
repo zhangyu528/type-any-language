@@ -359,7 +359,7 @@ def main() -> int:
 
     # Resolve DATABASE_URL straight from the process env. Caller is
     # expected to have either:
-    #   - run `eval "$(scripts/secrets/fetch_secrets.sh eval-db)"` (CMS host), or
+    #   - run `eval "$(cms/secrets/fetch_secrets.sh eval-db)"` (CMS host), or
     #   - run inside a backend container started by docker compose (DATABASE_URL
     #     auto-injected via the environment: block), or
     #   - exported DATABASE_URL in the shell (self-managed db / CI).

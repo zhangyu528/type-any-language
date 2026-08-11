@@ -318,7 +318,7 @@ def fill_one_bucket(staging: Path, lib_id: str, lib_name: str, lib_level: str,
 def _read_ai_cfg() -> dict:
     """Read AI configuration from the process environment.
 
-    Values are populated by ``scripts/secrets/fetch_secrets.sh eval-cms``
+    Values are populated by ``cms/secrets/fetch_secrets.sh eval-cms``
     (GitHub Environments secrets). There is no longer a local cms/.env
     fallback — process env is the only source.
     """
