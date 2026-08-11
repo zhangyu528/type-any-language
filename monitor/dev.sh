@@ -3,7 +3,7 @@
 # monitor/dev.sh -- one-command dev mode.
 #
 # Starts the Python server (:9090) and Vite dev server (:5173) together.
-# Both are killed on Ctrl+C. Logs go to monitor/.dev-logs/{server,vite}.log
+# Both are killed on Ctrl+C. Logs go to .local/monitor/logs/{server,vite}.log
 # AND are tailed to stdout with [server] / [vite] prefixes so you see
 # both streams in one terminal.
 #
@@ -23,9 +23,15 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# PROJECT_DIR: prefer caller-supplied shell env, else derive from SCRIPT_DIR.
+# Note: `cd "$SCRIPT_DIR/.."` would also work, but we use the same explicit
+# two-step form as dev-tools/native.sh for consistency / MSYS safety.
+if [ -z "${PROJECT_DIR:-}" ]; then
+    PROJECT_DIR="$(cd "$SCRIPT_DIR" && cd .. && pwd)"
+fi
 WEB_DIR="$SCRIPT_DIR/web"
-LOG_DIR="$SCRIPT_DIR/.dev-logs"
-PID_DIR="$SCRIPT_DIR/.dev-pids"
+LOG_DIR="$PROJECT_DIR/.local/monitor/logs"
+PID_DIR="$PROJECT_DIR/.local/monitor/pids"
 SERVER_PID_FILE="$PID_DIR/server.pid"
 
 # Shared helpers: TTY colors, port probes, vite-port parser. See the
