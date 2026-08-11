@@ -195,8 +195,8 @@ The backend reads it opaquely; nothing in the image depends on the DSN host.
 > (init/update/show/doctor). Both the file and the bootstrap script have
 > since been retired. All CMS secrets now live in GitHub Environments
 > (`dev` / `test` / `prod`) and are fetched into the process environment
-> on demand by `scripts/secrets/fetch_secrets.sh eval-cms` (cms segment)
-> or `scripts/secrets/fetch_secrets.sh eval-db` (db segment). Operators
+> on demand by `cms/secrets/fetch_secrets.sh eval-cms` (cms segment)
+> or `cms/secrets/fetch_secrets.sh eval-db` (db segment). Operators
 > only need a `gh auth login`-authenticated workstation and access to the
 > upstream repo's secrets — there is no longer a local cms/.env file to
 > bootstrap. The CMS pipeline modules (`cms/pipeline/*.py`) read
@@ -210,7 +210,7 @@ The backend reads it opaquely; nothing in the image depends on the DSN host.
 
 # 1. 注入 CMS 密钥到当前 shell 的 process env (每次新 shell,或写到 ~/.bashrc)
 #    这一行 bootstrap.sh 会原样打印出来 — 复制粘贴即可
-eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"
+eval "$(cms/secrets/fetch_secrets.sh eval-cms)"
 
 # 2. 跑内容管线 (writes staging files; db import is a separate step)
 #    run.sh 默认入口会跑 vocab + sentences + audio 三步;缺 AI_*/TENCENT_*
@@ -222,7 +222,7 @@ eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"
 #    Requires DATABASE_URL in env (docker postgres path: bootstrap_tencent.sh writes
 #    DATABASE_URL, then db/scripts/lib.sh::resolve_*_db_url exports it).
 #    Self-hosted postgres users set DATABASE_URL via shell env or
-#    `eval "$(scripts/secrets/fetch_secrets.sh eval-db)"`.
+#    `eval "$(cms/secrets/fetch_secrets.sh eval-db)"`.
 ./db/scripts/init_schema.sh         # (first time) build vocabulary_* / sentences / schema_migrations
 ./db/scripts/migrate.sh             # run pending schema migrations
 ./db/scripts/import_staging.sh      # reads staging files, UPSERTs to docker postgres (separate step)
@@ -353,7 +353,7 @@ DOCKER_REGISTRY=ghcr.io/zhangyu528/type-any-language
 # Other valid forms: docker.io/zhangyu528, ghcr.io/myorg, registry.gitlab.com/mygroup
 ```
 
-> Why committed and not `.env`? Like the per-segment VERSION files, this is shared project config that the whole team should agree on — putting it in a gitignored `.env` means every operator has to set it themselves, and the same value gets typed in N places. Personal secrets (postgres password, AI keys, TTS keys) live in GitHub Environments and are fetched per-session via `scripts/secrets/fetch_secrets.sh`; shared config lives at the repo root.
+> Why committed and not `.env`? Like the per-segment VERSION files, this is shared project config that the whole team should agree on — putting it in a gitignored `.env` means every operator has to set it themselves, and the same value gets typed in N places. Personal secrets (postgres password, AI keys, TTS keys) live in GitHub Environments and are fetched per-session via `cms/secrets/fetch_secrets.sh`; shared config lives at the repo root.
 
 ### Recommended: Tencent Cloud TCR for cloud-deployed prod
 
@@ -550,7 +550,7 @@ Answer validation is **client-side**: the frontend normalizes (lowercase, strip 
 - `sentences.audio_url` is the full COS URL, written by the CMS audio step into the staging JSONL and then UPSERTed into the docker postgres via `importer`.
 - The frontend reads `sentences[i].audio_url` and the browser streams audio from COS directly — no proxy through backend, no nginx `/audio` location, no `shared-audio` docker volume.
 - This keeps the runtime db small (schema + sentences table only, no binary blobs) and lets audio be updated without a db migration.
-- Provider is selected via `CLOUD_PROVIDER` in the process env (typically supplied by `eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"`). Default `local_fs` writes to `cms/.local/audio/` (single-host CMS, no cloud account needed). `tencent_cos` uploads to a COS bucket (multi-host CMS or production). See `cms/pipeline/storage.py` for the abstraction.
+- Provider is selected via `CLOUD_PROVIDER` in the process env (typically supplied by `eval "$(cms/secrets/fetch_secrets.sh eval-cms)"`). Default `local_fs` writes to `cms/.local/audio/` (single-host CMS, no cloud account needed). `tencent_cos` uploads to a COS bucket (multi-host CMS or production). See `cms/pipeline/storage.py` for the abstraction.
 
 ## Schema migrations
 
@@ -656,7 +656,7 @@ CMS secrets (`AI_*`, `TENCENT_*`, `CLOUD_*`) live in GitHub Environments
 inject them into a workstation shell is:
 
 ```bash
-eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"
+eval "$(cms/secrets/fetch_secrets.sh eval-cms)"
 ```
 
 (`eval-db` for the db segment; `eval-all` for both.) The fetched values

@@ -202,7 +202,7 @@ make prod-push
 ## CMS 主机(生产内容)
 
 ```bash
-eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"   # 灌 AI_*/TENCENT_*/CLOUD_* 进进程环境
+eval "$(cms/secrets/fetch_secrets.sh eval-cms)"   # 灌 AI_*/TENCENT_*/CLOUD_* 进进程环境
 make cms-doctor                # 前置检查 (process env + Python deps)
 make cms-vocab                 # csv → 词库表
 make cms-sentences             # OpenAI 批量填句子

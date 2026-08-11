@@ -41,7 +41,7 @@ The full content pipeline, with the docker postgres write path:
 
 ```bash
 # (CMS host) — secretless bootstrap
-eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"   # AI_*/TENCENT_*/CLOUD_*
+eval "$(cms/secrets/fetch_secrets.sh eval-cms)"   # AI_*/TENCENT_*/CLOUD_*
 
 # CMS pipeline: produce staging files (CSV → JSON → OpenAI JSONL → TTS audio URLs).
 # None of this touches the db.
