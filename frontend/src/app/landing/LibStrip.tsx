@@ -11,10 +11,11 @@
  *   - 点击左侧任意卡 → 直接进 /practice?lib=<id>(0 步额外点击)
  *   - 右侧面板自带"读这一句"按钮,二次入口
  *
- * 与 ScenariosSection (section 2) 的 cursor-follow border glow 语言保持一致
- * (共享 MagicBento 的 ::after radial-gradient mask 模式)。不使用 MagicBento 组件
- * 因为 2x2 grid 的全局 spotlight 收益小,且 MagicBento 不暴露 onMouseEnter 回调
- * 给上层做"hover 切换右侧面板"的 state 联动。
+ * 之前的实现:每张卡 = `<motion.button>`(原生 button),鼠标 hover 联动右侧。
+ * 现在所有控件都用 react-bits:4 张卡 = `<SpecularButton size="lg">`,右面板 CTA
+ * 也是 `<SpecularButton size="md">`。原来用 CSS custom property `--glow-x/--glow-y`
+ * 做光标跟随描边辉光 — 这部分保留在 CSS 里(`libCardHover` className + module.css),
+ * react-bits 不替代 CSS-only 的纯视觉装饰。
  *
  * 硬编码示例句(SAMPLES)按 lib.level 取一个,未来后端 catalog 接口扩展
  * `sample_sentence` / `sample_translation` 字段后可改为 lib.sample_sentence。
@@ -22,6 +23,7 @@
 
 import { useState } from 'react';
 import { motion } from 'motion/react';
+import { SpecularButton } from '@/components/effects';
 import { riseIn, staggerParent } from '../ds/motion';
 import { VocabularyLib } from '../api';
 import styles from './LibStrip.module.css';
@@ -61,6 +63,19 @@ const LEVEL_LABEL: Record<string, string> = {
 
 const GENERIC_DESC = '从这里开始跟打 — 读完一句,写出来就是你的。';
 
+// SpecularButton 视觉配色:每个 level 一种 tint/base 组合,跟 lib 词库品牌色一致。
+// 之前是 CSS module 写死,现在提到组件里集中维护。
+const LIB_BUTTON_PALETTE: Record<
+  string,
+  { tint: string; base: string; line: string; text: string }
+> = {
+  beginner: { tint: '#8FCBF0', base: '#5BA8D8', line: '#FFFFFF', text: '#0C2C53' },
+  cet4:     { tint: '#BA7517', base: '#854F0B', line: '#FFFFFF', text: '#FFFFFF' },
+  cet6:     { tint: '#7B5BD0', base: '#4A2E8E', line: '#FFFFFF', text: '#FFFFFF' },
+  ielts:    { tint: '#1F5A99', base: '#0C2C53', line: '#FFFFFF', text: '#FFFFFF' },
+};
+const DEFAULT_PALETTE = LIB_BUTTON_PALETTE.beginner;
+
 export default function LibStrip({ libs, onPickLib }: LibStripProps) {
   // 当前查看的 lib 索引(默认 0 = 第一个 lib)。hover / 点击左侧卡会更新。
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -74,9 +89,10 @@ export default function LibStrip({ libs, onPickLib }: LibStripProps) {
     zh: '阅读使人完整。',
   };
 
-  // 跟随光标的 MagicBento 风格边框辉光 — 写一个 inline handler 写在每个 button 上。
-  const onCardMouseMove = (e: React.MouseEvent<HTMLButtonElement>) => {
-    const r = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+  // 跟随光标的 MagicBento 风格边框辉光 — 写到每个 SpecularButton 的 wrapper 上
+  // (SpecularButton 内部有自己的 hover 行为;CSS 自定义属性驱动的是外层装饰描边)。
+  const onCardMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const r = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const x = ((e.clientX - r.left) / r.width) * 100;
     const y = ((e.clientY - r.top) / r.height) * 100;
     e.currentTarget.style.setProperty('--glow-x', x.toFixed(1) + '%');
@@ -118,18 +134,10 @@ export default function LibStrip({ libs, onPickLib }: LibStripProps) {
             {libs.map((lib, idx) => {
               const isActive = idx === currentIdx;
               const isHover = idx === hoveredIdx;
+              const palette = LIB_BUTTON_PALETTE[lib.level] ?? DEFAULT_PALETTE;
               return (
-                <motion.button
+                <motion.div
                   key={lib.id}
-                  type="button"
-                  className={`${styles.libCard} ${isActive ? styles.libCardActive : ''} ${isHover ? styles.libCardHover : ''}`}
-                  onClick={() => onPickLib(lib.id)}
-                  onMouseEnter={() => {
-                    setHoveredIdx(idx);
-                    setCurrentIdx(idx);
-                  }}
-                  onMouseLeave={() => setHoveredIdx(null)}
-                  onMouseMove={onCardMouseMove}
                   initial={{ opacity: 0, y: 12 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: '0px 0px -80px 0px' }}
@@ -138,15 +146,36 @@ export default function LibStrip({ libs, onPickLib }: LibStripProps) {
                     ease: [0.16, 1, 0.3, 1],
                     delay: 0.05 * idx,
                   }}
-                  aria-label={`开始 ${lib.name}`}
+                  onMouseEnter={() => {
+                    setHoveredIdx(idx);
+                    setCurrentIdx(idx);
+                  }}
+                  onMouseLeave={() => setHoveredIdx(null)}
+                  onMouseMove={onCardMouseMove}
+                  className={`${styles.libCardWrap} ${isActive ? styles.libCardActive : ''} ${isHover ? styles.libCardHover : ''}`}
                 >
-                  <span className={styles.libLevel}>{lib.level}</span>
-                  <span className={styles.libName}>{lib.name}</span>
-                  <span className={styles.libCount}>
-                    {lib.word_count.toLocaleString()} 词 · {lib.sentence_count} 句
-                  </span>
-                  <span className={styles.libCta}>点击开始 →</span>
-                </motion.button>
+                  <SpecularButton
+                    size="lg"
+                    onClick={() => onPickLib(lib.id)}
+                    tint={palette.tint}
+                    tintOpacity={1}
+                    baseColor={palette.base}
+                    lineColor={palette.line}
+                    textColor={palette.text}
+                    blur={6}
+                    followMouse
+                    proximity={300}
+                    className={styles.libCardBtn}
+                    aria-label={`开始 ${lib.name}`}
+                  >
+                    <span className={styles.libLevel}>{lib.level}</span>
+                    <span className={styles.libName}>{lib.name}</span>
+                    <span className={styles.libCount}>
+                      {lib.word_count.toLocaleString()} 词 · {lib.sentence_count} 句
+                    </span>
+                    <span className={styles.libCta}>点击开始 →</span>
+                  </SpecularButton>
+                </motion.div>
               );
             })}
           </div>
@@ -187,13 +216,22 @@ export default function LibStrip({ libs, onPickLib }: LibStripProps) {
             </div>
 
             <div className={styles.panelCtaRow}>
-              <button
-                type="button"
-                className={styles.panelCta}
+              <SpecularButton
+                size="md"
                 onClick={() => onPickLib(current.id)}
+                tint="#8FCBF0"
+                tintOpacity={1}
+                baseColor="#5BA8D8"
+                lineColor="#FFFFFF"
+                textColor="#0C2C53"
+                blur={8}
+                intensity={1.2}
+                followMouse
+                proximity={400}
+                className={styles.panelCta}
               >
                 读这一句 →
-              </button>
+              </SpecularButton>
               <span className={styles.panelHint}>
                 {hoveredIdx === null
                   ? 'hover 或点击\n左侧切换'

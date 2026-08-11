@@ -27,7 +27,6 @@ import { useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '../lib/auth';
-import BrandMark from '../landing/BrandMark';
 import ThemeToggle from './ThemeToggle';
 
 /**
@@ -94,9 +93,6 @@ export default function AppHeader() {
       role="banner"
     >
       <span className="app-header__brand">
-        <span className="app-header__brand-mark" aria-hidden="true">
-          <BrandMark size={20} />
-        </span>
         <span className="app-header__brand-name">Type Any Language</span>
       </span>
 

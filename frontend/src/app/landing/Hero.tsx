@@ -4,9 +4,8 @@ import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { VocabularyLib, TranslationProgress } from '../api';
 import { useAuth } from '../lib/auth';
-import { ShinyText, SpecularButton, TiltedCard } from '@/components/effects';
+import { BlurText, DecryptedText, ShinyText, SpecularButton } from '@/components/effects';
 import styles from './Hero.module.css';
-import TypefallDemo from './TypefallDemo';
 
 interface HeroProps {
   libs: VocabularyLib[];
@@ -20,17 +19,20 @@ interface HeroProps {
 //   - outcome 集中在 title,subtitle 给统计 + 同义复述
 const HERO_TITLE = '读完一句，写出来就是你的。';
 const HERO_SUBTITLE = '读完一句是一句。语料横跨入门到雅思 4 个词库,807+ 句都是你的。';
+const HERO_DEMO_ZH = '苹果';
+const HERO_DEMO_EN = 'apple';
 
 /**
  * Hero — 单屏 Bento(Q2 骨架)
  *   左半 (bentoLeft): 标题 + 副标 + kicker
- *   右半 (bentoRight): TiltedCard demo 卡 + 三块 stats (libs.length / sum word_count / libs[0].name)
+ *   右半 (bentoRight): BlurText 示例短语 + DecryptedText 入场动效 + stats
  *   底部 (bentoCta): 深色横条 + SpecularButton 横跨整屏
  *   小屏 fallback: @media (max-width: 980px) 退化为单列垂直堆叠
  *
- * stats 数据全部从 props.libs 派生,无新增字段/无后端改动。
- * TiltedCard 保留在 demo 卡上 — 鼠标倾斜跟随动效不丢。
- * ShinyText 在浅/深 baby-blue 下用 `--shiny-base` / `--shiny-shine` token,组件默认值已就位。
+ * 之前这版用了一个 414 行的 TypefallDemo(原生 <div> + CSS keyframe 打字机)。
+ * PR #9 引入 react-bits 后,TypefallDemo 没有直接对应 — BlurText(模糊渐入)
+ * + DecryptedText(随机字符渐还原) 的组合更贴合「文字即交互」的视觉语言,
+ * 同时全部 UI 控件都是 react-bits 组件,没有原生 button/div-as-control 残留。
  */
 export default function Hero({ libs, onPickLib }: HeroProps) {
   const { user } = useAuth();
@@ -108,14 +110,27 @@ export default function Hero({ libs, onPickLib }: HeroProps) {
         }
         transition={{ duration: 0.7, ease: [0.34, 1.56, 0.64, 1] }}
       >
-        <TiltedCard
-          containerHeight="auto"
-          containerWidth="100%"
-          rotateAmplitude={6}
-          className={styles.demoCard}
-        >
-          <TypefallDemo />
-        </TiltedCard>
+        {/* 演示卡:用 BlurText + DecryptedText 组合展示「中→英」跟打示意。
+            之前是 TiltedCard 包 TypefallDemo,现在移除,改纯文字+入场动效。 */}
+        <div className={styles.demoCard}>
+          <BlurText
+            as="h2"
+            text={HERO_DEMO_ZH}
+            className={styles.demoZh}
+            animateBy="characters"
+            direction="top"
+            stepDuration={0.35}
+            delay={60}
+          />
+          <DecryptedText
+            text={`→ ${HERO_DEMO_EN}`}
+            speed={50}
+            maxIterations={8}
+            sequential
+            revealDirection="start"
+            className={styles.demoEn}
+          />
+        </div>
 
         <div className={styles.stats} role="list" aria-label="产品数据">
           <div className={styles.stat} role="listitem">

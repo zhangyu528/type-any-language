@@ -114,6 +114,27 @@
   border-radius: var(--radius-xl);
   box-shadow: var(--elev-1);
   perspective: 1000px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 140px;
+}
+
+.demoZh {
+  font-family: var(--font-display), var(--font-sans), serif;
+  font-size: clamp(2.4rem, 5vw, 3.4rem);
+  font-weight: 700;
+  color: var(--ds-ink);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.demoEn {
+  font-family: var(--font-mono), monospace;
+  font-size: 1.1rem;
+  color: var(--ds-action-deep);
+  letter-spacing: 0.02em;
 }
 
 /* Light 主题下 demo 卡需要更明确的边+阴影,与 --ds-bg 拉开层次 */

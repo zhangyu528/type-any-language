@@ -114,43 +114,33 @@
   align-content: start;
 }
 
-.libCard {
+.libCardWrap {
   --glow-x: 50%;
   --glow-y: 50%;
 
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-5);
-  min-height: 156px;
-  background: var(--ds-surface);
-  border: 1px solid color-mix(in srgb, var(--ds-action) 22%, transparent);
   border-radius: var(--radius-md);
-  text-align: left;
-  cursor: pointer;
-  font: inherit;
-  color: inherit;
   overflow: hidden;
   transition:
-    transform var(--dur-fast) var(--ease-out),
-    border-color var(--dur-fast) var(--ease-out),
-    box-shadow var(--dur-fast) var(--ease-out);
+    transform var(--dur-fast) var(--ease-out);
 }
 
-.libCard:hover {
+.libCardWrap:hover {
   transform: translateY(-2px);
 }
 
-.libCard:focus-visible {
-  outline: 2px solid var(--ds-action-deep);
-  outline-offset: 2px;
+/* SpecularButton 内部按钮撑满 wrapper */
+.libCardWrap :global(.libCardBtn) {
+  width: 100%;
+  flex: 1;
 }
 
 /* MagicBento 同款 cursor-follow 边框辉光 — mask 技巧:
    ::after 绝对定位 + padding=6px,content-box mask 让外圈 6px 边留下
    radial-gradient 跟随 --glow-x/--glow-y 变化 */
-.libCard::after {
+.libCardWrap::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -182,7 +172,8 @@
 
 /* Active = 当前查看(右侧面板显示的): 更明显的边色 + 持续 glow */
 .libCardActive {
-  border-color: color-mix(in srgb, var(--ds-action-deep) 70%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--ds-action-deep) 70%, transparent);
+  outline-offset: 2px;
   box-shadow:
     0 0 0 2px color-mix(in srgb, var(--ds-action) 18%, transparent),
     0 4px 16px color-mix(in srgb, var(--ds-action) 14%, transparent);
@@ -190,16 +181,6 @@
 
 .libCardActive::after {
   opacity: 0.6; /* 持续微亮,不依赖 hover */
-}
-
-[data-theme='dark'] .libCard {
-  background: color-mix(in srgb, #0A1428 88%, transparent);
-  color: #FFFFFF;
-}
-
-[data-theme='dark'] .libCardActive {
-  background: color-mix(in srgb, #0A1428 92%, transparent);
-  border-color: color-mix(in srgb, var(--ds-action) 60%, transparent);
 }
 
 /* ---------- left card 内容 ---------- */
@@ -243,7 +224,7 @@
   transition: opacity var(--dur-fast) var(--ease-out);
 }
 
-.libCard:hover .libCta {
+.libCardWrap:hover .libCta {
   opacity: 1;
 }
 
@@ -429,38 +410,6 @@
 
 .panelCta {
   flex: 1;
-  padding: 12px 16px;
-  background: color-mix(in srgb, var(--ds-action) 22%, var(--ds-surface));
-  color: var(--ds-action-deep);
-  border: 1px solid color-mix(in srgb, var(--ds-action) 55%, transparent);
-  border-radius: var(--radius-md);
-  font: inherit;
-  font-weight: 600;
-  font-size: 14px;
-  cursor: pointer;
-  transition:
-    background-color var(--dur-fast) var(--ease-out),
-    transform var(--dur-fast) var(--ease-out);
-}
-
-.panelCta:hover {
-  background: color-mix(in srgb, var(--ds-action) 40%, var(--ds-surface));
-  transform: translateX(2px);
-}
-
-.panelCta:focus-visible {
-  outline: 2px solid var(--ds-action-deep);
-  outline-offset: 2px;
-}
-
-[data-theme='dark'] .panelCta {
-  background: color-mix(in srgb, var(--ds-action) 18%, transparent);
-  color: var(--ds-action-deep);
-  border-color: color-mix(in srgb, var(--ds-action) 60%, transparent);
-}
-
-[data-theme='dark'] .panelCta:hover {
-  background: color-mix(in srgb, var(--ds-action) 32%, transparent);
 }
 
 .panelHint {
@@ -476,13 +425,12 @@
 /* ---------- reduced-motion ---------- */
 
 @media (prefers-reduced-motion: reduce) {
-  .libCard,
-  .libCard::after,
-  .panelCta,
+  .libCardWrap,
+  .libCardWrap::after,
   .libCta {
     transition: none;
   }
-  .libCard:hover {
+  .libCardWrap:hover {
     transform: none;
   }
 }

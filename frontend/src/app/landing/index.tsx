@@ -2,7 +2,7 @@
 
 import { useCallback, type ReactElement } from 'react';
 import { VocabularyLib, TranslationProgress } from '../api';
-import { AuroraBackground } from '@/components/effects';
+import { AuroraBackground, SpecularButton } from '@/components/effects';
 import { BABY_BLUE_CURTAINS } from '@/components/effects/baby-blue-curtains';
 import Hero from './Hero';
 import ScenariosSection from './ScenariosSection';
@@ -55,16 +55,56 @@ export default function LandingPage({
             <span className={styles.footerBrandName}>Type Any Language</span>
             <ul className={styles.footerLinks}>
               <li>
-                <a
-                  href="https://github.com/zhangyu528/type-any-language"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                {/*
+                  外链用 SpecularButton + window.open 模拟 — react-bits 里没有
+                  anchor 形态的按钮,这是为了把所有 UI 控件统一在 react-bits
+                  之内的折中方案。语义上仍是 button(用户期待"打开新页"的副
+                  作用由 onClick 承担),可访问性通过 aria-label 标注。
+                */}
+                <SpecularButton
+                  size="sm"
+                  onClick={() =>
+                    window.open(
+                      'https://github.com/zhangyu528/type-any-language',
+                      '_blank',
+                      'noopener,noreferrer',
+                    )
+                  }
+                  tint="#8FCBF0"
+                  tintOpacity={1}
+                  baseColor="#5BA8D8"
+                  lineColor="#FFFFFF"
+                  textColor="#0C2C53"
+                  blur={6}
+                  intensity={1}
+                  followMouse
+                  proximity={300}
+                  className={styles.footerLink}
+                  aria-label="GitHub 仓库(在新标签页打开)"
                 >
-                  GitHub
-                </a>
+                  GitHub ↗
+                </SpecularButton>
               </li>
               <li>
-                <a href="mailto:hi@type-any-language.dev">联系</a>
+                <SpecularButton
+                  size="sm"
+                  onClick={() => {
+                    window.location.href = 'mailto:hi@type-any-language.dev';
+                  }}
+                  tint="#8FCBF0"
+                  tintOpacity={1}
+                  baseColor="#5BA8D8"
+                  lineColor="#FFFFFF"
+                  textColor="#0C2C53"
+                  blur={6}
+                  intensity={1}
+                  followMouse
+                  proximity={300}
+                  className={styles.footerLink}
+                  aria-label="联系我们(打开邮件客户端)"
+                >
+                  联系 ✉
+                </SpecularButton>
               </li>
             </ul>
           </div>
