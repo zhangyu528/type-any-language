@@ -9,10 +9,16 @@
  * When the goal is hit we swap the copy from "X left" to "🎉 daily
  * goal hit" — the user has earned a moment of celebration. The
  * ProgressRing stays at 100% fill (no clipping past the target).
+ *
+ * The CTA is a SpecularButton with the slate `--ds-action` fill
+ * (vs ContinueCard's amber `--ds-cta`); the color split keeps the
+ * two cards visually distinct while still using the same primary
+ * action pattern.
  */
 
 import ProgressRing from '../ds/components/ProgressRing';
 import { DailyGoalState } from '../api';
+import { SpecularButton } from '@/components/effects';
 import { useCountUp } from '../me/useCountUp';
 import styles from './DailyGoal.module.css';
 
@@ -52,13 +58,28 @@ export default function DailyGoal({ state, onStartPractice }: DailyGoalProps) {
         {state.completed ? '🎉 Daily goal hit' : `${state.target - shown} more today`}
       </p>
       {!state.completed ? (
-        <button
-          type="button"
-          className={styles.cta}
+        /* SpecularButton (slate action) — same visual tuning as
+           ContinueCard: intensity 1.5 + proximity 480 + outer-glow
+           so it reads as "premium" at rest, not just on hover. */
+        <SpecularButton
+          size="md"
           onClick={onStartPractice}
+          radius={14}
+          tint="#378ADD"
+          tintOpacity={1}
+          textColor="#FFFFFF"
+          lineColor="#FFFFFF"
+          baseColor="#1F5A99"
+          blur={8}
+          intensity={1.5}
+          shineSize={14}
+          shineFade={50}
+          followMouse
+          proximity={480}
+          className={styles.cta}
         >
           Practice now
-        </button>
+        </SpecularButton>
       ) : null}
     </section>
   );

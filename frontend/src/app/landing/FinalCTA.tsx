@@ -1,95 +1,98 @@
 'use client';
 
 /**
- * FinalCTA — 05 · 收尾 CTA
+ * FinalCTA — 方案 B 黑色 CTA bar
  *
- * 深色反色块(--ds-ink 底 + 白字主张),左上右下两个 mint glow blob
- * 缓慢漂移(20s 周期)。大字主张 + 大号主按钮 + 次级"了解词库"链接。
- * 整段 scroll-into-view 时 fadeUp;按钮 motion.button spring 上浮。
+ * 与方案 B 草图一致:深色反色块 + 横向 layout。
+ * 左侧大标题"选个场景试试 →",右侧琥珀色 SpecularButton。
+ * 背景走 React Bits <Threads> WebGL 流线,与登录/注册
+ * 同一套视觉语言。
  */
 
-import { useState, useEffect, type ReactElement } from 'react';
-import { motion, useReducedMotion } from 'motion/react';
-import Button from '../ds/components/Button';
+import { type ReactElement } from 'react';
+import { motion } from 'motion/react';
+import { SpecularButton, Threads, VariableProximity } from '@/components/effects';
 import { spring } from '../ds/motion';
 import styles from './FinalCTA.module.css';
+import { useTheme } from '../components/ThemeProvider';
 
 interface FinalCTAProps {
   onStart: () => void;
-  onJumpToLibs?: () => void;
 }
 
-const SECTION_ID = 'final-cta';
+// ogl Color 期望 0..1 浮点三元组。
+//   浅色: --ds-action-deep (#2F80C0) — 深一档的 baby blue,
+//          配 multiply 混合"印"在 tint 底色上更显眼
+//   深色: baby blue 原色 (#8FCBF0) — 配 screen 混合在深空蓝底上更亮
+const THREADS_LIGHT_RGB: [number, number, number] = [0x2f / 255, 0x80 / 255, 0xc0 / 255];
+const THREADS_DARK_RGB: [number, number, number] = [143 / 255, 203 / 255, 240 / 255];
 
-export default function FinalCTA({ onStart, onJumpToLibs }: FinalCTAProps): ReactElement {
-  const reduced = useReducedMotion();
-  // blob 位置状态:启动时随机一点,之后用 CSS animation 漂移
-  // 这里只是给一个 hover-scale 用,实际漂移走 CSS keyframes
-  const [hovered, setHovered] = useState(false);
-
-  // 启停 blob 漂移动画(reduced-motion 关闭)
-  useEffect(() => {
-    if (reduced) {
-      document.documentElement.style.setProperty('--ds-blob-play', 'paused');
-    } else {
-      document.documentElement.style.setProperty('--ds-blob-play', 'running');
-    }
-  }, [reduced]);
-
+export default function FinalCTA({ onStart }: FinalCTAProps): ReactElement {
+  const { theme } = useTheme();
+  // ME-Q4: thread color depends on theme — dark in light mode so
+  // multiply blend "印" them visibly on the light-tint bar; baby
+  // blue in dark mode so screen blend "lights" them up on navy.
+  const threadsColor = theme === 'light' ? THREADS_LIGHT_RGB : THREADS_DARK_RGB;
   return (
     <section
-      id={SECTION_ID}
+      id="final-cta"
       className={styles.root}
       aria-labelledby="final-cta-title"
     >
       <motion.div
-        className={styles.block}
+        className={styles.bar}
         initial={{ opacity: 0, y: 16 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: '-15% 0px' }}
         transition={spring.soft}
       >
-        {/* 装饰光晕 */}
-        <span className={`${styles.blob} ${styles.blobTL}`} aria-hidden />
-        <span className={`${styles.blob} ${styles.blobBR}`} aria-hidden />
+        <Threads
+          className={styles.threadsBg}
+          color={threadsColor}
+          amplitude={0.8}
+          distance={0.25}
+          enableMouseInteraction={true}
+        />
 
-        <div className={styles.inner}>
-          <h2 id="final-cta-title" className={styles.title}>
-            <span className={styles.titleLine}>练出英语肌肉记忆,</span>
-            <span className={styles.titleLine}>从今天开始。</span>
-          </h2>
-          <p className={styles.kicker}>无需注册 · 30 秒开始第一句</p>
+        <div className={styles.content}>
+          <div className={styles.titleBlock}>
+            <h2 id="final-cta-title" className={styles.title}>
+              <span className={styles.titleMain}>读完一句,就是你的</span>
+              <span className={styles.titleArrow} aria-hidden="true">
+                →
+              </span>
+            </h2>
+            <p className={styles.sub}>
+              <VariableProximity
+                label="30 秒开始第一句。无需注册。"
+                from={{ wght: 400, opsz: 14 }}
+                to={{ wght: 900, opsz: 24 }}
+                radius={70}
+                falloff="linear"
+                as="span"
+              />
+            </p>
+          </div>
 
-          <motion.div
-            className={styles.actions}
-            onMouseEnter={() => setHovered(true)}
-            onMouseLeave={() => setHovered(false)}
-          >
-            <Button
+          <div className={styles.start}>
+            <SpecularButton
               type="button"
-              variant="primary"
               size="lg"
               onClick={onStart}
-              className={styles.start}
+              /* 深空蓝底 + 琥珀 CTA 拉对比;琥珀在浅/深主题下都显眼。 */
+              baseColor="#BA7517"
+              lineColor="#ffffff"
+              textColor="#412402"
+              tint="#BA7517"
+              tintOpacity={0.55}
+              blur={16}
+              followMouse
+              proximity={300}
+              className={styles.startBtn}
             >
-              立即开始练习 →
-            </Button>
-            {onJumpToLibs ? (
-              <button
-                type="button"
-                onClick={onJumpToLibs}
-                className={styles.altLink}
-              >
-                或者,先了解词库
-                <span className={styles.altArrow} aria-hidden>→</span>
-              </button>
-            ) : null}
-          </motion.div>
-
-          {/* 隐藏的语义说明,方便 screen reader 听到 hover 状态 */}
-          <span className={styles.srOnly} aria-live="polite">
-            {hovered ? '按钮可点击' : ''}
-          </span>
+              开始读
+            </SpecularButton>
+          </div>
         </div>
       </motion.div>
     </section>

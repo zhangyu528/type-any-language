@@ -3,25 +3,22 @@
 /**
  * StatsTab — aggregate stats + per-lib progress table.
  *
- * All data is local + supplemental dashboard fetch:
- *   - Drill progress is local (`loadTranslationProgress()`).
- *   - Streak / daily-goal / monthly-goal come from the dashboard
- *     endpoint (single round-trip on mount). They surface as KPI
- *     cells so the user has a single "overview" surface here; the
- *     dashboard page renders the same numbers richer (calendar +
- *     detail drawer) but if the user only ever visits /me we still
- *     show today's hint.
+ * The 总览统计 (overview) section uses the MagicBento effect from
+ * reactbits.dev: 5 cards arranged in a custom 3-col bento (1 hero
+ * on the left + 2x2 side stack on the right), each with cursor-
+ * follow border glow + global spotlight. Card bodies use
+ * AnimatedCounter for the big numbers; the per-card label slot
+ * uses our mono-uppercase pattern for "已练词库" / "已判句子" etc.
  *
- * KPIs (5-cell grid on wide screens, 2 cols on narrow):
- *   - 已练词库  = libs with any sentence progress
- *   - 已判句子  = total sentence entries across all libs
- *   - 总正确率   = sum(correct) / sum(answered)
- *   - 今日已练  = from dashboard.daily_goal.today_count (or local
- *                approximation if dashboard fetch failed)
- *   - 连续天数   = from dashboard.streak.current
- *                  (0  with "开始 7 天连击" CTA when not yet started)
+ * MagicBentoCard's `children` slot replaces the default
+ * title+description block (added in our port) so we can put
+ * AnimatedCounter + hint inside.
+ *
+ * 词库进度 (lib progress) section uses motion stagger on the
+ * table rows + AnimatedCounter for the per-row accuracy.
  */
 import { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
 import {
   Catalog,
   loadTranslationProgress,
@@ -29,7 +26,13 @@ import {
   getDashboardSnapshot,
   type DashboardSnapshot,
 } from '../api';
-import { useCountUp } from './useCountUp';
+import {
+  AnimatedCounter,
+  MagicBento,
+  type MagicBentoCard,
+  VariableProximity,
+} from '@/components/effects';
+import { riseIn, staggerParent } from '../ds/motion';
 import styles from '../me/me-page.module.css';
 
 interface StatsTabProps {
@@ -45,9 +48,6 @@ export default function StatsTab({ catalog, catalogError, userId }: StatsTabProp
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
 
-  // Progress lives in localStorage — re-read on mount (the user
-  // may have just finished a session in another tab) and whenever
-  // TranslationSession dispatches a progress-changed event.
   useEffect(() => {
     setProgress(loadTranslationProgress(userId));
     setHydrated(true);
@@ -60,10 +60,6 @@ export default function StatsTab({ catalog, catalogError, userId }: StatsTabProp
     };
   }, [userId]);
 
-  // Dashboard snapshot — best-effort fetch on mount. Failure is
-  // tolerated: we just show "—" for the streak / today KPIs. The
-  // `/dashboard` page renders these numbers richer if the user
-  // wants more.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -72,8 +68,9 @@ export default function StatsTab({ catalog, catalogError, userId }: StatsTabProp
         if (cancelled) return;
         setSnapshot(s);
       } catch (e) {
-        if (cancelled) return;
-        setSnapshotError(e instanceof Error ? e.message : '加载 dashboard 失败');
+        if (!cancelled) {
+          setSnapshotError(e instanceof Error ? e.message : '加载 dashboard 失败');
+        }
       }
     })();
     return () => {
@@ -84,7 +81,6 @@ export default function StatsTab({ catalog, catalogError, userId }: StatsTabProp
   const kpis = computeKpis(progress);
   const libRows = catalog ? computeLibRows(progress, catalog) : [];
 
-  // Derived dashboard fields (with safe defaults when missing).
   const todayCount = snapshot?.daily_goal?.today_count ?? null;
   const todayTarget = snapshot?.daily_goal?.target ?? null;
   const streakCurrent = snapshot?.streak?.current ?? 0;
@@ -104,41 +100,115 @@ export default function StatsTab({ catalog, catalogError, userId }: StatsTabProp
         ? `历史最长 ${streakLongest} 天`
         : `已连续 ${streakCurrent} 天`;
 
-  return (
-    <div className={styles['me-stats']}>
-      <section className={styles['me-stats__kpis']} aria-label="总览统计">
-        <KpiCell
-          label="已练词库"
-          value={hydrated ? kpis.libsCount : '—'}
-          animateFrom={hydrated ? kpis.libsCount : 0}
+  // MagicBento cards — 1 hero (accuracy) + 4 supporting. Hero spans
+  // the full 2 rows on the left; the 4 supporting cards fill the
+  // 2x2 grid on the right. The CSS override is in me-page.module.css
+  // (`.me-magic-bento > div > div:first-child` for hero placement).
+  const accuracyValue = kpis.accuracy;
+  const accuracyHint = !hydrated
+    ? '加载中…'
+    : accuracyValue != null
+      ? `基于 ${kpis.sentencesTotal} 句`
+      : '完成第一句练习后开始统计';
+
+  const magicCards: MagicBentoCard[] = [
+    {
+      // ME-1: was #1c2538 hardcoded dark navy. Now uses CSS var
+      // resolved via me-mb-hero custom property (set below) so the
+      // hero reads as "tinted glass" in both light + dark themes.
+      color: 'var(--me-mb-hero-bg, var(--ds-action-soft))',
+      label: '总正确率',
+      children: (
+        <div className={styles['me-mb-hero']}>
+          <div className={styles['me-mb-number']}>
+            {accuracyValue != null ? (
+              <>
+                <AnimatedCounter
+                  value={accuracyValue}
+                  startOnView
+                  duration={1200}
+                  className={styles['me-mb-counter']}
+                />
+                <span className={styles['me-mb-unit']} aria-hidden>%</span>
+              </>
+            ) : (
+              <span className={styles['me-mb-empty']}>—</span>
+            )}
+          </div>
+          <p className={styles['me-mb-hint']}>{accuracyHint}</p>
+        </div>
+      ),
+    },
+    {
+      // ME-1: was hardcoded #0f1614. Now uses --ds-surface (white in
+      // light mode, navy in dark mode) so cards automatically theme.
+      color: 'var(--ds-surface)',
+      label: '已练词库',
+      children: (
+        <StatBody
+          value={hydrated ? kpis.libsCount : null}
+          unit="个"
         />
-        <KpiCell
-          label="已判句子"
-          value={hydrated ? kpis.sentencesTotal : '—'}
-          animateFrom={hydrated ? kpis.sentencesTotal : 0}
+      ),
+    },
+    {
+      color: 'var(--ds-surface)',
+      label: '已判句子',
+      children: (
+        <StatBody
+          value={hydrated ? kpis.sentencesTotal : null}
+          unit="句"
         />
-        <KpiCell
-          label="总正确率"
-          value={hydrated ? (kpis.accuracy != null ? `${kpis.accuracy}%` : '—') : '—'}
-          animateFrom={0}
-          skipCountUp
-        />
-        <KpiCell
-          label="今日已练"
-          value={todayCount != null ? todayCount : '—'}
-          animateFrom={todayCount != null ? todayCount : 0}
+      ),
+    },
+    {
+      color: 'var(--ds-surface)',
+      label: '今日已练',
+      children: (
+        <StatBody
+          value={todayCount}
+          unit="句"
           hint={snapshotError ? '需要 dashboard 数据' : todayHint ?? undefined}
         />
-        <KpiCell
-          label="连续天数"
+      ),
+    },
+    {
+      // Achievement state: use --ds-correct tint (mint) instead of
+      // the dark green that was previously hardcoded. Non-achievement
+      // keeps the regular surface.
+      color: streakCurrent >= 7
+        ? 'var(--ds-correct-fill, var(--ds-action-soft))'
+        : 'var(--ds-surface)',
+      label: '连续天数',
+      children: (
+        <StatBody
           value={streakCurrent}
-          animateFrom={streakCurrent}
+          unit="天"
           hint={streakHint}
+          achievement={streakCurrent >= 7}
         />
+      ),
+    },
+  ];
+
+  return (
+    <div className={styles['me-stats']}>
+      <section aria-label="总览统计">
+        <KickerLabel>总览统计</KickerLabel>
+        <div className={styles['me-magic-bento-wrap']}>
+          <MagicBento
+            cards={magicCards}
+            glowColor="91, 168, 240"
+            spotlightRadius={420}
+            enableBorderGlow
+            enableSpotlight
+            className={styles['me-magic-bento']}
+          />
+        </div>
       </section>
 
       <section className={styles['me-stats__libs']} aria-label="词库进度">
-        <h2 className={styles['me-section-title']}>词库进度</h2>
+        <KickerLabel>词库进度</KickerLabel>
         {!catalog ? (
           <p className={styles['me-empty']}>
             {catalogError ? `加载词库失败:${catalogError}` : '加载词库中…'}
@@ -148,7 +218,12 @@ export default function StatsTab({ catalog, catalogError, userId }: StatsTabProp
             还没有开始练习,先去挑个词库试试 →
           </p>
         ) : (
-          <table className={styles['me-lib-table']}>
+          <motion.table
+            className={styles['me-lib-table']}
+            variants={staggerParent}
+            initial="hidden"
+            animate="show"
+          >
             <thead>
               <tr>
                 <th scope="col">词库</th>
@@ -158,115 +233,104 @@ export default function StatsTab({ catalog, catalogError, userId }: StatsTabProp
               </tr>
             </thead>
             <tbody>
-              {libRows.map((row, i) => (
-                <tr key={row.libId}>
+              {libRows.map((row) => (
+                <motion.tr key={row.libId} variants={riseIn}>
                   <th scope="row" className={styles['me-lib-table__name']}>
                     {row.libName}
                   </th>
                   <td className={styles['me-lib-table__num']}>{row.answered}</td>
                   <td className={styles['me-lib-table__num']}>
-                    <AccuracyBar
-                      accuracy={row.accuracy}
-                      hint={row.accuracy != null ? `${row.accuracy}%` : '—'}
-                      index={Math.min(i, 12)}
-                    />
+                    <AccuracyBar accuracy={row.accuracy} />
                   </td>
                   <td className={styles['me-lib-table__num']}>{row.wrong}</td>
-                </tr>
+                </motion.tr>
               ))}
             </tbody>
-          </table>
+          </motion.table>
         )}
       </section>
     </div>
   );
 }
 
-function KpiCell({
-  label,
+/** VariableProximity kicker — used by both StatsTab section
+ *  headings. Wrapped in a label so screen readers and CSS-class
+ *  selectors can still find it. */
+function KickerLabel({ children }: { children: string }) {
+  return (
+    <h2 className={styles['me-section-title']}>
+      <VariableProximity
+        label={children}
+        from={{ wght: 400 }}
+        to={{ wght: 700 }}
+        radius={80}
+        falloff="linear"
+        as="span"
+        className={styles['me-section-title__prox']}
+      />
+    </h2>
+  );
+}
+
+/** Stat body for the 4 supporting cards. Renders an AnimatedCounter
+ *  + static unit + optional hint. When value is null (data not yet
+ *  loaded) we render "—" as a placeholder. */
+function StatBody({
   value,
+  unit,
   hint,
-  animateFrom,
-  skipCountUp,
+  achievement,
 }: {
-  label: string;
-  value: string | number;
+  value: number | null;
+  unit: string;
   hint?: string;
-  /** When provided AND not in reduced-motion, the numeric value is
-   *  driven by useCountUp so it tweens from 0 → animateFrom on mount.
-   *  Pass 0 to opt out (e.g. for streak which is currently 0). */
-  animateFrom?: number;
-  /** Skip count-up entirely (e.g. the accuracy cell shows a percent
-   *  string, not a raw number — animating digits inside a string is
-   *  visually noisy and we don't want to do it). */
-  skipCountUp?: boolean;
+  achievement?: boolean;
 }) {
-  // useCountUp is unconditionally called so React hook order is stable
-  // across KpiCells with different prop shapes. The hook returns 0
-  // immediately when `to` is 0; we then display either the live count
-  // or the supplied string value.
-  const [counted, reached] = useCountUp(animateFrom ?? 0);
-  const displayValue =
-    skipCountUp || animateFrom == null ? value : counted;
-  const isAchievement =
-    !skipCountUp && animateFrom != null && animateFrom === 100 && reached;
   return (
     <div
-      className={styles['me-kpi']}
-      data-reached={reached ? 'true' : 'false'}
-      data-achievement={isAchievement ? 'true' : 'false'}
+      className={styles['me-mb-stat']}
+      data-achievement={achievement ? 'true' : 'false'}
     >
-      <div className={styles['me-kpi__value']}>{displayValue}</div>
-      <div className={styles['me-kpi__label']}>{label}</div>
-      {hint ? <div className={styles['me-kpi__hint']}>{hint}</div> : null}
+      <div className={styles['me-mb-stat__number']}>
+        {value != null ? (
+          <>
+            <AnimatedCounter
+              value={value}
+              startOnView
+              duration={1000}
+              className={styles['me-mb-stat__counter']}
+            />
+            <span className={styles['me-mb-stat__unit']} aria-hidden>{unit}</span>
+          </>
+        ) : (
+          <span className={styles['me-mb-empty']}>—</span>
+        )}
+      </div>
+      {hint ? <p className={styles['me-mb-stat__hint']}>{hint}</p> : null}
     </div>
   );
 }
 
-function AccuracyBar({
-  accuracy,
-  hint,
-  index,
-}: {
-  accuracy: number | null;
-  hint: string;
-  /** Row index in the table — used to stagger the fill animation so
-   *  the table reads as "filling up row by row" rather than all rows
-   *  animating at once. Cap happens at the call site (caller passes
-   *  min(index*20, 240)). */
-  index: number;
-}) {
-  const [width, setWidth] = useState(0);
+function AccuracyBar({ accuracy }: { accuracy: number | null }) {
   const target = accuracy == null ? 0 : accuracy;
-
-  useEffect(() => {
-    const reduced =
-      typeof window !== 'undefined' &&
-      window.matchMedia &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduced) {
-      setWidth(target);
-      return;
-    }
-    const id = requestAnimationFrame(() => {
-      setWidth(target);
-    });
-    return () => cancelAnimationFrame(id);
-  }, [target]);
-
   return (
-    <span
-      className={styles['me-accuracy']}
-      aria-label={`正确率 ${hint}`}
-      style={{ animationDelay: `${index * 20}ms` }}
-    >
+    <span className={styles['me-accuracy']} aria-label={`正确率 ${target}%`}>
       <span className={styles['me-accuracy__track']}>
-        <span
+        <motion.span
           className={styles['me-accuracy__fill']}
-          style={{ width: `${width}%` }}
+          initial={{ width: 0 }}
+          whileInView={{ width: `${target}%` }}
+          viewport={{ once: true, amount: 0.5 }}
+          transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
         />
       </span>
-      <span className={styles['me-accuracy__text']}>{hint}</span>
+      <AnimatedCounter
+        value={target}
+        startOnView={false}
+        duration={900}
+        className={styles['me-accuracy__counter']}
+      />
+      <span className={styles['me-accuracy__unit']} aria-hidden>%</span>
     </span>
   );
 }

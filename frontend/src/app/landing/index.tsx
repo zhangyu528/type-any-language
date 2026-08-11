@@ -2,9 +2,12 @@
 
 import { useCallback, type ReactElement } from 'react';
 import { VocabularyLib, TranslationProgress } from '../api';
+import { AuroraBackground } from '@/components/effects';
+import { BABY_BLUE_CURTAINS } from '@/components/effects/baby-blue-curtains';
 import Hero from './Hero';
-import HowItWorks from './HowItWorks';
-import LibShowcase from './LibShowcase';
+import ScenariosSection from './ScenariosSection';
+import LibStrip from './LibStrip';
+import DataBento from './DataBento';
 import FinalCTA from './FinalCTA';
 import styles from './index.module.css';
 
@@ -16,60 +19,80 @@ interface LandingPageProps {
 
 export default function LandingPage({
   libs,
-  translationProgress,
   onPickLib,
 }: LandingPageProps): ReactElement {
-  // 跨段滚动辅助:从 02 / 05 跳到 04 词库。
-  // scrollIntoView({ block: 'start' }) 会自动 honored <html> 上的
-  // scroll-padding-top: 52px,目标顶部落到 header 下方。
-  // behavior: 'smooth' 是 JS API,不会被 prefers-reduced-motion 的
-  // scroll-behavior: auto !important 覆盖 —— 按钮点击仍然 smooth 是
-  // 有意的 UX(reduced-motion 只抑制装饰动画,不影响 CTA 反馈)。
-  const jumpToLibs = useCallback(() => {
-    if (typeof document === 'undefined') return;
-    const target = document.getElementById('lib-showcase');
-    if (!target) return;
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, []);
-
-  // 收尾 CTA 的"立即开始"——取第一份词库
   const firstLib = libs[0];
   const handleStart = useCallback(() => {
     if (firstLib) onPickLib(firstLib.id);
   }, [firstLib, onPickLib]);
 
   return (
-    <div className={styles.root}>
-      <Hero
-        libs={libs}
-        translationProgress={translationProgress}
-        onPickLib={onPickLib}
-      />
+    <div className={styles.root} data-babyblue>
+      {/* Aurora background — fixed, behind all content */}
+      <AuroraBackground className="fixed inset-0 z-0" curtains={BABY_BLUE_CURTAINS} />
 
-      <HowItWorks onJumpToLibs={jumpToLibs} />
+      <div className={styles.content}>
+        <Hero
+          libs={libs}
+          translationProgress={{}}
+          onPickLib={onPickLib}
+        />
 
-      <LibShowcase libs={libs} onPickLib={onPickLib} />
+        {/* SECTION 2: 4 个真实场景 — 营销访客直接"试一下" */}
+        <ScenariosSection libs={libs} onPickLib={onPickLib} />
 
-      <FinalCTA onStart={handleStart} onJumpToLibs={jumpToLibs} />
+        {/* SECTION 3: 词库条 — 暖琥珀背景,横排 */}
+        <LibStrip libs={libs} onPickLib={onPickLib} />
 
-      <footer className={styles.footer} aria-label="页脚">
-        <span className={styles.footerBrand}>Type Any Language</span>
-        <ul className={styles.footerLinks}>
-          <li>
-            <a
-              href="https://github.com/zhangyu528/type-any-language"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              GitHub
-            </a>
-          </li>
-          <li>
-            <a href="mailto:hi@type-any-language.dev">联系</a>
-          </li>
-        </ul>
-        <span className={styles.footerYear}>© 2026</span>
-      </footer>
+        {/* SECTION 4: 4 数据 — 词库数/句数/上手时间/价格(派生自 libs) */}
+        <DataBento libs={libs} />
+
+        {/* 黑色 CTA bar:左侧"选个场景试试 →",右侧琥珀按钮 */}
+        <FinalCTA onStart={handleStart} />
+
+        <footer className={styles.footer} aria-label="页脚">
+          <div className={styles.footerBrand}>
+            <span className={styles.footerBrandName}>Type Any Language</span>
+            <ul className={styles.footerLinks}>
+              <li>
+                <a
+                  href="https://github.com/zhangyu528/type-any-language"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  GitHub
+                </a>
+              </li>
+              <li>
+                <a href="mailto:hi@type-any-language.dev">联系</a>
+              </li>
+            </ul>
+          </div>
+
+          <div className={styles.footerMeta}>
+            <div className={styles.metaBlock}>
+              <span className={styles.metaLabel}>适用场景</span>
+              <p className={styles.metaText}>
+                语言学习者 · 每天读完一句,就是你的。
+              </p>
+            </div>
+            <div className={styles.metaBlock}>
+              <span className={styles.metaLabel}>转化路径</span>
+              <p className={styles.metaPath}>
+                <span className={styles.metaPathStep}>读一句</span>
+                <span className={styles.metaPathArrow}>→</span>
+                <span className={styles.metaPathStep}>写出来</span>
+                <span className={styles.metaPathArrow}>→</span>
+                <span className={styles.metaPathStep}>错改对</span>
+                <span className={styles.metaPathArrow}>→</span>
+                <span className={styles.metaPathStep}>记住</span>
+              </p>
+            </div>
+          </div>
+
+          <span className={styles.footerYear}>© 2026</span>
+        </footer>
+      </div>
     </div>
   );
 }

@@ -1,8 +1,18 @@
 # TAL Mint 设计系统
 
-> 全站唯一的设计语言权威文档。新页面 / 新组件开工前读这里。
-> 活文档(可交互验收):[http://localhost:3000/design-system](http://localhost:3000/design-system)
-> 定稿:2026-08-02(取代 Apple HIG / Sage Heal / Citrus Mint 三套历史体系)
+> ## ⚠️ ARCHIVED — 原型期设计，不用于正式产品
+>
+> 本文档是产品原型期的设计语言（TAL Mint），**已被正式设计替代**。
+>
+> - **状态**：archived（保留仅作历史参考）
+> - **替代文档**：[`docs/design-brief.md`](../../docs/design-brief.md)
+> - **后续工作**：新页面、新组件、UX/UI 重构请基于 [`docs/design-brief.md`](../../docs/design-brief.md) 的全新设计方向，**不参考本文档**
+> - **代码现状**：TAL Mint 的 token（`ds/tokens.css`、`ds/themes.css`）目前仍在 `frontend/src/app/ds/` 下；正式设计落定后将整体替换
+>
+> 历史记录（保留以便追溯）：
+> - 全站唯一的设计语言权威文档。新页面 / 新组件开工前读这里。
+> - 活文档(可交互验收):[http://localhost:3000/design-system](http://localhost:3000/design-system)
+> - 定稿:2026-08-02(取代 Apple HIG / Sage Heal / Citrus Mint 三套历史体系)
 
 ---
 

@@ -25,7 +25,23 @@
   align-items: center;
   padding: clamp(40px, 8vh, 96px) clamp(24px, 5vw, 80px) 96px;
   position: relative;
-  background: var(--ds-bg);
+  /* ME-2: drop the opaque --ds-bg so AuroraBackground bleeds
+     through. Page still has its own bg color via the layer
+     underneath. */
+  background: transparent;
+}
+
+/* ME-2: aurora lives at z:-1, fixed full screen, pointer-events
+   disabled so the curtains never block clicks on content above.
+   Opacity dialed back from Dashboard's full intensity — /me is
+   a denser page (account + tabs + KPIs + tables) so a heavy
+   aurora would compete with content. */
+.me-page__aurora {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: -1 !important;
+  pointer-events: none;
+  opacity: 0.55;
 }
 
 .me-page__content {
@@ -33,7 +49,10 @@
   max-width: 720px;
   display: flex;
   flex-direction: column;
-  gap: var(--space-7);
+  /* ME-5: standardize section spacing to var(--space-6) = 40px
+     to match Dashboard's rhythm (was var(--space-7) = 64px).
+     Same gap now used everywhere on /me + dashboard. */
+  gap: var(--space-6);
   position: relative;
   z-index: 1;
   animation: me-rise var(--dur-slow) var(--ease-out);
@@ -106,18 +125,59 @@
   align-items: center;
   gap: var(--space-5);
   padding: var(--space-5) var(--space-5);
-  background: var(--ds-surface);
-  border: 1px solid var(--ds-border);
-  border-radius: var(--radius-md);
+  /* ME-3: glassmorphism — same treatment as Dashboard's cardGlass.
+     Translucent surface + backdrop-filter so aurora bleeds
+     through, + hairline border + radius-lg (slightly rounder
+     than the old --radius-md for a softer, more "premium" feel). */
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: var(--radius-lg);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
-.me-account-card__avatar {
+[data-theme="dark"] .me-account-card {
+  background: rgba(20, 22, 30, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* SpotlightCard wrapper around the avatar — 64x64 circle.
+   The wrapper renders two children: a glow overlay (.overlay)
+   and a content wrapper (.content). The .content div has no
+   explicit dimensions so without flex on the wrapper it
+   collapses to its text content (the "L" letter), making the
+   avatar look like a vertical pill instead of a circle. */
+.me-account-card__avatarWrap {
   flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
+  display: flex;
+  align-items: stretch;
   justify-content: center;
   width: 64px;
   height: 64px;
+  border-radius: var(--radius-pill);
+  cursor: default;
+  overflow: hidden;
+}
+
+/* Force SpotlightCard's inner .content div to fill the
+   wrapper. The .overlay is absolutely positioned so it
+   doesn't need a width — using :not(.overlay) is robust to
+   future SpotlightCard internal class changes. */
+.me-account-card__avatarWrap > div:not([aria-hidden]) {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.me-account-card__avatar {
+  width: 100%;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: var(--radius-pill);
   background: var(--ds-action);
   color: var(--ds-on-action);
@@ -125,6 +185,7 @@
   font-size: 26px;
   font-weight: var(--weight-medium);
   letter-spacing: -0.02em;
+  box-shadow: 0 4px 12px rgba(15, 22, 36, 0.18);
 }
 
 .me-account-card__meta {
@@ -170,17 +231,37 @@
    ============================================================ */
 
 .me-tabs {
+  /* ME-Q3A: tabs are transparent in the static state so the
+     aurora shows through (no competing rectangle against
+     AccountCard). When the user scrolls and the tabs hit the
+     sticky position (top: 52px), JS toggles data-stuck="true"
+     and a soft frosted background fades in so the nav reads
+     as a real bar instead of an empty gap. */
   position: sticky;
   top: 52px;
   z-index: 10;
   display: flex;
   gap: var(--space-2);
   padding: var(--space-2) 0;
-  background: color-mix(in srgb, var(--ds-bg) 80%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--ds-border);
   margin: calc(var(--space-2) * -1) 0 0;
+  background: transparent;
+  backdrop-filter: blur(0);
+  transition:
+    background 220ms var(--ease-out),
+    backdrop-filter 220ms var(--ease-out);
+}
+
+.me-tabs[data-stuck='true'] {
+  /* v2: dropped the color-mix background fill — the 62% tint
+     made a hard rectangle that competed with AccountCard.
+     Now only backdrop-filter is on, which by itself is enough
+     to read as a frosted nav bar without a visible block
+     boundary. The aurora behind gets blurred + slightly
+     desaturated, which IS the "frosted" effect. */
+  background: transparent;
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
 }
 
 .me-tabs__btn {
@@ -249,8 +330,20 @@
   margin: 0 0 var(--space-3);
 }
 
+/* ME-10: destructive variant — sits next to the danger zone
+   heading; ShinyText inside carries the actual color animation. */
+.me-section-title--destructive {
+  color: var(--ds-error-ink);
+}
+
+/* VariableProximity wraps the kicker text in a span; this is the
+   inner element that gets the per-letter weight animation. */
+.me-section-title__prox {
+  display: inline-block;
+}
+
 /* ============================================================
-   Stats tab — KPI grid + per-lib table
+   Stats tab — MagicBento KPI grid + per-lib table
    ============================================================ */
 
 .me-stats {
@@ -259,70 +352,179 @@
   gap: var(--space-7);
 }
 
-.me-stats__kpis {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-3);
+/* MagicBento override — override the upstream's default 3-col
+   uniform grid with a custom bento: 1 hero (left, 2 rows) +
+   2x2 supporting stats (right). The className passed to
+   <MagicBento> is added to the inner grid div, so the children
+   selectors target MagicBento's card divs by index. */
+.me-magic-bento-wrap {
+  margin-top: var(--space-3);
+  position: relative;
 }
 
-@media (max-width: 640px) {
-  .me-stats__kpis {
-    grid-template-columns: repeat(2, 1fr);
+/* Outer grid — overrides the 3-col default to 3-col with custom
+   column ratios and explicit rows. */
+.me-magic-bento {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 12px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+}
+
+
+
+@media (max-width: 767px) {
+  .me-magic-bento {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+  .me-magic-bento > div:nth-child(1),
+  .me-magic-bento > div:nth-child(2),
+  .me-magic-bento > div:nth-child(3),
+  .me-magic-bento > div:nth-child(4),
+  .me-magic-bento > div:nth-child(5) {
+    grid-column: 1;
+    grid-row: auto;
   }
 }
 
-.me-kpi {
+/* Per-card grid placement — hero spans col 1 + rows 1-2; the
+   4 supporting cards fill a 2x2 on cols 2-3. */
+.me-magic-bento > div:nth-child(1) {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  aspect-ratio: auto;
+  min-height: 240px;
+}
+
+.me-magic-bento > div:nth-child(2) {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.me-magic-bento > div:nth-child(3) {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.me-magic-bento > div:nth-child(4) {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.me-magic-bento > div:nth-child(5) {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+/* Hero (总正确率) — uses children slot to render the big % + hint.
+   Override the magic-bento's cardContent padding to match. */
+.me-mb-hero {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  gap: var(--space-2);
+  height: 100%;
   justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-5) var(--space-4);
-  background: var(--ds-surface);
-  border: 1px solid var(--ds-border);
-  border-radius: var(--radius-md);
-  min-height: 124px;
-  transition:
-    transform var(--dur-fast) var(--ease-out),
-    border-color var(--dur-fast) var(--ease-out);
+  padding: 4px 0;
 }
 
-.me-kpi[data-reached="true"] {
-  animation: me-kpi-landed var(--dur-base) var(--ease-out) both;
-}
-
-@keyframes me-kpi-landed {
-  0%   { transform: translateY(0); }
-  35%  { transform: translateY(-2px); }
-  100% { transform: translateY(0); }
-}
-
-.me-kpi__value {
-  font-family: var(--font-sans);
-  font-size: clamp(28px, 4vw, 34px);
-  line-height: 1.1;
+.me-mb-number {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-family: var(--font-display);
+  font-size: clamp(48px, 7vw, 84px);
   font-weight: var(--weight-medium);
+  /* ME-1: was hardcoded #fff. Now follows the active theme —
+     dark ink in light mode, light ink in dark mode. */
   color: var(--ds-ink);
-  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.02em;
 }
 
-.me-kpi[data-achievement="true"] .me-kpi__value {
+.me-mb-counter {
+  display: inline-block;
+}
+
+.me-mb-unit {
+  font-family: var(--font-display);
+  font-size: clamp(24px, 3.2vw, 36px);
+  /* ME-1: --ds-ink-soft replaces fixed rgba(255,255,255,0.7) so the
+     unit suffix reads in both themes. */
+  color: var(--ds-ink-soft);
+  font-weight: var(--weight-regular);
+  margin-left: 4px;
+}
+
+.me-mb-empty {
+  /* ME-1: theme-aware faint placeholder. */
+  color: var(--ds-ink-faint);
+}
+
+.me-mb-hint {
+  margin: auto 0 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  /* ME-1: theme-aware secondary text. */
+  color: var(--ds-ink-soft);
+  letter-spacing: 0.01em;
+  line-height: 1.5;
+}
+
+/* Supporting stat body — used in the 2x2 supporting cards. */
+.me-mb-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  height: 100%;
+  justify-content: space-between;
+}
+
+.me-mb-stat__number {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  font-family: var(--font-display);
+  font-size: clamp(24px, 3vw, 32px);
+  font-weight: var(--weight-medium);
+  /* ME-1: theme-aware. */
+  color: var(--ds-ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.015em;
+}
+
+.me-mb-stat[data-achievement="true"] .me-mb-stat__number {
+  /* ME-1: achievement state uses --ds-correct (mint) instead of
+     fixed #5dcaa0. */
   color: var(--ds-correct);
 }
 
-.me-kpi__label {
-  font-family: var(--font-sans);
-  font-size: var(--text-caption);
-  color: var(--ds-ink-soft);
-  letter-spacing: 0.005em;
+.me-mb-stat__counter {
+  display: inline-block;
 }
 
-.me-kpi__hint {
-  font-family: var(--font-mono);
-  font-size: 11px;
+.me-mb-stat__unit {
+  font-family: var(--font-sans);
+  font-size: 12px;
   color: var(--ds-ink-soft);
+  font-weight: var(--weight-regular);
+  margin-left: 2px;
+}
+
+.me-mb-stat__hint {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ds-ink-faint);
   letter-spacing: 0.01em;
+  line-height: 1.4;
 }
 
 /* Per-lib progress table */
@@ -339,7 +541,14 @@
 }
 
 .me-lib-table thead th {
-  text-align: left;
+  /* Numeric column headers (已练 / 正确率 / 错题) inherit
+     text-align: right from .me-lib-table__num so the header
+     sits at the same x as the rightmost digit of the data
+     below — otherwise the labels read as "left-aligned labels
+     over right-aligned numbers" and look misaligned. The first
+     column ("词库") doesn't use __num, so it stays text-align:
+     left from the default rule. */
+  text-align: right;
   font-size: var(--text-caption);
   font-weight: var(--weight-medium);
   color: var(--ds-ink-soft);
@@ -348,6 +557,12 @@
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--ds-border);
   background: var(--ds-tint);
+}
+
+.me-lib-table thead th:first-child {
+  /* Restore left-align for the first (lib-name) column header
+     since it's not numeric and shouldn't be right-aligned. */
+  text-align: left;
 }
 
 .me-lib-table__num {
@@ -377,7 +592,7 @@
   vertical-align: middle;
 }
 
-/* Accuracy bar — inline track + fill + text */
+/* Accuracy bar — inline track + animated fill + AnimatedCounter */
 .me-accuracy {
   display: inline-flex;
   align-items: center;
@@ -400,18 +615,26 @@
   display: block;
   height: 100%;
   width: 0;
-  background: var(--ds-action);
+  background: linear-gradient(90deg, var(--ds-action) 0%, var(--ds-action-deep) 100%);
   border-radius: 999px;
-  transition: width var(--dur-slow) var(--ease-out);
 }
 
-.me-accuracy__text {
+.me-accuracy__counter {
   font-family: var(--font-mono);
   font-size: var(--text-caption);
   color: var(--ds-ink);
   font-weight: var(--weight-medium);
-  min-width: 36px;
+  min-width: 28px;
   text-align: right;
+  display: inline-block;
+}
+
+.me-accuracy__unit {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+  font-weight: var(--weight-medium);
+  margin-left: 1px;
 }
 
 /* ============================================================
@@ -537,16 +760,6 @@
   gap: var(--space-3);
 }
 
-.me-wrong-list > li {
-  opacity: 0;
-  animation: me-row-in var(--dur-base) var(--ease-out) forwards;
-}
-
-@keyframes me-row-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
 .me-wrong-card {
   display: flex;
   flex-direction: column;
@@ -636,6 +849,7 @@
 .me-wrong-card__audio-btn:disabled { opacity: 0.5; cursor: default; }
 
 .me-wrong-empty {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -645,6 +859,21 @@
   background: var(--ds-surface);
   border: 1px dashed var(--ds-border);
   border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.me-wrong-empty__particles {
+  position: absolute !important;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.me-wrong-empty__title,
+.me-wrong-empty__hint,
+.me-wrong-empty__cta {
+  position: relative;
+  z-index: 1;
 }
 
 .me-wrong-empty__title {
@@ -662,6 +891,10 @@
   line-height: var(--text-body-lh);
   margin: 0;
   max-width: 36ch;
+}
+
+.me-wrong-empty__cta {
+  margin-top: var(--space-3);
 }
 
 .me-wrong__loading {
@@ -848,12 +1081,12 @@
 
 .me-btn--destructive {
   background: transparent;
-  color: #c1453b;
-  border-color: #c1453b;
+  color: var(--ds-error);
+  border-color: var(--ds-error);
 }
 .me-btn--destructive:hover {
-  background: rgba(193, 69, 59, 0.06);
-  color: #a8342b;
+  background: color-mix(in srgb, var(--ds-error) 8%, transparent);
+  color: var(--ds-error-line, #D85A30);
 }
 
 /* ============================================================
@@ -919,19 +1152,24 @@
 .me-inline-edit__input {
   display: inline-block;
   width: 220px;
-  height: 32px;
+  height: 36px;
   padding: 0 var(--space-3);
   font-family: var(--font-sans);
   font-size: var(--text-body);
   color: var(--ds-ink);
-  background: var(--ds-surface);
-  border: 1px solid var(--ds-border);
+  /* ME-9: input gets a glass tint so the editing state reads
+     against the card surface. Translucent + tinted bg + thicker
+     border than the default 1px so the active edit is obviously
+     a different mode (was: same surface as the card). */
+  background: var(--ds-tint);
+  border: 1px solid var(--ds-action-soft);
   border-radius: var(--radius-sm);
   transition: border-color var(--dur-fast) var(--ease-out);
 }
 .me-inline-edit__input:focus {
   outline: none;
   border-color: var(--ds-action-deep);
+  background: var(--ds-surface);
 }
 
 .me-inline-edit__action {
@@ -958,7 +1196,7 @@
 .me-inline-edit__error {
   font-family: var(--font-mono);
   font-size: 11px;
-  color: #c1453b;
+  color: var(--ds-error);
   margin: 0;
 }
 

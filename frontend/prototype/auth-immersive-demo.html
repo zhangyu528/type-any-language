@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>沉浸式登录 - Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Noto+Sans+SC:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --font-display: 'Fraunces', serif;
+      --font-sans: 'Noto Sans SC', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      
+      /* Colors - Light theme */
+      --bg-base: #fafbfc;
+      --ink: #1a1d24;
+      --ink-soft: #5a5f6e;
+      --ink-faint: #9ca3af;
+      --action: #22c997;
+      --action-deep: #0d9488;
+      --surface: rgba(255, 255, 255, 0.88);
+      --border: rgba(0, 0, 0, 0.08);
+    }
+
+    [data-theme="dark"] {
+      --bg-base: #0f1117;
+      --ink: #f4f4f5;
+      --ink-soft: #a1a1aa;
+      --ink-faint: #52525b;
+      --action: #22c997;
+      --action-deep: #5eead4;
+      --surface: rgba(24, 26, 35, 0.88);
+      --border: rgba(255, 255, 255, 0.08);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-base);
+      color: var(--ink);
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ========== Aurora Background ========== */
+    #aurora-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .screen {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+    }
+
+    /* ========== Learning Card ========== */
+    .learning-card {
+      position: relative;
+      width: 100%;
+      max-width: 420px;
+      padding: 48px 32px 40px;
+      background: var(--surface);
+      backdrop-filter: blur(28px) saturate(200%);
+      -webkit-backdrop-filter: blur(28px) saturate(200%);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      box-shadow: 
+        0 25px 50px -12px rgba(0, 0, 0, 0.15),
+        0 12px 24px -8px rgba(0, 0, 0, 0.1);
+    }
+
+    [data-theme="dark"] .learning-card {
+      box-shadow: 
+        0 25px 50px -12px rgba(0, 0, 0, 0.5),
+        0 12px 24px -8px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Card title - Sign up / Sign in - left aligned */
+    .card-title {
+      position: absolute;
+      top: 20px;
+      left: 24px;
+    }
+
+    .card-title-text {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--ink-faint);
+      padding: 5px 12px;
+      background: rgba(0, 0, 0, 0.04);
+      border-radius: 16px;
+    }
+
+    [data-theme="dark"] .card-title-text {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    /* Progress indicator */
+    .progress-dots {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .progress-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--ink-faint);
+      opacity: 0.3;
+      transition: all 0.4s ease;
+    }
+
+    .progress-dot.active {
+      opacity: 1;
+      background: var(--action);
+      transform: scale(1.2);
+    }
+
+    .progress-dot.completed {
+      opacity: 0.6;
+      background: var(--action);
+    }
+
+    /* ========== Learning Content ========== */
+    .learning-content {
+      position: relative;
+      min-height: 140px;
+      margin-bottom: 24px;
+    }
+
+    .word-display {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    .word-english {
+      font-family: var(--font-display);
+      font-size: 42px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      opacity: 0;
+      transform: translateY(20px);
+      animation: fadeInUp 0.6s ease forwards, wordFloat 3s ease-in-out infinite;
+    }
+
+    .word-english[data-type="email"] {
+      background: linear-gradient(135deg, #8b5cf6, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-shadow: 0 0 30px rgba(139, 92, 246, 0.3);
+    }
+
+    .word-english[data-type="password"] {
+      background: linear-gradient(135deg, #f59e0b, #fbbf24);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-shadow: 0 0 30px rgba(245, 158, 11, 0.3);
+    }
+
+    .word-english[data-type="name"] {
+      background: linear-gradient(135deg, #ec4899, #f472b6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-shadow: 0 0 30px rgba(236, 72, 153, 0.3);
+    }
+
+    @keyframes wordFloat {
+      0%, 100% {
+        transform: translateY(0);
+      }
+      50% {
+        transform: translateY(-6px);
+      }
+    }
+
+    .word-pinyin {
+      font-size: 16px;
+      color: var(--ink-soft);
+      margin-top: 8px;
+      opacity: 0;
+      animation: fadeIn 0.5s ease 0.2s forwards;
+    }
+
+    .sentence-display {
+      position: relative;
+      min-height: 60px;
+      margin-top: 20px;
+    }
+
+    .sentence {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    .sentence.active {
+      opacity: 1;
+      transform: translateY(0);
+      animation: fadeInUp 0.5s ease forwards;
+    }
+
+    .sentence-chinese {
+      font-size: 18px;
+      color: var(--ink);
+      text-align: center;
+      line-height: 1.7;
+    }
+
+    .sentence-english {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      color: var(--ink-soft);
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    /* Highlight the key word - React Bits style glow animation */
+    .highlight-word {
+      display: inline;
+      position: relative;
+      font-weight: 600;
+      padding: 0 4px;
+      animation: wordGlow 2s ease-in-out infinite;
+    }
+
+    .highlight-word[data-type="email"] {
+      color: #8b5cf6;
+      text-shadow: 0 0 8px rgba(139, 92, 246, 0.4);
+      animation-delay: 0s;
+    }
+
+    .highlight-word[data-type="password"] {
+      color: #f59e0b;
+      text-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+      animation-delay: 0.3s;
+    }
+
+    .highlight-word[data-type="name"] {
+      color: #ec4899;
+      text-shadow: 0 0 8px rgba(236, 72, 153, 0.4);
+      animation-delay: 0.6s;
+    }
+
+    @keyframes wordGlow {
+      0%, 100% {
+        transform: scale(1);
+        filter: brightness(1);
+      }
+      50% {
+        transform: scale(1.05);
+        filter: brightness(1.2);
+      }
+    }
+
+    /* ========== Input Form ========== */
+    .input-section {
+      opacity: 0;
+      transform: translateY(20px);
+      animation: fadeInUp 0.5s ease 0.4s forwards;
+    }
+
+    .input-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--ink-faint);
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .input-field {
+      width: 100%;
+      height: 56px;
+      padding: 0 20px;
+      font-family: var(--font-mono);
+      font-size: 18px;
+      color: var(--ink);
+      background: rgba(0, 0, 0, 0.04);
+      border: 2px solid transparent;
+      border-radius: 14px;
+      outline: none;
+      transition: all 0.3s ease;
+    }
+
+    [data-theme="dark"] .input-field {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .input-field:focus {
+      background: rgba(0, 0, 0, 0.06);
+      border-color: var(--action);
+      box-shadow: 0 0 0 4px rgba(34, 201, 151, 0.15);
+    }
+
+    .input-field::placeholder {
+      color: var(--ink-faint);
+    }
+
+    /* ========== Button ========== */
+    /* Navigation buttons row - bottom aligned */
+    .nav-buttons {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 28px;
+      opacity: 0;
+      animation: fadeIn 0.5s ease 0.6s forwards;
+    }
+
+    .btn-back {
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.04);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+
+    [data-theme="dark"] .btn-back {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .btn-back:hover {
+      background: rgba(0, 0, 0, 0.08);
+      transform: translateX(-2px);
+    }
+
+    .btn-back svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: var(--ink-soft);
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* Continue button - circle with icon, subtle pulse */
+    .btn-continue {
+      width: 52px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, var(--action-deep), var(--action));
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      opacity: 0;
+      transform: translateY(20px);
+      animation: fadeInUp 0.5s ease 0.5s forwards;
+      transition: all 0.25s ease;
+      box-shadow: 0 4px 16px rgba(34, 201, 151, 0.4);
+    }
+
+    .btn-continue:hover {
+      transform: translateY(-3px) scale(1.05);
+      box-shadow: 0 6px 24px rgba(34, 201, 151, 0.55);
+    }
+
+    .btn-continue:active {
+      transform: translateY(0) scale(0.95);
+    }
+
+    .btn-continue svg {
+      width: 22px;
+      height: 22px;
+      fill: none;
+      stroke: #fff;
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      animation: arrowSlide 1.8s ease-in-out infinite;
+    }
+
+    @keyframes arrowSlide {
+      0%, 100% {
+        transform: translateX(0);
+      }
+      50% {
+        transform: translateX(3px);
+      }
+    }
+
+    .btn-continue:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(34, 201, 151, 0.45);
+    }
+
+    .btn-continue:active {
+      transform: translateY(0);
+    }
+
+    /* ========== Bottom Action ========== */
+    .bottom-action {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 14px;
+      color: var(--ink-soft);
+      opacity: 0;
+      animation: fadeIn 0.5s ease 0.8s forwards;
+    }
+
+    .bottom-action span {
+      color: var(--ink-faint);
+      margin-right: 6px;
+    }
+
+    .bottom-action a {
+      color: var(--action-deep);
+      text-decoration: none;
+      font-weight: 500;
+      position: relative;
+    }
+
+    .bottom-action a::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      bottom: -2px;
+      width: 100%;
+      height: 2px;
+      background: var(--action);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.3s ease;
+    }
+
+    .bottom-action a:hover::after {
+      transform: scaleX(1);
+    }
+
+    /* ========== Animations ========== */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    /* ========== Theme Toggle ========== */
+    .theme-toggle {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 100;
+      padding: 10px 16px;
+      font-size: 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+    }
+  </style>
+</head>
+<body data-theme="light">
+  <button class="theme-toggle" onclick="toggleTheme()">🌓 切换主题</button>
+
+  <canvas id="aurora-canvas"></canvas>
+
+  <!-- Step 1: Email -->
+  <div class="screen" id="screen-email">
+    <div class="learning-card">
+      <div class="card-title">
+        <span class="card-title-text">注册</span>
+      </div>
+      <div class="progress-dots">
+        <div class="progress-dot active" data-step="1"></div>
+        <div class="progress-dot" data-step="2"></div>
+        <div class="progress-dot" data-step="3"></div>
+      </div>
+
+      <div class="learning-content">
+        <div class="word-display">
+          <div class="word-english" data-type="email">Email</div>
+          <div class="word-pinyin">/ˈiːmeɪl/ · 电子邮件</div>
+        </div>
+
+        <div class="sentence-display">
+          <div class="sentence active">
+            <span class="sentence-chinese">请输入您的<span class="highlight-word" data-type="email">Email</span>地址</span>
+            <span class="sentence-english">Please enter your <span class="highlight-word" data-type="email">email</span> address</span>
+          </div>
+          <div class="sentence">
+            <span class="sentence-chinese">我会发送一封确认<span class="highlight-word" data-type="email">邮件</span>给您</span>
+            <span class="sentence-english">I will send you a confirmation <span class="highlight-word" data-type="email">email</span></span>
+          </div>
+          <div class="sentence">
+            <span class="sentence-chinese">您的<span class="highlight-word" data-type="email">邮箱</span>不会被公开分享</span>
+            <span class="sentence-english">Your <span class="highlight-word" data-type="email">email</span> will not be shared</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="input-section">
+        <label class="input-label">Your Email</label>
+        <input type="email" class="input-field" placeholder="you@example.com" id="email-input">
+        <div class="nav-buttons">
+          <div></div> <!-- Empty for first step -->
+          <button class="btn-continue" onclick="goToPassword()">
+            <svg viewBox="0 0 24 24">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
+        <div class="bottom-action">
+          <span>已有账号?</span>
+          <a href="#" onclick="skipToLogin()">直接登录</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2: Password -->
+  <div class="screen" id="screen-password" style="display: none;">
+    <div class="learning-card">
+      <div class="card-title">
+        <span class="card-title-text">注册</span>
+      </div>
+      <div class="progress-dots">
+        <div class="progress-dot completed" data-step="1"></div>
+        <div class="progress-dot active" data-step="2"></div>
+        <div class="progress-dot" data-step="3"></div>
+      </div>
+
+      <div class="learning-content">
+        <div class="word-display">
+          <div class="word-english" data-type="password">Password</div>
+          <div class="word-pinyin">/ˈpɑːswɜːrd/ · 密码</div>
+        </div>
+
+        <div class="sentence-display">
+          <div class="sentence active">
+            <span class="sentence-chinese">请设置您的账户<span class="highlight-word" data-type="password">密码</span></span>
+            <span class="sentence-english">Please set your account <span class="highlight-word" data-type="password">password</span></span>
+          </div>
+          <div class="sentence">
+            <span class="sentence-chinese"><span class="highlight-word" data-type="password">密码</span>至少需要8个字符</span>
+            <span class="sentence-english">The <span class="highlight-word" data-type="password">password</span> must be at least 8 characters</span>
+          </div>
+          <div class="sentence">
+            <span class="sentence-chinese">使用字母和数字组合更<span class="highlight-word" data-type="password">安全</span></span>
+            <span class="sentence-english">Using letters and numbers is more <span class="highlight-word" data-type="password">secure</span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="input-section">
+        <label class="input-label">Create Password</label>
+        <input type="password" class="input-field" placeholder="••••••••">
+        <div class="nav-buttons">
+          <button class="btn-back" onclick="goBackToEmail()">
+            <svg viewBox="0 0 24 24">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+          </button>
+          <button class="btn-continue" onclick="goToName()">
+            <svg viewBox="0 0 24 24">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3: Name -->
+  <div class="screen" id="screen-name" style="display: none;">
+    <div class="learning-card">
+      <div class="card-title">
+        <span class="card-title-text">注册</span>
+      </div>
+      <div class="progress-dots">
+        <div class="progress-dot completed" data-step="1"></div>
+        <div class="progress-dot completed" data-step="2"></div>
+        <div class="progress-dot active" data-step="3"></div>
+      </div>
+
+      <div class="learning-content">
+        <div class="word-display">
+          <div class="word-english" data-type="name">Name</div>
+          <div class="word-pinyin">/neɪm/ · 名字</div>
+        </div>
+
+        <div class="sentence-display">
+          <div class="sentence active">
+            <span class="sentence-chinese">我们应该如何称呼您的<span class="highlight-word" data-type="name">名字</span>？</span>
+            <span class="sentence-english">What is your <span class="highlight-word" data-type="name">name</span>?</span>
+          </div>
+          <div class="sentence">
+            <span class="sentence-chinese">这只是您的展示<span class="highlight-word" data-type="name">名称</span></span>
+            <span class="sentence-english">This is just your display <span class="highlight-word" data-type="name">name</span></span>
+          </div>
+          <div class="sentence">
+            <span class="sentence-chinese">您可以随时更改您的<span class="highlight-word" data-type="name">名字</span></span>
+            <span class="sentence-english">You can change your <span class="highlight-word" data-type="name">name</span> anytime</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="input-section">
+        <label class="input-label">Your Name</label>
+        <input type="text" class="input-field" placeholder="Your name">
+        <div class="nav-buttons">
+          <button class="btn-back" onclick="goBackToPassword()">
+            <svg viewBox="0 0 24 24">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+          </button>
+          <button class="btn-continue">
+            <svg viewBox="0 0 24 24">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ========== Aurora Background ==========
+    function initAurora() {
+      const canvas = document.getElementById('aurora-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const html = document.documentElement;
+
+      function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      const curtains = [
+        { color: [34, 201, 151], baseY: 0.28, amp: 35, freq: 0.0012, speed: 0.12, opacity: 0.5, width: 300, phase: 0, pulseSpeed: 0.015, pulseDepth: 0.25 },
+        { color: [13, 148, 136], baseY: 0.48, amp: 45, freq: 0.0010, speed: 0.10, opacity: 0.45, width: 350, phase: Math.PI * 0.7, pulseSpeed: 0.012, pulseDepth: 0.20 },
+        { color: [94, 234, 212], baseY: 0.38, amp: 30, freq: 0.0014, speed: 0.14, opacity: 0.35, width: 280, phase: Math.PI * 1.3, pulseSpeed: 0.018, pulseDepth: 0.30 },
+      ];
+
+      let time = 0;
+
+      function drawCurtain(c) {
+        const isDark = html.getAttribute('data-theme') === 'dark';
+        const opMul = isDark ? 1 : 1.5;
+        const [r, g, b] = c.color;
+        const opacity = c.opacity * opMul;
+
+        const pulse = 1 + Math.sin(time * c.pulseSpeed + c.phase) * c.pulseDepth;
+
+        const points = [];
+        const step = 12;
+
+        for (let x = -60; x <= canvas.width + 60; x += step) {
+          const y = canvas.height * c.baseY
+            + Math.sin(x * c.freq + time * c.speed + c.phase) * c.amp * pulse
+            + Math.sin(x * c.freq * 0.5 + time * c.speed * 0.6) * c.amp * 0.4;
+          points.push({ x, y });
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y - c.width);
+        for (let i = 0; i < points.length; i++) {
+          ctx.lineTo(points[i].x, points[i].y - c.width * 0.3);
+        }
+        for (let i = points.length - 1; i >= 0; i--) {
+          ctx.lineTo(points[i].x, points[i].y + c.width * 0.3);
+        }
+        ctx.closePath();
+
+        const cy = canvas.height * c.baseY;
+        const grad = ctx.createLinearGradient(0, cy - c.width, 0, cy + c.width);
+        grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0)`);
+        grad.addColorStop(0.35, `rgba(${r}, ${g}, ${b}, ${opacity * 0.3})`);
+        grad.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, ${opacity * pulse})`);
+        grad.addColorStop(0.65, `rgba(${r}, ${g}, ${b}, ${opacity * 0.3})`);
+        grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+        ctx.fillStyle = grad;
+        ctx.fill();
+      }
+
+      function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        time += 0.016;
+
+        const isDark = html.getAttribute('data-theme') === 'dark';
+        ctx.globalCompositeOperation = isDark ? 'screen' : 'source-over';
+        curtains.forEach(drawCurtain);
+        ctx.globalCompositeOperation = 'source-over';
+
+        requestAnimationFrame(animate);
+      }
+
+      animate();
+    }
+
+    // ========== Sentence Rotation ==========
+    let sentenceIndex = 0;
+    const sentenceDuration = 4000;
+
+    function rotateSentences() {
+      const screens = document.querySelectorAll('.screen:not([style*="display: none"])');
+      screens.forEach(screen => {
+        const sentences = screen.querySelectorAll('.sentence');
+        if (sentences.length <= 1) return;
+
+        sentences[sentenceIndex].classList.remove('active');
+        sentenceIndex = (sentenceIndex + 1) % sentences.length;
+        sentences[sentenceIndex].classList.add('active');
+      });
+    }
+
+    setInterval(rotateSentences, sentenceDuration);
+
+    // ========== Navigation ==========
+    function goToPassword() {
+      document.getElementById('screen-email').style.display = 'none';
+      document.getElementById('screen-password').style.display = 'flex';
+      sentenceIndex = 0; // Reset sentence rotation
+    }
+
+    function goToName() {
+      document.getElementById('screen-password').style.display = 'none';
+      document.getElementById('screen-name').style.display = 'flex';
+      sentenceIndex = 0;
+    }
+
+    function goBackToEmail() {
+      document.getElementById('screen-password').style.display = 'none';
+      document.getElementById('screen-email').style.display = 'flex';
+      sentenceIndex = 0;
+    }
+
+    function goBackToPassword() {
+      document.getElementById('screen-name').style.display = 'none';
+      document.getElementById('screen-password').style.display = 'flex';
+      sentenceIndex = 0;
+    }
+
+    function skipToLogin() {
+      alert('This would navigate to simple login mode');
+    }
+
+    // ========== Theme Toggle ==========
+    function toggleTheme() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme');
+      html.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+    }
+
+    // Initialize
+    initAurora();
+  </script>
+</body>
+</html>

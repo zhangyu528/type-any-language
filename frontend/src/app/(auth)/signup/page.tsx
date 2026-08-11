@@ -1,69 +1,78 @@
 'use client';
 
-/**
- * /signup — 单页完整注册表单。
- *
- * 状态/校验/提交逻辑全部在 useAuthFormState hook 里,
- * /login page 与 AuthModal 共用同一份 hook — 本文件只剩 Suspense
- * shell、<h1> 4 字 stagger、AuthForm 渲染。
- *
- * 保留行为:
- *   - useSearchParams + safeRedirectPath 处理 ?from= 回跳
- *   - 409 "该邮箱已注册"挂 errors.email (hook 内)
- *   - 密码端至少 8 位, 两次需相等 (hook 内)
- *   - 实时匹配 hint(✓/⚠) (hook 内 useMemo)
- *   - 服务端 fieldErrors → 对应字段聚焦 (hook 内 useEffect)
- */
+import { Suspense, useState, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useCallback } from 'react';
+import ImmersiveAuth from '../_components/ImmersiveAuth';
+import { apiSignup, ApiError } from '../../api';
+import { useAuth } from '../../lib/auth';
 import { safeRedirectPath } from '../../lib/safeRedirect';
-import { useAuthFormState } from '../_hooks/useAuthFormState';
-import AuthForm from '../_components/AuthForm';
 
 export default function SignupPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="auth-card">
-          <p className="auth-form__loader">Loading…</p>
-        </div>
-      }
-    >
-      <SignupForm />
+    <Suspense fallback={null}>
+      <SignupInner />
     </Suspense>
   );
 }
 
-function SignupForm() {
+function SignupInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const fromParam = searchParams?.get('from') ?? null;
-  const redirectTo = safeRedirectPath(fromParam, '/');
+  const { refresh } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
 
-  const { formProps, formRef, submit } = useAuthFormState({
-    mode: 'signup',
-    redirectTo,
-  });
+  const handleSubmit = useCallback(
+    async (data: { email?: string; password?: string; name?: string }) => {
+      setIsLoading(true);
+      try {
+        await apiSignup({
+          email: data.email!,
+          password: data.password!,
+          display_name: data.name,
+        });
+        // 同 login：注册成功 → refresh() → navigate
+        await refresh();
+        const target = safeRedirectPath(searchParams.get('from'), '/dashboard');
+        router.replace(target);
+      } catch (error) {
+        if (error instanceof ApiError) {
+          alert(`注册失败：${error.message}`);
+        } else if (error instanceof Error) {
+          alert(`注册失败：${error.message || '网络错误，请检查连接'}`);
+        } else {
+          alert('注册失败，请稍后重试');
+        }
+        console.error('Signup failed:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [router, searchParams, refresh]
+  );
 
-  const handleSubmit = useCallback(async () => {
-    const ok = await submit();
-    if (ok) router.replace(redirectTo);
-  }, [submit, redirectTo, router]);
+  const handleSwitchMode = useCallback(() => {
+    const from = searchParams.get('from');
+    const qs = from ? `?from=${encodeURIComponent(from)}` : '';
+    router.push(`/login${qs}`);
+  }, [router, searchParams]);
+
+  const handleClose = useCallback(() => {
+    // X / Escape = 一键离开认证流程,直接去 landing。
+    //
+    // ❌ 不要"尊重 `from` —— from 是受保护路由,user=null 时那个路由
+    //   的 auth guard 会把用户推回 /signup,形成 /signup → from → /signup
+    //   的死循环(用户登出后永远卡在这里)。
+    // ❌ 不要 router.back() —— login↔signup 切换会留 breadcrumb 痕迹。
+    router.push('/');
+  }, [router]);
 
   return (
-    <>
-      <h1 className="auth-title">
-        {Array.from('创建账号').map((char, i) => (
-          <span
-            key={i}
-            className="auth-title__char"
-            style={{ animationDelay: `${i * 120}ms` }}
-          >
-            {char}
-          </span>
-        ))}
-      </h1>
-      <AuthForm ref={formRef} {...formProps} onSubmit={handleSubmit} />
-    </>
+    <ImmersiveAuth
+      mode="signup"
+      onSubmit={handleSubmit}
+      onSwitchMode={handleSwitchMode}
+      onClose={handleClose}
+      isLoading={isLoading}
+    />
   );
 }

@@ -1,75 +1,96 @@
 'use client';
 
-/**
- * /login — 单页完整登录表单。
- *
- * 状态/校验/提交逻辑全部在 useAuthFormState hook 里,
- * /signup page 与 AuthModal 共用同一份 hook — 本文件只剩 Suspense
- * shell、<h1> 4 字 stagger、AuthForm 渲染。
- *
- * 保留行为:
- *   - useSearchParams + safeRedirectPath 处理 ?from= 回跳
- *   - 邮箱最小格式校验 (hook 内)
- *   - 服务端 fieldErrors → 对应字段聚焦 (hook 内 useEffect)
- *   - 网络错误 fallback: 「网络异常,请稍后重试」 (hook 内)
- */
+import { Suspense, useState, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useCallback } from 'react';
+import ImmersiveAuth from '../_components/ImmersiveAuth';
+import styles from '../_components/AuthModal.module.css';
+import { apiLogin, ApiError } from '../../api';
+import { useAuth } from '../../lib/auth';
 import { safeRedirectPath } from '../../lib/safeRedirect';
-import { useAuthFormState } from '../_hooks/useAuthFormState';
-import AuthForm from '../_components/AuthForm';
 
-/**
- * Suspense shell — required by Next.js 14 for any page that calls
- * useSearchParams(). The fallback renders the same auth-card surface so
- * there's no flash between hydration and the form appearing.
- */
 export default function LoginPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="auth-card">
-          <p className="auth-form__loader">Loading…</p>
-        </div>
-      }
-    >
-      <LoginForm />
+    <Suspense fallback={null}>
+      <LoginInner />
     </Suspense>
   );
 }
 
-function LoginForm() {
+function LoginInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  // safeRedirectPath() defends against open-redirect attacks (e.g.
-  // /login?from=https://evil.com). When absent or invalid, '/' kicks in.
-  const fromParam = searchParams?.get('from') ?? null;
-  const redirectTo = safeRedirectPath(fromParam, '/');
+  const { refresh } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
 
-  const { formProps, formRef, submit } = useAuthFormState({
-    mode: 'login',
-    redirectTo,
-  });
+  const handleSubmit = useCallback(
+    async (data: { email?: string; password?: string; name?: string }) => {
+      setIsLoading(true);
+      try {
+        await apiLogin({ email: data.email!, password: data.password! });
+        // 关键：登录成功后先 refresh() 把 useAuth context 里的 user 同步上，
+        // 否则后续 /dashboard 守卫会因 user=null 立刻把用户踢回 /login。
+        await refresh();
+        const target = safeRedirectPath(searchParams.get('from'), '/dashboard');
+        router.replace(target);
+      } catch (error) {
+        if (error instanceof ApiError) {
+          alert(`登录失败：${error.message}`);
+        } else if (error instanceof Error) {
+          alert(`登录失败：${error.message || '网络错误，请检查连接'}`);
+        } else {
+          alert('登录失败，请稍后重试');
+        }
+        console.error('Login failed:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [router, searchParams, refresh]
+  );
 
-  const handleSubmit = useCallback(async () => {
-    const ok = await submit();
-    if (ok) router.replace(redirectTo);
-  }, [submit, redirectTo, router]);
+  const handleSwitchMode = useCallback(() => {
+    const from = searchParams.get('from');
+    const qs = from ? `?from=${encodeURIComponent(from)}` : '';
+    router.push(`/signup${qs}`);
+  }, [router, searchParams]);
+
+  const handleClose = useCallback(() => {
+    // X / Escape = 一键离开认证流程,直接去 landing。
+    //
+    // ❌ 不要"尊重 `from` —— from 是受保护路由,user=null 时那个路由
+    //   的 auth guard 会把用户推回 /login,形成 /login → from → /login
+    //   的死循环(用户登出后永远卡在这里)。
+    // ❌ 不要 router.back() —— login↔signup 切换会留 breadcrumb 痕迹,
+    //   后退可能回到上一个 auth 子页面而不是 landing。
+    router.push('/');
+  }, [router]);
 
   return (
-    <>
-      <h1 className="auth-title">
-        {Array.from('欢迎回来').map((char, i) => (
-          <span
-            key={i}
-            className="auth-title__char"
-            style={{ animationDelay: `${i * 120}ms` }}
-          >
-            {char}
-          </span>
-        ))}
-      </h1>
-      <AuthForm ref={formRef} {...formProps} onSubmit={handleSubmit} />
-    </>
+    /* v9: wrap ImmersiveAuth in a local .overlay (re-using the
+       same class names as <AuthModal>). The /login page used
+       to render <ImmersiveAuth> directly with no scrim, so
+       clicking outside the cards did nothing — there was no
+       element to receive the click. The previous click-outside
+       handler lived in <AuthModal> but that path is only used
+       for hero/landing modal triggers, not for the /me →
+       /login redirect path. */
+    <div
+      className={styles.overlay}
+      onClick={handleClose}
+      role="presentation"
+    >
+      <div
+        className={styles.dialog}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <ImmersiveAuth
+          mode="login"
+          onSubmit={handleSubmit}
+          onSwitchMode={handleSwitchMode}
+          onClose={handleClose}
+          isLoading={isLoading}
+        />
+      </div>
+    </div>
   );
 }

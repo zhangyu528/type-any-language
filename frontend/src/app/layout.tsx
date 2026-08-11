@@ -8,7 +8,10 @@ import './globals.css';
 
 const fraunces = Fraunces({
   subsets: ['latin'],
-  weight: ['500', '600', '700'],
+  // NO `weight` array — that pins us to static font files and breaks
+  // `font-variation-settings`. Without it, next/font pulls the variable
+  // file and lets us interpolate the `wght` / `opsz` axes at runtime
+  // (used by VariableProximity on the section kickers).
   variable: '--font-display',
   display: 'swap',
 });
@@ -22,7 +25,8 @@ const notoSansSC = Noto_Sans_SC({
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
-  weight: ['400', '500'],
+  // Same fix as Fraunces above: no `weight` array → variable font file →
+  // VariableProximity's `wght` interpolation actually takes effect.
   variable: '--font-mono-web',
   display: 'swap',
 });

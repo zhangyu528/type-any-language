@@ -8,6 +8,9 @@ class CatalogLib(BaseModel):
     name: str
     level: str
     word_count: int
+    # Total sentences in this lib (across all difficulty buckets).
+    # 0 for libs that don't have any — UI should hide the stat then.
+    sentence_count: int = 0
     description: Optional[str] = None  # nullable; from manifest on bake
 
     class Config:

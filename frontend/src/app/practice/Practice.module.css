@@ -14,7 +14,7 @@
   align-items: center;
   padding: clamp(40px, 8vh, 96px) clamp(24px, 5vw, 80px);
   position: relative;
-  background: var(--ds-bg);
+  background: transparent;
 }
 
 /* Feedback wash — kept for visual continuity, but a quiet neutral tint. */

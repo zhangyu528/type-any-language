@@ -1,0 +1,27 @@
+/* DecryptedText — wrapper is inline-block so it can sit in a sentence;
+   srOnly is the screen-reader-only fallback that reads the final text. */
+
+.wrapper {
+  display: inline-block;
+  white-space: pre-wrap;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.encrypted {
+  /* Decrypted text uses this default style for the un-revealed chars.
+     Override via `encryptedClassName` prop. */
+  opacity: 0.6;
+  color: var(--ds-ink-faint, currentColor);
+  font-variant-numeric: tabular-nums;
+}

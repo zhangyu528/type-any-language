@@ -1,42 +1,60 @@
 .root {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
+  /* 显式 bg — body 是 #ECF0F6(slate),landing root 通过 data-babyblue
+     覆写成 baby-blue #F2F8FE.这里直接锁 var(--ds-bg) 让 root 走当前
+     主题 token,避免 body 透出色块撞色。 */
   background: var(--ds-bg);
   color: var(--ds-ink);
   font-family: var(--font-sans);
 }
 
+.content {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- Footer ---------- */
+
 .footer {
   width: 100%;
-  border-top: 1px solid var(--ds-border);
-  margin-top: var(--space-6);
-  padding: var(--space-6) var(--space-5);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3) var(--space-5);
   max-width: var(--content-max);
-  margin-left: auto;
-  margin-right: auto;
+  margin: var(--space-6) auto 0;
+  padding: var(--space-6) var(--space-5);
+  border-top: 1px solid var(--ds-border);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: var(--space-6);
   color: var(--ds-ink-soft);
   font-size: var(--text-caption);
+  align-items: start;
 }
+
 .footerBrand {
-  display: inline-flex;
-  align-items: center;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-2);
+}
+
+.footerBrandName {
   color: var(--ds-ink);
   font-weight: 500;
+  font-family: var(--font-display), serif;
+  font-size: 1rem;
+  letter-spacing: -0.005em;
 }
+
 .footerLinks {
   display: inline-flex;
-  gap: var(--space-4);
+  flex-wrap: wrap;
+  gap: var(--space-3);
   list-style: none;
   padding: 0;
   margin: 0;
 }
+
 .footerLinks a {
   /* WCAG 2.5.8 — 24×24 minimum target. 文字行高 ~17px,包一层
      inline-flex + min-height 给命中区扩到 24px+。 */
@@ -48,13 +66,86 @@
   text-decoration: none;
   transition: color var(--dur-fast) var(--ease-out);
 }
+
 .footerLinks a:hover {
   color: var(--ds-action-deep);
 }
+
+/* 适用场景 + 转化路径 两个段落 */
+.footerMeta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-5);
+  grid-column: 2 / 4;
+}
+
+.metaBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.metaLabel {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--ds-ink-faint);
+  text-transform: uppercase;
+}
+
+.metaText {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+  line-height: 1.55;
+}
+
+.metaPath {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-family: var(--font-mono), monospace;
+  font-size: var(--text-caption);
+  color: var(--ds-action-deep);
+  letter-spacing: 0.02em;
+}
+
+.metaPathStep {
+  padding: 2px 8px;
+  background: color-mix(in srgb, var(--ds-action) 12%, transparent);
+  border-radius: var(--radius-sm);
+  color: var(--ds-action-deep);
+}
+
+.metaPathArrow {
+  color: var(--ds-ink-faint);
+  font-family: var(--font-mono), monospace;
+}
+
 .footerYear {
   font-family: var(--font-mono), monospace;
   font-size: 11px;
   letter-spacing: 0.04em;
-  color: var(--ds-ink-soft);
+  color: var(--ds-ink-faint);
   opacity: 0.7;
+  text-align: right;
+  align-self: end;
+}
+
+/* ---------- 响应式 ---------- */
+
+@media (max-width: 900px) {
+  .footer {
+    grid-template-columns: 1fr;
+  }
+  .footerMeta {
+    grid-column: 1;
+    grid-template-columns: 1fr;
+  }
+  .footerYear {
+    text-align: left;
+  }
 }

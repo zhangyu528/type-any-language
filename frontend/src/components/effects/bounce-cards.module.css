@@ -1,0 +1,21 @@
+/* BounceCards — simple flex container, children in normal flow.
+   The "absolute positioning + transformStyles" paradigm from
+   upstream is for the scattered-gallery aesthetic; we keep the
+   signature elastic entrance animation but let CSS layout decide
+   where each card sits. */
+
+.container {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.card {
+  /* Each card keeps its natural size (driven by its content) but
+     transforms can be applied via gsap (rotation / translation) on
+     hover-push. transform-origin stays default (center). */
+  will-change: transform;
+}

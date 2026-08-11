@@ -1,11 +1,15 @@
-/* DayDetailDrawer — right side panel / bottom sheet */
+/* DayDetailDrawer — right side panel / bottom sheet
+   Animation is owned by motion/react (initial / animate / exit) on the
+   <motion.aside> / <motion.div> inside DayDetailDrawer.tsx — the CSS
+   no longer drives keyframes, only the static layout + theme styling.
+   Mobile uses a slide-up via motion's y-axis (detected inside the
+   component), desktop uses slide-in from right via motion's x-axis. */
 
 .scrim {
   position: fixed;
   inset: 0;
   background: rgba(15, 26, 21, 0.35);
   z-index: 90;
-  animation: fadeIn var(--dur-fast) var(--ease-out);
 }
 
 .drawer {
@@ -22,7 +26,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  animation: slideInRight var(--dur-base) var(--ease-out);
   font-family: var(--font-sans);
 }
 
@@ -86,6 +89,14 @@
   color: var(--ds-ink);
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
+  display: inline-flex;
+  align-items: baseline;
+}
+
+/* AnimatedCounter ticks inside .kpiCounter; sits next to any static
+   suffix (e.g. "%") so the unit doesn't dance during the count-up. */
+.kpiCounter {
+  display: inline-block;
 }
 
 .kpiLabel {
@@ -155,28 +166,13 @@
     border-left: none;
     border-top: 1px solid var(--ds-border);
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    animation: slideInBottom var(--dur-base) var(--ease-out);
   }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes slideInRight {
-  from { transform: translateX(20px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-
-@keyframes slideInBottom {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .scrim,
   .drawer {
-    animation: none;
+    transform: none !important;
+    opacity: 1 !important;
   }
 }

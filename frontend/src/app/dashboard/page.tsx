@@ -3,39 +3,21 @@
 /**
  * /dashboard — login-required workbench page.
  *
- * Layout (top → bottom, mobile collapses the middle grid):
+ * Layout (Immersive Hero style):
  *   ┌──────────────────────────────────────────────────┐
- *   │ GreetingBar       (Streak header + avatar)       │
- *   ├────────────────────┬─────────────────────────────┤
- *   │ ContinueCard       │                             │
- *   ├────────────────────┤ WeeklyCalendar (4-week)     │
- *   │ DailyGoal          │                             │
- *   ├────────────────────┴─────────────────────────────┤
- *   │ ProgressSnapshot  (Accuracy · Sentences · Words) │
+ *   │ AuroraBackground (fixed, full-screen)           │
+ *   ├──────────────────────────────────────────────────┤
+ *   │ HeroSection (greeting + streak + monthly bar)   │
+ *   ├──────────────────────────────────────────────────┤
+ *   │ ContinueCard  │  DailyGoal                     │
+ *   ├──────────────────────────────────────────────────┤
+ *   │ WeekRhythm (7 dots + 本周 X/7)                  │
+ *   ├──────────────────────────────────────────────────┤
+ *   │ ProgressSnapshot  (Accuracy · Sentences · Words)│
  *   └──────────────────────────────────────────────────┘
  *
- * The calendar sits beside the Continue/DailyGoal stack rather than
- * below it at full width — at 1080px the 7-column grid's square
- * cells ballooned to ~145px each and the calendar dominated the
- * page. Half-width keeps cells near 60px.
- *
  * Auth: useAuth() + redirect to /login?from=/dashboard if anonymous.
- *
- * Data: GET /api/dashboard is the single hydration call. Subsequent
- * refreshes (e.g. after the user finishes a session) just re-fetch
- * the same endpoint; no incremental hydration state in v1.
- *
- * ---- Practice flow ----
- *
- * The dashboard owns selection, but the drill itself is a separate route.
- *
- *   /dashboard              → overview (the 5 tiles)
- *   /dashboard?picker=1     → overview + LibPicker modal on top
- *   /practice?lib=cet4     → standalone TranslationSession page
- *
- * Selecting a library uses the normal Next navigation boundary. This keeps
- * the dashboard a workbench and gives the practice drill its own full-page
- * layout, while the practice page's Back action returns here.
+ * Data: GET /api/dashboard is the single hydration call.
  */
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
@@ -47,13 +29,15 @@ import {
   getDashboardSnapshot,
 } from '../api';
 import { useAuth } from '../lib/auth';
+import { AuroraBackground, GlowCard, ScrollReveal } from '@/components/effects';
+import { BABY_BLUE_CURTAINS } from '@/components/effects/baby-blue-curtains';
 import LoadingMark from '../components/LoadingMark';
 import ModalShell from '../components/ModalShell';
 
 import GreetingBar from './GreetingBar';
 import ContinueCard from './ContinueCard';
 import DailyGoal from './DailyGoal';
-import WeeklyCalendar from './WeeklyCalendar';
+import WeekRhythm from './WeekRhythm';
 import ProgressSnapshot from './ProgressSnapshot';
 import LearnedLibProgress from './LearnedLibProgress';
 import LibPicker from './LibPicker';
@@ -286,30 +270,61 @@ function DashboardInner() {
   // mounted and visible behind the scrim.
   return (
     <main className={styles.root}>
-      <GreetingBar
-        user={snapshot.user}
-        streak={snapshot.streak}
-        dailyGoal={snapshot.daily_goal}
-      />
-      <div className={styles.mainGrid}>
-        <div className={styles.stack}>
-          <ContinueCard
-            state={snapshot.continue}
-            onResume={handleResume}
-            onPickLib={openLibPicker}
-          />
+      {/* Aurora background - full screen, behind all content */}
+      <AuroraBackground className="fixed inset-0 z-0" curtains={BABY_BLUE_CURTAINS} />
+
+      {/* Hero section - full width with aurora */}
+      <section className={styles.hero}>
+        <GreetingBar
+          user={snapshot.user}
+          streak={snapshot.streak}
+          dailyGoal={snapshot.daily_goal}
+          monthlyGoal={snapshot.monthly_goal}
+        />
+      </section>
+
+      {/* Cards grid - glassmorphism + glow.
+          ScrollReveal wraps each major section so when the user scrolls
+          down they fade up in sequence. cardsGrid is on-screen at load
+          (1440×980 viewport) — its IntersectionObserver fires
+          immediately; weekRhythmSection / progressSection are below the
+          fold and wait for scroll. */}
+      <ScrollReveal y={20} className={styles.cardsGrid}>
+        <div className={styles.cardGlass}>
+          {/* ContinueCard 包一层 GlowCard:鼠标在卡上移动时,光标位置
+             跟随一圈淡 slate 辉光,作为"主 CTA"卡的视觉重音。
+             DailyGoal 暂不加(它不强调 hover 反馈,hover 是 stack 装饰)。 */}
+          <GlowCard
+            className={styles.continueGlow}
+            glowColor="var(--ds-action)"
+            glowSize={280}
+          >
+            <ContinueCard
+              state={snapshot.continue}
+              onResume={handleResume}
+              onPickLib={openLibPicker}
+            />
+          </GlowCard>
+        </div>
+        <div className={styles.cardGlass}>
           <DailyGoal
             state={snapshot.daily_goal}
             onStartPractice={handleStartPractice}
           />
         </div>
-        <WeeklyCalendar
-          days={snapshot.calendar}
-          monthlyGoal={snapshot.monthly_goal}
-        />
-      </div>
-      <ProgressSnapshot kpis={snapshot.progress} />
-      <LearnedLibProgress userId={snapshot.user.id} />
+      </ScrollReveal>
+
+      {/* Week rhythm - the current-week activity strip. Monthly
+          goal progress lives in GreetingBar now (one signal, one place). */}
+      <ScrollReveal y={24} delay={120} className={styles.weekRhythmSection}>
+        <WeekRhythm days={snapshot.calendar} />
+      </ScrollReveal>
+
+      {/* Progress section */}
+      <ScrollReveal y={24} delay={220} className={styles.progressSection}>
+        <ProgressSnapshot kpis={snapshot.progress} />
+        <LearnedLibProgress userId={snapshot.user.id} />
+      </ScrollReveal>
 
       <ModalShell
         open={practice.pickerOpen}

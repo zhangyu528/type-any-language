@@ -1,187 +1,189 @@
-/* FinalCTA — 05 收尾 CTA
-   ------------------------------------------------------------
-   深色反色块(--ds-ink 底)+ 两个 mint glow blob 漂移。
-   整段 max-width 880px 居中,内边距 96px 上下。 */
+/* FinalCTA — 方案 B 黑色 CTA bar
+   --------------------------------------------------------------
+   深色反色块(--ds-ink 底)。背景走 React Bits <Threads>:
+   ogl WebGL fragment shader,40 条 mint 流线受 Perlin noise 驱动。
+   横向 layout:左侧大标题"选个场景试试 →",右侧 SpecularButton。
+   小屏退化为纵向堆叠。 */
 
 .root {
   width: 100%;
   max-width: var(--content-max);
   margin: 0 auto;
-  padding: var(--space-12) var(--space-5);
+  padding: clamp(var(--space-10), 9vh, 96px) var(--space-5);
   box-sizing: border-box;
   scroll-snap-align: start;
+  background: transparent;
 }
 
-.block {
+.bar {
   position: relative;
-  width: 100%;
-  min-height: 320px;
-  background: var(--ds-ink);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: clamp(var(--space-6), 5vh, 48px) clamp(var(--space-6), 4vw, 56px);
+  min-height: 180px;
+  /* Light 走浅蓝 tint 玻璃底(柔和"对比瞬间"),dark 切到深空蓝.
+     这样 FinalCTA 不再是 light 主题里的"刺眼异物". */
+  background: var(--ds-tint-deep);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  /* ME-Q5: border + shadow strengthened so the bar reads as a
+     distinct "elevated card" against the aurora background instead
+     of melting into the same-blue-family page tint. Three-layer
+     shadow: a hairline inner highlight (glass-card signature), a
+     mid-distance drop, and a tight close shadow for "lifted off
+     the page" feel. Border bumped to 1.5px + 35% action-deep
+     so the edge is visible in both themes. */
+  border: 1.5px solid color-mix(in srgb, var(--ds-action-deep) 35%, transparent);
   border-radius: var(--radius-xl);
   overflow: hidden;
   isolation: isolate;
-  box-shadow: var(--ds-elevate-1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 12px 32px -8px rgba(12, 68, 124, 0.18),
+    0 2px 6px rgba(12, 68, 124, 0.08);
 }
 
-.inner {
+[data-theme="dark"] .bar {
+  background: color-mix(in srgb, #0A1428 92%, transparent);
+  /* Dark keeps its own border + shadow so the bar reads against
+     the deep-navy aurora without competing with the lighter
+     light-theme treatment above. */
+  border-color: color-mix(in srgb, #5BA8F0 22%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(143, 203, 240, 0.18),
+    0 12px 32px -8px rgba(0, 0, 0, 0.5),
+    0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .bar {
+  background: color-mix(in srgb, #0A1428 92%, transparent);
+}
+
+.threadsBg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  /* ME-Q4: blend mode now switched per-theme — multiply in light
+     (deeper blue lines "印" on the light-tint bar) and screen
+     in dark (light blue lines "光" on the deep-navy bar). opacity
+     stays low in both because the colour choice + blend mode now
+     carry the visibility, not the opacity. */
+  mix-blend-mode: multiply;
+  opacity: 0.32;
+}
+
+[data-theme="dark"] .threadsBg {
+  mix-blend-mode: screen;
+  opacity: 0.6;
+}
+
+.content {
   position: relative;
   z-index: 2;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  text-align: center;
+  justify-content: space-between;
   gap: var(--space-5);
-  /* padding 由 .root 提供;.block 自带 min-height 撑出纵向空间。 */
+  width: 100%;
 }
 
-/* ---------- 装饰光晕 ---------- */
+/* ---------- 左侧文字 ---------- */
 
-.blob {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
-  z-index: 1;
-  pointer-events: none;
-  animation-play-state: var(--ds-blob-play, running);
+.titleBlock {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
-
-.blobTL {
-  top: -80px;
-  left: -60px;
-  width: 280px;
-  height: 280px;
-  background: var(--ds-action);
-  opacity: 0.22;
-  animation: blob-drift-a 22s var(--ease-out) infinite;
-}
-
-.blobBR {
-  bottom: -60px;
-  right: -40px;
-  width: 220px;
-  height: 220px;
-  background: var(--ds-tint-deep);
-  opacity: 0.18;
-  animation: blob-drift-b 26s var(--ease-out) infinite;
-}
-
-@keyframes blob-drift-a {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(40px, 30px) scale(1.08); }
-}
-
-@keyframes blob-drift-b {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-30px, -20px) scale(1.1); }
-}
-
-/* ---------- 文字 ---------- */
 
 .title {
   margin: 0;
   font-family: var(--font-display), var(--font-sans), serif;
-  font-size: clamp(24px, 3.6vw, 36px);
+  font-size: clamp(22px, 3vw, 34px);
   font-weight: 600;
-  line-height: 1.3;
+  line-height: 1.25;
   letter-spacing: -0.01em;
+  color: var(--ds-ink);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+[data-theme="dark"] .title {
   color: #FFFFFF;
 }
 
-.titleLine {
-  display: block;
+.titleMain {
+  display: inline-block;
 }
 
-.kicker {
+.titleArrow {
+  display: inline-block;
+  font-family: var(--font-mono), monospace;
+  color: var(--ds-action);
+  font-weight: 500;
+  font-size: 0.95em;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.bar:hover .titleArrow {
+  transform: translateX(4px);
+}
+
+.sub {
   margin: 0;
   font-family: var(--font-mono), monospace;
   font-size: var(--text-caption);
   letter-spacing: 0.06em;
-  color: var(--ds-tint);
+  color: var(--ds-ink-soft);
 }
 
-/* ---------- 按钮区 ---------- */
-
-.actions {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-3);
-  margin-top: var(--space-3);
+[data-theme="dark"] .sub {
+  color: #CFE3F2;
 }
+
+/* ---------- 右侧按钮 ---------- */
 
 .start {
-  /* 沿用 Button 基础样式,只做尺寸/字重微调 */
+  flex: 0 0 auto;
   min-width: 200px;
-  height: 52px !important;
-  font-size: 15px !important;
 }
 
-.altLink {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: var(--space-2) var(--space-3);
-  font-family: var(--font-sans);
-  font-size: var(--text-caption);
-  color: var(--ds-tint);
-  letter-spacing: 0.02em;
-  border-radius: var(--radius-sm);
-  transition: color var(--dur-fast) var(--ease-out);
-}
-
-.altLink:hover {
-  color: var(--ds-surface);
-}
-
-.altLink:focus-visible {
-  outline: 2px solid var(--ds-tint);
-  outline-offset: 2px;
-}
-
-.altArrow {
-  display: inline-block;
-  transition: transform var(--dur-base) var(--ease-out);
-}
-
-.altLink:hover .altArrow {
-  transform: translateX(3px);
-}
-
-/* ---------- a11y ---------- */
-
-.srOnly {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+.startBtn {
+  /* SpecularButton lg 在深底上的锚点 */
+  font-size: 1.05rem !important;
 }
 
 /* ---------- 响应式 ---------- */
 
-@media (max-width: 639px) {
-  .inner {
-    padding: var(--space-8) var(--space-5);
+@media (max-width: 720px) {
+  .content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-4);
   }
   .start {
-    min-width: 180px;
+    width: 100%;
+  }
+  .startBtn {
+    width: 100%;
+  }
+  .bar {
+    padding: var(--space-6);
   }
 }
 
 /* ---------- reduced-motion ---------- */
 
 @media (prefers-reduced-motion: reduce) {
-  .blob {
-    animation: none;
-  }
-  .altLink:hover .altArrow {
+  .bar:hover .titleArrow {
     transform: none;
+  }
+  .titleArrow {
+    transition: none;
   }
 }

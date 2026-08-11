@@ -1,19 +1,11 @@
 /* ============================================================
-   AuthForm — 单页 auth 表单的 token 化样式
-   ------------------------------------------------------------
-   下划线-only 输入 + 左侧可选 mail 图标 + 右侧 IconButton bare 眼睛
-   + 字段下方 ⚠ 错误胶囊 + 提交 `Button primary lg` + alt-link。
-   全部 --ds-* / --space-* / --radius-* / --text-* / --dur-* / --ease-*。
-   标题 (.auth-title / .auth-title__char) 由 (auth)/layout.tsx 拥有,
-   不在本文件。
+   AuthForm — 升级版：圆角输入框 + 更好的视觉层次
    ============================================================ */
 
 .form {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  /* 整张表单在卡片升起后整体淡入一帧,4px 抬起 — 跟 .auth-card-rise
-     500ms 错峰 80ms,让卡片先"入场"再"展开内容"。 */
   animation: authForm-rise 400ms var(--ease-out) 80ms both;
 }
 
@@ -24,7 +16,6 @@
 
 /* ------------------------------------------------------------
    Subtitle(可选双语 caption)
-   静态单行,zh + bullet + en。不旋转、不动画、不 aria-live。
    ------------------------------------------------------------ */
 .subtitle {
   display: flex;
@@ -48,7 +39,7 @@
 }
 
 /* ------------------------------------------------------------
-   Field — 一个字段列(label 可选,目前直接用 input 的 aria-label)
+   Field — 一个字段列
    ------------------------------------------------------------ */
 .field {
   display: flex;
@@ -56,26 +47,40 @@
   gap: var(--space-2);
 }
 
-/* 输入壳 — 容纳 left icon + 原生 input + 右侧眼睛 toggle。 */
+/* 输入壳 — 圆角边框 + 背景 + 阴影 */
 .inputWrap {
   position: relative;
   display: flex;
   align-items: center;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--radius-lg);
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+[data-theme="dark"] .inputWrap {
+  background: rgba(30, 32, 42, 0.6);
+}
+
+.inputWrap:focus-within {
+  border-color: var(--ds-action-deep);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-action) 20%, transparent);
+}
+
+.inputWrap[data-state="error"] {
+  border-color: var(--ds-error);
+}
+
+.inputWrap[data-state="error"]:focus-within {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-error) 20%, transparent);
 }
 
 /* ------------------------------------------------------------
-   输入 — 下划线 only,符合站点极简节奏。
-   静态 1px --ds-ink-soft,聚焦时:
-     - 1px 静态线下移到 --ds-ink
-     - 2px --ds-action 覆盖条从左 scaleX(0)→scaleX(1)
-   错误时:
-     - 静态线改 --ds-error-line
-     - 文字短暂偏 --ds-error-ink
-     - 聚焦时整圈 box-shadow 0 0 0 3px --ds-error 18%
+   输入 — 圆角输入框样式
    ------------------------------------------------------------ */
 .input {
   width: 100%;
-  height: var(--control-input);
+  height: 48px;
   padding: 0 var(--space-4);
   font-family: inherit;
   font-size: var(--text-body);
@@ -83,99 +88,58 @@
   color: var(--ds-ink);
   background: transparent;
   border: 0;
-  border-bottom: 1px solid var(--ds-ink-soft);
-  border-radius: 0;
+  border-radius: var(--radius-lg);
   letter-spacing: 0.005em;
   caret-color: var(--ds-caret);
-  position: relative;
-  transition:
-    border-bottom-color var(--dur-fast) var(--ease-out),
-    color var(--dur-fast) var(--ease-out);
+  transition: color var(--dur-fast) var(--ease-out);
 }
+
 .input::placeholder {
   color: var(--ds-ink-faint);
   font-family: var(--font-sans);
   opacity: 1;
 }
-.input:hover {
-  border-bottom-color: var(--ds-ink);
-}
+
 .input:focus {
   outline: none;
-  border-bottom-color: var(--ds-ink);
 }
 
-/* 2px 聚焦覆盖条 — bottom: -1px 让 2px 紧贴 1px 静态线下方,
-   视觉上"升起"一条更粗的薄荷线。 */
-.input::after {
-  content: "";
-  position: absolute;
-  left: var(--space-4);
-  right: var(--space-4);
-  bottom: -1px;
-  height: 2px;
-  background: var(--ds-action);
-  transform: scaleX(0);
-  transform-origin: left center;
-  pointer-events: none;
-}
-.input:focus::after {
-  animation: authForm-underline-grow var(--dur-base) var(--ease-out) forwards;
-}
-@keyframes authForm-underline-grow {
-  from { transform: scaleX(0); }
-  to   { transform: scaleX(1); }
-}
-
-/* 输入宽度变体 — 让位给左 icon / 右 toggle */
+/* 输入宽度变体 */
 .inputWithIcon {
-  padding-left: 36px;
+  padding-left: 44px;
 }
 .inputWithToggle {
-  padding-right: 44px;
+  padding-right: 52px;
 }
 
-/* 错误态 — 静态线变红,聚焦加红光圈 */
+/* 错误态 */
 .inputError {
-  border-bottom-color: var(--ds-error-line);
   color: var(--ds-error-ink);
-}
-.inputError:hover {
-  border-bottom-color: var(--ds-error);
-}
-.inputError:focus {
-  border-bottom-color: var(--ds-error);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-error) 18%, transparent);
-}
-.inputError:focus::after {
-  background: var(--ds-error);
 }
 
 /* ------------------------------------------------------------
-   左侧 mail 图标 — 16×16 SVG,定位 absolute。
-   静态 --ds-ink-faint,焦点时跟随到 --ds-ink,错误时 --ds-error。
+   左侧 mail 图标
    ------------------------------------------------------------ */
 .icon {
   position: absolute;
-  left: var(--space-3);
+  left: var(--space-4);
   top: 50%;
   transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   color: var(--ds-ink-faint);
   pointer-events: none;
   transition: color var(--dur-fast) var(--ease-out);
 }
 .inputWrap:focus-within .icon {
-  color: var(--ds-ink);
+  color: var(--ds-action-deep);
 }
 .inputWrap[data-state="error"] .icon {
   color: var(--ds-error);
 }
 
 /* ------------------------------------------------------------
-   右侧眼睛 toggle — 借助 IconButton 模块,但需要绝对定位到右边缘
-   并垂直居中。提供 absolute 定位 wrapper class 给 page。
+   右侧眼睛 toggle
    ------------------------------------------------------------ */
 .toggleWrap {
   position: absolute;
@@ -188,7 +152,7 @@
 }
 
 /* ------------------------------------------------------------
-   错误胶囊 — ⚠ + text 错误消息
+   错误胶囊
    ------------------------------------------------------------ */
 .error {
   display: inline-flex;
@@ -197,6 +161,7 @@
   font-size: var(--text-caption);
   color: var(--ds-error-ink);
   margin-top: var(--space-1);
+  padding-left: var(--space-1);
 }
 .error::before {
   content: "⚠";
@@ -205,8 +170,7 @@
 }
 
 /* ------------------------------------------------------------
-   注册实时匹配 hint — ✓/⚠ + zh
-   aria-live="polite" 已在外层设置,这里只管颜色 / glyph。
+   注册实时匹配 hint
    ------------------------------------------------------------ */
 .hint {
   display: inline-flex;
@@ -237,7 +201,7 @@
 }
 
 /* ------------------------------------------------------------
-   Submit Button — 包裹让 Button 全宽,同时把间距拉大
+   Submit Button
    ------------------------------------------------------------ */
 .submit {
   display: flex;
@@ -249,7 +213,7 @@
 }
 
 /* ------------------------------------------------------------
-   Alt-link — "还没有账号?  注册"
+   Alt-link
    ------------------------------------------------------------ */
 .alt {
   text-align: center;
@@ -300,7 +264,7 @@
 }
 
 /* ============================================================
-   Reduced-motion — 全部 converge 到 final state
+   Reduced-motion
    ============================================================ */
 @media (prefers-reduced-motion: reduce) {
   .form { animation: none !important; opacity: 1; transform: none; }

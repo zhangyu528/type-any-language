@@ -34,6 +34,7 @@ import {
   writePrefBool,
   writePrefString,
 } from '../api';
+import { ShinyText, VariableProximity } from '@/components/effects';
 import styles from '../me/me-page.module.css';
 
 const AUDIO_RATE_OPTIONS: AudioRate[] = [0.75, 1, 1.25];
@@ -109,7 +110,7 @@ export default function SettingsTab() {
   return (
     <div className={styles['me-settings']}>
       <section className={styles['me-settings__group']} aria-label="偏好">
-        <h2 className={styles['me-section-title']}>偏好</h2>
+        <SettingsKicker>偏好</SettingsKicker>
 
         <SettingRow label="主题">
           <SegmentedControl
@@ -134,17 +135,19 @@ export default function SettingsTab() {
         </SettingRow>
 
         <SettingRow label="默认难度">
-          <select
-            value={defaultDifficulty}
-            onChange={(e) => setDefaultDifficulty(e.target.value)}
-            className={styles['me-select']}
-            aria-label="默认难度"
-          >
-            <option value="">跟随词库默认</option>
-            <option value="easy">简单</option>
-            <option value="medium">中等</option>
-            <option value="hard">困难</option>
-          </select>
+          {/* ME-7: replaced native <select> with the same SegmentedControl
+             used by the audio-rate row above. Consistent control
+             surface across all settings + theme-aware styling. */}
+          <SegmentedControl
+            value={defaultDifficulty || 'auto'}
+            options={[
+              { value: 'auto', label: '自动' },
+              { value: 'easy', label: '简单' },
+              { value: 'medium', label: '中等' },
+              { value: 'hard', label: '困难' },
+            ]}
+            onChange={(v) => setDefaultDifficulty(v === 'auto' ? '' : v)}
+          />
         </SettingRow>
 
         <SettingRow label="输入时显示音标">
@@ -158,7 +161,7 @@ export default function SettingsTab() {
       </section>
 
       <section className={styles['me-settings__group']} aria-label="账号">
-        <h2 className={styles['me-section-title']}>账号</h2>
+        <SettingsKicker>账号</SettingsKicker>
         <div className={styles['me-settings__actions']}>
           {confirmingLogout ? (
             <ConfirmCard
@@ -182,7 +185,10 @@ export default function SettingsTab() {
       </section>
 
       <section className={styles['me-settings__group']} aria-label="危险区">
-        <h2 className={styles['me-section-title']}>危险区</h2>
+        {/* ME-10: tone='destructive' triggers ShinyText in
+           --ds-error color so the 危险区 heading visually warns
+           the user. */}
+        <SettingsKicker tone="destructive">危险区</SettingsKicker>
         <div className={styles['me-settings__actions']}>
           {confirmingReset ? (
             <ConfirmCard
@@ -205,6 +211,49 @@ export default function SettingsTab() {
         </div>
       </section>
     </div>
+  );
+}
+
+/** VariableProximity kicker — used for SettingsTab section
+ *  headings (偏好 / 账号 / 危险区). Matches the StatsTab and
+ *  CollectionTab kickers so the /me page has a unified visual
+ *  rhythm. */
+function SettingsKicker({
+  children,
+  tone,
+}: {
+  children: string;
+  /** 'destructive' opts into ShinyText in --ds-error color so the
+     heading reads as a warning zone. Default renders plain. */
+  tone?: 'destructive';
+}) {
+  return (
+    <h2
+      className={
+        tone === 'destructive'
+          ? `${styles['me-section-title']} ${styles['me-section-title--destructive']}`
+          : styles['me-section-title']
+      }
+    >
+      {tone === 'destructive' ? (
+        <ShinyText
+          text={children}
+          speed={3}
+          color="var(--ds-error)"
+          shineColor="var(--ds-cta)"
+        />
+      ) : (
+        <VariableProximity
+          label={children}
+          from={{ wght: 400 }}
+          to={{ wght: 700 }}
+          radius={80}
+          falloff="linear"
+          as="span"
+          className={styles['me-section-title__prox']}
+        />
+      )}
+    </h2>
   );
 }
 

@@ -1,0 +1,274 @@
+/* WeekRhythm — glassmorphism card matching the rest of the dashboard
+   so it sits naturally on the Aurora background. */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  /* F1: lower background opacity from 0.65 → 0.5 so the aurora
+     backdrop bleeds through more — the card reads as "glass on
+     aurora" instead of "white panel". Border also softened. */
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+[data-theme="dark"] .root {
+  background: rgba(20, 22, 30, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  /* Was space-between: with a 678px-wide strip and a compact right
+     block, that left a ~250px hole between title and count. Keep the
+     two ends separated but reduce the visual gap by aligning
+     baseline tightly and using --space-3. */
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-h2);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink);
+}
+
+/* Right-side count "0 / 7 天有练习" — tabular nums so the slash
+   stays anchored as the number ticks up. The whole right block
+   (number + label) sits in one inline group so the title and the
+   count read as a single editorial header line. */
+.count {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-h2);
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  color: var(--ds-action-deep);
+}
+
+.countNum {
+  font-size: var(--text-display);
+  line-height: 1;
+}
+
+.countSep,
+.countTotal {
+  color: var(--ds-ink-soft);
+  font-weight: var(--weight-regular);
+  /* --text-h3 isn't defined in tokens.css; fall back to --text-h2
+     (16px) for the separator + total so the right block stays
+     visually consistent. */
+  font-size: var(--text-h2);
+}
+
+.countLabel {
+  margin-left: var(--space-2);
+  font-family: var(--font-sans);
+  /* Bumped from --text-body (14px) to --text-h2 (16px) to match
+     the visual weight of "0 / 7" — the label was previously
+     reading as a sub-line of the number, not part of the same
+     phrase. */
+  font-size: var(--text-h2);
+  font-weight: var(--weight-regular);
+  color: var(--ds-ink-soft);
+}
+
+/* 7 dots in a row. Tighter gap (--space-1) so the dots feel like
+   one rhythm strip rather than 7 separated tiles; the previous
+   --space-2 left ~20px of whitespace on each side of every dot. */
+.strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-1);
+  align-items: end;
+}
+
+.dot {
+  appearance: none;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* S3: 固定 56×56 后 aspect-ratio 没意义,删掉。 */
+  width: 56px;
+  height: 56px;
+  margin: 0 auto;
+  padding: 0;
+  border-radius: var(--radius-md);
+  border: 2px solid transparent;
+  background: var(--ds-tint);
+  color: var(--ds-ink);
+  font-family: var(--font-display);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+  overflow: hidden;
+}
+
+.dot:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--elev-2);
+}
+
+.dot:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+
+.dot:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+/* The checkmark glyph for done state — sized to fit inside the dot
+   without crowding the count number. We only render this when state
+   is `done` (see WeekRhythm.tsx), so an empty span in other states
+   contributes zero layout. */
+.dotMark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-h1);
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* Count number — only rendered when sentences_count > 0. Hidden in
+   `done` state so the checkmark owns the center. */
+.dotCount {
+  font-size: var(--text-h3);
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* -------- dot states -------- */
+
+.dot-future {
+  background: transparent;
+  border: 1px dashed var(--ds-border-strong);
+}
+
+.dot-past-empty {
+  /* Stepped up from --ds-tint-deep (which read as the same gray as
+     the card surface in babyblue light theme) to a slightly deeper
+     neutral that contrasts with the glass card without competing
+     with the partial/done states. */
+  background: var(--ds-border-strong);
+  color: var(--ds-ink-soft);
+  opacity: 0.55;
+}
+
+.dot-today-empty {
+  background: var(--ds-surface);
+  border-color: var(--ds-action);
+  color: var(--ds-action-deep);
+  /* V2 perf: 用 filter 关键帧替代 box-shadow 关键帧,
+     GPU 加速,不与 hover translateY 冲突。 */
+  animation: todayPulse 2.4s ease-in-out infinite;
+}
+
+@keyframes todayPulse {
+  0%, 100% { filter: brightness(1)    saturate(1)    drop-shadow(0 0 0 transparent); }
+  50%      { filter: brightness(1.14) saturate(1.25) drop-shadow(0 0 8px rgba(143, 203, 240, 0.55)); }
+}
+
+/* prefers-reduced-motion: still tint today distinctly, just skip
+   the breathing animation. */
+@media (prefers-reduced-motion: reduce) {
+  .dot-today-empty {
+    animation: none;
+  }
+}
+
+.dot-partial {
+  background: color-mix(in srgb, var(--ds-correct) 30%, var(--ds-surface));
+  color: var(--ds-ink);
+}
+
+.dot-done {
+  background: var(--ds-correct-fill);
+  color: var(--ds-on-action);
+  border-color: transparent;
+}
+
+.dot-done .dotCount {
+  display: none;
+}
+
+/* .today is added on top of any state class so today's outline +
+   pulse win regardless of fill. The base .dot rule already sets a
+   transparent border, so today's border-color override is the only
+   difference for non-empty states. */
+.today {
+  border-color: var(--ds-action);
+}
+
+/* -------- weekday labels -------- */
+/* The weekday label sits in the same grid cell as the dot, but
+   below it. We let the dot's aspect-ratio handle vertical centering;
+   the label is rendered as a sibling via the .strip's `align-items:
+   end`, but here we want the label *outside* the dot. So we render
+   labels as a separate row. */
+.weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+
+.weekday {
+  text-align: center;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink-soft);
+  font-family: var(--font-sans);
+}
+
+.weekday-today {
+  color: var(--ds-action-deep);
+  font-weight: var(--weight-semibold);
+}
+
+/* -------- responsive -------- */
+
+@media (max-width: 639px) {
+  .root {
+    padding: var(--space-4);
+  }
+
+  .dot {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+  }
+
+  .dotCount {
+    font-size: var(--text-caption);
+  }
+
+  .dotMark {
+    font-size: var(--text-h2);
+  }
+
+  .countNum {
+    font-size: var(--text-h1);
+  }
+}

@@ -21,6 +21,7 @@
  */
 import { useRouter, usePathname } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import Link from 'next/link';
 import { useAuth } from '../lib/auth';
 import {
@@ -30,6 +31,13 @@ import {
   loadCollection,
   updateDisplayName,
 } from '../api';
+import {
+  AuroraBackground,
+  ShinyText,
+  SpotlightCard,
+  VariableProximity,
+} from '@/components/effects';
+import { BABY_BLUE_CURTAINS } from '@/components/effects/baby-blue-curtains';
 import StatsTab from './StatsTab';
 import CollectionTab from './CollectionTab';
 import SettingsTab from './SettingsTab';
@@ -158,6 +166,49 @@ function MeInner() {
     return () => window.removeEventListener('popstate', onPop);
   }, [readTab]);
 
+  // ME-Q3A: tabs "stuck" state — when the sticky tabs reach their
+  // pinned position, fade in a soft frosted background. We use a
+  // sentinel <div> placed right above the tabs and observe it;
+  // once it scrolls past the top: 52px sticky line, the tabs are
+  // "stuck" and we set data-stuck="true". The rootMargin approach
+  // means we don't hardcode the 52px in two places.
+  //
+  // The setup polls for the tabs nav because MeInner renders
+  // it only after auth/user is loaded — a plain [] useEffect can
+  // fire before the nav is in the DOM and bail on a null query.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let io: IntersectionObserver | null = null;
+    let sentinel: HTMLDivElement | null = null;
+    const setup = () => {
+      const tabs = document.querySelector<HTMLElement>('nav[class*="me-tabs"]');
+      if (!tabs || !tabs.parentElement) return false;
+      sentinel = document.createElement('div');
+      sentinel.style.cssText =
+        'position:absolute;left:0;right:0;top:0;height:1px;pointer-events:none;';
+      tabs.parentElement.insertBefore(sentinel, tabs);
+      io = new IntersectionObserver(
+        ([entry]) => {
+          tabs.dataset.stuck = entry.isIntersecting ? 'false' : 'true';
+        },
+        { rootMargin: '-52px 0px 0px 0px', threshold: 0 }
+      );
+      io.observe(sentinel);
+      return true;
+    };
+    // Try a few frames in case the nav mounts after this effect.
+    let attempts = 0;
+    const trySetup = () => {
+      if (setup()) return;
+      if (++attempts < 10) requestAnimationFrame(trySetup);
+    };
+    trySetup();
+    return () => {
+      io?.disconnect();
+      sentinel?.remove();
+    };
+  }, []);
+
   if (loading || !user) {
     return (
       <div className="practice practice--loading">
@@ -168,6 +219,13 @@ function MeInner() {
 
   return (
     <div className={styles['me-page']}>
+      {/* ME-2: aurora background — same babyblue curtains as
+         Dashboard, so the two pages share an immersive backdrop.
+         Sits behind all content via z:-1 + pointer-events:none. */}
+      <AuroraBackground
+        className={styles['me-page__aurora']}
+        curtains={BABY_BLUE_CURTAINS}
+      />
       <div className={styles['me-page__content']}>
         <header className={styles['me-page__masthead']} aria-label="page header">
           <Link href="/" className={styles['me-page__back']}>
@@ -176,9 +234,13 @@ function MeInner() {
         </header>
 
         <div>
-          <h1 className={styles['me-page__title']}>我的</h1>
+          {/* ME-4: replaced generic "我的" with the actual section
+             name "个人中心". Caption is now a real description,
+             not a username callout (the username already shows
+             in AccountCard right below). */}
+          <h1 className={styles['me-page__title']}>个人中心</h1>
           <p className={styles['me-page__caption']}>
-            {user.display_name},这里是你的个人中心。
+            管理你的练习进度、收藏的句子，以及主题与播放偏好。
           </p>
         </div>
 
@@ -196,13 +258,34 @@ function MeInner() {
             >
               {t === 'wrong' && collectionCount > 0 ? (
                 <span className={styles['me-tabs__label']}>
-                  收藏夹
+                  {/* ME-6: ShinyText on active tab — subtle shine
+                     sweep signals the selection beyond just
+                     the background tint. */}
+                  {tab === t ? (
+                    <ShinyText
+                      text="收藏夹"
+                      speed={3}
+                      color="var(--ds-action-deep)"
+                      shineColor="var(--ds-ink)"
+                    />
+                  ) : (
+                    '收藏夹'
+                  )}
                   <span
                     className={styles['me-tabs__badge']}
                     aria-label={`${collectionCount} 个收藏`}
                   >
                     {collectionCount}
                   </span>
+                </span>
+              ) : tab === t ? (
+                <span className={styles['me-tabs__label']}>
+                  <ShinyText
+                    text={TAB_LABEL[t]}
+                    speed={3}
+                    color="var(--ds-action-deep)"
+                    shineColor="var(--ds-ink)"
+                  />
                 </span>
               ) : (
                 TAB_LABEL[t]
@@ -211,28 +294,37 @@ function MeInner() {
           ))}
         </nav>
 
-        <div
-          className={styles['me-tab-panel']}
-          key={tab}
-          role="region"
-          aria-label={TAB_LABEL[tab]}
-        >
-          {tab === 'stats' && (
-            <StatsTab
-              userId={userId}
-              catalog={catalog}
-              catalogError={catalogError}
-            />
-          )}
-          {tab === 'wrong' && (
-            <CollectionTab
-              userId={userId}
-              catalog={catalog}
-              catalogError={catalogError}
-            />
-          )}
-          {tab === 'settings' && <SettingsTab />}
-        </div>
+        {/* ME-6: AnimatePresence on tab swap — fade + tiny y
+           translate so the change feels intentional, not abrupt.
+           key=tab forces remount on switch. */}
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={tab}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            className={styles['me-tab-panel']}
+            role="region"
+            aria-label={TAB_LABEL[tab]}
+          >
+            {tab === 'stats' && (
+              <StatsTab
+                userId={userId}
+                catalog={catalog}
+                catalogError={catalogError}
+              />
+            )}
+            {tab === 'wrong' && (
+              <CollectionTab
+                userId={userId}
+                catalog={catalog}
+                catalogError={catalogError}
+              />
+            )}
+            {tab === 'settings' && <SettingsTab />}
+          </motion.div>
+        </AnimatePresence>
       </div>
     </div>
   );
@@ -254,9 +346,18 @@ function AccountCard({ user }: { user: AuthUser }) {
 
   return (
     <section className={styles['me-account-card']} aria-label="账号信息">
-      <div className={styles['me-account-card__avatar']} aria-hidden="true">
-        {initials}
-      </div>
+      {/* ME-3: TiltCard + glare was overkill for an identity
+         element (users don't "play" with their own avatar).
+         SpotlightCard gives a cursor-follow glow — softer and
+         on-brand. */}
+      <SpotlightCard
+        className={styles['me-account-card__avatarWrap']}
+        spotlightColor="var(--ds-action-soft)"
+      >
+        <div className={styles['me-account-card__avatar']} aria-hidden="true">
+          {initials}
+        </div>
+      </SpotlightCard>
       <div className={styles['me-account-card__meta']}>
         <DisplayNameField
           key={`name-${user.id}-${revision}`}

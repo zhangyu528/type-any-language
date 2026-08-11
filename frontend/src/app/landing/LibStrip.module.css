@@ -1,0 +1,488 @@
+/* LibStrip — 方案 C SECTION 3 (修订:Persistent Side Panel)
+   --------------------------------------------------------------
+   2 列布局:左 2x2 lib 卡 grid (CTA + hover 切换右侧面板) +
+           右 永远显示的详情面板(封面/词句数/描述/示例句/CTA)。
+   主题感知:--glow-color 给左侧卡 cursor-follow border glow;
+            ScenariosSection (section 2) 也用同样的 --glow-color,
+            全 landing 语言统一。
+   -------------------------------------------------------------- */
+
+.root {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: clamp(var(--space-10), 9vh, 96px) var(--space-5);
+  box-sizing: border-box;
+  scroll-snap-align: start;
+}
+
+.shell {
+  position: relative;
+  padding: clamp(var(--space-6), 5vh, 56px) clamp(var(--space-5), 4vw, 56px);
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--ds-action-soft) 65%, var(--ds-bg));
+  border: 1px solid color-mix(in srgb, var(--ds-action) 25%, transparent);
+  box-shadow: var(--ds-elevate-1);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.shell::before {
+  content: '';
+  position: absolute;
+  top: -40%;
+  right: -20%;
+  width: 60%;
+  height: 200%;
+  background: radial-gradient(
+    ellipse,
+    color-mix(in srgb, var(--ds-cta) 10%, transparent) 0%,
+    transparent 60%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.shell > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- 头部 ---------- */
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.titleBlock {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.kicker {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-mono), monospace;
+  font-size: var(--text-caption);
+  letter-spacing: 0.1em;
+  color: var(--ds-ink-soft);
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display), var(--font-sans), serif;
+  font-size: clamp(22px, 2.4vw, 30px);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--ds-ink);
+}
+
+.totalCount {
+  font-family: var(--font-mono), monospace;
+  font-size: var(--text-caption);
+  letter-spacing: 0.04em;
+  color: var(--ds-ink-soft);
+  white-space: nowrap;
+}
+
+/* ---------- 2 列布局:左 list + 右 panel ---------- */
+
+.layout {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: var(--space-4);
+  min-height: 380px;
+}
+
+@media (max-width: 1023px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- 左侧:2x2 lib 卡 grid ---------- */
+
+.list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  align-content: start;
+}
+
+.libCard {
+  --glow-x: 50%;
+  --glow-y: 50%;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-5);
+  min-height: 156px;
+  background: var(--ds-surface);
+  border: 1px solid color-mix(in srgb, var(--ds-action) 22%, transparent);
+  border-radius: var(--radius-md);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  overflow: hidden;
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.libCard:hover {
+  transform: translateY(-2px);
+}
+
+.libCard:focus-visible {
+  outline: 2px solid var(--ds-action-deep);
+  outline-offset: 2px;
+}
+
+/* MagicBento 同款 cursor-follow 边框辉光 — mask 技巧:
+   ::after 绝对定位 + padding=6px,content-box mask 让外圈 6px 边留下
+   radial-gradient 跟随 --glow-x/--glow-y 变化 */
+.libCard::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 6px;
+  background: radial-gradient(
+    320px circle at var(--glow-x) var(--glow-y),
+    rgba(var(--glow-color), 0.85) 0%,
+    rgba(var(--glow-color), 0.45) 30%,
+    transparent 60%
+  );
+  border-radius: inherit;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 1;
+}
+
+.libCardHover::after {
+  opacity: 1;
+}
+
+/* Active = 当前查看(右侧面板显示的): 更明显的边色 + 持续 glow */
+.libCardActive {
+  border-color: color-mix(in srgb, var(--ds-action-deep) 70%, transparent);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--ds-action) 18%, transparent),
+    0 4px 16px color-mix(in srgb, var(--ds-action) 14%, transparent);
+}
+
+.libCardActive::after {
+  opacity: 0.6; /* 持续微亮,不依赖 hover */
+}
+
+[data-theme='dark'] .libCard {
+  background: color-mix(in srgb, #0A1428 88%, transparent);
+  color: #FFFFFF;
+}
+
+[data-theme='dark'] .libCardActive {
+  background: color-mix(in srgb, #0A1428 92%, transparent);
+  border-color: color-mix(in srgb, var(--ds-action) 60%, transparent);
+}
+
+/* ---------- left card 内容 ---------- */
+
+.libLevel {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--ds-ink-faint);
+  text-transform: uppercase;
+}
+
+.libName {
+  font-family: var(--font-display), var(--font-sans), serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: inherit;
+  letter-spacing: -0.005em;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.libCount {
+  font-family: var(--font-mono), monospace;
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+  margin-top: auto;
+}
+
+.libCta {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ds-action-deep);
+  opacity: 0.75;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+
+.libCard:hover .libCta {
+  opacity: 1;
+}
+
+/* ---------- 右侧:detail panel ---------- */
+
+.panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--ds-surface);
+  border: 1px solid color-mix(in srgb, var(--ds-action) 35%, transparent);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--ds-action) 8%, transparent),
+    0 8px 30px color-mix(in srgb, var(--ds-action) 12%, transparent);
+  overflow: hidden;
+}
+
+.panel::before {
+  content: '';
+  position: absolute;
+  top: -40%;
+  right: -20%;
+  width: 70%;
+  height: 200%;
+  background: radial-gradient(
+    ellipse,
+    color-mix(in srgb, var(--ds-action) 18%, transparent) 0%,
+    transparent 60%
+  );
+  pointer-events: none;
+}
+
+.panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+[data-theme='dark'] .panel {
+  background: color-mix(in srgb, #0A1428 88%, transparent);
+  color: #FFFFFF;
+}
+
+.panelTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.panelKicker {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ds-action-deep);
+  background: color-mix(in srgb, var(--ds-action) 18%, transparent);
+  border-radius: 999px;
+}
+
+.panelLevel {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--ds-ink-faint);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.panelImageSlot {
+  position: relative;
+  width: 100%;
+  height: 96px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--ds-action) 18%, transparent),
+    color-mix(in srgb, var(--ds-cta) 18%, transparent)
+  );
+  border: 1px dashed color-mix(in srgb, var(--ds-action) 45%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.panelImageHint {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ds-ink-soft);
+  opacity: 0.7;
+}
+
+.panelName {
+  margin: 0;
+  font-family: var(--font-display), var(--font-sans), serif;
+  font-size: clamp(20px, 1.8vw, 26px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: inherit;
+}
+
+.panelMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  color: var(--ds-ink-soft);
+}
+
+.panelDot {
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--ds-ink-faint);
+}
+
+.panelDesc {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  line-height: 1.55;
+  color: var(--ds-ink-soft);
+}
+
+.panelSample {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--ds-tint);
+  border-left: 3px solid var(--ds-action-deep);
+}
+
+[data-theme='dark'] .panelSample {
+  background: color-mix(in srgb, var(--ds-action) 14%, transparent);
+}
+
+.panelSampleLabel {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ds-action-deep);
+}
+
+.panelSampleEn {
+  font-family: var(--font-mono), monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ds-ink);
+  font-weight: 500;
+}
+
+.panelSampleZh {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ds-ink-soft);
+}
+
+[data-theme='dark'] .panelSampleEn {
+  color: var(--ds-ink);
+}
+
+.panelCtaRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: auto;
+  padding-top: var(--space-2);
+}
+
+.panelCta {
+  flex: 1;
+  padding: 12px 16px;
+  background: color-mix(in srgb, var(--ds-action) 22%, var(--ds-surface));
+  color: var(--ds-action-deep);
+  border: 1px solid color-mix(in srgb, var(--ds-action) 55%, transparent);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.panelCta:hover {
+  background: color-mix(in srgb, var(--ds-action) 40%, var(--ds-surface));
+  transform: translateX(2px);
+}
+
+.panelCta:focus-visible {
+  outline: 2px solid var(--ds-action-deep);
+  outline-offset: 2px;
+}
+
+[data-theme='dark'] .panelCta {
+  background: color-mix(in srgb, var(--ds-action) 18%, transparent);
+  color: var(--ds-action-deep);
+  border-color: color-mix(in srgb, var(--ds-action) 60%, transparent);
+}
+
+[data-theme='dark'] .panelCta:hover {
+  background: color-mix(in srgb, var(--ds-action) 32%, transparent);
+}
+
+.panelHint {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--ds-ink-faint);
+  white-space: pre-line;
+  line-height: 1.4;
+  text-align: right;
+}
+
+/* ---------- reduced-motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .libCard,
+  .libCard::after,
+  .panelCta,
+  .libCta {
+    transition: none;
+  }
+  .libCard:hover {
+    transform: none;
+  }
+}

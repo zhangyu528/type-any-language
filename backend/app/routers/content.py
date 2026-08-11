@@ -8,9 +8,11 @@ per-lib difficulty lists from a DB column populated by import_vocab from
 cms/seed/manifest.yaml.
 """
 from fastapi import APIRouter, Depends
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models.sentence import Sentence
 from app.models.vocabulary import VocabularyLib
 from app.schemas.content import CatalogDefaults, CatalogLib, CatalogResponse
 
@@ -30,10 +32,29 @@ def get_catalog(db: Session = Depends(get_db)):
     Returns every vocabulary lib, each lib's available difficulty buckets,
     and the UI defaults (used when the user has no prior selection in
     localStorage).
+
+    `sentence_count` per lib is a single grouped COUNT(*) on the sentences
+    table — keeps the catalog response O(libs) instead of N+1 round trips
+    when the landing page wants to surface a per-lib sentence total.
     """
     libs = db.query(VocabularyLib).order_by(VocabularyLib.level).all()
+
+    # One query for all lib_id -> count mappings, then attach to each lib.
+    # Using func.count on the FK index avoids loading every sentence row.
+    sentence_counts = dict(
+        db.query(Sentence.lib_id, func.count(Sentence.id))
+        .group_by(Sentence.lib_id)
+        .all()
+    )
+
+    lib_payload = []
+    for lib in libs:
+        payload = CatalogLib.model_validate(lib).model_dump()
+        payload["sentence_count"] = int(sentence_counts.get(lib.id, 0))
+        lib_payload.append(CatalogLib(**payload))
+
     return CatalogResponse(
-        libs=[CatalogLib.model_validate(lib) for lib in libs],
+        libs=lib_payload,
         difficulties_by_lib={lib.level: list(_PHASE1_DIFFICULTIES) for lib in libs},
         defaults=CatalogDefaults(difficulty="beginner", bucket_target_size=200),
     )
