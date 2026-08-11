@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import re
 import socket
 import subprocess
 import sys
@@ -54,6 +55,20 @@ SERVICE_PORTS = {
     "backend": 8000,
     "frontend": 3000,
 }
+
+# Host ports probed in dev mode (when IMAGE_TAG is unset). In dev,
+# backend runs as a host uvicorn (no docker) and frontend runs as
+# host next dev -- telemetry needs to discover them via lsof/ss rather
+# than docker ps. These port numbers mirror SERVICE_PORTS above.
+DEV_PROBE_PORTS = {
+    "backend": 8000,
+    "frontend": 3000,
+}
+
+# Set of service names that are HOST-NATIVE in dev (i.e. NOT in docker).
+# When in dev mode and a port in DEV_PROBE_PORTS is listening, we
+# synthesize a Container record for it.
+DEV_HOST_SERVICES = {"backend", "frontend"}
 
 # ---------------------------------------------------------------------------
 # Errors (always JSON for the API; pages get the standard 500)
@@ -104,6 +119,57 @@ def compose_project() -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# Dev-mode + host-process helpers
+# ---------------------------------------------------------------------------
+def _is_dev_mode() -> bool:
+    """Dev mode = no IMAGE_TAG env var. In dev, we don't deploy from a
+    git tag, so drift check is N/A and backend/frontend run as host
+    processes (uvicorn / next dev) rather than in docker. telemetry
+    auto-detects this and adapts its checks."""
+    return not bool(os.environ.get("IMAGE_TAG"))
+
+def _git_short_sha() -> str | None:
+    rc, out, _ = _run(["git", "rev-parse", "--short", "HEAD"])
+    if rc == 0 and out.strip():
+        return out.strip()
+    return None
+
+def _probe_port(port: int) -> tuple[bool, int | None, str | None]:
+    """Return (is_listening, pid, command) for a given TCP port. Uses
+    `ss` (preferred, near-universal) with `lsof` as fallback. Tolerates
+    both being absent (returns False,None,None)."""
+    rc, stdout, _ = _run(["ss", "-tlnp", f"sport = :{port}"])
+    if rc == 0 and stdout:
+        for line in stdout.splitlines()[1:]:
+            m = re.search(r"pid=(d+)", line)
+            if m:
+                pid = int(m.group(1))
+                cmd_m = re.search(r'users:(("([^"]+)"', line)
+                cmd = cmd_m.group(1) if cmd_m else None
+                return True, pid, cmd
+    rc, stdout, _ = _run(["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"])
+    if rc == 0 and stdout:
+        for line in stdout.splitlines()[1:]:
+            parts = line.split()
+            if len(parts) >= 2 and parts[1].isdigit():
+                return True, int(parts[1]), parts[0]
+    return False, None, None
+
+def _pid_start_time(pid: int) -> str | None:
+    """Return start time of the given PID via `ps lstart=`. None on failure."""
+    rc, out, _ = _run(["ps", "-p", str(pid), "-o", "lstart="])
+    if rc != 0 or not out.strip():
+        return None
+    return _parse_docker_time(out.strip())
+
+def _pid_command(pid: int, max_len: int = 200) -> str | None:
+    rc, out, _ = _run(["ps", "-p", str(pid), "-o", "args="])
+    if rc != 0 or not out.strip():
+        return None
+    return out.strip()[:max_len]
+
+
+# ---------------------------------------------------------------------------
 # Container snapshot
 # ---------------------------------------------------------------------------
 
@@ -133,10 +199,14 @@ def _parse_docker_time(s: str) -> str | None:
         return s
 
 
-def collect_containers() -> list[Container]:
-    """Best-effort list of the 3 prod containers. Empty list if docker is down."""
-    if not docker_ok()[0]:
-        return []
+def _collect_docker_containers() -> list[Container]:
+    """Parse `docker ps -a` into Container records. Empty list on
+    docker failure (caller checks docker_ok() first)."""
+    out: list[Container] = []
+    fmt = "{{.Names}}|{{.Label \"com.docker.compose.service\"}}|{{.Status}}|{{.Image}}|{{.Ports}}|{{.State}}"
+    rc, stdout, _ = _run(["docker", "ps", "-a", "--format", fmt])
+    if rc != 0:
+        return out
 
     out: list[Container] = []
     fmt = "{{.Names}}|{{.Label \"com.docker.compose.service\"}}|{{.Status}}|{{.Image}}|{{.Ports}}|{{.State}}"
@@ -204,6 +274,48 @@ def collect_containers() -> list[Container]:
     return out
 
 
+def _collect_host_dev_processes() -> list[Container]:
+    """In dev mode, backend (uvicorn :8000) and frontend (next dev :3000)
+    run as host processes, not in docker. Probe each port via ss/lsof
+    and synthesize Container records so the dashboard shows them with
+    the same shape as docker-managed services. Returns [] for ports
+    that are not listening (process not running)."""
+    out: list[Container] = []
+    for svc, port in DEV_PROBE_PORTS.items():
+        if svc not in DEV_HOST_SERVICES:
+            continue
+        up, pid, ss_cmd = _probe_port(port)
+        if not up:
+            continue
+        ps_cmd = _pid_command(pid) if pid else None
+        image = ps_cmd or ss_cmd or (f"host:pid={pid}" if pid else f"host:port={port}")
+        out.append(Container(
+            name=f"host-{svc}-{port}",
+            service=svc,
+            status="running",
+            health="none",
+            started_at=_pid_start_time(pid) if pid else None,
+            image=image,
+            port=port,
+            restarts=0,
+        ))
+    return out
+
+
+def collect_containers() -> list[Container]:
+    """All services visible to the operator. In CVM mode, this is the
+    3 docker containers (db + backend + frontend). In dev mode, the
+    backend + frontend are host processes (uvicorn / next dev), so we
+    synthesize Container records for them via lsof/ss and prepend them
+    to the docker list (which still contains db)."""
+    out: list[Container] = []
+    if _is_dev_mode():
+        out.extend(_collect_host_dev_processes())
+    if docker_ok()[0]:
+        out.extend(_collect_docker_containers())
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Version + drift
 # ---------------------------------------------------------------------------
@@ -233,8 +345,24 @@ def _image_label(image: str, label: str) -> str | None:
 
 
 def collect_version() -> Version:
-    """Compare IMAGE_TAG env (expected) with the running container's
-    type-any-language.app.version LABEL (actual)."""
+    """In CVM mode: compare IMAGE_TAG env (expected) with each running
+    container's type-any-language.app.version LABEL (actual). In dev mode
+    (no IMAGE_TAG), skip drift check and return a stub -- the dev
+    workstation has no release tag to compare against."""
+    if _is_dev_mode():
+        return Version(
+            image_tag="(dev)",
+            git_sha=_git_short_sha(),
+            drift=False,
+            expected_backend="(dev -- no IMAGE_TAG)",
+            expected_frontend="(dev -- no IMAGE_TAG)",
+            expected_db="(dev -- no IMAGE_TAG)",
+            actual_backend=None,
+            actual_frontend=None,
+            actual_db=None,
+            deployed_at=None,
+        )
+
     image_tag = os.environ.get("IMAGE_TAG", "")
     git_sha = os.environ.get("GIT_SHA")
 
@@ -398,6 +526,7 @@ def collect_logs(service: str, tail: int) -> list[str]:
 def build_snapshot() -> dict[str, Any]:
     return {
         "generated_at": _now_iso(),
+        "dev_mode": _is_dev_mode(),
         "version": asdict(collect_version()),
         "containers": [asdict(c) for c in collect_containers()],
         "host": asdict(collect_host()),

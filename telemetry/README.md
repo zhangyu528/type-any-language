@@ -138,6 +138,31 @@ and the actual vs expected values are surfaced inline.
 This catches the common "someone manually `docker pull`ed an old image
 without telling anyone" failure mode.
 
+## Dev mode (running on a workstation)
+
+telemetry auto-detects when it is running on a dev workstation vs the CVM:
+
+    IMAGE_TAG env unset  ->  dev mode
+    IMAGE_TAG env set    ->  CVM mode
+
+In dev mode:
+
+- No drift check (no release tag to compare against; banner shows dev)
+- Host-process container probe: backend (uvicorn :8000) and frontend (next dev :3000)
+  run as host processes, not in docker. The dashboard synthesizes Container records for
+  them via ss (with lsof fallback). The db container still shows via docker ps.
+- dev_mode: true in the snapshot, so the UI can render a DEV badge if it wants.
+
+To run the dashboard locally:
+
+    cd telemetry/web && npm run dev          # Vite dev :5173
+    # in another terminal:
+    python3 telemetry/server/server.py       # :9090, reads host docker
+    # open http://localhost:5173
+
+The Vite dev server proxies /api/* to :9090 (see vite.config.ts), so the React
+app can call the Python server without CORS.
+
 ## Why not a real framework / Next.js / cAdvisor / Prometheus
 
 See the project discussion that landed on this stack. tl;dr: a small

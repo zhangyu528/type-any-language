@@ -40,6 +40,7 @@ export interface Version {
 }
 
 export interface Snapshot {
+  dev_mode: boolean
   version: Version
   containers: Container[]
   host: Host
