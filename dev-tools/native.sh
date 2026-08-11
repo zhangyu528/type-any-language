@@ -118,6 +118,37 @@ _alive() {
     kill -0 "$pid" 2>/dev/null
 }
 
+# _port_listener <port> — returns 0 if any process is LISTENING on <port>.
+# Uses PowerShell Get-NetTCPConnection on Windows (netstat -ano on Windows
+# is unreliable — it can miss LISTENING rows even when a socket is bound,
+# per project debugging on the Win Git Bash MSYS env), and `ss -ltn` on
+# Linux. Companion to _alive for the idempotent-start check: "running"
+# means PID alive AND port actually serving (an orphan can satisfy just
+# one of those — neither is enough alone to confidently reuse a service
+# we did not start ourselves).
+_port_listener() {
+    local port="$1"
+    if command -v powershell.exe >/dev/null 2>&1 && command -v netstat >/dev/null 2>&1; then
+        # Windows: Get-NetTCPConnection is the source of truth (netstat
+        # is flaky on Win Git Bash — verified empirically).
+        powershell.exe -NoProfile -Command \
+            "(Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0" \
+            2>/dev/null | tr -d '\r' | grep -q '^True$'
+        return $?
+    fi
+    if command -v ss >/dev/null 2>&1; then
+        ss -ltn 2>/dev/null | grep -qE "[:.]${port}[[:space:]]"
+        return $?
+    fi
+    if command -v netstat >/dev/null 2>&1; then
+        netstat -ano 2>/dev/null \
+            | grep -E "TCP[[:space:]]+0\.0\.0\.0:${port}:" \
+            | grep -q LISTENING
+        return $?
+    fi
+    return 1
+}
+
 # _uptime_for <pid> — returns "XmYs" if the pid is alive, "n/a" otherwise.
 # On Git Bash on Windows the bundled `ps` is MSYS and doesn't support
 # `-o etime=`, and there's no `/proc` to read from. We fall back to "n/a"
@@ -277,10 +308,71 @@ cmd_preflight() {
 _start_one() {
     local name="$1" pid_file="$2" log_file="$3"
     shift 3
-    if _alive "$pid_file"; then
-        info "$name 已在运行 (PID $(cat "$pid_file"))"
+    # Determine the port for this service: backend default 8000 (env override),
+    # frontend always 3000 (next dev's port is passed explicitly).
+    local port="$BACKEND_PORT"
+    if [ "$name" = "frontend" ]; then port="$FRONTEND_PORT"; fi
+
+    # Idempotent start: a service is "already running" iff
+    #   (a) the PID file is alive AND the port has a listener,
+    # — neither alone is enough. The PID file can be alive while the
+    # port is free (uvicorn's reloader PID outlives the listener on
+    # crash; any orphaned python.exe we never started), and the port
+    # can have a listener we did NOT start (foreign process holding
+    # our port). The "pid alive AND port listening" intersection is
+    # the only signal we can trust — once satisfied, we skip spawn and
+    # leave the existing instance alone. If only one of the two is
+    # true, fall through to the orphan-sweep path below, which kills
+    # whatever is on the port (or the orphan pid) and starts fresh.
+    if _alive "$pid_file" && _port_listener "$port"; then
+        info "$name 已在运行 (PID $(cat "$pid_file"), :$port)"
         return 0
     fi
+    # PID file is stale (alive-but-port-free, or pid-is-dead). Drop it
+    # so the spawn below can write a fresh one without the "already
+    # running" check firing next time.
+    if [ -f "$pid_file" ] && ! _alive "$pid_file"; then
+        rm -f "$pid_file"
+    fi
+
+    # Orphan detector: port is bound but our PID file is missing/stale.
+    # This catches leftover next dev / uvicorn from prior sessions that
+    # never wrote a PID file under our contract. We loop the sweep
+    # because a single kill is not always enough — Linux/Windows kernels
+    # occasionally need a beat to recycle a TCP socket, and on Windows
+    # the reloder PID uvicorn writes to .pid is NOT the listening PID
+    # (the reloder PID leaves the listener PID in TIME_WAIT). Sweep
+    # until :$port is actually free, with a small upper bound so a
+    # persistent kernel-leaked socket doesn't loop forever.
+    if _port_listener "$port"; then
+        warn "$name 的 :$port 被占用 — 清扫中"
+        local _sweep_iters=0
+        while _port_listener "$port" && [ $_sweep_iters -lt 8 ]; do
+            local orphan_pid
+            if command -v powershell.exe >/dev/null 2>&1 && command -v netstat >/dev/null 2>&1; then
+                orphan_pid="$(powershell.exe -NoProfile -Command \
+                    "(Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess)" \
+                    2>/dev/null | tr -d '\r' | head -n 1)"
+            else
+                orphan_pid="$(netstat -ano 2>/dev/null \
+                    | grep -E "TCP[[:space:]]+0\.0\.0\.0:${port}:" \
+                    | grep LISTENING | awk '{print $NF}' | head -n 1)"
+            fi
+            if [ -n "$orphan_pid" ] && [[ "$orphan_pid" =~ ^[0-9]+$ ]]; then
+                info "  sweep :$port listener (PID $orphan_pid)"
+                taskkill //PID "$orphan_pid" //F //T 2>/dev/null || true
+                sleep 0.5
+            fi
+            _sweep_iters=$((_sweep_iters + 1))
+        done
+        if _port_listener "$port"; then
+            err "  无法释放 :$port (8 次 sweep 后仍占用) — 查 Get-NetTCPConnection + tasklist"
+            return 1
+        fi
+        # Also clean up any stale PID file so we don't re-adopt the orphan.
+        rm -f "$pid_file"
+    fi
+
     info "启动 $name → $log_file"
     : > "$log_file"
     # Subshell so the redirect is closed cleanly and we don't leak fd.
