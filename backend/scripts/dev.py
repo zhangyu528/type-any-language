@@ -46,15 +46,28 @@ def venv_python() -> Path:
     return BACKEND_DIR / ".venv" / "bin" / "python"
 
 
+def command_exists(name: str) -> bool:
+    """Return True iff `name` is on PATH and executable.
+
+    shutil.which handles Windows .exe / .bat / .cmd lookup correctly;
+    `command -v` in subprocess is the bash-only equivalent.
+    """
+    import shutil
+    return shutil.which(name) is not None
+
+
 def main() -> None:
     # ─── 1. self-heal: ensure venv is healthy ────────────────────────────
     print("[dev] ensuring venv is healthy (smart install)...")
     # `make install` resolves to `python3 scripts/install.py` per backend/Makefile.
-    # Use the host python3 (not venv) since install.py may need to create the venv.
-    subprocess.check_call(
-        ["make", "install"],
-        cwd=str(BACKEND_DIR),
-    )
+    # On Windows Git Bash there is no `make` in PATH — fall back to invoking
+    # install.py directly with the host python3. install.py is idempotent
+    # (venv healthy + lock hash match → no-op, ~50ms).
+    if command_exists("make"):
+        install_cmd = ["make", "install"]
+    else:
+        install_cmd = [sys.executable, str(BACKEND_DIR / "scripts" / "install.py")]
+    subprocess.check_call(install_cmd, cwd=str(BACKEND_DIR))
 
     # ─── 2. execvp uvicorn (replaces this process; SIGINT inherited) ──────
     py = venv_python()

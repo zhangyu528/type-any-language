@@ -33,6 +33,29 @@ cd "$PROJECT_DIR"
 # shellcheck disable=SC1091
 source "$PROJECT_DIR/ops/lib.sh"  # dev/ is sibling to ops/, lib.sh still lives under ops/
 
+# ─── Missing helpers (refactor left these behind) ──────────────────────────
+# ops/lib.sh references `check_docker_daemon_running` but never defined it
+# (the function used to live in ops/dev/_common.sh, pre-refactor). Define it
+# here so dev-tools/{native,setup,doctor,preflight} work.
+#
+# `docker info` can hang for ~30s when the daemon is not running (Docker
+# Desktop is launching). Bound the wait so preflight doesn't appear frozen.
+check_docker_daemon_running() {
+    timeout 5 docker info &> /dev/null
+}
+
+# setup_dev_host_env: populates $DOCKER_COMPOSE_CMD for host-side scripts
+# (migrate.sh / logs.sh / import_content.sh). Idempotent — safe to call
+# multiple times. We deliberately do NOT resolve image tags / registry
+# here; dev is host-native, no images are pulled.
+setup_dev_host_env() {
+    if ! detect_compose_cmd; then
+        err "未找到 docker-compose / docker compose"
+        return 1
+    fi
+    export DOCKER_COMPOSE_CMD
+}
+
 # ─── Globals ───────────────────────────────────────────────────────────────
 COMPOSE_FILE="docker-compose.dev.yml"
 

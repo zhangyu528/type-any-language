@@ -51,7 +51,13 @@
 set -e
 
 COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$COMMON_DIR/../.." && pwd)"
+# PROJECT_DIR: prefer caller-supplied shell env, else derive from COMMON_DIR.
+# Note: `cd "$COMMON_DIR/../.."` (one arg with embedded `../..`) is WRONG on
+# Git Bash for Windows — MSYS collapses the nested `..` and lands one level
+# too high. Two explicit `cd ..` (one per segment) sidesteps the MSYS quirk.
+if [ -z "${PROJECT_DIR:-}" ]; then
+    PROJECT_DIR="$(cd "$COMMON_DIR" && cd .. && pwd)"
+fi
 # Source _common.sh — it transitively sources lib.sh, so we get
 # ok/warn/err/info + check_docker_installed/daemon + port_in_use + warn_port_in_use
 # + dev_db_is_up / ensure_dev_db_up / warn_if_db_empty.
