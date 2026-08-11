@@ -4,6 +4,47 @@
  *   底部:深色 CTA 横条,横跨整屏
  *   小屏 fallback: @media (max-width: 980px) 退化为单列垂直堆叠 */
 
+/* ---- 顶部 kicker row(badge + 统计) ---- */
+.kickerRow {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ds-ink-soft);
+  text-transform: uppercase;
+}
+
+.kickerDot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ds-action) 70%, transparent);
+}
+
+.kickerText {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  color: var(--ds-ink-soft);
+}
+
+/* Bento 网格改为横向两栏,kickerRow 跨两栏 */
+.bentoGrid {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: var(--space-6);
+  align-items: center;
+}
+
+/* Hero CTA 在左栏底部(原本在右栏 bentoCta) */
+.heroCtaWrap {
+  margin-top: var(--space-2);
+}
+
 .bento {
   position: relative;
   width: 100%;
@@ -11,7 +52,7 @@
   padding: clamp(var(--space-12), 12vh, 140px) var(--space-5) clamp(var(--space-12), 14vh, 128px);
   display: grid;
   grid-template-columns: 1.1fr 0.9fr;
-  grid-template-rows: 1fr auto;
+  grid-template-rows: auto 1fr auto;
   gap: var(--space-5);
   align-content: center;
   overflow: hidden;
@@ -116,25 +157,89 @@
   perspective: 1000px;
   display: flex;
   flex-direction: column;
+  gap: var(--space-4);
+  min-height: 240px;
+}
+
+.demoHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.demoKicker {
+  color: var(--ds-ink-faint);
+}
+
+.demoLive {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ds-action-deep);
+  font-weight: 600;
+}
+
+.demoLiveDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ds-action);
+  box-shadow: 0 0 8px var(--ds-action);
+  animation: pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.5; transform: scale(0.85); }
+}
+
+.demoLines {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-3);
-  min-height: 140px;
+}
+
+.demoLine {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 2fr) auto;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--ds-tint) 30%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--ds-action) 40%, transparent);
+  min-height: 56px;
 }
 
 .demoZh {
   font-family: var(--font-display), var(--font-sans), serif;
-  font-size: clamp(2.4rem, 5vw, 3.4rem);
-  font-weight: 700;
+  font-size: clamp(1.05rem, 1.8vw, 1.4rem);
+  font-weight: 600;
   color: var(--ds-ink);
-  letter-spacing: -0.02em;
-  line-height: 1.1;
+  letter-spacing: -0.005em;
+  line-height: 1.2;
   margin: 0;
 }
 
 .demoEn {
   font-family: var(--font-mono), monospace;
-  font-size: 1.1rem;
+  font-size: clamp(0.85rem, 1.2vw, 1rem);
   color: var(--ds-action-deep);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+
+.demoCheck {
+  font-family: var(--font-mono), monospace;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--ds-action-deep);
+  width: 1.4em;
+  text-align: center;
 }
 
 /* Light 主题下 demo 卡需要更明确的边+阴影,与 --ds-bg 拉开层次 */
@@ -171,8 +276,18 @@
   color: var(--ds-ink);
   line-height: 1.1;
   overflow: hidden;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.statPlus {
+  font-family: var(--font-display);
+  font-size: 0.7em;
+  color: var(--ds-action);
+  font-weight: 600;
 }
 .statName {
   font-family: var(--font-sans);

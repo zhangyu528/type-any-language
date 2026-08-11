@@ -1,37 +1,34 @@
 'use client';
 
 /**
- * FinalCTA — 方案 B 黑色 CTA bar
+ * FinalCTA — 方案 B 黑色 CTA bar(2026-08 polish)
  *
  * 与方案 B 草图一致:深色反色块 + 横向 layout。
- * 左侧大标题"选个场景试试 →",右侧琥珀色 SpecularButton。
- * 背景走 React Bits <Threads> WebGL 流线,与登录/注册
- * 同一套视觉语言。
+ * 左侧大标题"读完一句,就是你的"(ShinyText 强化决心感)+ ShinyText kicker
+ * "最后一步",右侧琥珀色 SpecularButton。
+ * 背景走 React Bits <Threads> WebGL 流线,与登录/注册同一套视觉语言。
+ *
+ * 业界标准 polish:
+ *   - 标题用 ShinyText(品牌统一 + 决心感)
+ *   - 加 Badge "最后一步" 作 kicker,作为整页的"决策锚点"
+ *   - 整块用 ScrollReveal 而非 motion 散件
  */
 
 import { type ReactElement } from 'react';
-import { motion } from 'motion/react';
-import { SpecularButton, Threads, VariableProximity } from '@/components/effects';
-import { spring } from '../ds/motion';
-import styles from './FinalCTA.module.css';
+import { ScrollReveal, ShinyText, SpecularButton, Threads, VariableProximity } from '@/components/effects';
+import { Badge } from '@/components/ui/badge';
 import { useTheme } from '../components/ThemeProvider';
+import styles from './FinalCTA.module.css';
 
 interface FinalCTAProps {
   onStart: () => void;
 }
 
-// ogl Color 期望 0..1 浮点三元组。
-//   浅色: --ds-action-deep (#2F80C0) — 深一档的 baby blue,
-//          配 multiply 混合"印"在 tint 底色上更显眼
-//   深色: baby blue 原色 (#8FCBF0) — 配 screen 混合在深空蓝底上更亮
 const THREADS_LIGHT_RGB: [number, number, number] = [0x2f / 255, 0x80 / 255, 0xc0 / 255];
 const THREADS_DARK_RGB: [number, number, number] = [143 / 255, 203 / 255, 240 / 255];
 
 export default function FinalCTA({ onStart }: FinalCTAProps): ReactElement {
   const { theme } = useTheme();
-  // ME-Q4: thread color depends on theme — dark in light mode so
-  // multiply blend "印" them visibly on the light-tint bar; baby
-  // blue in dark mode so screen blend "lights" them up on navy.
   const threadsColor = theme === 'light' ? THREADS_LIGHT_RGB : THREADS_DARK_RGB;
   return (
     <section
@@ -39,13 +36,7 @@ export default function FinalCTA({ onStart }: FinalCTAProps): ReactElement {
       className={styles.root}
       aria-labelledby="final-cta-title"
     >
-      <motion.div
-        className={styles.bar}
-        initial={{ opacity: 0, y: 16 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: '-15% 0px' }}
-        transition={spring.soft}
-      >
+      <ScrollReveal y={20} delay={0} className={styles.bar}>
         <Threads
           className={styles.threadsBg}
           color={threadsColor}
@@ -56,11 +47,17 @@ export default function FinalCTA({ onStart }: FinalCTAProps): ReactElement {
 
         <div className={styles.content}>
           <div className={styles.titleBlock}>
+            <Badge variant="amber" className={styles.kickerBadge}>最后一步</Badge>
             <h2 id="final-cta-title" className={styles.title}>
-              <span className={styles.titleMain}>读完一句,就是你的</span>
-              <span className={styles.titleArrow} aria-hidden="true">
-                →
-              </span>
+              <ShinyText
+                as="span"
+                text="读完一句,就是你的"
+                className={styles.titleMain}
+                speed={3}
+                color="var(--ds-tint-strong)"
+                shineColor="var(--ds-cta)"
+              />
+              <span className={styles.titleArrow} aria-hidden="true">→</span>
             </h2>
             <p className={styles.sub}>
               <VariableProximity
@@ -79,7 +76,6 @@ export default function FinalCTA({ onStart }: FinalCTAProps): ReactElement {
               type="button"
               size="lg"
               onClick={onStart}
-              /* 深空蓝底 + 琥珀 CTA 拉对比;琥珀在浅/深主题下都显眼。 */
               baseColor="#BA7517"
               lineColor="#ffffff"
               textColor="#412402"
@@ -94,7 +90,7 @@ export default function FinalCTA({ onStart }: FinalCTAProps): ReactElement {
             </SpecularButton>
           </div>
         </div>
-      </motion.div>
+      </ScrollReveal>
     </section>
   );
 }

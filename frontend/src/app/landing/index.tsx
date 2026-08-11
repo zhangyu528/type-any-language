@@ -2,7 +2,7 @@
 
 import { useCallback, type ReactElement } from 'react';
 import { VocabularyLib, TranslationProgress } from '../api';
-import { AuroraBackground, SpecularButton } from '@/components/effects';
+import { AuroraBackground, ScrollReveal, SpecularButton } from '@/components/effects';
 import { BABY_BLUE_CURTAINS } from '@/components/effects/baby-blue-curtains';
 import Hero from './Hero';
 import ScenariosSection from './ScenariosSection';
@@ -50,7 +50,8 @@ export default function LandingPage({
         {/* 黑色 CTA bar:左侧"选个场景试试 →",右侧琥珀按钮 */}
         <FinalCTA onStart={handleStart} />
 
-        <footer className={styles.footer} aria-label="页脚">
+        <ScrollReveal y={16} delay={0} className={styles.footerWrap}>
+          <footer className={styles.footer} aria-label="页脚">
           <div className={styles.footerBrand}>
             <span className={styles.footerBrandName}>Type Any Language</span>
             <ul className={styles.footerLinks}>
@@ -132,6 +133,7 @@ export default function LandingPage({
 
           <span className={styles.footerYear}>© 2026</span>
         </footer>
+        </ScrollReveal>
       </div>
     </div>
   );

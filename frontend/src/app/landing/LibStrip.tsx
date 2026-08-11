@@ -1,30 +1,24 @@
 'use client';
 
 /**
- * LibStrip — 方案 C SECTION 3 (修订:Persistent Side Panel)
+ * LibStrip — 方案 C SECTION 3(2026-08 polish)
  *
- * 4 个真实词库 (+ 未来 N 个)
- * **核心模式**:左侧 2x2 lib 卡网格(每张都是 CTA,点哪张进哪个 /practice)+
- * 右侧永远显示"当前查看"lib 的详细面板(封面/词句数/描述/示例句/CTA)。
+ * 4 个真实词库 + Persistent Side Panel
  *
  *   - hover 左侧任意卡 → 右侧面板切换显示该 lib 信息
  *   - 点击左侧任意卡 → 直接进 /practice?lib=<id>(0 步额外点击)
  *   - 右侧面板自带"读这一句"按钮,二次入口
  *
- * 之前的实现:每张卡 = `<motion.button>`(原生 button),鼠标 hover 联动右侧。
- * 现在所有控件都用 react-bits:4 张卡 = `<SpecularButton size="lg">`,右面板 CTA
- * 也是 `<SpecularButton size="md">`。原来用 CSS custom property `--glow-x/--glow-y`
- * 做光标跟随描边辉光 — 这部分保留在 CSS 里(`libCardHover` className + module.css),
- * react-bits 不替代 CSS-only 的纯视觉装饰。
- *
- * 硬编码示例句(SAMPLES)按 lib.level 取一个,未来后端 catalog 接口扩展
- * `sample_sentence` / `sample_translation` 字段后可改为 lib.sample_sentence。
+ * 业界标准 polish:
+ *   - 卡片改用语义结构:level(uppercase mono) + h3 name + meta + 按钮
+ *   - SpecularButton intensity 调强,follow-mouse 跟随真正生效
+ *   - 保留 CSS-only ::after mask 光标跟随描边辉光(CSS 层装饰,react-bits 不替代)
  */
 
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import { SpecularButton } from '@/components/effects';
-import { riseIn, staggerParent } from '../ds/motion';
+import { ScrollReveal, SpecularButton } from '@/components/effects';
+import { staggerParent } from '../ds/motion';
 import { VocabularyLib } from '../api';
 import styles from './LibStrip.module.css';
 
@@ -33,8 +27,6 @@ interface LibStripProps {
   onPickLib: (libId: string) => void;
 }
 
-// 按 lib.level 取示例句 + 中文翻译。兜底用 lib.description 作为右侧 desc,
-// 描述为空时给一个 level 级的通用文案。
 const SAMPLES: Record<string, { en: string; zh: string }> = {
   beginner: {
     en: 'I usually have coffee in the morning.',
@@ -63,8 +55,6 @@ const LEVEL_LABEL: Record<string, string> = {
 
 const GENERIC_DESC = '从这里开始跟打 — 读完一句,写出来就是你的。';
 
-// SpecularButton 视觉配色:每个 level 一种 tint/base 组合,跟 lib 词库品牌色一致。
-// 之前是 CSS module 写死,现在提到组件里集中维护。
 const LIB_BUTTON_PALETTE: Record<
   string,
   { tint: string; base: string; line: string; text: string }
@@ -77,7 +67,6 @@ const LIB_BUTTON_PALETTE: Record<
 const DEFAULT_PALETTE = LIB_BUTTON_PALETTE.beginner;
 
 export default function LibStrip({ libs, onPickLib }: LibStripProps) {
-  // 当前查看的 lib 索引(默认 0 = 第一个 lib)。hover / 点击左侧卡会更新。
   const [currentIdx, setCurrentIdx] = useState(0);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
@@ -89,8 +78,6 @@ export default function LibStrip({ libs, onPickLib }: LibStripProps) {
     zh: '阅读使人完整。',
   };
 
-  // 跟随光标的 MagicBento 风格边框辉光 — 写到每个 SpecularButton 的 wrapper 上
-  // (SpecularButton 内部有自己的 hover 行为;CSS 自定义属性驱动的是外层装饰描边)。
   const onCardMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const r = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const x = ((e.clientX - r.left) / r.width) * 100;
@@ -102,35 +89,28 @@ export default function LibStrip({ libs, onPickLib }: LibStripProps) {
   return (
     <section className={styles.root} aria-labelledby="lib-strip-title">
       <div className={styles.shell}>
-        <motion.header
-          className={styles.header}
-          variants={staggerParent}
-          initial="hidden"
-          whileInView="show"
-          viewport={{ once: true, margin: '0px 0px -80px 0px' }}
-        >
+        <ScrollReveal y={20} delay={0} className={styles.header}>
           <div className={styles.titleBlock}>
-            <motion.p className={styles.kicker} variants={riseIn}>
-              SECTION 3 · 选词库
-            </motion.p>
-            <motion.h2
-              id="lib-strip-title"
-              className={styles.title}
-              variants={riseIn}
-            >
+            <p className={styles.kicker}>SECTION 3 · 选词库</p>
+            <h2 id="lib-strip-title" className={styles.title}>
               入门到雅思 · 选哪一份?
-            </motion.h2>
+            </h2>
           </div>
-          <motion.span className={styles.totalCount} variants={riseIn}>
+          <span className={styles.totalCount}>
             {libs.length} 份词库 ·{' '}
             {libs.reduce((acc, l) => acc + l.word_count, 0).toLocaleString()} 词 ·{' '}
             A1 到 C1
-          </motion.span>
-        </motion.header>
+          </span>
+        </ScrollReveal>
 
         <div className={styles.layout}>
-          {/* ===== 左侧:2x2 lib 卡 grid,每张都是 CTA ===== */}
-          <div className={styles.list}>
+          <motion.div
+            className={styles.list}
+            variants={staggerParent}
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true, margin: '0px 0px -80px 0px' }}
+          >
             {libs.map((lib, idx) => {
               const isActive = idx === currentIdx;
               const isHover = idx === hoveredIdx;
@@ -163,6 +143,7 @@ export default function LibStrip({ libs, onPickLib }: LibStripProps) {
                     lineColor={palette.line}
                     textColor={palette.text}
                     blur={6}
+                    intensity={1.2}
                     followMouse
                     proximity={300}
                     className={styles.libCardBtn}
@@ -178,9 +159,8 @@ export default function LibStrip({ libs, onPickLib }: LibStripProps) {
                 </motion.div>
               );
             })}
-          </div>
+          </motion.div>
 
-          {/* ===== 右侧:永远显示的详情面板 ===== */}
           <aside className={styles.panel} aria-live="polite">
             <div className={styles.panelTop}>
               <span className={styles.panelKicker}>

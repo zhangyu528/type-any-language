@@ -117,6 +117,11 @@
   color: #FFFFFF;
 }
 
+.kickerBadge {
+  align-self: flex-start;
+  margin-bottom: var(--space-3);
+}
+
 .titleMain {
   display: inline-block;
 }

@@ -18,6 +18,10 @@
 
 /* ---------- Footer ---------- */
 
+.footerWrap {
+  width: 100%;
+}
+
 .footer {
   width: 100%;
   max-width: var(--content-max);
