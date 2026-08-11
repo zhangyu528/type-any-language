@@ -60,7 +60,7 @@ make release-prod [X.Y.Z]
 
 > 以下示例统一用 Makefile（推荐）。`./ops/.../*.sh` 直接调用也完全等价，但 Makefile 在 macOS / Linux / Windows (Git Bash / WSL) 行为完全一致，不需要 chmod。
 
-dev 主机自己跑 docker postgres（`postgres:15-alpine`，数据在 `./.dev/data/postgres/`，gitignored）—— 没有外部云 db，没有 `.secrets/` 间接层，`DATABASE_URL` 由 compose 的 `environment:` 直接注入 backend 容器。
+dev 主机自己跑 docker postgres（`postgres:15-alpine`，数据在 `./.docker-postgres-data/`，gitignored）—— 没有外部云 db，没有 `.dbcreds/` 间接层，`DATABASE_URL` 由 compose 的 `environment:` 直接注入 backend 容器。
 
 ```bash
 # 一次性: 装 host-native deps + 起 docker db
@@ -101,7 +101,7 @@ make dev-stop                      # 停两个 native 进程(db 留着)
 
 1. **Preflight** —— docker / compose / python3 / node 必须在
 2. **host-native deps** —— `backend/.venv` (pip install) + `frontend/node_modules` (npm install),两个都用 SHA256 哈希感知,manifest 不变就跳过
-3. **docker db** —— 拉起 `postgres:15-alpine` 容器(`./.dev/data/postgres/` bind-mount,gitignored)
+3. **docker db** —— 拉起 `postgres:15-alpine` 容器(`./.docker-postgres-data/` bind-mount,gitignored)
 4. **Final summary** —— 提示下一步 `make dev-start`
 
 ### 改 schema / 改内容 / 改代码
@@ -152,7 +152,7 @@ make prod-push
 3. 创建访问凭证(临时 token,或给 CVM 绑 RAM role 实现免密)
 4. 在仓库根 `REGISTRY` 文件填一行:
    ```
-   DOCKER_REGISTRY=ccr.ccs.tencentyun.com/your-tcr-id/type-any-language
+   DOCKER_REGISTRY=ghcr.io/zhangyu528/type-any-language
    ```
 5. 第一次手动 `docker login ccr.ccs.tencentyun.com`(或 CVM 用 RAM role 跳过)
 
@@ -178,14 +178,18 @@ ALLOWED_ORIGINS=https://my.domain make prod-restart  # 自动从 TCR pull + 重�
 ## 生产环境
 
 ```bash
-# (一次性,首次) 在共享 docker postgres 上为 prod 创建 ROLE/DB + 写 DATABASE_URL
-./ops/prod/setup.sh bootstrap     # 等价于 make prod-bootstrap(若已配)
+# (一次性,首次) prod 目标机(RUN 端)
+make prod-bootstrap                 # 主机层:preflight + .dbcreds/db_password + /var/lib/.../postgres
+make prod-deploy                  # 首次 / 后续都跑这个 —— 拉 3 image + recreate,
+                                  # db image 的 entrypoint 自动 apply migrations + import content
 
-# 之后每次都跑
-make prod-setup                  # 验 docker postgres + build prod 应用镜像
+# 之后每次都跑(RUN 端)
 ALLOWED_ORIGINS=https://my.domain make prod-start
 make prod-doctor
 make prod-restart
+
+# 发版(BUILD 端,在 release 机 / CI 上)
+make release-prod v0.3.0          # bump + build + push 到 registry
 
 # 镜像发布(可选)
 export DOCKER_REGISTRY=docker.io/youruser
@@ -198,7 +202,7 @@ make prod-push
 ## CMS 主机(生产内容)
 
 ```bash
-eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"   # 灌 AI_*/TENCENT_*/CLOUD_* 进进程环境
+eval "$(cms/secrets/fetch_secrets.sh eval-cms)"   # 灌 AI_*/TENCENT_*/CLOUD_* 进进程环境
 make cms-doctor                # 前置检查 (process env + Python deps)
 make cms-vocab                 # csv → 词库表
 make cms-sentences             # OpenAI 批量填句子
@@ -214,7 +218,7 @@ CMS 流程的细节(每个 Python 工具的参数、词库 CSV 格式)见 [`cms/
 
 ## Migrating an existing host
 
-If you're upgrading from a pre-revision release (e.g. one that used a baked `db` image + `.secrets/postgres_password` + `db-data` named volume, or the TencentDB cloud-db write path), clean up the orphan artifacts after pulling this release:
+If you're upgrading from a pre-revision release (e.g. one that used a baked `db` image + `.dbcreds/postgres_password` + `db-data` named volume, or the TencentDB cloud-db write path), clean up the orphan artifacts after pulling this release:
 
 ```bash
 # Drop any orphan db container + volume (data baked at image build time
@@ -222,12 +226,12 @@ If you're upgrading from a pre-revision release (e.g. one that used a baked `db`
 docker compose -f docker-compose.dev.yml down -v   # or docker-compose.yml on prod
 
 # Drop the orphan secrets file (no longer read)
-rm -f .secrets/postgres_password
-rm -f .secrets/database_url          # cloud-db-era artifact
-rm -f .secrets/tencent_db_admin_url # cloud-db-era artifact
+rm -f .dbcreds/postgres_password
+rm -f .dbcreds/database_url          # cloud-db-era artifact
+rm -f .dbcreds/tencent_db_admin_url # cloud-db-era artifact
 
 # Pull a fresh db image and bring the app stack up
-make dev-start    # or make prod-start after editing .secrets/db_password
+make dev-start    # or make prod-start after editing .dbcreds/db_password
 ```
 
-After that, `make dev-start` (or `make prod-start`) works as in a fresh install. The docker postgres bind-mounts to `./.dev/data/postgres/` (dev) or `/var/lib/type-any-language/postgres/` (prod — `chown 999:999` first); compose takes care of `docker pull postgres:15-alpine`, schema via `make dev-migrate`, and content via `make dev-import-content`.
+After that, `make dev-start` (or `make prod-start`) works as in a fresh install. The docker postgres bind-mounts to `./.docker-postgres-data/` (dev) or `/var/lib/type-any-language/postgres/` (prod — `chown 999:999` first); compose takes care of `docker pull postgres:15-alpine`, schema via `make dev-migrate`, and content via `make dev-import-content`.

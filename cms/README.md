@@ -103,7 +103,7 @@ frontend 请求 /api/sentences/random
 # CI / 离线环境:加 --skip-fetch 跳过 fetch_secrets.sh check
 
 # 1. bootstrap 成功后,把 eval 行复制粘贴到当前 shell(每次新 shell 都做)
-eval "$(./scripts/secrets/fetch_secrets.sh eval-cms)"
+eval "$(./cms/secrets/fetch_secrets.sh eval-cms)"
 
 # 2. 现在 AI_*/TENCENT_*/CLOUD_* 已在 process env,直接跑
 ./cms/run.sh                              # vocab + sentences + audio 三步
@@ -128,7 +128,7 @@ eval "$(./scripts/secrets/fetch_secrets.sh eval-cms)"
 
 | 缺什么 | run.sh 行为 | 修法 |
 |---|---|---|
-| AI_* (`AI_API_KEY` / `AI_BASE_URL` / `AI_MODEL` 任一) | 硬卡 exit 1,提示跑 `eval-cms` | `eval "$(./scripts/secrets/fetch_secrets.sh eval-cms)"` |
+| AI_* (`AI_API_KEY` / `AI_BASE_URL` / `AI_MODEL` 任一) | 硬卡 exit 1,提示跑 `eval-cms` | `eval "$(./cms/secrets/fetch_secrets.sh eval-cms)"` |
 | TENCENT_* (`SECRET_ID` / `SECRET_KEY` / `APP_ID` 任一) | 硬卡 exit 1 | 同上 |
 | 都不缺 | vocab → sentences → audio 三步依次跑 | (无需) |
 

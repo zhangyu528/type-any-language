@@ -57,6 +57,26 @@ rerunnable = True
 
 def upgrade(conn) -> None:
     with conn.cursor() as cur:
+        # Self-heal drifted runtime dbs. A sentences table created by an
+        # older schema (or via create_all on a model predating these columns)
+        # was never given target_words / use_count / last_used_at, because
+        # 0001_baseline's `CREATE TABLE IF NOT EXISTS` is a no-op on a
+        # pre-existing table. Without target_words the backfill below crashes
+        # on `column s.target_words does not exist` and the container
+        # boot-loops (502). Ensure the columns exist (idempotent) before
+        # backfilling — definitions match 0001_baseline.py.
+        cur.execute(
+            "ALTER TABLE sentences ADD COLUMN IF NOT EXISTS "
+            "target_words TEXT[] NOT NULL DEFAULT '{}'"
+        )
+        cur.execute(
+            "ALTER TABLE sentences ADD COLUMN IF NOT EXISTS "
+            "use_count INTEGER NOT NULL DEFAULT 0"
+        )
+        cur.execute(
+            "ALTER TABLE sentences ADD COLUMN IF NOT EXISTS "
+            "last_used_at TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC')"
+        )
         cur.execute(
             """
             INSERT INTO sentence_word_links (sentence_id, word_id)

@@ -31,7 +31,7 @@ frontend/
 
 | 变量 | build/runtime | 默认值 | 说明 |
 |---|---|---|---|
-| `NEXT_PUBLIC_API_URL` | build | `http://localhost:8000` (dev) / `/api` (prod nginx) | 浏览器访问的 base URL。**仅 build 时生效** —— 改了要重新 build(`./ops/prod/build_image.sh`)。 |
+| `NEXT_PUBLIC_API_URL` | build | `http://localhost:8000` (dev) / `/api` (prod nginx) | 浏览器访问的 base URL。**仅 build 时生效** —— 改了要重新 build(`./ops/prod/build/image.sh`)。 |
 
 值由 host shell env `NEXT_PUBLIC_API_URL=...` 覆盖,prod compose 的 `frontend` service 把这个值传给 Dockerfile 构参。Native dev 路径下 `ops/dev/native.sh` 自动 export `http://localhost:8000`,无需手设。
 

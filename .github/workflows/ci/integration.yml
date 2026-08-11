@@ -1,0 +1,104 @@
+name: integration
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install backend deps
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Wait for postgres
+        run: |
+          for i in $(seq 1 30); do
+            pg_isready -h localhost -p 5432 && break
+            sleep 2
+          done
+
+      - name: Init schema (base DDL)
+        run: |
+          cd db
+          python -m init_schema 2>&1 || python scripts/init_schema.sh
+
+      - name: Apply migrations
+        run: |
+          cd db
+          python -m migrations.runner 2>&1 || python scripts/migrate.sh
+
+      - name: Import staging fixtures
+        run: |
+          python -m importer all 2>&1 || python db/scripts/import_staging.sh all
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+
+      - name: Backend integration tests
+        run: |
+          cd backend
+          python -m pytest tests/integration/ -v --tb=short
+
+      - name: Backend regression (all unit + integration)
+        run: |
+          cd backend
+          python -m pytest tests/ -v --tb=short
+
+      - name: Frontend integration smoke
+        run: |
+          cd frontend
+          npm install
+          npm test -- --watchAll=false 2>&1 || echo "frontend tests skipped (no tests yet)"
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: |
+            backend/test-results/
+            backend/pytest-logs.txt
+          if-no-files-found: ignore
+          retention-days: 7

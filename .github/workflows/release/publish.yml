@@ -1,0 +1,97 @@
+name: publish-prod
+run-name: publish-prod-${{ inputs.ref || auto }}
+
+# Publish a release: deploy to prod CVM AND consume the rc tag (create vX.Y.Z).
+#
+# Trigger: workflow_dispatch ONLY. Operator runs this manually after
+# release-build (produces rc) and staging.yml (mode: validate, verifies staging) complete.
+#
+# Behavior:
+#   - Resolve ref to deploy (vX.Y.Z-rc.N)
+#   - Assert staging was verified (via GH Deployments API)
+#   - Deploy to prod CVM (ops/publish/deploy-prod.sh does tar+scp+SSH)
+#   - Short soak on prod (default 2 min)
+#   - If promote=true (default): consume the rc - create vX.Y.Z (ops/publish/promote.sh)
+#
+# All heavy bash is in ops/publish/*.sh (deploy/promote/assert), ops/staging/*.sh (staging env), and ops/release/resolve-tag.sh (shared tag helper). The prod compose file lives at the repo root (docker-compose.yml) and is pulled to the CVM by deploy-prod.sh as a top-level tarball entry. The workflow just orchestrates.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: rc tag (vX.Y.Z-rc.N) - auto = latest prerelease
+        type: string
+        default: auto
+      soak_minutes:
+        description: short soak duration (0 = skip)
+        type: number
+        default: 2
+      promote:
+        description: auto-create vX.Y.Z tag after successful deploy
+        type: boolean
+        default: true
+
+permissions:
+  contents: write   # for promote step (git tag + push)
+
+concurrency:
+  group: publish-prod
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: prod
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve deploy ref
+        id: resolve
+        env:
+          INPUT_REF: ${{ inputs.ref }}
+        run: |
+          NEW_TAG=$(bash ops/release/resolve-tag.sh resolve "$INPUT_REF")
+          echo "NEW_TAG=${NEW_TAG}" >> "$GITHUB_OUTPUT"
+          echo "Resolved: ${NEW_TAG}"
+
+      - name: Set IMAGE_TAG
+        env:
+          IMAGE_TAG: ${{ steps.resolve.outputs.NEW_TAG }}
+
+      - name: Assert staging verified
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          REF: ${{ steps.resolve.outputs.NEW_TAG }}
+        run: bash ops/publish/assert-staging-verified.sh
+
+      - name: Deploy to prod CVM
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+          IMAGE_TAG: ${{ steps.resolve.outputs.NEW_TAG }}
+          CVM_HOST: ${{ secrets.CVM_HOST }}
+          CVM_USER: ${{ vars.CVM_BOOTSTRAP_USER || ubuntu }}
+          CVM_KEY: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash ops/publish/deploy-prod.sh
+
+      - name: Short soak on prod
+        if: env.SOAK_MINUTES != "" && env.SOAK_MINUTES != "0"
+        env:
+          SOAK: ${{ inputs.soak_minutes }}
+        run: |
+          echo "Soaking for $SOAK minutes..."
+          sleep "$((SOAK * 60))"
+
+      - name: Promote (create vX.Y.Z tag + GH release)
+        if: success() && inputs.promote
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REF: ${{ steps.resolve.outputs.NEW_TAG }}
+        run: bash ops/publish/promote.sh
+

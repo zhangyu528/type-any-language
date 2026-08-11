@@ -120,4 +120,4 @@ hover 浮 1px + elev-1 / active 回位(Q 弹)/ focus-visible 环 / disabled 40% 
 - `.practice--cm` 容器级 token 重映射机制,删除
 - `PaperGrain` 组件(纸纹背景),删除
 - auth 页 aurora 渐变 + 玻璃拟态,改为 TAL Mint 气泡卡(单词流背景保留)
-- 迁移脚本存档:`frontend/scripts/migrate-to-tal-mint.cjs`
+- 一次性迁移脚本 `frontend/scripts/migrate-to-tal-mint.cjs` 已删除(2026-08-03;token 替换完成后归档,不再需要 npm script 入口)

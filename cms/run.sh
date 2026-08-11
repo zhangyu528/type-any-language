@@ -24,7 +24,7 @@
 # files. DATABASE_URL is therefore NOT needed by this script (or any
 # pipeline.* Python module). The db side (db/scripts/bootstrap_tencent.sh
 # / import_staging.sh / migrate.sh) resolves DATABASE_URL itself from shell
-# env or .secrets/database_url.
+# env or .dbcreds/database_url.
 #
 # 历史:旧 staging.sh vocab / sentences / audio 入口被拆分到
 # cms/scripts/cmd_*.sh。run.sh 现在直接 exec 这三个 cmd_*.sh(不走
@@ -80,7 +80,7 @@ cd "$PROJECT_DIR"
 source "$SCRIPT_DIR/../ops/lib.sh"
 
 # CMS configuration is supplied by the process environment via:
-#   eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"
+#   eval "$(cms/secrets/fetch_secrets.sh eval-cms)"
 
 # ---------------------------------------------------------------------------
 # Helpers (CMS-only)
@@ -134,7 +134,7 @@ gate_python_deps() {
 #   1. fetch_secrets.sh check is NOT here on purpose — bootstrap.sh does
 #      it once per CMS host setup, and operators inject the secrets
 #      into the current shell via
-#          eval "$(./scripts/secrets/fetch_secrets.sh eval-cms)"
+#          eval "$(./cms/secrets/fetch_secrets.sh eval-cms)"
 #      before running this script. run.sh then trusts the env is there.
 #   2. gate_python_deps — openai + PyYAML importable. Catches operators
 #      who skipped bootstrap.sh (or whose venv isn't activated).
@@ -170,7 +170,7 @@ cmd_run() {
     if [ -z "${AI_API_KEY:-}" ] || [ -z "${AI_BASE_URL:-}" ] || [ -z "${AI_MODEL:-}" ]; then
         err "  sentences 缺 AI_* env,run.sh 退出"
         err "    缺: $([ -z "${AI_API_KEY:-}" ] && echo AI_API_KEY; [ -z "${AI_BASE_URL:-}" ] && echo AI_BASE_URL; [ -z "${AI_MODEL:-}" ] && echo AI_MODEL | tr '\n' ' ')"
-        info "  → 注入密钥: eval \"\$(./scripts/secrets/fetch_secrets.sh eval-cms)\""
+        info "  → 注入密钥: eval \"\$(./cms/secrets/fetch_secrets.sh eval-cms)\""
         info "  → 只跑 vocab(不需 AI_*)用: ./cms/scripts/cmd_vocab.sh"
         return 1
     fi
@@ -185,7 +185,7 @@ cmd_run() {
        [ -z "${TENCENT_APP_ID:-}" ]; then
         err "  audio 缺 TENCENT_* env,run.sh 退出"
         err "    缺: $([ -z "${TENCENT_SECRET_ID:-}" ] && echo TENCENT_SECRET_ID; [ -z "${TENCENT_SECRET_KEY:-}" ] && echo TENCENT_SECRET_KEY; [ -z "${TENCENT_APP_ID:-}" ] && echo TENCENT_APP_ID | tr '\n' ' ')"
-        info "  → 注入密钥: eval \"\$(./scripts/secrets/fetch_secrets.sh eval-cms)\""
+        info "  → 注入密钥: eval \"\$(./cms/secrets/fetch_secrets.sh eval-cms)\""
         info "  → 只跑 vocab(不需 TENCENT_*)用: ./cms/scripts/cmd_vocab.sh"
         return 1
     fi
@@ -211,7 +211,7 @@ usage() {
 
 典型工作流 (CMS 主机,两段独立步骤):
   ./cms/scripts/bootstrap.sh                       # 一次性:装 deps + 验 gh/auth + 打印 eval 行
-  eval "\$(./scripts/secrets/fetch_secrets.sh eval-cms)"   # 注入 AI/TENCENT/CLOUD 密钥
+  eval "\$(./cms/secrets/fetch_secrets.sh eval-cms)"   # 注入 AI/TENCENT/CLOUD 密钥
   ./cms/run.sh                                     # E+T → cms/content/
   ./db/scripts/import_staging.sh all               # db: UPSERT staging 文件 → 云 db (L)
 

@@ -3,10 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "NEXT_DIST_DIR=.next-build next build",
+    "dev": "node scripts/dev.mjs",
+    "build": "node scripts/build.mjs",
     "start": "next start",
     "lint": "next lint",
+    "install": "node scripts/install.mjs",
+    "dev:restart": "node scripts/restart.mjs",
+    "preflight": "node scripts/preflight.mjs",
+    "test": "playwright test",
     "build:pages": "GITHUB_PAGES=1 NEXT_PUBLIC_DEMO_MODE=true NEXT_PUBLIC_API_URL='' npx next build",
     "serve:pages": "python3 -m http.server 3000 --directory out"
   },
@@ -29,6 +33,6 @@
     "postcss": "^8.5.25",
     "tailwindcss": "^3.4.19",
     "tailwindcss-animate": "^1.0.7",
-    "typescript": "5.9"
+    "typescript": "^5.9.3"
   }
 }

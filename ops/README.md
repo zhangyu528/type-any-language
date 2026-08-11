@@ -1,179 +1,118 @@
 # ops/
-
-目标机运维入口 + 镜像 build/release 编排器。运维和发版需要的几乎所有东西都在这里。
-
-## 目录结构
-
-```
-ops/
-├── README.md           本文件
-├── lib.sh              共享 helper —— 每个脚本都 source 它
-├── build.sh            本地 build prod 镜像,no push
-├── release.sh          发版编排器(bump + build + push prod)
-├── build_ielts_csv.py  一次性数据准备工具(IELTS 词表 → cms CSV 格式)
-├── dev/                dev 目标机(host-native + docker postgres)
-│   ├── _common.sh      共享 bootstrap(docker postgres contract、db helpers、staging-files check)
-│   ├── native.sh       host-native dev driver(uvicorn + next dev on host; db 在 docker)
-│   ├── doctor.sh       只读 preflight env check(docker、compose、host python+node、ports、db 可达性)
-│   ├── setup.sh        首次 bootstrap:preflight + 装 host-native deps + 起 docker db
-│   ├── logs.sh         dev 容器/进程日志 wrapper
-│   ├── migrate.sh      把 pending schema migrations 应用到 docker db(host-side runner)
-│   └── import_content.sh  UPSERT cms/content/ 到 docker db
-└── prod/               prod 目标机(预编译)
-    ├── _common.sh      共享 bootstrap
-    ├── lifecycle.sh    start / stop / restart | reload(auto-pull from registry)
-    ├── doctor.sh       只读 preflight env check for prod(含 docker postgres 可达性)
-    ├── setup.sh        首次 bootstrap for fresh prod host(含 `setup.sh bootstrap` 子命令)
-    ├── logs.sh         docker compose logs -f wrapper
-    ├── build_image.sh  本地 build english_backend + english_frontend
-    ├── push_image.sh   推送 prod backend+frontend 到 $DOCKER_REGISTRY
-    └── nginx.conf      prod-only 反向代理配置(无 /audio location —— audio 由 COS 直出)
-```
-
-双主机架构(CMS 主机生产内容,dev/prod 目标机消费)+ docker postgres 外部依赖在仓库根 `CLAUDE.md` 有完整说明。本 README 聚焦在脚本本身。
-
-## 常用入口
-
-| 想做的事 | 命令 |
-|---|---|
-| 发版 | `./ops/release.sh dev\|prod [X.Y.Z] [-y]` |
-| 查看当前版本 | `./ops/release.sh show` |
-| 本地 build prod 镜像(不 push) | `./ops/build.sh` |
-| 首次 dev setup(装 host-native deps + 起 docker db) | `./ops/dev/setup.sh` |
-| 启动 / 停止 / 重启 host-native dev loop | `./ops/dev/native.sh start\|stop\|restart` |
-| 首次 verify docker postgres + build prod apps | `./ops/prod/setup.sh` |
-| 一次性 docker postgres setup(prod) | `./ops/prod/setup.sh bootstrap` |
-| 检查主机就绪状态 | `./ops/<host>/doctor.sh` |
-| 启动 / 停止 / 重启 prod 容器 | `./ops/prod/lifecycle.sh start\|stop\|restart` |
-| 滚动重载(同容器、不重建) | `./ops/prod/lifecycle.sh reload` |
-| 查看容器日志 | `./ops/<host>/logs.sh [svc]` |
-| Apply schema migrations 到 docker db(dev-only host runner) | `./ops/dev/migrate.sh` |
-| 本地 build prod 镜像 | `./ops/prod/build_image.sh` |
-| 推送 prod 镜像到 registry | `./ops/prod/push_image.sh -y` |
-| Import staging 内容到 db | `./db/scripts/import_staging.sh all` |
-| 拉 CMS 密钥到 shell | `eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"` (每次新 shell 都跑) |
-
-`ops/dev/` 用 host-native loop(uvicorn + `next dev` on host;db 在 docker);prod 才是容器化的。CMS 脚本在 `cms/scripts/` 下,db 脚本在 `db/scripts/` 下 —— 这两个独立子系统的入口不在 `ops/` 里,保留各自的命名空间。
-
-## `lib.sh` —— 共享 helper
-
-每个脚本都 source 它:
-
-```bash
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"   # 顶层 ops/<name>.sh
-# 或
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)" # ops/<host>/<name>.sh
-cd "$PROJECT_DIR"
-source "$PROJECT_DIR/ops/lib.sh"
-```
-
-`lib.sh` 提供:
-
-| Helper | 用途 |
-|---|---|
-| `ok / warn / err / info`     | 彩色打印(stdout/stderr 区分)。请用这些,不要用 `echo` 写状态。 |
-| `gen_secret <len>`           | URL-safe 随机串(仍保留,但 ops/dev 不再用它生成 POSTGRES_PASSWORD — 那是云 db 的事)。 |
-| `detect_default_registry`    | `docker.io/$USER` 或空(取得到的)。 |
-| `find_repo_root`             | 向上找到 `.git` 或 `REGISTRY` 文件(不再扫 `VERSION*` —— db/VERSION 已退役)。 |
-| `read_version_file [path]`   | VERSION 文件的首个非空非注释行,或 `v0.0.0`。 |
-| `resolve_image_tag VAR [path]` | per-image env > `IMAGE_TAG` > version file > `v0.0.0`。 |
-| `warn_if_version_default <tag> [path]` | VERSION 缺失时的一次性 warn。 |
-| `resolve_docker_registry`    | shell env > REGISTRY 文件 > auto-detect > 空。 |
-| `db_assemble_url`            | 自管 db 兜底(从 `POSTGRES_*` + `.secrets/postgres_password` 拼 DSN)。docker postgres 路径优先用 `db/scripts/lib.sh::resolve_*_db_url`。 |
-| `sed_inplace PAT FILE`       | 跨平台原地编辑(GNU vs BSD/macOS sed)。 |
-| `check_docker_installed`     | 静默布尔。 |
-| `check_docker_daemon_running`| 静默布尔(5s 超时,Docker Desktop 启动时不会假死)。 |
-| `require_docker`             | docker / compose 缺失时友好报错并 exit 1。 |
-| `image_exists NAME`          | `docker image inspect` —— 静默布尔。 |
-| `require_image NAME [hint]`  | 缺失时友好报错并给出修复提示。 |
-| `resolve_image_ref NAME TAG` | 拼出 `$DOCKER_REGISTRY/$NAME:$TAG` 或本地名。 |
-| `image_label NAME KEY`       | 读 OCI label。 |
-| `port_in_use PORT`           | 静默布尔。 |
-| `warn_port_in_use PORT DESC` | 仅警告(`set -e` 下不会失败)。 |
-| `detect_compose_cmd`         | 设置 `DOCKER_COMPOSE_CMD`(docker-compose vs `docker compose`)。 |
-| `file_exists / require_file` | 文件存在性 helper。 |
-| `py_cmd`                     | 解析 `python` / `python3`(优先 venv)。 |
-
-两条约定请记住:
-- **状态消息一律走 `ok/warn/err/info`** —— 永远不要裸 `echo`。这些打印函数统一处理颜色、TTY 检测和 `[OK]/[WARN]/[ERR]/[INFO]` 前缀。
-- **函数通过 stdout 返回值时**(比如 `tag="$(resolve_image_tag ...)"`),日志必须走 **stderr**(`>&2`),否则会被一起捕获进返回值。
-
-## 新脚本的约定
-
-本仓库的每个 shell 脚本都遵循同一骨架:
-
-```bash
-#!/bin/bash
 #
-# <path>/<name>.sh — <一行摘要>。
+# Target-host operations + image build/release orchestrator (CVM + CI only;
+# dev-tools/ lives at the repo root as a sibling — see README.md for the top-level
+# layout).
 #
-# <多行说明:脚本做什么、何时用、不做什么、读什么环境变量。>
+# Layout rule: each subfolder that USES a compose file keeps that file in
+# the SAME subfolder (consumer and artifact live side-by-side). There are
+# no compose files at the repo root.
+#
+#   cvm/      prod CVM runtime scripts (RUN env)
+#               cvm/nginx/                host nginx module (site.conf +
+#                                         install.sh, installed on the CVM by
+#                                         cvm/bootstrap.sh::step_nginx_site_link)
+#               (the prod compose file lives at the repo root:
+#                docker-compose.yml — consumed by cvm/lifecycle.sh via
+#                cvm/_common.sh's compose() wrapper, and packaged into the
+#                CVM tarball by ops/publish/deploy-prod.sh.)
+#               cvm/_common.sh            shared setup + the compose() wrapper
+#               cvm/bootstrap.sh          one-time idempotent host prep
+#               cvm/lifecycle.sh          start / stop / restart
+#               cvm/logs.sh               docker compose logs -f
+#
+#   staging/  CI: ephemeral staging env (called by staging.yml)
+#               staging/docker-compose.staging.yml   the staging stack
+#               staging/nginx.staging.conf           nginx config inside the
+#                                                    staging compose
+#               bring-up-staging.sh / teardown-staging.sh
+#               install-cloudflared.sh / expose-tunnel.sh
+#               write-deploy-record.sh               GH Deployments record
+#
+#   publish/  CI: ship-to-prod scripts (called by release/publish.yml)
+#               deploy-prod.sh            tar+scp + remote SSH (ships ops/cvm
+#                                         + ops/lib.sh + Makefile to the CVM)
+#               promote.sh                rc -> vX.Y.Z tag + GH release
+#               assert-staging-verified.sh  gate before prod
+#
+#   release/  CI: image release orchestration (called by release/build.yml)
+#               _common.sh                shared helpers (image list + name
+#                                         assembly + size budget)
+#               resolve-tag.sh            smart vX.Y.Z-rc.N arithmetic
+#                                         (also used by staging.yml /
+#                                          release/publish.yml)
+#               build.sh                  docker build + push 3 images
+#                                         (db/backend/frontend)
+#               push-latest.sh            retag + push :latest for all 3
+#               check-size.sh             fail if any image exceeds budget
+#                                         (default 500 MB, MAX_IMAGE_BYTES)
+#               push-git-tag.sh           git tag -a + push origin <NEW_TAG>
+#               create-gh-release.sh      gh release create --prerelease
+#
+#   test/     smoke + e2e test scripts (called by release/staging.yml / verify/smoke.yml /
+#               verify/e2e.yml)
+#
+# lib.sh     shared helpers (sourced by cvm/ scripts; dev-tools/ sources it too
+#            via the repo-root relative path ops/lib.sh)
+#
+# IMPORTANT - the prod compose file lives at the repo root
+# (docker-compose.yml). Its internal relative paths (./secrets/db_password,
+# ./backend, ./frontend, ./db/Dockerfile) are repo-root-relative and resolve
+# naturally against the compose file own directory. The CVM runtime
+# compose() wrapper still pins --project-directory + --project-name so
+# container / network names stay stable across PWDs; always call docker
+# compose through the wrapper, never directly with -f docker-compose.yml.
 
-set -e
+# No build target lives at the repo root - the image release orchestration scripts live in release/ (this folder), called by release-build.yml.
+#
+# Architecture: GitHub Actions workflows (yml) are thin orchestrators.
+# The heavy bash lives in ops/ subfolders by role:
+#   release/build.yml -> ops/release/  (resolve-tag, build, push-latest,
+#                                       check-size, push-git-tag,
+#                                       create-gh-release)
+#   staging.yml       -> ops/staging/  (bring-up / teardown / tunnel /
+#                                       write-deploy-record)
+#   release/publish.yml -> ops/publish/  (assert-staging-verified / deploy-prod
+#                                       / promote)
+# Scripts are also runnable from a workstation for debugging or manual ops.
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# PROJECT_DIR 必须是仓库根,不是 ops/。往上走足够的层数落到仓库根,
-# 跟嵌套深度无关。
-#   ops/<name>.sh                  → 1 层  (../)
-#   ops/<host>/<name>.sh           → 2 层  (../../)
-PROJECT_DIR="$(cd "$SCRIPT_DIR/<正确的相对路径>" && pwd)"
-cd "$PROJECT_DIR"
-# shellcheck disable=SC1091
-source "$PROJECT_DIR/ops/lib.sh"
+# When adding a new script:
+#   - targets a prod CVM (lifecycle / doctor / bootstrap) -> ops/cvm/
+#     AND put its compose file (if any) in ops/cvm/ too
+#   - runs from CI / build host (staging) -> ops/staging/
+#     AND put its compose file (if any) in ops/staging/ too
+#   - runs from CI / build host (image release: tag, build, push,
+#     size-check, git tag, GH release) -> ops/release/
+#   - runs from CI / build host (deploy / promote to prod) -> ops/publish/
+#   - runs on a dev workstation (host-native dev loop) -> ../dev-tools/  (sibling of
+#     ops/, NOT under it; put dev's compose file in ../dev-tools/ too)
+#
+# Workflow layout (.github/workflows/, same 4 role-folder pattern):
+#   ci/       automatic checks (PR + push):  pr-checks, integration
+#   infra/    manual one-time provisioning:  bootstrap-prod
+#   release/  manual image release pipeline: build -> staging -> publish
+#   verify/   manual post-deploy checks:     smoke, e2e
+# Each role maps 1:1 to an ops/ subfolder, so adding a workflow is
+# "drop it in the right role folder"; the matching ops/ scripts (if any)
+# already live next to their consumers by convention.
 
-require_docker    # 脚本用到 docker 时
+# Conventions (all scripts):
+#   - SCRIPT_DIR = $(cd $(dirname $0) && pwd)
+#   - PROJECT_DIR = $(cd $SCRIPT_DIR/.. && pwd) (or /../.. for subfolder scripts)
+#   - source ops/lib.sh for shared helpers
+#   - top-level "set -e" (fail fast)
+#   - subcommand API: cmd_<name> functions, case "${1:-}" in ... esac dispatcher
+#   - exit codes: 0=ok, 1=precondition, 2=docker/push failed
 
-# 1. 解析配置(env > VERSION 文件 > 默认值)。
-# 2. 实现 cmd_doctor / cmd_<action>。
-# 3. case "${1:-}" in ... esac —— 路由 subcommand。
-```
+# Release pipeline (no Makefile targets for these - done by .github/workflows/):
+#
+#   release/build.yml     produces rc tag + 3 images (db+backend+frontend)
+#   staging.yml           ephemeral staging on GH runner; mode=validate
+#                         (smoke+e2e+soak+write record) | mode=review
+#                         (public Cloudflare Tunnel URL for human review)
+#   release/publish.yml   asserts staging verified, deploys to prod
+#                         (ops/publish/*.sh + ops/cvm/ via the deploy tarball),
+#                         creates vX.Y.Z
 
-注意:
-- **`PROJECT_DIR` 必须是仓库根。** 所有 compose 文件、VERSION 文件、`cms/` 等都在那里。常见 bug 是少走一层(落在 `ops/` 而不是仓库根)—— 每个 `ops/<host>/` 脚本用 `$SCRIPT_DIR/../..` 就是为了避开这个坑。CMS / db 密钥通过 `scripts/secrets/fetch_secrets.sh` 拉到 shell 环境里。
-- **顶部 `set -e`**。fail fast;让 `lib.sh` 的 `require_*` 处理友好报错。
-- **Subcommand API**: `cmd_<subcommand>` 函数,通过 `case "${1:-}" in` 路由。`usage()` 出 help。退出码:
-  - 0 = 成功或用户取消
-  - 1 = 前置条件缺失
-  - 2 = docker / push 失败
-- **`ops/` 下的脚本不要用 Python。** CMS 流水线用 Python(`cms/pipeline/*.py`),但 `ops/` 全 shell。目标机需要 python3 仅用于 `ops/dev/migrate.sh` 跑 migration runner(同一台 dev 机器通常已有 python3)。
-- **`source "$PROJECT_DIR/ops/lib.sh"`** 是引入方式。不要 `source ./lib.sh` —— 操作员切了目录就找不到。
-
-## 版本模型
-
-每个段目录下自己的 VERSION 文件控制 prod image tag:
-
-| 文件 | 管哪些 image |
-|---|---|
-| `backend/VERSION`           | `english_backend` (prod) |
-| `frontend/VERSION`          | `english_frontend` (prod) |
-| `cms/VERSION`               | 占位文件 (cms 段当前没有 image) |
-
-没有 db image —— runtime db 是 docker postgres(外部服务),schema 跟内容都不进 image。Schema 版本 = `schema_migrations` 表行数,内容版本 = 最近一次 `db/scripts/import_staging.sh` 跑的时间。
-
-dev 没有 image(uvicorn + `next dev` 跑在 host 上),所以也没有 dev VERSION 概念 —— `backend/VERSION` 只管 prod 那个 tag。完整的解析链和覆盖优先级见仓库根 `CLAUDE.md` 的 "Image version tags" 段。
-
-`ops/release.sh` 是版本管理的唯一入口 —— 优先用它,别手改 VERSION 文件。
-
-## 新增脚本流程
-
-1. 选对子目录:
-   - 影响 prod 主机容器生命周期 → `ops/prod/lifecycle.sh` + 配套
-     `doctor.sh` / `setup.sh` / `logs.sh`
-   - 影响 dev 主机 host-native loop → `ops/dev/native.sh` + 配套
-     `setup.sh` / `doctor.sh` / `migrate.sh` / `import_content.sh`
-   - 跨切面编排(build / release) → `ops/` 根(`build.sh` / `release.sh`)
-   - 操作某 service 的 image / config → 那个 service 自己的目录
-     (如 `cms/scripts/staging.sh`、`db/scripts/migrate.sh`)
-2. 复制一个相同形状的现有脚本作模板(`lifecycle.sh` / `build_image.sh`
-   是最规范的例子)。多 subcommand 的脚本共享一个 `_common.sh` 做
-   setup bootstrap。
-3. 用上面那个 `SCRIPT_DIR / PROJECT_DIR` 骨架 —— 确认 `PROJECT_DIR`
-   落在仓库根。
-4. source `lib.sh`,用它提供的打印函数和 helper。
-5. 写 `usage()`,用 `case` 路由 subcommand。
-6. 如果是面向用户的脚本,加到上面的 "常用入口" 表,并补到仓库根 `CLAUDE.md`。
-
-## 参见
-
-- `../CLAUDE.md` —— 项目总览、docker postgres + 双主机架构、完整命令参考
+# To trigger: GH Actions UI -> Run workflow on the relevant yml.
+# To inspect / test locally: bash <script> [args] from a workstation.

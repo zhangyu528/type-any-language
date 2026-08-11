@@ -1,0 +1,111 @@
+name: release-build
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "x.y.z base version (empty=auto)"
+        required: false
+        type: string
+        default: ""
+      bump_type:
+        description: "patch|minor|major (only when version empty)"
+        required: false
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      force_rc:
+        description: "Force a specific rc number (advanced)"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release-build
+  cancel-in-progress: false
+
+jobs:
+  release-build:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version + rc
+        id: resolve
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          BUMP_TYPE: ${{ github.event.inputs.bump_type }}
+          FORCE_RC: ${{ github.event.inputs.force_rc }}
+        run: |
+          chmod +x ops/release/*.sh
+          NEW_TAG=$(bash ops/release/resolve-tag.sh "$INPUT_VERSION" "$BUMP_TYPE" "$FORCE_RC")
+          echo "NEW_TAG=${NEW_TAG}" >> "$GITHUB_OUTPUT"
+          echo "Resolved: ${NEW_TAG}"
+
+      - name: Verify DOCKER_REGISTRY is set
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+        run: |
+          if [ -z "$DOCKER_REGISTRY" ]; then
+            echo "::error::GH Variable DOCKER_REGISTRY not set"
+            exit 1
+          fi
+          echo "DOCKER_REGISTRY=$DOCKER_REGISTRY"
+
+      - name: Login to GHCR
+        if: env.DOCKER_REGISTRY != ""
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build + push 3 images
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+          NEW_TAG: ${{ steps.resolve.outputs.NEW_TAG }}
+          GIT_SHA: ${{ github.sha }}
+        run: bash ops/release/build.sh
+
+      - name: Tag + push :latest
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+          NEW_TAG: ${{ steps.resolve.outputs.NEW_TAG }}
+        run: bash ops/release/push-latest.sh
+
+      - name: Vulnerability scan (trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ vars.DOCKER_REGISTRY }}/english_backend:${{ steps.resolve.outputs.NEW_TAG }}
+          format: "table"
+          exit-code: "1"
+          severity: "HIGH,CRITICAL"
+          ignore-unfixed: true
+
+      - name: Image size check
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+          NEW_TAG: ${{ steps.resolve.outputs.NEW_TAG }}
+        run: bash ops/release/check-size.sh
+
+      - name: Git tag + push
+        env:
+          NEW_TAG: ${{ steps.resolve.outputs.NEW_TAG }}
+        run: bash ops/release/push-git-tag.sh
+
+      - name: GH release (prerelease)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_TAG: ${{ steps.resolve.outputs.NEW_TAG }}
+        run: bash ops/release/create-gh-release.sh
+
+      - name: Logout
+        if: always()
+        run: docker logout ghcr.io || true

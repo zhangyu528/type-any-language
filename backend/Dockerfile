@@ -24,13 +24,20 @@ RUN pip install --no-cache-dir -r requirements.txt
 # build context — COPY . . above already includes it.
 COPY . .
 
+# Schema migrations run inside the backend container itself, before
+# uvicorn binds the port. See backend/image-entrypoint.sh. The
+# runner + sqlalchemy + psycopg2-binary all come from the image's
+# own requirements.txt, so the runtime path doesn't depend on
+# anything outside the container. (Older revision applied
+# migrations host-side from deploy.sh; we switched to this style so
+# dev and prod go through identical code — the same
+# python3 -m migrations.runner — and the deploy host no longer needs
+# Python + SQLAlchemy installed.)
+COPY image-entrypoint.sh /usr/local/bin/backend-image-entrypoint.sh
+RUN chmod +x /usr/local/bin/backend-image-entrypoint.sh
+
 EXPOSE 8000
 
-# ENTRYPOINT applies pending schema migrations before serving traffic.
-# Idempotent — re-runs are no-ops (runner skips already-applied versions
-# in schema_migrations). On every container start, the migrations from
-# the baked-in working tree are applied to the connected cloud db.
-# This eliminates the "code ≠ db" drift window: any new migration
-# in the image is applied before the first request.
-ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["/usr/local/bin/backend-image-entrypoint.sh"]
+# CMD removed: the entrypoint owns the entire startup (migrations
+# + uvicorn). Anything we left here would be ignored.

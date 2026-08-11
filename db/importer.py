@@ -86,11 +86,23 @@ def find_project_root() -> Path:
 
 def find_content_dir() -> Path:
     """The CMS pipeline writes here. Default: cms/content/.
-    Override via CMS_CONTENT_DIR env var (rare — for tests)."""
+    Override via CMS_CONTENT_DIR env var (rare — for tests).
+
+    In the db image (db/Dockerfile) content is baked at /app/cms_content/,
+    and importer.py lives at /app/importer.py — so find_project_root()
+    resolves to "/" and the naive project-root fallback would look at the
+    non-existent /cms/content. We therefore try the in-container path first,
+    then the repo-root path, returning the first one that exists.
+    """
     env = os.environ.get("CMS_CONTENT_DIR", "").strip()
     if env:
         return Path(env)
-    return find_project_root() / "cms" / "content"
+    candidates = [Path("/app/cms_content"), find_project_root() / "cms" / "content"]
+    for c in candidates:
+        if c.is_dir():
+            return c
+    # Fall back to the repo-root path so the error message is sensible.
+    return candidates[-1]
 
 
 # ---------------------------------------------------------------------------
@@ -346,10 +358,12 @@ def main() -> int:
     args = parser.parse_args()
 
     # Resolve DATABASE_URL straight from the process env. Caller is
-    # expected to have either run `eval "$(scripts/secrets/fetch_secrets.sh
-    # eval-db)"` (CMS host) or `ops/<host>/setup.sh bootstrap` (target host,
-    # writes .secrets/database_url). See db/db_url.py for the full
-    # resolution chain.
+    # expected to have either:
+    #   - run `eval "$(cms/secrets/fetch_secrets.sh eval-db)"` (CMS host), or
+    #   - run inside a backend container started by docker compose (DATABASE_URL
+    #     auto-injected via the environment: block), or
+    #   - exported DATABASE_URL in the shell (self-managed db / CI).
+    # See db/db_url.py for the full resolution chain.
     database_url = resolve_database_url()
 
     content = find_content_dir()

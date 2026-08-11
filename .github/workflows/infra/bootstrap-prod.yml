@@ -1,0 +1,264 @@
+﻿name: bootstrap-prod
+run-name: bootstrap-prod-on-${{ inputs.host || 'auto' }}
+
+# -----------------------------------------------------------------------
+# One-time (BOOTSTRAP) host preparation for a new prod CVM.
+#
+# Lifecycle — 3 workflows, in this order:
+#   bootstrap-prod  → ONE-TIME per host: provision deploy user + host prep
+#   release-prod    → per release: build + push 3 images to GHCR
+#   deploy-prod     → per release: pull images from GHCR + bring up stack
+#
+# What this workflow does (option C — bootstrap key + sudo -u deploy):
+#   1. Verify CVM_HOST, CVM_BOOTSTRAP_SSH_KEY, DOCKER_REGISTRY exist.
+#   2. SSH into the CVM as `ubuntu` (configurable) using
+#      CVM_BOOTSTRAP_SSH_KEY, and:
+#        - create the `deploy` user (idempotent, non-root runtime user)
+#        - install NOPASSWD sudoers for /bin/mkdir + /bin/chown
+#        - install Docker Engine + compose plugin (so deploy-prod can run)
+#        - add `deploy` to the `docker` group (run docker without sudo)
+#        - sparse-checkout clone into /opt/type-any-language (owned by
+#          deploy): ONLY Makefile + docker-compose.yml (prod stack at repo root)
+#                         + ops/cvm (lifecycle + doctor + bootstrap + nginx/) + ops/lib.sh.
+#          Source code is excluded — prod images
+#          are pulled from GHCR, not built locally on the CVM. The
+#          deployed version comes from the git tag (forwarded as IMAGE_TAG
+#          by deploy-prod), so no VERSION files are cloned.
+#   3. SSH into the CVM as `ubuntu` again and run bash ops/cvm/bootstrap.sh
+#      via `sudo -u deploy` (preflight + .dbcreds/db_password + data dir).
+#      deploy-prod reuses the SAME bootstrap key + `sudo -u deploy`, so
+#      NO separate deploy SSH key and NO GH_PAT are needed.
+#
+# Required GH Secrets (you MUST add these manually, one-time):
+#   CVM_HOST              — public IP / hostname of the prod CVM
+#   CVM_BOOTSTRAP_SSH_KEY — SSH private key for the `ubuntu` (or root)
+#                           user on the CVM. Used to provision the deploy
+#                           user AND to run deploys (via sudo -u deploy).
+#                           This is the one key you must supply.
+# Required GH Variable:
+#   DOCKER_REGISTRY       — registry namespace (single source of truth)
+#   CVM_BOOTSTRAP_USER    — login user that owns CVM_BOOTSTRAP_SSH_KEY
+#                           (default ubuntu; set to root/custom if your
+#                            CVM uses a different account). Single source
+#                            of truth shared with deploy-prod.
+#
+# Optional workflow_dispatch inputs:
+#   host           — label only (debug)
+# -----------------------------------------------------------------------
+
+on:
+  workflow_dispatch:
+    inputs:
+      host:
+        description: 'CVM 标识(label, 仅 debug)'
+        required: false
+        type: string
+        default: 'prod-cvm-1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bootstrap-prod
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    environment: prod
+    env:
+      DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+    steps:
+      # -------- Pre-check: secrets / var --------
+      - name: Verify required secrets / variable
+        env:
+          CVM_HOST: ${{ secrets.CVM_HOST }}
+          CVM_BOOTSTRAP_SSH_KEY: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
+          CVM_BOOTSTRAP_USER: ${{ vars.CVM_BOOTSTRAP_USER || 'ubuntu' }}
+        run: |
+          : "${CVM_HOST:?GH Secret CVM_HOST 未配置}"
+          : "${CVM_BOOTSTRAP_SSH_KEY:?GH Secret CVM_BOOTSTRAP_SSH_KEY 未配置(ubuntu 私钥)}"
+          : "${DOCKER_REGISTRY:?GH Variable DOCKER_REGISTRY 未配置}"
+          echo "login user (CVM_BOOTSTRAP_USER) = $CVM_BOOTSTRAP_USER"
+          echo "prechecks OK: CVM_HOST, CVM_BOOTSTRAP_SSH_KEY, DOCKER_REGISTRY"
+
+      # -------- Provision deploy user on CVM (as CVM_BOOTSTRAP_USER) --------
+      - name: Provision deploy user on CVM (as ${{ vars.CVM_BOOTSTRAP_USER || 'ubuntu' }})
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CVM_HOST }}
+          username: ${{ vars.CVM_BOOTSTRAP_USER || 'ubuntu' }}
+          key: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
+          script: |
+            set -e
+            DEPLOY_USER=deploy
+            if ! id -u "$DEPLOY_USER" >/dev/null 2>&1; then
+              # `-m` create home, `-s` login shell, `-U` create a same-named
+              # group (needed for the later `chown deploy:deploy`).
+              # NOTE: `useradd` has NO `--disabled-password` flag (that's an
+              # `adduser` option). Without `-p`, the account is created with a
+              # locked password field, so password login is already impossible.
+              sudo useradd -m -s /bin/bash -U "$DEPLOY_USER"
+              echo "[bootstrap] created user $DEPLOY_USER"
+            else
+              echo "[bootstrap] user $DEPLOY_USER already exists"
+            fi
+
+            # NOPASSWD sudoers for the commands bash ops/cvm/bootstrap.sh invokes + the
+            # nginx-site install need. Keep this list small — each entry
+            # is a real attack surface. Things that aren't here require
+            # an interactive sudo, which is fine (we'd rather have a
+            # human type the password than have the deploy user be
+            # able to, say, edit /etc/passwd).
+            #
+            # /bin/mkdir + /bin/chown — bootstrap step_data_dir.
+            # /bin/ln + /bin/rm + /bin/install — install-nginx-site.sh
+            #   (replaces sites-enabled default, symlinks our conf).
+            # /usr/sbin/nginx — nginx -t validation.
+            # /bin/systemctl — systemctl reload nginx.
+            echo "$DEPLOY_USER ALL=(ALL) NOPASSWD: /bin/mkdir, /bin/chown, /bin/ln, /bin/rm, /bin/install, /usr/sbin/nginx, /bin/systemctl" \
+              | sudo tee /etc/sudoers.d/deploy
+            sudo chmod 440 /etc/sudoers.d/deploy
+            sudo visudo -c
+
+            # ── Install Docker Engine + compose plugin (one-time host prep) ──
+            # deploy-prod cannot run without Docker, so bootstrap owns this.
+            if ! command -v docker >/dev/null 2>&1; then
+              echo "[bootstrap] installing Docker Engine..."
+              sudo apt-get update -y
+              sudo apt-get install -y ca-certificates curl gnupg git
+              sudo install -m 0755 -d /etc/apt/keyrings
+              sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+                -o /etc/apt/keyrings/docker.asc
+              sudo chmod a+r /etc/apt/keyrings/docker.asc
+              echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+                | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+              sudo apt-get update -y
+              sudo apt-get install -y docker-ce docker-ce-cli containerd.io \
+                docker-buildx-plugin docker-compose-plugin
+              sudo systemctl enable --now docker
+              echo "[bootstrap] Docker Engine installed"
+            else
+              echo "[bootstrap] Docker already present"
+            fi
+
+            # ── Configure ghcr.io mirror via /etc/docker/certs.d ─────────────
+            # Docker daemon reads /etc/docker/certs.d/<registry>/hosts.toml
+            # for non-docker.io registries (ghcr.io, gcr.io, quay.io, etc.).
+            # daemon.json's registry-mirrors only applies to docker.io —
+            # putting ghcr.io there is a no-op. /etc/containerd/certs.d is
+            # the wrong path (system containerd has cri disabled, and the
+            # hosts.toml there isn't read by dockerd's image puller).
+            #
+            # Without this, deploy-prod pulls english_backend /
+            # english_frontend / english_db / nginx directly from
+            # ghcr.io, which is rate-limited on the CVM egress and
+            # crawls at ~1 MB/s per stream (deploy-prod fails its 1800s
+            # command_timeout on the 246 MB frontend layer).
+            #
+            # The two hosts here are public reverse-proxies for ghcr.io:
+            #   ghcr.m.daocloud.io  — DaoCloud (Shanghai)
+            #   ghcr.nju.edu.cn     — Nanjing University mirror
+            # We do NOT add Tencent Cloud's mirror.ccs.tencentyun.com/ghcr
+            # here — its path-prefix API isn't a clean hosts.toml host and
+            # needs a separate test before trusting it.
+            GHCR_HOSTS_TOML=/etc/docker/certs.d/ghcr.io/hosts.toml
+            if [ ! -s "$GHCR_HOSTS_TOML" ] || ! grep -q 'ghcr.m.daocloud.io' "$GHCR_HOSTS_TOML"; then
+              sudo mkdir -p /etc/docker/certs.d/ghcr.io
+              # Write the TOML via printf %s\n — keeps it col-0 and dodges
+              # the yaml block scalar indent trap.
+              sudo bash -c 'printf "%s\n" \
+                "server = \"https://ghcr.io\"" \
+                "" \
+                "[host.\"https://ghcr.m.daocloud.io\"]" \
+                "  capabilities = [\"pull\", \"resolve\"]" \
+                "[host.\"https://ghcr.nju.edu.cn\"]" \
+                "  capabilities = [\"pull\", \"resolve\"]" \
+                > "$1"' bash "$GHCR_HOSTS_TOML"
+              echo "[bootstrap] wrote $GHCR_HOSTS_TOML"
+            else
+              echo "[bootstrap] $GHCR_HOSTS_TOML already configured"
+            fi
+
+            # Let deploy run docker without sudo (required for `docker compose`).
+            if ! id -nG "$DEPLOY_USER" | tr ' ' '\n' | grep -qx docker; then
+              sudo usermod -aG docker "$DEPLOY_USER"
+              echo "[bootstrap] added $DEPLOY_USER to docker group"
+            else
+              echo "[bootstrap] $DEPLOY_USER already in docker group"
+            fi
+
+            # NOTE: the deploy user needs NO SSH key of its own — deploy-prod
+            # logs in as the bootstrap user and runs everything via
+            # `sudo -u deploy`, so we deliberately install no authorized_keys
+            # for it.
+
+            # Sparse-checkout clone — only the files deploy needs on the CVM:
+            #   Makefile (this workflow no longer needs any target; runs the bash script directly)
+            #   docker-compose.yml (prod stack definition — at the repo root,
+            #                      NOT under ops/cvm/, since its build contexts
+            #                      are repo-root-relative: ./backend, ./frontend,
+            #                      ./.dbcreds/db_password, ./db/Dockerfile)
+            #   ops/cvm/*       (lifecycle/doctor/bootstrap runtime scripts +
+            #                      cvm/nginx/ — host nginx module)
+            #   ops/lib.sh       (sourced by the cvm scripts)
+            # The compose file lives at the repo root, not under ops/cvm/, so
+            # it needs its own sparse-checkout entry below.
+            # Source code (backend/ frontend/ db/ Dockerfiles, cms/, scripts/)
+            # is intentionally excluded: prod images are pulled from GHCR,
+            # not built locally on the CVM. The deployed version comes from
+            # the git tag (forwarded by deploy-prod as IMAGE_TAG), so no
+            # VERSION files are cloned.
+            #
+            # /opt is root-owned (755), so `deploy` CANNOT create
+            # /opt/type-any-language itself. Pre-create it as root and hand
+            # it to deploy; an empty dir is a valid `git clone` target.
+            if [ ! -d /opt/type-any-language ]; then
+              sudo mkdir -p /opt/type-any-language
+              sudo chown "$DEPLOY_USER:$DEPLOY_USER" /opt/type-any-language
+            fi
+            if [ ! -d /opt/type-any-language/.git ]; then
+              sudo -u "$DEPLOY_USER" bash -c '
+                set -e
+                git clone --filter=blob:none \
+                  https://github.com/zhangyu528/type-any-language.git \
+                  /opt/type-any-language
+                cd /opt/type-any-language
+                git sparse-checkout set --no-cone \
+                  Makefile \
+                  docker-compose.yml \
+                  ops/cvm/ \
+                  ops/lib.sh
+              '
+              echo "[bootstrap] sparse-cloned repo (Makefile + docker-compose.yml + ops/cvm + ops/lib.sh)"
+            else
+              echo "[bootstrap] repo already present"
+            fi
+            sudo chown -R "$DEPLOY_USER:$DEPLOY_USER" /opt/type-any-language
+
+      # -------- Run bash ops/cvm/bootstrap.sh via sudo -u deploy --------
+      - name: Run bash ops/cvm/bootstrap.sh (as deploy via sudo)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CVM_HOST }}
+          username: ${{ vars.CVM_BOOTSTRAP_USER || 'ubuntu' }}
+          key: ${{ secrets.CVM_BOOTSTRAP_SSH_KEY }}
+          envs: DOCKER_REGISTRY
+          script: |
+            set -e
+            sudo -u deploy bash -lc '
+              export DOCKER_REGISTRY="'"$DOCKER_REGISTRY"'"
+              set -e
+              cd /opt/type-any-language
+              # NOTE: the CVM never fetches from github.com (cross-continental
+              # SSL timeouts). The sparse-checkout clone at bootstrap time is
+              # the only file source; prod scripts are refreshed later by
+              # deploy-prod via runner→CVM scp. So there is NO git pull here.
+              if [ -z "$DOCKER_REGISTRY" ]; then
+                echo "::error::DOCKER_REGISTRY was not forwarded to CVM"
+                exit 1
+              fi
+              echo "[bootstrap] DOCKER_REGISTRY=$DOCKER_REGISTRY"
+              make prod-bootstrap
+              echo "[bootstrap] done — CVM is now ready for deploy-prod workflow"
+            '

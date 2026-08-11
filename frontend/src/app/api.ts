@@ -1,4 +1,10 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Browser-side API base. For same-origin prod this is "/" — nginx already
+// routes /api/ -> backend, and the client code below appends the "/api"
+// path segment itself, so a "/api" base would DOUBLE it (/api/api/...).
+// Strip any trailing slash so a root base ("/") resolves to same-origin
+// ("/api/...") instead of a protocol-relative "//api/..." URL. Falls back to
+// the dev backend (localhost:8000) when unset.
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/+$/, '');
 
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 

@@ -23,7 +23,7 @@
 #   #              runs this automatically on container start.
 #   #    host shell: docker compose exec backend python -m init_schema
 #   #                (or `export DATABASE_URL=postgresql://... && ./db/scripts/init_schema.sh`)
-#   #    self-host / CI: `eval "$(scripts/secrets/fetch_secrets.sh eval-db)"`
+#   #    self-host / CI: `eval "$(cms/secrets/fetch_secrets.sh eval-db)"`
 #   #                    or export DATABASE_URL directly.
 #   # 2. Apply the base schema + migrations.
 #   ./db/scripts/init_schema.sh

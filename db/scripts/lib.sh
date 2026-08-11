@@ -11,14 +11,14 @@
 #
 #   - returns $DATABASE_URL if already in env (typical — compose sets it
 #     for the container, and host-side scripts that need to talk to the
-#     container can `eval "$(scripts/secrets/fetch_secrets.sh eval-db)"`
+#     container can `eval "$(cms/secrets/fetch_secrets.sh eval-db)"`
 #     or just hard-code `postgresql://...@localhost:5432/...`)
 #   - assembles from POSTGRES_* as a defensive fallback for self-hosted /
 #     CI / ad-hoc CLI use
 #
 # No more:
 #   - TENCENT_DB_HOST / TENCENT_DB_USER / TENCENT_DB_PASSWORD env vars
-#   - .secrets/db_password / tencent_db_prod_* files
+#   - .dbcreds/db_password / tencent_db_prod_* files
 #   - per-branch db name derivation (the mode-2 design was specific to
 #     a shared docker postgres; local docker means one fixed db per host)
 

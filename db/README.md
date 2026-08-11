@@ -9,9 +9,8 @@ This directory has nothing to do with the application backend (FastAPI / SQLAlch
 ## Responsibilities
 
 1. **Schema bootstrap** — `CREATE TABLE IF NOT EXISTS` for fresh dbs, plus ordered versioned `upgrade()` modules for in-place upgrades.
-2. **CMS staging import (L 步)** — read `cms/content/` and UPSERT into the connected db (typically docker postgres on the CMS host). Idempotent; safe to re-run.
-3. **Schema migrations** — apply pending versioned DDL to the connected db. Idempotent (runner.py stamps `schema_migrations`).
-4. **Cloud-db bootstrap** — one-time per host. `db/scripts/migrate.sh` (called from `ops/{dev,prod}/setup.sh bootstrap`) creates the host's ROLE + DATABASE on the shared docker postgres instance and writes `DATABASE_URL` for compose's `secrets:` block.
+2. **CMS staging import (L 步)** — read `cms/content/` and UPSERT into the connected db (the local postgres in compose, typically). Idempotent; safe to re-run.
+3. **Schema migrations** — apply pending versioned DDL to the connected db. Idempotent (runner.py stamps `schema_migrations`). Applied by the backend container entrypoint (`backend/image-entrypoint.sh` runs `python3 -m migrations.runner` on boot), and from `make dev-migrate` on dev hosts after a code change.
 
 ## Directory layout
 
@@ -42,7 +41,7 @@ The full content pipeline, with the docker postgres write path:
 
 ```bash
 # (CMS host) — secretless bootstrap
-eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"   # AI_*/TENCENT_*/CLOUD_*
+eval "$(cms/secrets/fetch_secrets.sh eval-cms)"   # AI_*/TENCENT_*/CLOUD_*
 
 # CMS pipeline: produce staging files (CSV → JSON → OpenAI JSONL → TTS audio URLs).
 # None of this touches the db.
@@ -54,15 +53,20 @@ eval "$(scripts/secrets/fetch_secrets.sh eval-cms)"   # AI_*/TENCENT_*/CLOUD_*
 ./db/scripts/import_staging.sh all
 ```
 
-Each target host (dev / prod) does its own one-time docker postgres bootstrap (typically once per host lifetime):
+Each target host (dev / prod) brings up its own local postgres container
+via `docker compose up -d db`. The first-time bootstrap is:
 
 ```bash
-./ops/dev/setup.sh bootstrap           # or ./ops/prod/setup.sh bootstrap
-# → prompts for admin DSN, writes .secrets/db_password (chmod 600)
-# → invokes ./db/scripts/migrate.sh with OPS_TIER=dev|prod
-# → CREATE ROLE / DATABASE / GRANT on the shared docker postgres
-# → writes DATABASE_URL (consumed by compose's `secrets:` block)
+# dev:
+./ops/dev/setup.sh                     # 装 venv + node_modules + 起 db
+# prod (RUN 端):
+./ops/cvm/bootstrap.sh                  # 生成 .dbcreds/db_password + sudo chown /var/lib/.../postgres
+./ops/cvm/lifecycle.sh start            # 起 db + import content + start full stack (migrations 由 backend entrypoint 在 boot 时完成)
 ```
+
+The db password is sourced at runtime from `.dbcreds/db_password` (chmod 600),
+mounted via compose's `secrets:` block into the db container. No external
+cloud db, no ROLE/DB bootstrap dance.
 
 After bootstrap, `lifecycle.sh start` picks up the DSN automatically.
 
@@ -99,8 +103,8 @@ For dev hosts, `ops/dev/migrate.sh` is a thin wrapper that sources `db/scripts/l
 ## Conventions worth knowing
 
 - **DATABASE_URL assembly** has two paths:
-  - **Cloud-db path (canonical)**: `db/scripts/lib.sh::db_assemble_url` / `db_assemble_url`. Reads `DATABASE_URL` (written by bootstrap), falls back to computing from `.secrets/tencent_db_*` files. Used by `bootstrap_tencent.sh` and `ops/dev/migrate.sh`.
-  - **Self-host fallback**: `ops/lib.sh::db_assemble_url` (priority: explicit env > `POSTGRES_PASSWORD` env > `.secrets/postgres_password` > fail). Kept for ad-hoc CLI use where the operator composes `POSTGRES_*` env vars by hand.
+  - **Cloud-db path (canonical)**: `db/scripts/lib.sh::db_assemble_url` / `db_assemble_url`. Reads `DATABASE_URL` (written by bootstrap), falls back to computing from `.dbcreds/tencent_db_*` files. Used by `bootstrap_tencent.sh` and `ops/dev/migrate.sh`.
+  - **Self-host fallback**: `ops/lib.sh::db_assemble_url` (priority: explicit env > `POSTGRES_PASSWORD` env > `.dbcreds/postgres_password` > fail). Kept for ad-hoc CLI use where the operator composes `POSTGRES_*` env vars by hand.
 - **Migrations are hand-written.** No Alembic. Each `versions/NNNN_*.py` exposes `upgrade(conn)` / `downgrade(conn)` and is applied in numeric order.
 - **No db image**, no db container. The runtime db is a managed Postgres service. `db/data/` lives on the cloud provider, not in a Docker volume. There is no `docker-compose` `db` service.
 - **Audio is NOT in the db.** Audio URLs live in the `sentences.audio_url` column and point at Tencent Cloud COS. The browser streams MP3s directly from COS — no `/audio` endpoint, no nginx location, no shared-audio volume.
@@ -109,4 +113,4 @@ For dev hosts, `ops/dev/migrate.sh` is a thin wrapper that sources `db/scripts/l
 
 The db segment has no image and therefore no VERSION file. Schema version is the `schema_migrations` row count; content version is the timestamp of the most recent successful `db/scripts/import_staging.sh` run.
 
-Bumping `backend/VERSION` / `frontend/VERSION` is still the canonical release signal (those drive the only two images in the pipeline: `english_backend{,_dev}` + `english_frontend{,_dev}`). Use `ops/release.sh dev|prod [X.Y.Z]` to do that — it has nothing to do with the db anymore.
+Bumping `backend/VERSION` / `frontend/VERSION` is still the canonical release signal (those drive the only two images in the pipeline: `english_backend{,_dev}` + `english_frontend{,_dev}`). Bump them via the build CI (`.github/workflows/release-build.yml`) — it has nothing to do with the db anymore.
