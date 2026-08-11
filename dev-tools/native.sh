@@ -23,7 +23,7 @@
 #   restart|reload     stop + start.
 #   status             Print pid + uptime + listening port + last log line.
 #   logs [backend|frontend|both]
-#                      Tail .native-logs/<svc>.log. Default: both.
+#                      Tail .dev-logs/<svc>.log. Default: both.
 #   preflight          Read-only check: python ≥ 3.11, node ≥ 20, npm, .venv,
 #                      node_modules, docker daemon. Exits 0/1.
 #
@@ -43,8 +43,8 @@
 #   BACKEND_PORT / FRONTEND_PORT  Override (defaults 8000 / 3000).
 #
 # Lifecycle files (all at repo root, gitignored):
-#   .native-pids/backend.pid       .native-pids/frontend.pid
-#   .native-logs/backend.log       .native-logs/frontend.log
+#   .dev-pids/backend.pid       .dev-pids/frontend.pid
+#   .dev-logs/backend.log       .dev-logs/frontend.log
 #
 # Exit codes: 0 ok; 1 preflight failed; 2 service already running / not running.
 
@@ -77,8 +77,8 @@ BACKEND_DIR="$PROJECT_DIR/backend"
 FRONTEND_DIR="$PROJECT_DIR/frontend"
 VENV_DIR="$BACKEND_DIR/.venv"
 
-PID_DIR=".native-pids"
-LOG_DIR=".native-logs"
+PID_DIR=".dev-pids"
+LOG_DIR=".dev-logs"
 BACKEND_PID_FILE="$PID_DIR/backend.pid"
 FRONTEND_PID_FILE="$PID_DIR/frontend.pid"
 BACKEND_LOG="$LOG_DIR/backend.log"

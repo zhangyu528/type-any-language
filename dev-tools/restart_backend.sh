@@ -5,7 +5,7 @@
 # Why this exists alongside dev/native.sh restart:
 #
 #   uvicorn --reload on Windows spawns three processes:
-#     - the master (PID we put in .native-pids/backend.pid)
+#     - the master (PID we put in .dev-pids/backend.pid)
 #     - the worker (the one actually serving HTTP)
 #     - the WatchFiles watcher (reloads on file change)
 #
@@ -56,8 +56,8 @@ PROJECT_ROOT="$(git rev-parse --show-toplevel)"
 BACKEND_PORT="${BACKEND_PORT:-8000}"
 BACKEND_DIR="$PROJECT_ROOT/backend"
 VENV_DIR="$BACKEND_DIR/.venv"
-PID_DIR="$PROJECT_ROOT/.native-pids"
-LOG_DIR="$PROJECT_ROOT/.native-logs"
+PID_DIR="$PROJECT_ROOT/.dev-pids"
+LOG_DIR="$PROJECT_ROOT/.dev-logs"
 BACKEND_PID_FILE="$PID_DIR/backend.pid"
 BACKEND_LOG="$LOG_DIR/backend.log"
 
