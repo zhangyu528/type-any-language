@@ -1,0 +1,30 @@
+[Unit]
+Description=type-any-language telemetry (CVM monitor)
+Documentation=https://github.com/zhangyu528/type-any-language/tree/master/telemetry
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+WorkingDirectory=/opt/type-any-language/telemetry
+ExecStart=/usr/bin/env python3 /opt/type-any-language/telemetry/server/server.py
+Restart=always
+RestartSec=5
+TimeoutStopSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tal-telemetry
+
+# Tighten security slightly (still needs /var/run/docker.sock and
+# /proc for the host readouts, so don't go too far).
+NoNewPrivileges=false
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/type-any-language/telemetry
+
+[Install]
+WantedBy=multi-user.target
