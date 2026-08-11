@@ -56,7 +56,7 @@ cmd_doctor() {
     # db-bind-mount target writability. compose creates the dir on first
     # up if it doesn't exist, but the parent (./.dev) needs to be writable
     # by the docker daemon user.
-    local pg_data_dir="./.dev/data/postgres"
+    local pg_data_dir="./.docker-postgres-data"
     if [ ! -d "$pg_data_dir" ]; then
         # Not existing yet is fine (compose will mkdir it).
         info "  $pg_data_dir 还不存在 — 首次 start 时 compose 会创建空 db"

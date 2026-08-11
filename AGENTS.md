@@ -34,7 +34,7 @@ service's `DATABASE_URL`). Backend reads it via pydantic-settings.
 
 The dev db is a `postgres:15-alpine` container managed by docker-compose
 (defined in `docker-compose.dev.yml`'s `db` service). Data is
-bind-mounted to `./.dev/data/postgres/` (gitignored). One db per
+bind-mounted to `./.docker-postgres-data/` (gitignored). One db per
 dev host — there is no per-branch, per-user isolation at the db
 level. The dev db's lifetime matches the compose project; deleting
 the working tree or switching branches does NOT delete the db.
@@ -60,7 +60,7 @@ postgres**, the cost/benefit flips:
 If you genuinely need a clean db for a feature branch:
 ```bash
 docker compose -f docker-compose.dev.yml down   # stop services
-rm -rf ./.dev/data/postgres                    # nuke the bind-mount target
+rm -rf ./.docker-postgres-data                    # nuke the bind-mount target
 docker compose -f docker-compose.dev.yml up -d # restart with empty db
 ./dev-tools/migrate.sh                              # apply all migrations from scratch
 make dev-import-content                        # re-import cms/content/
@@ -71,7 +71,7 @@ make dev-import-content                        # re-import cms/content/
 - no external service to provision / pay for / get rate-limited
 - no admin-DSN dance on first setup
 - container starts in <2s on a warm docker cache
-- data lives in `./.dev/data/postgres/` — visible, backupable, portable
+- data lives in `./.docker-postgres-data/` — visible, backupable, portable
 
 ### Why still a docker container (vs sqlite)
 
@@ -763,5 +763,5 @@ Runtime configuration is via shell env (passed to `lifecycle.sh` via `KEY=value 
   as a fallback for older self-hosted deployments but is no longer
   the canonical path. The compose file declares a `db` service
   (`postgres:15-alpine` + bind-mount) — runtime data lives on the
-  host volume (`./.dev/data/postgres/` for dev, `/var/lib/type-any-language/postgres/`
+  host volume (`./.docker-postgres-data/` for dev, `/var/lib/type-any-language/postgres/`
   for prod, chown 999:999).

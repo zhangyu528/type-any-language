@@ -54,7 +54,7 @@ backend/
 
 ## 本地开发(默认 — host-native)
 
-直接宿主机跑 uvicorn,db 仍然在 docker(`./.dev/data/postgres/`)。这是新的
+直接宿主机跑 uvicorn,db 仍然在 docker(`./.docker-postgres-data/`)。这是新的
 默认路径,比 backend 容器快很多。完整流程:
 
 ```bash

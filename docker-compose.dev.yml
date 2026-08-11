@@ -8,7 +8,7 @@
 # via `make dev-start` (dev/native.sh), not in containers.
 #
 # One db per dev host (single-tenant). Data is bind-mounted to
-# ./.dev/data/postgres/ (gitignored) so container recreate preserves
+# ./.docker-postgres-data/ (gitignored) so container recreate preserves
 # state, and the data is visible on the host for backup / inspection.
 #
 # First-time data: run `make dev-import-content` on the host (or
@@ -32,10 +32,10 @@ services:
       # Expose to host for tooling (psql, python3 -m importer, uvicorn).
       - "5432:5432"
     volumes:
-      # Persistent data — bind-mounted to ./.dev/data/postgres/ (gitignored)
+      # Persistent data — bind-mounted to ./.docker-postgres-data/ (gitignored)
       # so container recreate preserves state, and the data is visible
       # on the host for backup / inspection.
-      - ./.dev/data/postgres:/var/lib/postgresql/data
+      - ./.docker-postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U english_dev -d english_dev"]
       interval: 5s

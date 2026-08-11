@@ -60,7 +60,7 @@ make release-prod [X.Y.Z]
 
 > 以下示例统一用 Makefile（推荐）。`./ops/.../*.sh` 直接调用也完全等价，但 Makefile 在 macOS / Linux / Windows (Git Bash / WSL) 行为完全一致，不需要 chmod。
 
-dev 主机自己跑 docker postgres（`postgres:15-alpine`，数据在 `./.dev/data/postgres/`，gitignored）—— 没有外部云 db，没有 `.dbcreds/` 间接层，`DATABASE_URL` 由 compose 的 `environment:` 直接注入 backend 容器。
+dev 主机自己跑 docker postgres（`postgres:15-alpine`，数据在 `./.docker-postgres-data/`，gitignored）—— 没有外部云 db，没有 `.dbcreds/` 间接层，`DATABASE_URL` 由 compose 的 `environment:` 直接注入 backend 容器。
 
 ```bash
 # 一次性: 装 host-native deps + 起 docker db
@@ -101,7 +101,7 @@ make dev-stop                      # 停两个 native 进程(db 留着)
 
 1. **Preflight** —— docker / compose / python3 / node 必须在
 2. **host-native deps** —— `backend/.venv` (pip install) + `frontend/node_modules` (npm install),两个都用 SHA256 哈希感知,manifest 不变就跳过
-3. **docker db** —— 拉起 `postgres:15-alpine` 容器(`./.dev/data/postgres/` bind-mount,gitignored)
+3. **docker db** —— 拉起 `postgres:15-alpine` 容器(`./.docker-postgres-data/` bind-mount,gitignored)
 4. **Final summary** —— 提示下一步 `make dev-start`
 
 ### 改 schema / 改内容 / 改代码
@@ -234,4 +234,4 @@ rm -f .dbcreds/tencent_db_admin_url # cloud-db-era artifact
 make dev-start    # or make prod-start after editing .dbcreds/db_password
 ```
 
-After that, `make dev-start` (or `make prod-start`) works as in a fresh install. The docker postgres bind-mounts to `./.dev/data/postgres/` (dev) or `/var/lib/type-any-language/postgres/` (prod — `chown 999:999` first); compose takes care of `docker pull postgres:15-alpine`, schema via `make dev-migrate`, and content via `make dev-import-content`.
+After that, `make dev-start` (or `make prod-start`) works as in a fresh install. The docker postgres bind-mounts to `./.docker-postgres-data/` (dev) or `/var/lib/type-any-language/postgres/` (prod — `chown 999:999` first); compose takes care of `docker pull postgres:15-alpine`, schema via `make dev-migrate`, and content via `make dev-import-content`.

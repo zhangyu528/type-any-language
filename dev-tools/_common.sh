@@ -18,7 +18,7 @@
 #     dev scripts set up.
 #
 # Runtime model:
-#   db         — postgres:15-alpine, data bind-mounted to .dev/data/postgres/
+#   db         — postgres:15-alpine, data bind-mounted to .docker-postgres-data/
 #   backend    — runs on the host (uvicorn --reload, see dev/native.sh)
 #   frontend   — runs on the host (next dev, see dev/native.sh)
 #
