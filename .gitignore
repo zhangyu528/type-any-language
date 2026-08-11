@@ -27,10 +27,10 @@
 #                             service). Persistent across container
 #                             restarts. Operator-backup-friendly
 #                             (it's just a directory).
-#   - .local/main/pids/       — backend/frontend PID files written by
-#                             dev-tools/native.sh (dev stack only;
+#   - .local/native/pids/     — backend/frontend PID files written by
+#                             dev-tools/native.sh (main dev stack;
 #                             empty when no service is running).
-#   - .local/main/logs/       — backend/frontend stdout+stderr tail
+#   - .local/native/logs/     — backend/frontend stdout+stderr tail
 #                             files written by dev-tools/native.sh.
 #   - .local/monitor/pids/    — monitor server + vite PIDs written by
 #                             monitor/dev.sh (monitor stack only).
