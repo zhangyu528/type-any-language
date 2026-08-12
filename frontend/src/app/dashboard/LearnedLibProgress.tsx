@@ -85,10 +85,10 @@ export default function LearnedLibProgress({ userId }: LearnedLibProgressProps) 
       {error ? <p className={styles.empty}>暂时无法加载词库进度。</p> : null}
       {!error && !catalog ? <p className={styles.empty}>加载中…</p> : null}
       {!error && catalog && rows.length === 0 ? (
-        /* Empty state: subtle Particles background so the area doesn't
-           feel like dead air. Slate-400 tints match the rest of the
-           dashboard; count=18 keeps CPU light since this section is
-           rarely visited (only when user hasn't practiced any lib). */
+        // Empty state: subtle Particles background so the area doesn't
+        // feel like dead air. Slate-400 tints match the rest of the
+        // dashboard; count=18 keeps CPU light since this section is
+        // rarely visited (only when user hasn't practiced any lib).
         <div className={styles.emptyState}>
           <Particles
             particleCount={18}
@@ -102,15 +102,15 @@ export default function LearnedLibProgress({ userId }: LearnedLibProgressProps) 
         </div>
       ) : null}
       {rows.length > 0 ? (
-        /* BounceCards: gsap elastic.out(1, 0.8) entrance, 60ms
-           stagger between cards. transformStyles all 'none' so the
-           cards sit in their natural grid positions (instead of the
-           upstream's scattered/rotated gallery look). enableHover
-           pushes siblings sideways on hover (offset ±48px since
-           we're in a 2-col grid, not a wide canvas). */
-        {/* shadcn BounceCards 只接 images[] 渲染 <img> — 原 lib 卡
-            内容(中文 + 进度条 + 完成率)整段删,改用 pravatar 占位图。
-            弹性入场动画保留。 */}
+        // BounceCards: gsap elastic.out(1, 0.8) entrance, 60ms
+        // stagger between cards. transformStyles all 'none' so the
+        // cards sit in their natural grid positions (instead of the
+        // upstream's scattered/rotated gallery look). enableHover
+        // pushes siblings sideways on hover (offset ±48px since
+        // we're in a 2-col grid, not a wide canvas).
+        // shadcn BounceCards 只接 images[] 渲染 <img> — 原 lib 卡
+        // 内容(中文 + 进度条 + 完成率)整段删,改用 pravatar 占位图。
+        // 弹性入场动画保留。
         <BounceCards
           images={rows.map((_, i) => `https://i.pravatar.cc/300?img=${10 + i}`)}
           containerWidth="100%"
