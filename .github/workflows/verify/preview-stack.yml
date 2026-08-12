@@ -1,0 +1,193 @@
+name: preview-stack
+# 任何人有 repo write 权限就能触发。运行 ~25 分钟后自动终止,
+# 公开 URL 跟 run 绑定,run 结束 URL 失效。
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: '要预览的分支(留空用触发时的分支)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: previewpw
+          POSTGRES_DB: english_learning
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:previewpw@localhost:5432/english_learning
+      ALLOWED_ORIGINS: '*'
+      PYTHONUNBUFFERED: '1'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch || github.ref }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend deps
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Wait for postgres
+        run: |
+          for i in $(seq 1 30); do
+            if pg_isready -h localhost -p 5432 -U postgres; then
+              echo "postgres ready after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Run DB migrations
+        run: ./db/scripts/migrate.sh
+
+      - name: Import CMS content
+        run: ./db/scripts/import_staging.sh
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend (relative API URLs)
+        working-directory: frontend
+        run: npm run build:pages
+
+      - name: Install cloudflared
+        run: |
+          curl -fsSL -o /tmp/cloudflared \
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          chmod +x /tmp/cloudflared
+          /tmp/cloudflared --version
+
+      - name: Start backend (uvicorn)
+        working-directory: backend
+        run: |
+          nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 \
+            > /tmp/backend.log 2>&1 &
+          echo "backend PID: $!"
+          for i in $(seq 1 20); do
+            if curl -fsS -o /dev/null http://localhost:8000/api/content/catalog; then
+              echo "backend ready after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Install & start nginx (static + /api proxy)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq nginx > /dev/null
+          cat > /tmp/nginx.conf <<EOF
+          events { worker_connections 1024; }
+          http {
+            include /etc/nginx/mime.types;
+            server {
+              listen 4000;
+              root $GITHUB_WORKSPACE/frontend/out;
+              index index.html;
+              location / {
+                try_files \$uri \$uri/ /index.html;
+              }
+              location /api/ {
+                proxy_pass http://localhost:8000;
+                proxy_set_header Host \$host;
+                proxy_set_header X-Real-IP \$remote_addr;
+                proxy_http_version 1.1;
+              }
+            }
+          }
+          EOF
+          sudo cp /tmp/nginx.conf /etc/nginx/nginx.conf
+          sudo nginx -t
+          sudo nginx
+          sleep 2
+          curl -fsS -o /dev/null -w "nginx status: %{http_code}\n" http://localhost:4000/
+
+      - name: Start cloudflared tunnel
+        id: tunnel
+        run: |
+          nohup /tmp/cloudflared tunnel --url http://localhost:4000 \
+            > /tmp/tunnel.log 2>&1 &
+          echo "tunnel PID: $!"
+          for i in $(seq 1 30); do
+            URL=$(grep -oE "https://[a-z0-9-]+\.trycloudflare\.com" /tmp/tunnel.log | head -1)
+            if [ -n "$URL" ]; then
+              echo "url=$URL" >> "$GITHUB_OUTPUT"
+              echo "URL ready after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+          if [ -z "$URL" ]; then
+            echo "::error::Tunnel URL not found"
+            cat /tmp/tunnel.log
+            exit 1
+          fi
+
+      - name: Display preview URL
+        if: steps.tunnel.outputs.url
+        run: |
+          URL="${{ steps.tunnel.outputs.url }}"
+          {
+            echo "## 🌐 Preview URL"
+            echo ""
+            echo "**[$URL]($URL)**"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Branch | \`${{ inputs.branch || github.ref_name }}\` |"
+            echo "| Run | #${{ github.run_number }} |"
+            echo "| Lifetime | ~25 min |"
+            echo ""
+            echo "### Stack 在跑"
+            echo "- nginx :4000 — 静态 + /api/* 反代到 uvicorn"
+            echo "- uvicorn :8000 — FastAPI 真 backend"
+            echo "- postgres :5432 — service container,数据从 cms/content/ import"
+            echo "- cloudflared — 出站隧道"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo ""
+          echo "============================================"
+          echo "  🌐 PREVIEW URL: $URL"
+          echo "============================================"
+
+      - name: Keep alive
+        if: steps.tunnel.outputs.url
+        run: |
+          echo "Holding for ~25 minutes..."
+          sleep 1500
