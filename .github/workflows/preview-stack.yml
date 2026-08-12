@@ -79,14 +79,11 @@ jobs:
             sleep 1
           done
 
-      - name: Make scripts executable
-        run: chmod +x ./db/scripts/*.sh
-
       - name: Run DB migrations
-        run: ./db/scripts/migrate.sh
+        run: bash ./db/scripts/migrate.sh
 
       - name: Import CMS content
-        run: ./db/scripts/import_staging.sh
+        run: bash ./db/scripts/import_staging.sh
 
       - name: Install frontend deps
         working-directory: frontend
