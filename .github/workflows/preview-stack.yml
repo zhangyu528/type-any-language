@@ -3,6 +3,11 @@ name: preview-stack
 # 公开 URL 跟 run 绑定,run 结束 URL 失效。
 
 on:
+  # Push 到 feat/preview-stack-workflow 自动触发(不需要 API 调用,
+  # 不污染 master)
+  push:
+    branches: [feat/preview-stack-workflow]
+  # 也保留手动触发,方便本地 CLI 测试
   workflow_dispatch:
     inputs:
       branch:
