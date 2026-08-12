@@ -1,15 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { VocabularyLib, TranslationProgress } from '../api';
 import { useAuth } from '../lib/auth';
 import BlurText from '@/components/BlurText';
 import DecryptedText from '@/components/DecryptedText';
 import ShinyText from '@/components/ShinyText';
 import SpecularButton from '@/components/SpecularButton';
-import TiltedCard from '@/components/TiltedCard';
 import Counter from '@/components/Counter';
 import AnimatedContent from '@/components/AnimatedContent';
+import { useReducedMotion } from 'motion/react';
 import styles from './Hero.module.css';
 
 interface HeroProps {
@@ -22,38 +21,13 @@ const HERO_TITLE = '读完一句，写出来就是你的。';
 const HERO_SUBTITLE = '读完一句是一句。语料横跨入门到雅思 4 个词库,807+ 句都是你的。';
 
 // Hero 产品 UI mock 内部要演示「读 → 写 → 对」的一句话循环:
-//   行 1:中文(Blurred in — 代表「读」)
-//   行 2:英文(字符随机化后还原 — 代表「写」)
+//   行 1:中文(BlurText 字母/字模糊入场 — 代表「读」)
+//   行 2:英文(DecryptedText 字符还原 — 代表「写」)
 //   行 3:✓(代表「对」)
 const DEMO_LINE = { zh: '今天天气真好', en: "today's weather is nice" };
 
-function Delayed({ ms, children }: { ms: number; children: React.ReactNode }) {
-  const [show, setShow] = useState(false);
-  useEffect(() => {
-    const t = window.setTimeout(() => setShow(true), ms);
-    return () => window.clearTimeout(t);
-  }, [ms]);
-  return show ? <>{children}</> : null;
-}
-
-/**
- * Hero — 产品即 hero (方案 A)
- *
- * 业界参考:Linear / Framer 首页把产品 UI 直接放 hero(不是营销文案 + demo)。
- * 这里把跟打练习的核心 UI mock 出来,作为 hero 的右侧视觉锚点。
- *
- *   left column:
- *     - kickerRow: Badge "已上线 · 永久免费" + inline 统计
- *     - ShinyText h1 主标题
- *     - subtitle 一行
- *     - SpecularButton size="lg" 主 CTA
- *
- *   right column (TiltedCard 包 mock TranslationStage UI):
- *     - 顶部:词库名 + 进度条
- *     - 中部:中文提示 + 英文打字区(模拟) + 收藏星
- *     - 底部:行内「读 → 写 → 对」循环动画
- */
 export default function Hero({ libs, onPickLib }: HeroProps) {
+  const reduce = useReducedMotion();
   const { user } = useAuth();
   const firstLib = libs[0];
   const canStart = !!firstLib;
@@ -88,10 +62,7 @@ export default function Hero({ libs, onPickLib }: HeroProps) {
           {/* shadcn ShinyText 不接 as prop(渲染硬写死 <motion.span>)。
               外层用 <h1> 包保留语义,className 透传到内层 span */}
           <h1 className={styles.title}>
-            <ShinyText
-              text={HERO_TITLE}
-              speed={4}
-            />
+            <ShinyText text={HERO_TITLE} speed={4} />
           </h1>
           <p className={styles.subtitle}>{HERO_SUBTITLE}</p>
           <div className={styles.heroCtaWrap}>
@@ -115,18 +86,66 @@ export default function Hero({ libs, onPickLib }: HeroProps) {
         </AnimatedContent>
 
         <AnimatedContent distance={20} delay={200 / 1000} direction="vertical" className={styles.bentoRight}>
-          {/* shadcn TiltedCard 只接 imageSrc 渲染 <figure><img> —
-              原 mock UI(跟打界面)整段删,改为占位图。3D 倾斜保留。 */}
-          <TiltedCard
-            containerHeight="auto"
-            containerWidth="100%"
-            rotateAmplitude={6}
-            scaleOnHover={1.02}
-            imageSrc="https://i.pravatar.cc/300?img=12"
-            altText="跟打示意"
-            captionText="跟打练习 · 实时演示"
-            className={styles.mockCardWrap}
-          />
+          {/* 跟打 mock 卡:演示「读 → 写 → 对」一句话循环。
+              复用 Hero.module.css 里既有的 .mock / .mockTopbar / .mockProgress /
+              .mockZh / .mockTyping / .mockEn / .mockFooter / .mockStar /
+              .mockCount / .mockCheck 整套样式(之前被 TiltedCard 占位图取代)。 */}
+          <div className={styles.mock}>
+            <div className={styles.mockTopbar}>
+              <span className={styles.mockDot} />
+              <span className={styles.mockDot} />
+              <span className={styles.mockDot} />
+              <span className={styles.mockLib}>{firstLib ? firstLib.name : '练习'}</span>
+            </div>
+            <div className={styles.mockProgress}>
+              <span className={styles.mockProgressFill} style={{ width: '62%' }} />
+            </div>
+
+            {/* 读:中文模糊入场(BlurText) */}
+            <div className={styles.mockPrompt}>
+              {reduce ? (
+                <span className={styles.mockZh}>{DEMO_LINE.zh}</span>
+              ) : (
+                <BlurText
+                  text={DEMO_LINE.zh}
+                  delay={120}
+                  animateBy="letters"
+                  direction="top"
+                  stepDuration={0.4}
+                  className={styles.mockZh}
+                />
+              )}
+            </div>
+
+            {/* 写:英文字符还原(DecryptedText) */}
+            <div className={styles.mockTyping}>
+              <span className={styles.mockEn}>
+                {reduce ? (
+                  DEMO_LINE.en
+                ) : (
+                  <DecryptedText
+                    text={DEMO_LINE.en}
+                    animateOn="view"
+                    sequential
+                    revealDirection="start"
+                    speed={40}
+                    maxIterations={8}
+                  />
+                )}
+              </span>
+            </div>
+
+            {/* 对:收藏星 + 流程标签 + 勾 */}
+            <div className={styles.mockFooter}>
+              <span className={styles.mockStar} aria-hidden="true">
+                ★
+              </span>
+              <span className={styles.mockCount}>读 → 写 → 对</span>
+              <span className={styles.mockCheck} aria-hidden="true">
+                ✓
+              </span>
+            </div>
+          </div>
 
           <div className={styles.stats} role="list" aria-label="产品数据">
             <div className={styles.stat} role="listitem">

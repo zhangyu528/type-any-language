@@ -1,3 +1,4 @@
+'use client';
 import React, { useEffect, useRef, useState } from 'react';
 import { animate, motion, useMotionValue, useMotionValueEvent, useTransform } from 'motion/react';
 import { Icon } from '@chakra-ui/react';

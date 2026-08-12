@@ -57,28 +57,6 @@
     0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
-[data-theme="dark"] .bar {
-  background: color-mix(in srgb, #0A1428 92%, transparent);
-}
-
-.threadsBg {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  /* ME-Q4: blend mode now switched per-theme — multiply in light
-     (deeper blue lines "印" on the light-tint bar) and screen
-     in dark (light blue lines "光" on the deep-navy bar). opacity
-     stays low in both because the colour choice + blend mode now
-     carry the visibility, not the opacity. */
-  mix-blend-mode: multiply;
-  opacity: 0.32;
-}
-
-[data-theme="dark"] .threadsBg {
-  mix-blend-mode: screen;
-  opacity: 0.6;
-}
-
 .content {
   position: relative;
   z-index: 2;

@@ -3,10 +3,12 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  /* 显式 bg — body 是 #ECF0F6(slate),landing root 通过 data-babyblue
-     覆写成 baby-blue #F2F8FE.这里直接锁 var(--ds-bg) 让 root 走当前
-     主题 token,避免 body 透出色块撞色。 */
-  background: var(--ds-bg);
+  /* body bg fallback (slate); landing root is transparent so the
+     fixed-position Aurora behind it shows through. data-babyblue on
+     the html root scopes --ds-bg to F2F8FE in light / matching deep
+     blue in dark, but body retains its base color so the fixed Aurora
+     stays visible across the full viewport. */
+  background: transparent;
   color: var(--ds-ink);
   font-family: var(--font-sans);
 }

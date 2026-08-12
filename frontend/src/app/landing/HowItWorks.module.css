@@ -54,7 +54,7 @@
 .cardLarge,
 .cardSmall {
   background: var(--ds-surface);
-  border: 1px solid color-mix(in srgb, var(--ds-border) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ds-action) 22%, transparent);
   border-radius: var(--radius-xl);
   padding: var(--space-6);
   display: flex;
@@ -63,6 +63,42 @@
   height: 100%;
   position: relative;
   overflow: hidden;
+  box-shadow: 0 1px 2px rgba(12, 44, 83, 0.04);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.cardLarge:hover,
+.cardSmall:hover {
+  border-color: color-mix(in srgb, var(--ds-action) 38%, transparent);
+  box-shadow: 0 6px 22px rgba(47, 128, 192, 0.12);
+}
+
+[data-theme="dark"] .cardLarge,
+[data-theme="dark"] .cardSmall {
+  background: color-mix(in srgb, #0A1428 88%, transparent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .cardLarge:hover,
+[data-theme="dark"] .cardSmall:hover {
+  border-color: color-mix(in srgb, #8FCBF0 45%, transparent);
+  box-shadow: 0 6px 22px rgba(143, 203, 240, 0.18);
+}
+
+/* BorderGlow 自带一套深色硬编码(bg #120F17 / 白 15% 边 / 黑投影),
+   与主题玻璃卡冲突。这里把这些清掉,只保留它的婴儿蓝光标微光,
+   让 cardSmall 的玻璃表面 + 婴儿蓝边框成为唯一可见底。 */
+:global(.border-glow-card).cardGlowWrap {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* SpotlightCard.css 硬编码 bg #111 / border #222(仅深主题)。
+   同样清成透明,只留婴儿蓝光标 spotlight 打在 cardSmall 上。 */
+:global(.card-spotlight).cardSpotlightWrap {
+  background: transparent !important;
+  border-color: transparent !important;
 }
 
 .cardGlowWrap,
@@ -159,5 +195,20 @@
   }
   .stepSmall {
     grid-column: 1;
+  }
+}
+
+/* ---------- reduced-motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .cardLarge,
+  .cardSmall {
+    transition: none !important;
+  }
+  /* 作用域挂到本地 .root 下,让 :global 选择器仍含本地类(css-modules
+     "pure selector" 要求),否则构建报 Selector is not pure。 */
+  .root :global(.border-glow-card),
+  .root :global(.card-spotlight) {
+    transition: none !important;
   }
 }

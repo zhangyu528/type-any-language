@@ -1,15 +1,14 @@
-/* ScenariosSection — 方案 B SECTION 2
+/* ScenariosSection — 重设计 SECTION 2
    --------------------------------------------------------------
-   4 个真实场景卡 — 走 MagicBento 组件(reactbits.dev/components/
-   magic-bento 的本地 port),提供 cursor-following border glow +
-   global spotlight + click ripple.
+   4 个真实场景卡(真实 SCENES 数据,呼应中文标题"4 个真实场景")。
+   单卡结构:
+     .sceneCard(AnimatedContent 外层 = 玻璃卡 + 婴儿蓝边框辉光)
+       └─ .cardInner(flex 纵列:emoji → 场景名 → 中文 → .enWrap 英文句
+                       → .cardSpacer 撑开 → SpecularButton 贴底)
 
-   本文件只剩 3 件事:
-     - 标题区(kicker / title / subtitle)
-     - MagicBento 容器的 grid 调整(覆盖默认 1/2/3 列,
-       让 landing 走 4 列横排)
-     - SpecularButton 主题感知变量(light 走婴儿蓝 tint + 深字,
-       dark 保留"白字蓝玻璃"强对比)
+   视觉语言统一到"读出来"签名:
+     - 英文句走 DecryptedText(字符还原),reduced-motion 时退化成静态 span
+     - 边框辉光统一婴儿蓝 --ds-action(hover 加深),不引入 MagicBento 的多色 conic
    -------------------------------------------------------------- */
 
 .root {
@@ -58,80 +57,61 @@
   color: var(--ds-ink-soft);
 }
 
-/* ---------- MagicBento 容器覆盖 ----------
-   默认 grid 是 1/2/3 列响应;landing 要 4 列横排(1100px 以下退 2 列,
-   600px 以下退 1 列)。
-   padding / gap 用全站 token,跟其他 section 节奏对齐。 */
+/* ---------- 4 卡网格 ----------
+   1100px 以下退 2 列,600px 以下退 1 列。gap / padding 走全站 token。 */
 
-.bento {
-  max-width: none !important;
-  padding: 0 !important;
-  gap: var(--space-4) !important;
-  font-size: 1rem !important;       /* 抑制 magic-bento 内嵌 clamp,统一走 token */
-}
-
-.bento > div {
-  aspect-ratio: auto !important;
-  min-height: 280px !important;
-  padding: var(--space-5) !important;
-  border-radius: var(--radius-lg) !important;
-  /* 主题感知:light 白玻璃 / dark 深空蓝.落地主题感知变量同时给
-     SpecularButton 用(子组件消费 --specular-tint / --specular-text)。
-     --glow-color 给 MagicBento 的 border-glow conic-gradient 用 —
-     light 走 #2F80C0(deep baby blue)在白卡上才看得见,dark 走
-     #8FCBF0(浅婴儿蓝)在深空蓝上更亮。 */
-  background: var(--ds-surface) !important;
-  border-color: color-mix(in srgb, var(--ds-action) 22%, transparent) !important;
-  color: var(--ds-ink) !important;
-  --specular-tint: #DCEFFB;
-  --specular-text: #0C447C;
-  --glow-color: 47, 128, 192;
-}
-
-[data-theme="dark"] .bento > div {
-  background: color-mix(in srgb, #0A1428 88%, transparent) !important;
-  color: #FFFFFF !important;
-  --specular-tint: #CFE3F2;
-  --specular-text: #FFFFFF;
-  --glow-color: 143, 203, 240;
-}
-
-/* MagicBento 默认 box-shadow / hover lift 在主题里偏弱,补一组更"产品化"的;
-   hover 时再来一次边框加深(给用户明确反馈)。 */
-.bento > div:hover {
-  border-color: color-mix(in srgb, var(--ds-action) 38%, transparent) !important;
-}
-
-@media (min-width: 1101px) {
-  .bento {
-    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-  }
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
 }
 
 @media (max-width: 1100px) {
-  .bento {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 600px) {
-  .bento {
-    grid-template-columns: minmax(0, 1fr) !important;
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
-/* ---------- SpecularButton 容器 ----------
-   MagicBento 的 cardContent 默认从顶部排(justify-content: space-between);
-   我们让 button 贴底。 */
-.practiceBtn {
-  margin-top: var(--space-4);
-  align-self: stretch;
+/* ---------- 单卡(玻璃卡 + 婴儿蓝边框辉光) ---------- */
+
+.sceneCard {
+  min-height: 280px;
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--ds-surface);
+  border: 1px solid color-mix(in srgb, var(--ds-action) 22%, transparent);
+  color: var(--ds-ink);
+  box-shadow: 0 1px 2px rgba(12, 44, 83, 0.04);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
 }
 
-/* ---------- MagicBento children 内部布局 ----------
-   MagicBento children 模式下跳过默认的 cardTitle + cardDescription,
-   所以场景名 / 引文 / 中文都塞在 children 里。这里控制它们的样式,
-   跟之前的 ScenariosSection 视觉对齐。 */
+.sceneCard:hover {
+  border-color: color-mix(in srgb, var(--ds-action) 38%, transparent);
+  box-shadow: 0 6px 22px rgba(47, 128, 192, 0.12);
+}
+
+[data-theme="dark"] .sceneCard {
+  background: color-mix(in srgb, #0A1428 88%, transparent);
+  color: #FFFFFF;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .sceneCard:hover {
+  border-color: color-mix(in srgb, #8FCBF0 45%, transparent);
+  box-shadow: 0 6px 22px rgba(143, 203, 240, 0.18);
+}
+
+/* ---------- 卡内布局 ----------
+   AnimatedContent(.sceneCard)→ .cardInner(flex 纵列)→ emoji /
+   场景名 / 中文 / .enWrap(英文句) / .cardSpacer(撑开) /
+   SpecularButton(贴底)。 */
+
 .cardInner {
   display: flex;
   flex-direction: column;
@@ -139,7 +119,6 @@
   height: 100%;
 }
 
-/* emoji 在 MagicBento .cardIcon slot 里渲染,占满自己的盒子 */
 .emoji {
   font-size: 1.6rem;
   line-height: 1;
@@ -157,6 +136,13 @@
 
 [data-theme="dark"] .cardSceneName {
   color: #FFFFFF;
+}
+
+/* .enWrap 包住 DecryptedText(或 reduced-motion 时的静态 span)。
+   给一点上下呼吸感,与中文句拉开距离。 */
+
+.enWrap {
+  margin: 0;
 }
 
 .cardQuote {
@@ -187,11 +173,20 @@
   flex: 1;
 }
 
+/* ---------- SpecularButton 容器 ----------
+   在 .cardInner(flex 纵列)里 align-self:stretch 即占满整行宽度,
+   贴底由上面的 .cardSpacer 撑开。 */
+
+.practiceBtn {
+  margin-top: var(--space-4);
+  align-self: stretch;
+}
+
 /* ---------- reduced-motion ---------- */
 
 @media (prefers-reduced-motion: reduce) {
-  .bento > div,
-  .bento > div:hover {
+  .sceneCard,
+  .sceneCard:hover {
     transition: none !important;
   }
 }

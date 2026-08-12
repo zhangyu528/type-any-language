@@ -31,6 +31,25 @@
   color: var(--ds-ink-soft);
 }
 
+/* 左上角永久免费 badge — 玻璃胶囊,婴儿蓝描边 */
+.kickerBadge {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ds-action-deep);
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ds-action) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ds-action) 32%, transparent);
+}
+
+[data-theme="dark"] .kickerBadge {
+  color: #BFE0F5;
+  background: color-mix(in srgb, #8FCBF0 18%, transparent);
+  border-color: color-mix(in srgb, #8FCBF0 36%, transparent);
+}
+
 /* Bento 网格改为横向两栏,kickerRow 跨两栏 */
 .bentoGrid {
   grid-column: 1 / -1;
@@ -118,19 +137,11 @@
   letter-spacing: 0.005em;
   margin: 0;
   max-width: 46ch;
-  opacity: 0;
-  transform: translateY(8px);
-  transition:
-    opacity var(--dur-base) var(--ease-out),
-    transform var(--dur-base) var(--ease-out);
+  opacity: 0.85;
   text-shadow: 0 1px 8px color-mix(in srgb, var(--ds-bg) 60%, transparent);
 }
 [data-theme="light"] .subtitle {
   text-shadow: 0 1px 8px rgba(255, 255, 255, 0.5);
-}
-.subtitleIn {
-  opacity: 0.85;
-  transform: translateY(0);
 }
 
 /* ---- 右半:demo + stats ---- */
@@ -143,11 +154,7 @@
   min-width: 0;
 }
 
-/* TiltedCard mock 卡 — 玻璃态 + 投影,内部模拟 TranslationStage */
-.mockCardWrap {
-  width: 100%;
-}
-
+/* 跟打 mock 卡 — 玻璃态 + 投影,内部模拟 TranslationStage「读 → 写 → 对」 */
 .mock {
   position: relative;
   width: 100%;

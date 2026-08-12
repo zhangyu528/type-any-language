@@ -1,3 +1,4 @@
+'use client';
 import React, { forwardRef, useMemo, useRef, useLayoutEffect, useEffect } from 'react';
 import { Canvas, useFrame, useThree, RootState } from '@react-three/fiber';
 import { Color, Mesh, ShaderMaterial } from 'three';

@@ -1,3 +1,4 @@
+'use client';
 import React, { useRef, useEffect, useState, CSSProperties } from 'react';
 import { gsap } from 'gsap';
 import './PixelTransition.css';

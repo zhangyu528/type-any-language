@@ -1,3 +1,4 @@
+'use client';
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 
 interface TextPressureProps {

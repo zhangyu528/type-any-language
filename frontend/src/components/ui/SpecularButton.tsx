@@ -1,3 +1,4 @@
+'use client';
 import { useRef, useEffect, CSSProperties, ReactNode, MouseEventHandler } from 'react';
 import { Renderer, Program, Mesh, Triangle, Color } from 'ogl';
 import './SpecularButton.css';

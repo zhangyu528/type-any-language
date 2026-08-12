@@ -1,3 +1,4 @@
+'use client';
 import { Renderer, Program, Mesh, Triangle, Texture } from 'ogl';
 import { useEffect, useRef } from 'react';
 import './EvilEye.css';

@@ -26,6 +26,13 @@ html {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  scroll-behavior: smooth;
+}
+
+#how-it-works,
+#scenarios,
+#lib-strip {
+  scroll-margin-top: 70px;
 }
 
 body {
@@ -67,45 +74,53 @@ a:focus-visible {
    ------------------------------------------------------------
    类名与 AppHeader.tsx 保持契约,此处是唯一样式出处。
    ============================================================ */
+/* ============================================================
+   AppHeader — 60px 全局顶部 chrome
+   磨砂薄荷底 + 单点金属(主 CTA 用 SpecularButton)。
+   控件统一:ghost IconButton(主题) / ghost 文字(登录·登出) /
+   圆点头像 / 金属主按钮(开始读)。无 GlareHover、GradientText、
+   SpotlightCard 包裹。
+   ============================================================ */
 .app-header {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  height: 52px;
+  height: 60px;
   padding: 0 clamp(20px, 4vw, 40px);
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
-  background: color-mix(in srgb, var(--ds-bg) 78%, transparent);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
-  border-bottom: 1px solid var(--ds-border);
+  gap: clamp(12px, 2vw, 32px);
+  /* 磨砂半透:表面色 78% + blur,底部发丝边。 */
+  background: color-mix(in srgb, var(--ds-surface) 78%, transparent);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  border-bottom: 1px solid color-mix(in srgb, var(--ds-border) 80%, transparent);
   z-index: 50;
   font-family: var(--font-sans);
+  transition: background-color var(--dur-base) var(--ease-out),
+    backdrop-filter var(--dur-base) var(--ease-out);
 }
 
+/* Brand:静态点阵 mark + 文字。 */
 .app-header__brand {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-1) var(--space-2);
-  margin: calc(var(--space-1) * -1) calc(var(--space-2) * -1);
+  padding: 0;
   border-radius: var(--radius-sm);
   color: var(--ds-ink);
   text-decoration: none;
-  cursor: default;
   user-select: none;
 }
 .app-header__brand-mark {
-  font-size: 18px;
-  color: var(--ds-action-deep);
-  line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 22px;
   height: 22px;
+  flex: none;
 }
 .app-header__brand-name {
   font-size: 15px;
@@ -118,36 +133,75 @@ a:focus-visible {
   .app-header__brand-name { display: none; }
 }
 
+/* Anchors column (landing-only):安静文字链接。hover 变品牌色,
+   当前 section 用 data-active 下划线高亮。不做彩虹循环文字。 */
+.app-header__anchors {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(4px, 1.4vw, 20px);
+  min-width: 0;
+  height: 100%;
+}
+.app-header__anchor {
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: var(--ds-ink-soft);
+  transition: color var(--dur-fast) var(--ease-out);
+}
+.app-header__anchor:hover {
+  color: var(--ds-action-deep);
+}
+.app-header__anchor[data-active] {
+  color: var(--ds-action-deep);
+}
+.app-header__anchor[data-active]::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 2px;
+  height: 2px;
+  background: var(--ds-action-deep);
+  border-radius: 2px;
+}
+@media (max-width: 900px) {
+  .app-header__anchors { display: none; }
+}
+
 .app-header__nav {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
 }
 
-/* chrome 控件(登录/注册/登出/头像)已迁移到 react-bits:
-   - 登录 / 注册 / 登出 → SpecularButton
-   - 头像 → SpotlightCard 包 Link
-   旧的 .app-header__login / __signup / __logout / __avatar 样式已删除
-   (新的内联 className 见 AppHeader.tsx: app-header__loginBtn / __signupBtn
-   / __logoutBtn / __avatarSpotlight)。
-
-   chrome 上的 SpecularButton size="sm" 默认 40px 高,这里压到 30px
-   跟原 chrome control-sm(32px)对齐。padding/font 缩小用 padding 覆写
-   (不直接改根 module.css,免得污染其它页面)。 */
-.app-header__nav :global(.app-header__loginBtn),
-.app-header__nav :global(.app-header__signupBtn),
-.app-header__nav :global(.app-header__logoutBtn) {
-  padding: 6px 16px !important;
-  font-size: 13px !important;
+/* 登录 / 登出:ghost 文字按钮,统一 hover 淡底。 */
+.app-header__loginBtn,
+.app-header__logoutBtn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
+  height: 32px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ds-ink);
+  background: transparent;
+  border: 0;
   border-radius: var(--radius-pill);
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition: background-color var(--dur-fast, 150ms) var(--ease-out);
+}
+.app-header__loginBtn:hover,
+.app-header__logoutBtn:hover {
+  background-color: rgba(143, 203, 240, 0.22);
 }
 
-/* 头像:SpotlightCard 包一个圆 Link。SpotlightCard 默认有 padding,
-   这里把它压成 0,只让圆形 Link 撑开。 */
-.app-header__avatarSpotlight {
-  padding: 0 !important;
-  border-radius: var(--radius-pill);
-}
+/* 头像:圆点 Link,薄荷底白字。 */
 .app-header__avatar {
   display: inline-flex;
   align-items: center;
@@ -162,15 +216,10 @@ a:focus-visible {
   text-decoration: none;
 }
 
-/* Landing 变体:依然浮于 hero 上,但保留半透底 + 细 hairline,
-   避免 header 与 hero bg 撞色(裸透明会让登录按钮看起来像悬浮塑料)。
-   color-mix 72% 比默认的 78% 更轻,hero 透过来仍能隐约读到底色,
-   但能跟下面的 hero bg 拉开一个层级。 */
+/* Landing 变体:磨砂更透一点,让 Aurora 在 nav 下隐约流动;
+   其余与基础 chrome 一致(单点金属仍在主 CTA)。 */
 .app-header--landing {
-  background: color-mix(in srgb, var(--ds-bg) 72%, transparent);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
-  border-bottom-color: color-mix(in srgb, var(--ds-border) 70%, transparent);
+  background: color-mix(in srgb, var(--ds-surface) 64%, transparent);
 }
 
 /* ============================================================
@@ -362,3 +411,4 @@ a:focus-visible {
     scroll-behavior: auto !important;
   }
 }
+

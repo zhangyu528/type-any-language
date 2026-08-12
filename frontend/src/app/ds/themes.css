@@ -31,6 +31,13 @@
   --ds-action-ink:    var(--slate-800);    /* 标题级 */
   --ds-on-action:     var(--white);
 
+  /* 注意:GooeyNav 粒子颜色不在这里定义。reactbits GooeyNav.css 没
+     有 --color-1..4 变量,粒子 fallback 到 white (原生的"黑底 hero
+     + 白粒子"配色)。TAL 把 nav 放进浅色磨砂 chrome,粒子保持
+     白色反而在浅底上不可见 — 接受这个原生效果,而不是改色。
+     如果以后想在 landing 顶部单独放 GooeyNav hero 区块(深底),粒
+     子会自动是白色匹配。*/
+
   /* 反馈:正确(保留薄荷通行色) */
   --ds-correct:       var(--mint-600);
   --ds-correct-fill:  var(--mint-400);

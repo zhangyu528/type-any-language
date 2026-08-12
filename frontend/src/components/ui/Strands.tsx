@@ -1,3 +1,4 @@
+'use client';
 import { Renderer, Program, Mesh, Color, Triangle, RenderTarget } from 'ogl';
 import { useEffect, useRef, CSSProperties } from 'react';
 

@@ -1,7 +1,8 @@
-/* LibStrip — 方案 A SECTION 3 (MagicBento 化)
+/* LibStrip — 重设计 SECTION 3
    ----------------------------------------------------------
-   4 张 MagicBento 卡,统一与 ScenariosSection 的视觉重量。
-   删除了之前的左侧 2x2 grid + 右侧 detail panel(信息密度过高)。
+   真实词库卡网格(响应式 auto-fill)。视觉语言与 ScenariosSection
+   完全对齐:玻璃卡 + 婴儿蓝边框辉光(hover 加深),单金属
+   SpecularButton 贴底。
    ---------------------------------------------------------- */
 
 .root {
@@ -52,29 +53,73 @@
   letter-spacing: 0.04em;
 }
 
-/* ---------- MagicBento 容器 ---------- */
+/* ---------- 词库卡网格 ----------
+   auto-fill minmax(240px) → 宽屏多列、窄屏自动退列,
+   不依赖 libs 的具体数量(可能是 3,也可能是更多)。 */
 
-.bento {
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-4);
   width: 100%;
 }
 
-/* ---------- 卡内元素 ---------- */
+/* ---------- 单卡(玻璃卡 + 婴儿蓝边框辉光) ----------
+   与 ScenariosSection .sceneCard 统一:同一组颜色 / 同一组
+   hover 加深,确保"读出来"签名里只有一种 hover 微光。 */
+
+.libCard {
+  min-height: 240px;
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--ds-surface);
+  border: 1px solid color-mix(in srgb, var(--ds-action) 22%, transparent);
+  color: var(--ds-ink);
+  box-shadow: 0 1px 2px rgba(12, 44, 83, 0.04);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.libCard:hover {
+  border-color: color-mix(in srgb, var(--ds-action) 38%, transparent);
+  box-shadow: 0 6px 22px rgba(47, 128, 192, 0.12);
+}
+
+[data-theme="dark"] .libCard {
+  background: color-mix(in srgb, #0A1428 88%, transparent);
+  color: #FFFFFF;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .libCard:hover {
+  border-color: color-mix(in srgb, #8FCBF0 45%, transparent);
+  box-shadow: 0 6px 22px rgba(143, 203, 240, 0.18);
+}
+
+/* ---------- 卡内布局 ---------- */
 
 .cardInner {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-1);
   height: 100%;
 }
 
 .libLevel {
+  align-self: flex-start;
   font-family: var(--font-mono), monospace;
   font-size: 11px;
   letter-spacing: 0.08em;
   color: var(--ds-action-deep);
   text-transform: uppercase;
   font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ds-action) 14%, transparent);
+}
+
+[data-theme="dark"] .libLevel {
+  color: #BFE0F5;
+  background: color-mix(in srgb, #8FCBF0 18%, transparent);
 }
 
 .libName {
@@ -87,6 +132,10 @@
   line-height: 1.25;
 }
 
+[data-theme="dark"] .libName {
+  color: #FFFFFF;
+}
+
 .libMeta {
   margin: 0;
   font-family: var(--font-mono), monospace;
@@ -95,12 +144,21 @@
   letter-spacing: 0.02em;
 }
 
+[data-theme="dark"] .libMeta {
+  color: #9AB6CE;
+}
+
 .libLevelLabel {
   margin: 0;
   font-family: var(--font-sans);
   font-size: 11px;
   color: var(--ds-ink-faint);
   letter-spacing: 0.04em;
+  line-height: 1.5;
+}
+
+[data-theme="dark"] .libLevelLabel {
+  color: #7E9CB6;
 }
 
 .cardSpacer {
@@ -111,4 +169,13 @@
   align-self: flex-start;
   font-size: 12px !important;
   padding: 6px 14px !important;
+}
+
+/* ---------- reduced-motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .libCard,
+  .libCard:hover {
+    transition: none !important;
+  }
 }

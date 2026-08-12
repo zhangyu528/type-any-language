@@ -34,7 +34,7 @@ interface HowItWorksProps {
 
 export default function HowItWorks(_props: HowItWorksProps) {
   return (
-    <section className={styles.root} aria-labelledby="how-it-works-title">
+    <section id="how-it-works" className={styles.root} aria-labelledby="how-it-works-title">
       <AnimatedContent distance={20} delay={0 / 1000} direction="vertical" className={styles.header}>
         <p className={styles.kicker}>SECTION 1 · 读完一句如何记住</p>
         <h2 id="how-it-works-title" className={styles.title}>
@@ -48,10 +48,9 @@ export default function HowItWorks(_props: HowItWorksProps) {
           <div className={styles.cardLarge}>
             <span className={styles.stepLabel}>STEP 1 · 读</span>
             <BlurText
-              as="p"
               text={STEP1_ZH}
               className={styles.zh}
-              animateBy="characters"
+              animateBy="letters"
               direction="top"
               stepDuration={0.4}
               delay={50}
@@ -60,9 +59,18 @@ export default function HowItWorks(_props: HowItWorksProps) {
           </div>
         </AnimatedContent>
 
-        {/* step 2 (小卡):英文跟打 — GlowCard + DecryptedText */}
+        {/* step 2 (小卡):英文跟打 — BorderGlow(婴儿蓝边框微光) + DecryptedText */}
         <AnimatedContent distance={24} delay={240 / 1000} direction="vertical" className={styles.stepSmall}>
-          <BorderGlow glowRadius={36} glowColor="143, 203, 240" glowIntensity={1.0} className={styles.cardGlowWrap}>
+          <BorderGlow
+            glowRadius={36}
+            glowColor="203 76 75"
+            glowIntensity={0.9}
+            colors={['#8FCBF0', '#5BA8D8', '#2F80C0']}
+            backgroundColor="transparent"
+            borderRadius={28}
+            fillOpacity={0.2}
+            className={styles.cardGlowWrap}
+          >
             <div className={styles.cardSmall}>
               <span className={styles.stepLabel}>STEP 2 · 写</span>
               <div className={styles.enBox}>
@@ -82,10 +90,10 @@ export default function HowItWorks(_props: HowItWorksProps) {
           </BorderGlow>
         </AnimatedContent>
 
-        {/* step 3 (小卡):错题本 — SpotlightCard */}
+        {/* step 3 (小卡):错题本 — SpotlightCard(婴儿蓝光标 spotlight) */}
         <AnimatedContent distance={24} delay={400 / 1000} direction="vertical" className={styles.stepSmall}>
           <SpotlightCard
-            spotlightColor="143, 203, 240"
+            spotlightColor="rgba(143, 203, 240, 0.25)"
             className={styles.cardSpotlightWrap}
           >
             <div className={styles.cardSmall}>

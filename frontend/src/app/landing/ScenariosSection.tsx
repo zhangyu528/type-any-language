@@ -1,17 +1,23 @@
 'use client';
 
 /**
- * ScenariosSection — 方案 B SECTION 2(2026-08 polish, shadcn 重构)
+ * ScenariosSection — 重设计 SECTION 2
  *
- * shadcn MagicBento 不接外部 cards prop — 卡内容是组件内硬编码的 6 张
- * 英文 Analytics/Dashboard/Collaboration/Automation/Integration/Security 演示。
- * 因此本 section 不再承载"4 个中文场景 + SpecularButton 跟打"内容,
- * 仅保留 section header + shadcn MagicBento 自带的演示卡。
+ * 之前:shadcn MagicBento 硬编码英文 Analytics/Dashboard 演示卡,与
+ *   "4 个真实场景" 的中文标题完全脱节(内容 bug)。
+ * 现在:用真实的 SCENES 数据渲染 4 张卡片,每张用 reactbits 的
+ *   DecryptedText(字符还原,呼应"读出来"签名母题)展示英文句,
+ *   配 SpecularButton「试一下」直接 onPickLib 进入练习。
  *
- * SCENES 数据保留在文件里供未来扩展,目前不渲染。
+ * reactbits 角色:
+ *   - DecryptedText → 每卡英文句(animateOn="view" 滚动入视触发还原)
+ *   - SpecularButton → 单金属「试一下」CTA
+ *   - AnimatedContent → 4 卡错峰入场(沿用全站节奏)
  */
 
-import MagicBento from '@/components/MagicBento';
+import { useReducedMotion } from 'motion/react';
+import DecryptedText from '@/components/DecryptedText';
+import SpecularButton from '@/components/SpecularButton';
 import AnimatedContent from '@/components/AnimatedContent';
 import { VocabularyLib } from '../api';
 import styles from './ScenariosSection.module.css';
@@ -25,9 +31,9 @@ interface Scene {
 
 const SCENES: Scene[] = [
   { emoji: '☕', name: 'Coffee Shop', zh: '我想点一杯拿铁', en: "I'd like a latte, please." },
-  { emoji: '✈️', name: 'Travel',       zh: '火车站在哪里?',    en: 'Where is the train station?' },
-  { emoji: '💼', name: 'Workplace',    zh: '我们约个会议吧',   en: "Let's schedule a meeting." },
-  { emoji: '🎉', name: 'Social',       zh: '你好,认识你很高兴', en: 'Nice to meet you, Alex.' },
+  { emoji: '✈️', name: 'Travel', zh: '火车站在哪里?', en: 'Where is the train station?' },
+  { emoji: '💼', name: 'Workplace', zh: '我们约个会议吧', en: "Let's schedule a meeting." },
+  { emoji: '🎉', name: 'Social', zh: '你好,认识你很高兴', en: 'Nice to meet you, Alex.' },
 ];
 
 interface ScenariosSectionProps {
@@ -35,12 +41,16 @@ interface ScenariosSectionProps {
   onPickLib: (libId: string) => void;
 }
 
-export default function ScenariosSection({
-  libs: _libs,
-  onPickLib: _onPickLib,
-}: ScenariosSectionProps) {
+export default function ScenariosSection({ libs, onPickLib }: ScenariosSectionProps) {
+  const reduce = useReducedMotion();
+  const firstLib = libs[0];
+
+  const handleTry = () => {
+    if (firstLib) onPickLib(firstLib.id);
+  };
+
   return (
-    <section className={styles.root} aria-labelledby="scenarios-title">
+    <section id="scenarios" className={styles.root} aria-labelledby="scenarios-title">
       <AnimatedContent distance={20} delay={0 / 1000} direction="vertical" className={styles.header}>
         <p className={styles.kicker}>SECTION 2 · 4 个真实场景</p>
         <h2 id="scenarios-title" className={styles.title}>
@@ -49,15 +59,57 @@ export default function ScenariosSection({
         <p className={styles.subtitle}>4 个开口场景,从这里读。</p>
       </AnimatedContent>
 
-      {/* shadcn MagicBento:硬编码 6 张英文示例卡(Analytics/Dashboard 等) */}
-      <MagicBento
-        className={styles.bento}
-        enableSpotlight
-        enableBorderGlow
-        clickEffect
-        spotlightRadius={420}
-        glowColor="143, 203, 240"
-      />
+      <div className={styles.grid}>
+        {SCENES.map((scene, i) => (
+          <AnimatedContent
+            key={scene.name}
+            distance={20}
+            delay={(80 + i * 90) / 1000}
+            direction="vertical"
+            className={styles.sceneCard}
+          >
+            <div className={styles.cardInner}>
+              <span className={styles.emoji} aria-hidden="true">
+                {scene.emoji}
+              </span>
+              <h3 className={styles.cardSceneName}>{scene.name}</h3>
+              <p className={styles.cardZh}>{scene.zh}</p>
+              <div className={styles.enWrap}>
+                {reduce ? (
+                  <span className={styles.cardQuote}>{scene.en}</span>
+                ) : (
+                  <DecryptedText
+                    text={scene.en}
+                    animateOn="view"
+                    sequential
+                    revealDirection="start"
+                    speed={35}
+                    maxIterations={6}
+                    className={styles.cardQuote}
+                  />
+                )}
+              </div>
+              <div className={styles.cardSpacer} />
+              <SpecularButton
+                size="sm"
+                onClick={handleTry}
+                disabled={!firstLib}
+                tint="#8FCBF0"
+                tintOpacity={0.9}
+                baseColor="#5BA8D8"
+                lineColor="#FFFFFF"
+                textColor="#0C2C53"
+                blur={4}
+                followMouse
+                proximity={220}
+                className={styles.practiceBtn}
+              >
+                试一下 →
+              </SpecularButton>
+            </div>
+          </AnimatedContent>
+        ))}
+      </div>
     </section>
   );
 }

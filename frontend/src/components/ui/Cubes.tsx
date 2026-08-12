@@ -1,3 +1,4 @@
+'use client';
 import React, { useCallback, useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import './Cubes.css';

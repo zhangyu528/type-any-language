@@ -1,3 +1,4 @@
+'use client';
 import { gsap } from 'gsap';
 import { JSX, useEffect, useRef } from 'react';
 import './ImageTrail.css';

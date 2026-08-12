@@ -1,3 +1,4 @@
+'use client';
 import { useEffect, useRef, useState, RefObject } from 'react';
 import { motion } from 'motion/react';
 import './TrueFocus.css';

@@ -1,3 +1,4 @@
+'use client';
 import { motion, Transition } from 'motion/react';
 import { useEffect, useRef, useState, useMemo } from 'react';
 
