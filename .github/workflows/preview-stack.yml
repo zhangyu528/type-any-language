@@ -119,6 +119,10 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq nginx > /dev/null
           cat > /tmp/nginx.conf <<EOF
+          # run workers as root — frontend/out/ is owned by 'runner' user;
+          # default www-data user can't stat() it.
+          # Safe here: ephemeral preview on GH runner, no security boundary.
+          user root;
           events { worker_connections 1024; }
           http {
             include /etc/nginx/mime.types;
