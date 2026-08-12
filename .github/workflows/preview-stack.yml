@@ -83,7 +83,7 @@ jobs:
         run: bash ./db/scripts/migrate.sh
 
       - name: Import CMS content
-        run: bash ./db/scripts/import_staging.sh
+        run: bash ./db/scripts/import_staging.sh all
 
       - name: Install frontend deps
         working-directory: frontend
