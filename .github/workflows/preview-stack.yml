@@ -79,6 +79,9 @@ jobs:
             sleep 1
           done
 
+      - name: Make scripts executable
+        run: chmod +x ./db/scripts/*.sh
+
       - name: Run DB migrations
         run: ./db/scripts/migrate.sh
 
