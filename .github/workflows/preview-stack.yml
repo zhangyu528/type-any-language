@@ -21,7 +21,7 @@ permissions:
 jobs:
   preview:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
 
     services:
       postgres:
@@ -182,7 +182,7 @@ jobs:
             echo "|---|---|"
             echo "| Branch | \`${{ inputs.branch || github.ref_name }}\` |"
             echo "| Run | #${{ github.run_number }} |"
-            echo "| Lifetime | ~25 min |"
+            echo "| Lifetime | ~90 min |"
             echo ""
             echo "### Stack 在跑"
             echo "- nginx :4000 — 静态 + /api/* 反代到 uvicorn"
@@ -198,5 +198,5 @@ jobs:
       - name: Keep alive
         if: steps.tunnel.outputs.url
         run: |
-          echo "Holding for ~25 minutes..."
-          sleep 1500
+          echo "Holding for ~90 minutes..."
+          sleep 5400
