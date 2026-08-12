@@ -18,7 +18,8 @@
  */
 
 import { KpiStat } from '../api';
-import { AnimatedCounter, GlassSurface } from '@/components/effects';
+import GlassSurface from '@/components/GlassSurface';
+import Counter from '@/components/Counter';
 import styles from './ProgressSnapshot.module.css';
 
 export interface ProgressSnapshotProps {
@@ -51,12 +52,7 @@ function HeroAccuracy({ stat }: { stat: KpiStat }) {
         </span>
       </div>
       <div className={styles.number}>
-        <AnimatedCounter
-          value={animateTo}
-          startOnView
-          duration={1200}
-          className={styles.counter}
-        />
+        <Counter value={animateTo} fontSize={48} className={styles.counter} />
         <span className={styles.unit} aria-hidden>%</span>
       </div>
       {/* Gauge: thin track from 0 → target% with a marker at the
@@ -103,12 +99,7 @@ function SideStat({
         </span>
       </div>
       <div className={styles.sideNumber}>
-        <AnimatedCounter
-          value={Math.round(stat.value)}
-          startOnView
-          duration={1100}
-          className={styles.counter}
-        />
+        <Counter value={Math.round(stat.value)} fontSize={36} className={styles.counter} />
         {unit ? <span className={styles.sideUnit} aria-hidden>{unit}</span> : null}
       </div>
       {/* Decorative bar — empty placeholder so the card isn't

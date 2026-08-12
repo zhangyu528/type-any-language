@@ -124,68 +124,30 @@ a:focus-visible {
   gap: var(--space-2);
 }
 
-/* 登录:ghost 文字链接 —— 把注册(primary mint)推为 header 上唯一的
-   主行动。Landing funnel 是新用户为主,老用户进登录走轻量入口。
-   颜色 resting 用 --ds-ink-soft(中性),hover 走 --ds-action-deep +
-   --ds-tint 软底 —— 跟 .app-header__logout 同 pattern。
-   不加 border / transform / shadow:那些是 CTA 形状的 affordance。 */
-.app-header__login {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: var(--control-sm);
-  padding: 0 var(--space-4);
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: var(--weight-medium);
-  letter-spacing: 0.005em;
-  color: var(--ds-ink-soft);
-  background: transparent;
-  border: 0;
+/* chrome 控件(登录/注册/登出/头像)已迁移到 react-bits:
+   - 登录 / 注册 / 登出 → SpecularButton
+   - 头像 → SpotlightCard 包 Link
+   旧的 .app-header__login / __signup / __logout / __avatar 样式已删除
+   (新的内联 className 见 AppHeader.tsx: app-header__loginBtn / __signupBtn
+   / __logoutBtn / __avatarSpotlight)。
+
+   chrome 上的 SpecularButton size="sm" 默认 40px 高,这里压到 30px
+   跟原 chrome control-sm(32px)对齐。padding/font 缩小用 padding 覆写
+   (不直接改根 module.css,免得污染其它页面)。 */
+.app-header__nav :global(.app-header__loginBtn),
+.app-header__nav :global(.app-header__signupBtn),
+.app-header__nav :global(.app-header__logoutBtn) {
+  padding: 6px 16px !important;
+  font-size: 13px !important;
   border-radius: var(--radius-pill);
-  text-decoration: none;
-  cursor: pointer;
-  transition:
-    background var(--dur-fast) var(--ease-out),
-    color var(--dur-fast) var(--ease-out);
-}
-.app-header__login:hover {
-  background: var(--ds-tint);
-  color: var(--ds-action-deep);
 }
 
-/* 注册:primary mint pill —— header 唯一主行动。
-   填充用 --ds-action-deep(mint-600),--ds-action(mint-400) 在 light
-   下白字对比度 3.05:1 不过 WCAG AA;deep 色 (mint-600) ≥ 5.5:1。
-   跟 HowItWorks.module.css 的 kbHit 模式一致(同一 deep + 白字)。
-   hover 不换色,只 translateY + shadow —— avatar pattern。 */
-.app-header__signup {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: var(--control-sm);
-  padding: 0 var(--space-5);
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: var(--weight-medium);
-  letter-spacing: 0.005em;
-  color: var(--ds-on-action);
-  background: var(--ds-action-deep);
-  border: 1px solid var(--ds-action-deep);
+/* 头像:SpotlightCard 包一个圆 Link。SpotlightCard 默认有 padding,
+   这里把它压成 0,只让圆形 Link 撑开。 */
+.app-header__avatarSpotlight {
+  padding: 0 !important;
   border-radius: var(--radius-pill);
-  text-decoration: none;
-  cursor: pointer;
-  transition:
-    transform var(--dur-fast) var(--ease-spring),
-    box-shadow var(--dur-fast) var(--ease-out);
 }
-.app-header__signup:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--elev-1);
-}
-.app-header__signup:active { transform: translateY(0); }
-
-/* 登录态:头像 + 登出 */
 .app-header__avatar {
   display: inline-flex;
   align-items: center;
@@ -198,31 +160,6 @@ a:focus-visible {
   font-size: 13px;
   font-weight: var(--weight-medium);
   text-decoration: none;
-  transition: transform var(--dur-fast) var(--ease-spring),
-              box-shadow var(--dur-fast) var(--ease-out);
-}
-.app-header__avatar:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--elev-1);
-}
-.app-header__logout {
-  display: inline-flex;
-  align-items: center;
-  height: 28px;
-  padding: 0 var(--space-3);
-  font-family: inherit;
-  font-size: var(--text-caption);
-  color: var(--ds-ink-soft);
-  background: transparent;
-  border: 0;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: color var(--dur-fast) var(--ease-out),
-              background var(--dur-fast) var(--ease-out);
-}
-.app-header__logout:hover {
-  color: var(--ds-ink);
-  background: var(--ds-tint);
 }
 
 /* Landing 变体:依然浮于 hero 上,但保留半透底 + 细 hairline,

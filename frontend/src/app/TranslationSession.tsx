@@ -18,8 +18,7 @@ import PracticeHintCard, {
   type PracticeHintCardKind,
 } from './practice/PracticeHintCard';
 import LoadingMark from './components/LoadingMark';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import SpecularButton from '@/components/SpecularButton';
 import styles from './practice/TranslationStage.module.css';
 
 interface TranslationSessionProps {
@@ -415,7 +414,21 @@ export default function TranslationSession({
     return (
       <div className={`${styles.translation} ${styles.errorVariant}`}>
         <p className={styles.errorText}>{error}</p>
-        <Button type="button" variant="ghost" onClick={onBack}>返回</Button>
+        <SpecularButton
+          size="sm"
+          onClick={onBack}
+          tint="var(--ds-action)"
+          tintOpacity={0.18}
+          baseColor="transparent"
+          lineColor="var(--ds-action-deep)"
+          textColor="var(--ds-action-deep)"
+          blur={6}
+          intensity={0.6}
+          followMouse
+          proximity={220}
+        >
+          返回
+        </SpecularButton>
       </div>
     );
   }
@@ -423,12 +436,26 @@ export default function TranslationSession({
   if (sessionState === 'empty-lib' || !currentStep) {
     return (
       <div className={`${styles.translation} ${styles.emptyStep}`}>
-        <Badge variant="slate">本词库</Badge>
+        <span className={styles.emptyKicker}>本词库</span>
         <p className={styles.emptyText}>
           该词库暂无可练习的句子
         </p>
         <div className={styles.actions}>
-          <Button type="button" variant="default" onClick={onBack}>返回词库列表</Button>
+          <SpecularButton
+          size="md"
+          onClick={onBack}
+          tint="var(--ds-action-deep)"
+          tintOpacity={1}
+          baseColor="var(--ds-action-deep)"
+          lineColor="var(--ds-on-action)"
+          textColor="var(--ds-on-action)"
+          blur={6}
+          intensity={1.0}
+          followMouse
+          proximity={260}
+        >
+          返回词库列表
+        </SpecularButton>
         </div>
       </div>
     );

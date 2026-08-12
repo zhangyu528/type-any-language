@@ -30,6 +30,7 @@ import {
 import Link from 'next/link';
 import Button from '../../ds/components/Button';
 import IconButton from '../../ds/components/IconButton';
+import SpecularButton from '@/components/SpecularButton';
 import styles from './AuthForm.module.css';
 
 export type FieldName = 'email' | 'password' | 'confirm';
@@ -345,15 +346,23 @@ const AuthForm = forwardRef<AuthFormHandle, AuthFormProps>(function AuthForm(
       ) : null}
 
       <div className={styles.submit}>
-        <Button
+        <SpecularButton
           type="submit"
-          variant="primary"
           size="lg"
-          loading={props.submitting}
-          disabled={!props.formValid}
+          disabled={props.submitting || !props.formValid}
+          tint="var(--ds-action-deep)"
+          tintOpacity={1}
+          baseColor="var(--ds-action-deep)"
+          lineColor="var(--ds-on-action)"
+          textColor="var(--ds-on-action)"
+          blur={6}
+          intensity={1.0}
+          followMouse
+          proximity={260}
+          className={styles.submitBtn}
         >
-          {props.submitLabel}
-        </Button>
+          {props.submitting ? '提交中…' : props.submitLabel}
+        </SpecularButton>
       </div>
 
       <p className={styles.alt}>

@@ -91,14 +91,6 @@
 
 /* ---------- 左侧文字 ---------- */
 
-.titleBlock {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
 .title {
   margin: 0;
   font-family: var(--font-display), var(--font-sans), serif;
@@ -117,11 +109,6 @@
   color: #FFFFFF;
 }
 
-.kickerBadge {
-  align-self: flex-start;
-  margin-bottom: var(--space-3);
-}
-
 .titleMain {
   display: inline-block;
 }
@@ -137,18 +124,6 @@
 
 .bar:hover .titleArrow {
   transform: translateX(4px);
-}
-
-.sub {
-  margin: 0;
-  font-family: var(--font-mono), monospace;
-  font-size: var(--text-caption);
-  letter-spacing: 0.06em;
-  color: var(--ds-ink-soft);
-}
-
-[data-theme="dark"] .sub {
-  color: #CFE3F2;
 }
 
 /* ---------- 右侧按钮 ---------- */

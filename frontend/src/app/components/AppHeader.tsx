@@ -15,17 +15,24 @@
  * Visual(TAL Mint,样式唯一出处 = globals.css .app-header*):
  *   - 薄荷底半透 + backdrop blur,底部 1px --ds-border
  *   - 左:BrandMark 3×3 点阵 + 名称
- *   - 右:匿名时 "登录"(薄荷填充 pill)+ "注册"(ghost pill);
- *     登录后换为头像 + 登出
+ *   - 右:匿名时 SpecularButton "登录"(ghost)+ SpecularButton "注册"(primary);
+ *     登录后换为 SpotlightCard 包头像 + SpecularButton "登出"
  *
  * Route-aware:
  *   - Renders null on /login and /signup. Those pages have their own
  *     brand link inside the bubble card; a global chrome on
  *     top would fight with the card's own "back to home" affordance.
+ *
+ * 全部 chrome 控件(登录/注册/登出/头像)都用 react-bits 组件 —
+ * 与 Landing 内部 footer 控件风格统一:
+ *   - SpecularButton 不支持 href;router.push 模拟导航
+ *   - SpotlightCard 给头像一个 hover 时跟随光标的 spotlight 装饰
  */
 import { useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import SpecularButton from '@/components/SpecularButton';
+import SpotlightCard from '@/components/SpotlightCard';
 import { useAuth } from '../lib/auth';
 import ThemeToggle from './ThemeToggle';
 
@@ -102,42 +109,76 @@ export default function AppHeader() {
         ) : user ? (
           <>
             <ThemeToggle />
-            <Link
-              href="/me"
-              className="app-header__avatar"
-              aria-label={`${user.display_name} — 我的主页`}
-              title={`${user.display_name} · 我的主页`}
+            <SpotlightCard
+              spotlightColor="var(--ds-action-soft)"
+              className="app-header__avatarSpotlight"
             >
-              {user.display_name.charAt(0).toUpperCase()}
-            </Link>
-            <button
-              type="button"
-              className="app-header__logout"
+              <Link
+                href="/me"
+                className="app-header__avatar"
+                aria-label={`${user.display_name} — 我的主页`}
+                title={`${user.display_name} · 我的主页`}
+              >
+                {user.display_name.charAt(0).toUpperCase()}
+              </Link>
+            </SpotlightCard>
+            <SpecularButton
+              size="sm"
               onClick={() => {
                 void handleLogout();
               }}
+              tint="var(--ds-action)"
+              tintOpacity={0.45}
+              baseColor="var(--ds-action-deep)"
+              lineColor="var(--ds-on-action)"
+              textColor="var(--ds-on-action)"
+              blur={4}
+              intensity={0.8}
+              followMouse
+              proximity={220}
+              className="app-header__logoutBtn"
               aria-label="登出"
             >
               登出
-            </button>
+            </SpecularButton>
           </>
         ) : (
           <>
             <ThemeToggle />
-            <Link
-              href={`/signup${fromParam}`}
-              className="app-header__signup"
+            <SpecularButton
+              size="sm"
+              onClick={() => router.push(`/signup${fromParam}`)}
+              tint="var(--ds-action)"
+              tintOpacity={0.18}
+              baseColor="transparent"
+              lineColor="transparent"
+              textColor="var(--ds-action-deep)"
+              blur={6}
+              intensity={0.6}
+              followMouse
+              proximity={220}
+              className="app-header__signupBtn"
               aria-label="注册"
             >
               注册
-            </Link>
-            <Link
-              href={`/login${fromParam}`}
-              className="app-header__login"
+            </SpecularButton>
+            <SpecularButton
+              size="sm"
+              onClick={() => router.push(`/login${fromParam}`)}
+              tint="var(--ds-action-deep)"
+              tintOpacity={1}
+              baseColor="var(--ds-action-deep)"
+              lineColor="var(--ds-action-deep)"
+              textColor="var(--ds-on-action)"
+              blur={6}
+              intensity={1.0}
+              followMouse
+              proximity={260}
+              className="app-header__loginBtn"
               aria-label="登录"
             >
               登录
-            </Link>
+            </SpecularButton>
           </>
         )}
       </nav>

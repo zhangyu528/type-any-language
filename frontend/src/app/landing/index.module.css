@@ -59,7 +59,7 @@
   margin: 0;
 }
 
-.footerLinks :global(.footerLink) {
+.footerLinks a {
   /* WCAG 2.5.8 — 24×24 minimum target. 文字行高 ~17px,包一层
      inline-flex + min-height 给命中区扩到 24px+。 */
   display: inline-flex;
@@ -71,7 +71,7 @@
   transition: color var(--dur-fast) var(--ease-out);
 }
 
-.footerLinks :global(.footerLink:hover) {
+.footerLinks a:hover {
   color: var(--ds-action-deep);
 }
 

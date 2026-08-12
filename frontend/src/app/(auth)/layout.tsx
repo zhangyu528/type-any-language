@@ -9,13 +9,13 @@
  * ImmersiveAuth 组件已经包含完整的卡片样式，不需要 layout 再包一层。
  */
 import type { ReactNode } from 'react';
-import { AuroraBackground } from '@/components/effects';
+import Aurora from '@/components/Aurora';
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <main className="auth-shell" data-babyblue>
       {/* Aurora background — flowing light curtains */}
-      <AuroraBackground className="fixed inset-0 z-0" />
+      <Aurora className="fixed inset-0 z-0" />
 
       {children}
 

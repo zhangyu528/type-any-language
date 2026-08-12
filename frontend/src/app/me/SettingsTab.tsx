@@ -34,7 +34,8 @@ import {
   writePrefBool,
   writePrefString,
 } from '../api';
-import { ShinyText, VariableProximity } from '@/components/effects';
+import ShinyText from '@/components/ShinyText';
+import VariableProximity from '@/components/VariableProximity';
 import styles from '../me/me-page.module.css';
 
 const AUDIO_RATE_OPTIONS: AudioRate[] = [0.75, 1, 1.25];
@@ -245,11 +246,10 @@ function SettingsKicker({
       ) : (
         <VariableProximity
           label={children}
-          from={{ wght: 400 }}
-          to={{ wght: 700 }}
+          fromFontVariationSettings={{ wght: 400 }}
+          toFontVariationSettings={{ wght: 700 }}
           radius={80}
           falloff="linear"
-          as="span"
           className={styles['me-section-title__prox']}
         />
       )}

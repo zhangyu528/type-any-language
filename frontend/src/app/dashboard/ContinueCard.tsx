@@ -24,7 +24,7 @@
  */
 
 import { ContinueState } from '../api';
-import { SpecularButton } from '@/components/effects';
+import SpecularButton from '@/components/SpecularButton';
 import styles from './ContinueCard.module.css';
 
 export interface ContinueCardProps {

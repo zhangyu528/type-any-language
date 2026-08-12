@@ -143,107 +143,135 @@
   min-width: 0;
 }
 
-/* TiltedCard demo 卡 — 玻璃态 + 投影 */
-.demoCard {
+/* TiltedCard mock 卡 — 玻璃态 + 投影,内部模拟 TranslationStage */
+.mockCardWrap {
+  width: 100%;
+}
+
+.mock {
   position: relative;
   width: 100%;
-  padding: var(--space-5) var(--space-5);
+  padding: var(--space-4);
   background: color-mix(in srgb, var(--ds-surface) 75%, transparent);
   backdrop-filter: blur(20px) saturate(140%);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   border: 1px solid color-mix(in srgb, var(--ds-border) 70%, transparent);
   border-radius: var(--radius-xl);
   box-shadow: var(--elev-1);
-  perspective: 1000px;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  min-height: 240px;
+  gap: var(--space-3);
+  min-height: 260px;
 }
 
-.demoHeader {
+.mockTopbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   font-family: var(--font-mono), monospace;
-  font-size: 10px;
-  letter-spacing: 0.12em;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ds-ink-soft);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--ds-border);
+}
+
+.mockDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ds-ink-faint);
+  opacity: 0.35;
+}
+.mockDot:nth-child(1) { background: #FF6B6B; opacity: 0.7; }
+.mockDot:nth-child(2) { background: #FFD93D; opacity: 0.7; }
+.mockDot:nth-child(3) { background: #6BCF7F; opacity: 0.7; }
+
+.mockLib {
+  margin-left: auto;
+  color: var(--ds-ink-soft);
   text-transform: uppercase;
 }
 
-.demoKicker {
-  color: var(--ds-ink-faint);
+.mockProgress {
+  width: 100%;
+  height: 4px;
+  background: color-mix(in srgb, var(--ds-action) 18%, transparent);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.mockProgressFill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--ds-action), var(--ds-action-deep));
+  border-radius: 99px;
 }
 
-.demoLive {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--ds-action-deep);
-  font-weight: 600;
-}
-
-.demoLiveDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--ds-action);
-  box-shadow: 0 0 8px var(--ds-action);
-  animation: pulse 1.8s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%      { opacity: 0.5; transform: scale(0.85); }
-}
-
-.demoLines {
+.mockPrompt {
+  margin-top: var(--space-2);
+  min-height: 48px;
   display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+  align-items: center;
 }
 
-.demoLine {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 2fr) auto;
-  align-items: baseline;
-  gap: var(--space-3);
-  padding: 10px 14px;
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--ds-tint) 30%, transparent);
-  border-left: 2px solid color-mix(in srgb, var(--ds-action) 40%, transparent);
-  min-height: 56px;
-}
-
-.demoZh {
+.mockZh {
   font-family: var(--font-display), var(--font-sans), serif;
-  font-size: clamp(1.05rem, 1.8vw, 1.4rem);
-  font-weight: 600;
+  font-size: clamp(1.4rem, 2.4vw, 1.8rem);
+  font-weight: 700;
   color: var(--ds-ink);
   letter-spacing: -0.005em;
   line-height: 1.2;
   margin: 0;
 }
 
-.demoEn {
+.mockTyping {
+  background: color-mix(in srgb, var(--ds-tint) 35%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ds-action) 22%, transparent);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
   font-family: var(--font-mono), monospace;
-  font-size: clamp(0.85rem, 1.2vw, 1rem);
-  color: var(--ds-action-deep);
-  letter-spacing: 0.01em;
-  line-height: 1.2;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
 }
 
-.demoCheck {
+.mockEn {
+  font-size: clamp(1rem, 1.4vw, 1.2rem);
+  color: var(--ds-action-deep);
+  letter-spacing: 0.01em;
+}
+
+.mockFooter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   font-family: var(--font-mono), monospace;
-  font-size: 1.1rem;
+  font-size: 11px;
+  color: var(--ds-ink-faint);
+  margin-top: auto;
+}
+
+.mockStar {
+  font-size: 18px;
+  color: var(--ds-ink-soft);
+}
+
+.mockCount {
+  margin-left: auto;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.mockCheck {
+  font-size: 18px;
   font-weight: 700;
   color: var(--ds-action-deep);
   width: 1.4em;
   text-align: center;
 }
 
-/* Light 主题下 demo 卡需要更明确的边+阴影,与 --ds-bg 拉开层次 */
-[data-theme="light"] .demoCard {
+/* Light 主题下 mock 卡需要更明确的边+阴影,与 --ds-bg 拉开层次 */
+[data-theme="light"] .mock {
   background: color-mix(in srgb, var(--ds-surface) 92%, transparent);
   border-color: color-mix(in srgb, var(--ds-border-strong) 30%, transparent);
   box-shadow:

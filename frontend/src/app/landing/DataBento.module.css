@@ -36,16 +36,6 @@
   letter-spacing: -0.005em;
 }
 
-.cellWrap {
-  position: relative;
-}
-
-.glowWrap {
-  display: block;
-  height: 100%;
-  border-radius: var(--radius-lg);
-}
-
 .grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -60,7 +50,6 @@
   background: var(--ds-surface);
   border: 1px solid color-mix(in srgb, var(--ds-border) 70%, transparent);
   border-radius: var(--radius-lg);
-  height: 100%;
   /* 不让 cell 沾染背景暖色 —— 这是数据展示,要冷静 */
 }
 

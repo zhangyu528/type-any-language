@@ -4,14 +4,14 @@
  * DataBento — 方案 B SECTION 4(2026-08 polish)
  *
  * 4 数据横排(产品口径):词库数 / 句数 / 上手时间 / 价格
- * 大数字走 AnimatedCounter,进视口才从 0 滚到目标。
+ * 大数字走 Counter,进视口才从 0 滚到目标。
  *
  * 数据口径全部派生自 props.libs(后端 catalog)—— 不再硬编码 "12" /
  * "3000+" 之类的营销数字,避免用户被虚假承诺骗。
  *
  * 业界标准 polish:
  *   - 每张 cell 包 GlowCard,hover 时微弱 glow,提升"数据卡片"的存在感
- *   - header 用 ScrollReveal 替 motion 散件
+ *   - header 用 AnimatedContent 替 motion 散件
  *   - "免费" 单独用 Card 包裹区别于数字 cell
  *
  *   - 词库数:libs.length(当前 4)
@@ -22,7 +22,8 @@
  *   - 价格:免费 —— 文字,不进 counter
  */
 
-import { AnimatedCounter, GlowCard, ScrollReveal } from '@/components/effects';
+import AnimatedContent from '@/components/AnimatedContent';
+import Counter from '@/components/Counter';
 import { VocabularyLib } from '../api';
 import styles from './DataBento.module.css';
 
@@ -53,46 +54,38 @@ export default function DataBento({ libs }: DataBentoProps) {
 
   return (
     <section className={styles.root} aria-labelledby="data-bento-title">
-      <ScrollReveal y={20} delay={0} className={styles.header}>
+      <AnimatedContent distance={20} delay={0 / 1000} direction="vertical" className={styles.header}>
         <p className={styles.kicker}>SECTION 4 · 数据</p>
         <h2 id="data-bento-title" className={styles.title}>
           看见上手成本有多低。
         </h2>
-      </ScrollReveal>
+      </AnimatedContent>
 
       <div className={styles.grid}>
         {DATA.map((d, i) => (
-          <ScrollReveal
+          <AnimatedContent
             key={i}
-            y={20}
-            delay={80 + i * 100}
-            className={styles.cellWrap}
+            distance={20}
+            delay={(80 + i * 100) / 1000}
+            direction="vertical"
+            className={styles.cell}
           >
-            <GlowCard
-              glowSize={240}
-              glowColor="143, 203, 240"
-              className={styles.glowWrap}
-            >
-              <div className={styles.cell}>
-                <div className={styles.big}>
-                  {d.value === 'free' ? (
-                    <span>免费</span>
-                  ) : (
-                    <>
-                      <AnimatedCounter
-                        value={d.value}
-                        suffix={d.counterSuffix ?? ''}
-                        startOnView
-                        duration={1200}
-                      />
-                      {d.unit && <span className={styles.unit}>{d.unit}</span>}
-                    </>
-                  )}
-                </div>
-                <p className={styles.sub}>{d.sub}</p>
-              </div>
-            </GlowCard>
-          </ScrollReveal>
+            <div className={styles.big}>
+              {d.value === 'free' ? (
+                <span>免费</span>
+              ) : (
+                <>
+                  <Counter
+                    value={d.value}
+                    fontSize={56}
+                    className={styles.big}
+                  />
+                  {d.unit && <span className={styles.unit}>{d.unit}</span>}
+                </>
+              )}
+            </div>
+            <p className={styles.sub}>{d.sub}</p>
+          </AnimatedContent>
         ))}
       </div>
     </section>

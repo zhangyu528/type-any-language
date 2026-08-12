@@ -19,7 +19,8 @@
  */
 
 import Link from 'next/link';
-import { AnimatedCounter, DecryptedText } from '@/components/effects';
+import DecryptedText from '@/components/DecryptedText';
+import Counter from '@/components/Counter';
 import {
   DashboardUser,
   DailyGoalState,
@@ -139,11 +140,7 @@ export default function GreetingBar({
         </div>
         <p className={styles.monthlyText}>
           <span className={styles.monthlyLabel}>本月</span>
-          <AnimatedCounter
-            value={monthlyGoal.current}
-            duration={900}
-            className={styles.monthlyNum}
-          />
+          <Counter value={monthlyGoal.current} fontSize={28} className={styles.monthlyNum} />
           <span className={styles.monthlySep}>/</span>
           <span className={styles.monthlyTotal}>{monthlyGoal.target}</span>
           <span className={styles.monthlyUnit}>天</span>
