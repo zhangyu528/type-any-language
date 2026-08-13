@@ -173,8 +173,9 @@ jobs:
         if: steps.tunnel.outputs.url
         run: |
           URL="${{ steps.tunnel.outputs.url }}"
-          # === 立刻写 Summary (job 跑到这一步时,jobs summary 就有了) ===
-          # URL 在最顶部直接显示,链接 + 纯文本,无需下载
+          BRANCH="${{ inputs.branch || github.ref_name }}"
+          RUN_NUM="${{ github.run_number }}"
+          # === 立刻写 Summary ===
           {
             echo "## [🌐 $URL]($URL)"
             echo ""
@@ -182,13 +183,58 @@ jobs:
             echo ""
             echo "| | |"
             echo "|---|---|"
-            echo "| Branch | \`${{ inputs.branch || github.ref_name }}\` |"
-            echo "| Run | #${{ github.run_number }} |"
+            echo "| Branch | \`$BRANCH\` |"
+            echo "| Run | #$RUN_NUM |"
             echo "| Lifetime | ~90 min |"
             echo ""
             echo "### 怎么停"
             echo "Actions tab → 选这次 run → Cancel workflow"
           } >> "$GITHUB_STEP_SUMMARY"
+          # === Post commit comment — URL 出现在 commit 页面,PR checks,commit list ===
+          COMMENT_BODY=$(cat <<EOF
+          🔗 **Preview URL**: $URL
+
+          - Branch: \`$BRANCH\`
+          - Run: #$RUN_NUM
+          - Lifetime: ~90 min (workflow keep-alive)
+
+          Visit: $URL
+          EOF
+          )
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/commits/${{ github.sha }}/comments" \
+            -f body="$COMMENT_BODY" \
+            -f path=".github/workflows/preview-stack.yml" \
+            -f position=1 \
+            --silent || echo "::warning::Could not post commit comment (missing permission?)"
+          # === Post commit status — 状态图标出现在 commit 旁边 ===
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -f state="success" \
+            -f target_url="$URL" \
+            -f description="Preview: $URL" \
+            -f context="preview-stack/tunnel" \
+            --silent || echo "::warning::Could not post commit status (missing permission?)"
+          # === Annotation banner(顶部 notification) ===
+          echo "::notice title=🌐 Preview URL — 点击访问::$URL"
+          echo "::notice title=🔗 $URL::$URL"
+          # === step log 大字 banner ===
+          {
+            echo "╔═══════════════════════════════════════════════════════════════╗"
+            echo "║  🌐  PREVIEW URL  —  点击下方链接访问                                  ║"
+            echo "║                                                                    ║"
+            echo "║     $URL"
+            echo "║                                                                    ║"
+            echo "║     Branch:    $BRANCH"
+            echo "║     Run:       #$RUN_NUM"
+            echo "║     Lifetime:  ~90 min                                                ║"
+            echo "║                                                                    ║"
+            echo "╚═══════════════════════════════════════════════════════════════╝"
+          }
           # === Annotation banner(顶部 notification) ===
           echo "::notice title=🌐 Preview URL — 点击访问::$URL"
           echo "::notice title=🔗 $URL::$URL"
