@@ -1,125 +1,48 @@
-/* FinalCTA — 方案 B 黑色 CTA bar
-   --------------------------------------------------------------
-   深色反色块(--ds-ink 底)。背景走 React Bits <Threads>:
-   ogl WebGL fragment shader,40 条 mint 流线受 Perlin noise 驱动。
-   横向 layout:左侧大标题"选个场景试试 →",右侧 SpecularButton。
-   小屏退化为纵向堆叠。 */
+/* FinalCTA — SECTION 4 收尾 CTA(普通 section,不再 full-bleed)
+ *
+ * 之前:整段铺满 viewport width 的 full-bleed 渐变(--ds-bg 不透明),
+ * 把 GradientWaves / Galaxy bg 全部遮住。现在:跟其他 section 一样透明 bg,
+ * WebGL 背景透出,跟 hero 开场"对偶" —— landing 起于 hero 终于 FinalCTA,
+ * 两端都是"bg 透出 + 中央内容"结构,中间 3 个 section 卡片 88% frosted。
+ *
+ * padding 仍保留大数值(72px / 88px)给 full-bleed 段的呼吸感。 */
 
 .root {
   width: 100%;
-  max-width: var(--content-max);
-  margin: 0 auto;
-  padding: clamp(var(--space-10), 9vh, 96px) var(--space-5);
+  margin: 0;
+  /* 上下 padding 大(给收尾段留呼吸),左右跟其他 section 一致 */
+  padding: clamp(72px, 8vh, 112px) var(--space-5) clamp(88px, 10vh, 128px);
   box-sizing: border-box;
-  scroll-snap-align: start;
+  /* bg 透明,GradientWaves / Galaxy 透出 */
   background: transparent;
 }
 
-.bar {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-5);
-  padding: clamp(var(--space-6), 5vh, 48px) clamp(var(--space-6), 4vw, 56px);
-  min-height: 180px;
-  /* Light 走浅蓝 tint 玻璃底(柔和"对比瞬间"),dark 切到深空蓝.
-     这样 FinalCTA 不再是 light 主题里的"刺眼异物". */
-  background: var(--ds-tint-deep);
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
-  /* ME-Q5: border + shadow strengthened so the bar reads as a
-     distinct "elevated card" against the aurora background instead
-     of melting into the same-blue-family page tint. Three-layer
-     shadow: a hairline inner highlight (glass-card signature), a
-     mid-distance drop, and a tight close shadow for "lifted off
-     the page" feel. Border bumped to 1.5px + 35% action-deep
-     so the edge is visible in both themes. */
-  border: 1.5px solid color-mix(in srgb, var(--ds-action-deep) 35%, transparent);
-  border-radius: var(--radius-xl);
-  overflow: hidden;
-  isolation: isolate;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.6),
-    0 12px 32px -8px rgba(12, 68, 124, 0.18),
-    0 2px 6px rgba(12, 68, 124, 0.08);
-}
-
-[data-theme="dark"] .bar {
-  background: color-mix(in srgb, #0A1428 92%, transparent);
-  /* Dark keeps its own border + shadow so the bar reads against
-     the deep-navy aurora without competing with the lighter
-     light-theme treatment above. */
-  border-color: color-mix(in srgb, #5BA8F0 22%, transparent);
-  box-shadow:
-    inset 0 1px 0 rgba(143, 203, 240, 0.18),
-    0 12px 32px -8px rgba(0, 0, 0, 0.5),
-    0 2px 6px rgba(0, 0, 0, 0.3);
-}
-
-[data-theme="dark"] .bar {
-  background: color-mix(in srgb, #0A1428 92%, transparent);
-}
-
-.threadsBg {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  /* ME-Q4: blend mode now switched per-theme — multiply in light
-     (deeper blue lines "印" on the light-tint bar) and screen
-     in dark (light blue lines "光" on the deep-navy bar). opacity
-     stays low in both because the colour choice + blend mode now
-     carry the visibility, not the opacity. */
-  mix-blend-mode: multiply;
-  opacity: 0.32;
-}
-
-[data-theme="dark"] .threadsBg {
-  mix-blend-mode: screen;
-  opacity: 0.6;
-}
-
-.content {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-5);
-  width: 100%;
-}
-
-/* ---------- 左侧文字 ---------- */
-
-.titleBlock {
-  flex: 1 1 auto;
-  min-width: 0;
+/* contentWrap:全宽 section 内的内容容器,max-width 跟其他 section 一致 */
+.contentWrap {
+  max-width: var(--content-max);
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  align-items: center;
+  gap: var(--space-4);
+  text-align: center;
 }
 
+/* title:full-bleed 段内,放大跟 hero 同一档(28→clamp 28-44),
+   收尾视觉重量跟 hero 开场对偶 */
 .title {
   margin: 0;
   font-family: var(--font-display), var(--font-sans), serif;
-  font-size: clamp(22px, 3vw, 34px);
+  font-size: clamp(28px, 4vw, 44px);
   font-weight: 600;
-  line-height: 1.25;
-  letter-spacing: -0.01em;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
   color: var(--ds-ink);
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-3);
   flex-wrap: wrap;
-}
-
-[data-theme="dark"] .title {
-  color: #FFFFFF;
-}
-
-.kickerBadge {
-  align-self: flex-start;
-  margin-bottom: var(--space-3);
 }
 
 .titleMain {
@@ -135,60 +58,34 @@
   transition: transform var(--dur-base) var(--ease-out);
 }
 
-.bar:hover .titleArrow {
-  transform: translateX(4px);
-}
-
-.sub {
-  margin: 0;
-  font-family: var(--font-mono), monospace;
-  font-size: var(--text-caption);
-  letter-spacing: 0.06em;
-  color: var(--ds-ink-soft);
-}
-
-[data-theme="dark"] .sub {
-  color: #CFE3F2;
-}
-
-/* ---------- 右侧按钮 ---------- */
-
-.start {
-  flex: 0 0 auto;
+/* CTA:full-bleed 段内唯一视觉锚点,min-width 给小屏一个稳定尺寸 */
+.startBtn {
   min-width: 200px;
 }
 
-.startBtn {
-  /* SpecularButton lg 在深底上的锚点 */
-  font-size: 1.05rem !important;
+/* 次级动作:mono + 婴儿蓝,弱化但不淹没 */
+.secondaryLink {
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--ds-action-deep);
+  text-decoration: none;
+  border-bottom: 1px dashed color-mix(in srgb, var(--ds-action) 50%, transparent);
+  padding-bottom: 2px;
+  transition: color 0.2s ease, border-color 0.2s ease;
 }
 
-/* ---------- 响应式 ---------- */
-
-@media (max-width: 720px) {
-  .content {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-4);
-  }
-  .start {
-    width: 100%;
-  }
-  .startBtn {
-    width: 100%;
-  }
-  .bar {
-    padding: var(--space-6);
-  }
+.secondaryLink:hover {
+  color: var(--ds-action);
+  border-bottom-color: var(--ds-action);
 }
 
-/* ---------- reduced-motion ---------- */
+[data-theme="dark"] .secondaryLink {
+  color: var(--ds-action-tint);
+  border-bottom-color: color-mix(in srgb, var(--ds-action-tint) 50%, transparent);
+}
 
-@media (prefers-reduced-motion: reduce) {
-  .bar:hover .titleArrow {
-    transform: none;
-  }
-  .titleArrow {
-    transition: none;
-  }
+[data-theme="dark"] .secondaryLink:hover {
+  color: var(--ds-action-deep);
+  border-bottom-color: var(--ds-action-deep);
 }

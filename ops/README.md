@@ -31,7 +31,7 @@
 #
 #   publish/  CI: ship-to-prod scripts (called by release/publish.yml)
 #               deploy-prod.sh            tar+scp + remote SSH (ships ops/cvm
-#                                         + ops/lib.sh + Makefile to the CVM)
+#                                         + ops/lib.sh to the CVM)
 #               promote.sh                rc -> vX.Y.Z tag + GH release
 #               assert-staging-verified.sh  gate before prod
 #
@@ -104,7 +104,7 @@
 #   - subcommand API: cmd_<name> functions, case "${1:-}" in ... esac dispatcher
 #   - exit codes: 0=ok, 1=precondition, 2=docker/push failed
 
-# Release pipeline (no Makefile targets for these - done by .github/workflows/):
+# Release pipeline (no `dev`/Makefile entry for these - done by .github/workflows/):
 #
 #   release/build.yml     produces rc tag + 3 images (db+backend+frontend)
 #   staging.yml           ephemeral staging on GH runner; mode=validate

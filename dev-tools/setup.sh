@@ -3,7 +3,7 @@
 # dev-tools/setup.sh — first-time (or post-reset) bootstrap for dev.
 #
 # Walks the operator through the steps a fresh dev clone needs before
-# `make dev-start` succeeds. The dev loop is host-native
+# `bash dev start` succeeds. The dev loop is host-native
 # (uvicorn + `next dev` on host) — no dev docker images — so setup is
 # just:
 #
@@ -91,14 +91,14 @@ cmd_setup() {
 
     ok "=== setup 完成 ==="
     info "  dev loop (host-native,db 还在 docker):"
-    info "    make dev-start            # python venv + npm run dev"
-    info "    make dev-stop             # 停掉两个进程"
+    info "    bash dev start            # python venv + npm run dev"
+    info "    bash dev stop             # 停掉两个进程"
     info ""
     info "  内容更新:"
-    info "    make dev-import-content   # UPSERT cms/content/,会自动起 db"
+    info "    bash dev import           # UPSERT cms/content/,会自动起 db"
     info ""
     info "  schema 变更:"
-    info "    make dev-migrate          # 跑 pending schema migrations"
+    info "    bash dev migrate          # 跑 pending schema migrations"
 }
 
 # ─── native_setup_python / native_setup_node ─────────────────────────────────
@@ -139,8 +139,8 @@ usage() {
 
 典型工作流(全新机器):
   ./dev-tools/setup.sh              # 装 venv + node_modules + 起 db
-  make dev-start                  # native: uvicorn + next dev on host
-  make dev-import-content         # 把 cms/content/ UPSERT 到 dev db
+  bash dev start                  # native: uvicorn + next dev on host
+  bash dev import                 # 把 cms/content/ UPSERT 到 dev db
 EOF
 }
 

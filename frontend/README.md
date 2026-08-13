@@ -41,8 +41,8 @@ frontend/
 uvicorn)。完整流程:
 
 ```bash
-make dev-setup     # 一次性: frontend node_modules + backend venv + 起 db
-make dev-start     # 同时起 backend (uvicorn) + frontend (next dev) on host
+bash dev setup     # 一次性: frontend node_modules + backend venv + 起 db
+bash dev start     # 同时起 backend (uvicorn) + frontend (next dev) on host
 # 浏览器打开 http://localhost:3000
 ```
 
@@ -50,15 +50,15 @@ make dev-start     # 同时起 backend (uvicorn) + frontend (next dev) on host
 在 dev 模式下首次 render 时把这个值 bake 进 client JS)。改值:
 
 ```bash
-NEXT_PUBLIC_API_URL=https://my.tunnel.example make dev-start
+NEXT_PUBLIC_API_URL=https://my.tunnel.example bash dev start
 ```
 
 ## 热重载(dev — host-native)
 
 Next.js Fast Refresh:改 `src/**` 或 `app/**` 立即在浏览器里更新,状态保留。
-改 `package.json` / `package-lock.json` → `make dev-setup` 感知 hash 变化
-触发 `npm install`,然后 `make dev-restart` 重起 `next dev` 进程让新的
-deps 生效。改 `next.config.js` / `tsconfig.json` → `make dev-restart`。
+改 `package.json` / `package-lock.json` → `bash dev setup` 感知 hash 变化
+触发 `npm install`,然后 `bash dev restart` 重起 `next dev` 进程让新的
+deps 生效。改 `next.config.js` / `tsconfig.json` → `bash dev restart`。
 
 ## 生产 build
 

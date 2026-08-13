@@ -1,7 +1,0 @@
-/* BlurText — port of https://reactbits.dev/text-animations/blur-text
-   The animation lives in inline style + motion keyframes; the CSS module
-   is reserved for parent-driven typography overrides if needed. */
-
-.root {
-  margin: 0;
-}

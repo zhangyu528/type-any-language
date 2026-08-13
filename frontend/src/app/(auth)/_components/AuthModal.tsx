@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import { useAuthModal } from '../../lib/authModal';
 import { useAuth } from '../../lib/auth';
+import { safeRedirectPath } from '../../lib/safeRedirect';
 import ImmersiveAuth from './ImmersiveAuth';
 import { apiLogin, apiSignup, ApiError } from '../../api';
 import styles from './AuthModal.module.css';
@@ -42,6 +44,7 @@ interface AuthModalBodyProps {
 }
 
 function AuthModalBody({ state, close, setMode, isLoading, setIsLoading }: AuthModalBodyProps) {
+  const router = useRouter();
   const { refresh } = useAuth();
   const handleSubmit = useCallback(async (data: { email?: string; password?: string; name?: string }) => {
     setIsLoading(true);
@@ -58,6 +61,11 @@ function AuthModalBody({ state, close, setMode, isLoading, setIsLoading }: AuthM
       // 刷新 auth context 让 useAuth() 拿到新 user，再关 modal。
       // 避免任何依赖 user 状态的子树（header 头像、dashboard 守卫等）出现 flicker。
       await refresh();
+      // close modal 前先 navigate 到 state.from(/me?from=/me 等被守卫挡回的场景)。
+      // safeRedirectPath 兜底非法 ?from= 值(协议相对 URL / 控制字符 / 太长等),
+      // 无 from 时落到 /dashboard(登录后默认落脚)。
+      const target = safeRedirectPath(state.from, "/dashboard");
+      router.replace(target);
       close();
     } catch (error) {
       console.error('Auth failed:', error);
@@ -71,7 +79,7 @@ function AuthModalBody({ state, close, setMode, isLoading, setIsLoading }: AuthM
     } finally {
       setIsLoading(false);
     }
-  }, [state.mode, setIsLoading, refresh, close]);
+  }, [state.mode, setIsLoading, refresh, close, router]);
 
   const handleSwitchMode = useCallback(() => {
     setMode(state.mode === 'login' ? 'signup' : 'login');

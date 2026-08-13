@@ -15,7 +15,7 @@
 # the bind-mount target is writable (so the first start can create
 # the data dir).
 #
-# Host-native dev path (`make dev-start`): requires python3 ≥ 3.11,
+# Host-native dev path (`bash dev start`): requires python3 ≥ 3.11,
 # node ≥ 20, npm, `backend/.venv/bin/uvicorn`, `frontend/node_modules`.
 # Their absence is a WARN (not a hard fail) — the operator may be
 # running only a subset (e.g. just import content without coding).
@@ -80,7 +80,7 @@ cmd_doctor() {
         fi
     fi
 
-    # ─── Host-native dev deps (make dev-start needs these) ─────────────────
+    # ─── Host-native dev deps (bash dev start needs these) ─────────────────
     # Backend deps: delegated to backend's own preflight
     # (backend/scripts/preflight.py). Mirrors the frontend pattern: each
     # segment owns its self-check.

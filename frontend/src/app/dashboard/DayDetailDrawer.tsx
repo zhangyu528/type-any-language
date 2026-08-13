@@ -19,10 +19,10 @@
  * v1 — we just snap to the bottom.
  */
 
+import Counter from '@/components/Counter';
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { DayDetail, getDayDetail } from '../api';
-import { AnimatedCounter } from '@/components/effects';
 import { riseIn, staggerParent } from '../ds/motion';
 import { formatFullCn } from './calendarDate';
 import styles from './DayDetailDrawer.module.css';
@@ -129,11 +129,7 @@ export default function DayDetailDrawer({ date, onClose }: DayDetailDrawerProps)
             <div className={styles.kpis}>
               <motion.div className={styles.kpi} variants={riseIn}>
                 <span className={styles.kpiValue}>
-                  <AnimatedCounter
-                    value={detail.sentences_count}
-                    duration={900}
-                    className={styles.kpiCounter}
-                  />
+                  <Counter value={detail.sentences_count} fontSize={40} className={styles.kpiCounter} />
                 </span>
                 <span className={styles.kpiLabel}>句</span>
               </motion.div>
@@ -141,11 +137,7 @@ export default function DayDetailDrawer({ date, onClose }: DayDetailDrawerProps)
                 <span className={styles.kpiValue}>
                   {accuracyPct != null ? (
                     <>
-                      <AnimatedCounter
-                        value={accuracyPct}
-                        duration={1100}
-                        className={styles.kpiCounter}
-                      />
+                      <Counter value={accuracyPct} fontSize={40} className={styles.kpiCounter} />
                       <span aria-hidden>%</span>
                     </>
                   ) : (

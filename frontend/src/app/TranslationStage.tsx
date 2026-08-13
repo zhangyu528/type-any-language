@@ -14,9 +14,8 @@ import {
 } from './api';
 import { useAuth } from './lib/auth';
 import SunkenShortcutBar from './SunkenShortcutBar';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import SpecularButton from '@/components/SpecularButton';
+import BorderGlow from '@/components/BorderGlow';
 import styles from './practice/TranslationStage.module.css';
 
 interface TranslationStageProps {
@@ -422,7 +421,7 @@ export default function TranslationStage({
   return (
     <div className={styles.translation}>
       <header className={styles.header}>
-        <Card className={styles.wordCardShell}>
+        <BorderGlow className={styles.wordCardShell} glowRadius={32} glowColor="143, 203, 240" glowIntensity={1.0}>
           <div className={styles.wordCard}>
             <h2 className={styles.wordCardWord}>{targetWord.word}</h2>
             {showPhonetic && targetWord.phonetic && (
@@ -432,8 +431,8 @@ export default function TranslationStage({
               <p className={styles.wordCardTranslation}>{targetWord.translation}</p>
             )}
           </div>
-        </Card>
-        <Badge variant="slate" className={styles.captionBadge}>看中文写英文</Badge>
+        </BorderGlow>
+        <span className={styles.captionBadgeInline}>看中文写英文</span>
       </header>
 
       <div className={styles.sentence}>
@@ -548,7 +547,21 @@ export default function TranslationStage({
       />
 
       <div className={styles.actions}>
-        <Button type="button" variant="ghost" onClick={skip}>跳过 ⏭</Button>
+        <SpecularButton
+          size="sm"
+          onClick={skip}
+          tint="var(--ds-action)"
+          tintOpacity={0.18}
+          baseColor="transparent"
+          lineColor="var(--ds-action-deep)"
+          textColor="var(--ds-action-deep)"
+          blur={6}
+          intensity={0.6}
+          followMouse
+          proximity={220}
+        >
+          跳过 ⏭
+        </SpecularButton>
       </div>
     </div>
   );

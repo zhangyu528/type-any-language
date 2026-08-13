@@ -1,22 +1,24 @@
 'use client';
 
 /**
- * ScenariosSection — 方案 B SECTION 2(2026-08 polish)
+ * ScenariosSection — 重设计 SECTION 2
  *
- * 4 个真实场景卡(咖啡馆/旅行/职场/社交),
- * 每张卡 = "完整跟打示意":emoji + 场景名 + 中文提示 + BlurText 英文 + 按钮。
+ * 之前:shadcn MagicBento 硬编码英文 Analytics/Dashboard 演示卡,与
+ *   "4 个真实场景" 的中文标题完全脱节(内容 bug)。
+ * 现在:用真实的 SCENES 数据渲染 4 张卡片,每张用 reactbits 的
+ *   DecryptedText(字符还原,呼应"读出来"签名母题)展示英文句,
+ *   配 SpecularButton「试一下」直接 onPickLib 进入练习。
  *
- * 业界标准 polish:
- *   - header 用 ScrollReveal 替 motion 散件(整页节奏一致)
- *   - 每张卡中文 BlurText 入场(模拟「读」)+ SpecularButton 强 intensity 跟随鼠标
- *   - MagicBento 的卡片自己已经是 role="button",让内嵌按钮独占点击事件
- *
- * SCENES 与 (auth)/ImmersiveAuth 的 SCENES 保持一致,
- * 跨页面(landing ↔ login/signup)的场景品牌统一。
+ * reactbits 角色:
+ *   - DecryptedText → 每卡英文句(animateOn="view" 滚动入视触发还原)
+ *   - SpecularButton → 单金属「试一下」CTA
+ *   - AnimatedContent → 4 卡错峰入场(沿用全站节奏)
  */
 
-import { BlurText, MagicBento, ScrollReveal, SpecularButton } from '@/components/effects';
-import type { MagicBentoCard } from '@/components/effects';
+import { useReducedMotion } from 'motion/react';
+import DecryptedText from '@/components/DecryptedText';
+import SpecularButton from '@/components/SpecularButton';
+import AnimatedContent from '@/components/AnimatedContent';
 import { VocabularyLib } from '../api';
 import styles from './ScenariosSection.module.css';
 
@@ -29,9 +31,9 @@ interface Scene {
 
 const SCENES: Scene[] = [
   { emoji: '☕', name: 'Coffee Shop', zh: '我想点一杯拿铁', en: "I'd like a latte, please." },
-  { emoji: '✈️', name: 'Travel',       zh: '火车站在哪里?',    en: 'Where is the train station?' },
-  { emoji: '💼', name: 'Workplace',    zh: '我们约个会议吧',   en: "Let's schedule a meeting." },
-  { emoji: '🎉', name: 'Social',       zh: '你好,认识你很高兴', en: 'Nice to meet you, Alex.' },
+  { emoji: '✈️', name: 'Travel', zh: '火车站在哪里?', en: 'Where is the train station?' },
+  { emoji: '💼', name: 'Workplace', zh: '我们约个会议吧', en: "Let's schedule a meeting." },
+  { emoji: '🎉', name: 'Social', zh: '你好,认识你很高兴', en: 'Nice to meet you, Alex.' },
 ];
 
 interface ScenariosSectionProps {
@@ -39,65 +41,79 @@ interface ScenariosSectionProps {
   onPickLib: (libId: string) => void;
 }
 
-export default function ScenariosSection({
-  libs,
-  onPickLib,
-}: ScenariosSectionProps) {
-  const firstLibId = libs[0]?.id;
+export default function ScenariosSection({ libs, onPickLib }: ScenariosSectionProps) {
+  const reduce = useReducedMotion();
+  const firstLib = libs[0];
+
+  const handleTry = () => {
+    if (firstLib) onPickLib(firstLib.id);
+  };
 
   return (
-    <section className={styles.root} aria-labelledby="scenarios-title">
-      <ScrollReveal y={20} delay={0} className={styles.header}>
+    <section id="scenarios" className={styles.root} aria-labelledby="scenarios-title">
+      <AnimatedContent distance={20} delay={0 / 1000} direction="vertical" className={styles.header}>
         <p className={styles.kicker}>SECTION 2 · 4 个真实场景</p>
         <h2 id="scenarios-title" className={styles.title}>
           选一个场景,读一句话。
         </h2>
         <p className={styles.subtitle}>4 个开口场景,从这里读。</p>
-      </ScrollReveal>
+      </AnimatedContent>
 
-      <MagicBento
-        className={styles.bento}
-        cards={SCENES.map<MagicBentoCard>((scene, i) => ({
-          icon: <span className={styles.emoji}>{scene.emoji}</span>,
-          // children 模式下 MagicBento 跳过默认 title/description 渲染
-          children: (
+      <div className={styles.grid}>
+        {SCENES.map((scene, i) => (
+          <AnimatedContent
+            key={scene.name}
+            distance={20}
+            delay={(80 + i * 90) / 1000}
+            direction="vertical"
+            className={styles.sceneCard}
+          >
             <div className={styles.cardInner}>
-              <div className={styles.cardSceneName}>{scene.name}</div>
+              <span className={styles.emoji} aria-hidden="true">
+                {scene.emoji}
+              </span>
+              <h3 className={styles.cardSceneName}>{scene.name}</h3>
               <p className={styles.cardZh}>{scene.zh}</p>
-              <BlurText
-                as="p"
-                text={`"${scene.en}"`}
-                className={styles.cardQuote}
-                animateBy="words"
-                delay={120 + i * 80}
-                stepDuration={0.35}
-                direction="bottom"
-              />
+              <div className={styles.enWrap}>
+                {reduce ? (
+                  <span className={styles.cardQuote}>{scene.en}</span>
+                ) : (
+                  <DecryptedText
+                    text={scene.en}
+                    animateOn="view"
+                    sequential
+                    revealDirection="start"
+                    speed={35}
+                    maxIterations={6}
+                    className={styles.cardQuote}
+                  />
+                )}
+              </div>
               <div className={styles.cardSpacer} />
-              <SpecularButton
+              {/* baseColor / lineColor / textColor 必须是字面 hex ——
+                  SpecularButton 把它们喂给 ogl WebGL shader,shader
+                  不解析 var()。#5BA8D8 = --ds-action 与 --ds-action-deep
+                  之间的中间蓝 rim 基色,白 shine + 深字通用。 */}
+                            <SpecularButton
                 size="sm"
-                tint="var(--specular-tint, #CFE3F2)"
-                tintOpacity={0.55}
-                textColor="var(--specular-text, #FFFFFF)"
-                intensity={1.0}
+                onClick={handleTry}
+                disabled={!firstLib}
+                tint="var(--ds-action-tint)"
+                tintOpacity={0.9}
+                baseColor="#5BA8D8"
+                lineColor="#FFFFFF"
+                textColor="#0C2C53"
+                blur={4}
                 followMouse
-                proximity={300}
-                blur={6}
+                proximity={220}
                 className={styles.practiceBtn}
-                disabled={!firstLibId}
-                onClick={() => firstLibId && onPickLib(firstLibId)}
               >
-                读这句 →
+                试一下 →
               </SpecularButton>
             </div>
-          ),
-        }))}
-        enableBorderGlow
-        enableSpotlight
-        clickEffect
-        spotlightRadius={420}
-        glowColor="143, 203, 240"
-      />
+          </AnimatedContent>
+        ))}
+      </div>
     </section>
   );
 }

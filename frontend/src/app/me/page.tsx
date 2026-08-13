@@ -31,13 +31,10 @@ import {
   loadCollection,
   updateDisplayName,
 } from '../api';
-import {
-  AuroraBackground,
-  ShinyText,
-  SpotlightCard,
-  VariableProximity,
-} from '@/components/effects';
-import { BABY_BLUE_CURTAINS } from '@/components/effects/baby-blue-curtains';
+import Aurora from '@/components/Aurora';
+import ShinyText from '@/components/ShinyText';
+import SpotlightCard from '@/components/SpotlightCard';
+import VariableProximity from '@/components/VariableProximity';
 import StatsTab from './StatsTab';
 import CollectionTab from './CollectionTab';
 import SettingsTab from './SettingsTab';
@@ -222,9 +219,8 @@ function MeInner() {
       {/* ME-2: aurora background — same babyblue curtains as
          Dashboard, so the two pages share an immersive backdrop.
          Sits behind all content via z:-1 + pointer-events:none. */}
-      <AuroraBackground
+      <Aurora
         className={styles['me-page__aurora']}
-        curtains={BABY_BLUE_CURTAINS}
       />
       <div className={styles['me-page__content']}>
         <header className={styles['me-page__masthead']} aria-label="page header">

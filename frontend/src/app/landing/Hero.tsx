@@ -1,18 +1,40 @@
 'use client';
 
-import { motion } from 'motion/react';
-import { useEffect, useState } from 'react';
+/**
+ * Hero — 首屏产品介绍。垂直堆叠布局 (2026-08 重设计,T2 调整):
+ *
+ *   [NavHeader (上方)]
+ *   [title + subtitle]              ← 主标题,第一眼门面(T2:title 上移)
+ *   [demo 卡 + trust 条]            ← 演示产品 + 信任承诺(已合并原 stats)
+ *   [开始读第一句 →]                 ← 大 CTA 居中收尾
+ *
+ * Entrance 编排 (T2 · title-first):
+ *
+ *   t=0ms     titleBlock (title + subtitle)    slide-up 16px
+ *             + ShinyText delay=0.5s:title ~0.4s 入场后开始 shimmer
+ *             ← 第一眼门面:用户 0.3 秒看到「读完一句,写出来就是你的」
+ *
+ *   t=160ms   demoBlock (mock 卡 + trust 条)  scale 0.94→1 + slide-up 14px
+ *             ← 演示产品 + 信任承诺(合并原 stats 的免登/1键/错自动),
+ *               看完主标题马上接 demo「实际怎么做」
+ *
+ *   t=320ms   bottom CTA (开始读第一句 →)      slide-up 12px
+ *             ← 收尾「现在可以开始了」转化锚点
+ *
+ *   总入场时长:~1.1s。垂直阅读路径,每步都有明确角色。
+ *
+ *   kicker 已删除(2026-08 T2 决策):旧"外语跟读 · 读 → 写 → 对"徽章
+ *   跟 demo 卡下面的 trust 条信息重复(都讲方法论),删去简化层级,
+ *   让 title 直接成为第一眼。demo 卡自身已经演示了「读 → 写 → 对」
+ *   的具体动作,无需文字重复声明。
+ */
+import { useEffect, useRef, useState } from 'react';
 import { VocabularyLib, TranslationProgress } from '../api';
 import { useAuth } from '../lib/auth';
-import {
-  AnimatedCounter,
-  BlurText,
-  DecryptedText,
-  ScrollReveal,
-  ShinyText,
-  SpecularButton,
-} from '@/components/effects';
-import { Badge } from '@/components/ui/badge';
+import ShinyText from '@/components/ShinyText';
+import SpecularButton from '@/components/SpecularButton';
+import AnimatedContent from '@/components/AnimatedContent';
+import TypefallDemo from './TypefallDemo';
 import styles from './Hero.module.css';
 
 interface HeroProps {
@@ -21,60 +43,21 @@ interface HeroProps {
   onPickLib: (libId: string) => void;
 }
 
-// 文案对齐应用真实功能(2026-08-07 审计) + voice 重写(2026-08-07 下午)
-// voice 锚:「读完一句,写出来就是你的」
-//   - 动作统一用「读/写/记」,弃用「练」(太健身房)
-//   - outcome 集中在 title,subtitle 给统计 + 同义复述
 const HERO_TITLE = '读完一句，写出来就是你的。';
-const HERO_SUBTITLE = '读完一句是一句。语料横跨入门到雅思 4 个词库,807+ 句都是你的。';
+// 副标精简:核心 outcome(读完写出来) + 语料来源(4 词库);
+// 详细数字已经在下方 stats + mock 卡 footnote,避免重复。
+const HERO_SUBTITLE = '4 本词库 · 从入门到雅思,读完一句,写出来。';
 
-// 一个小组件:挂载后等 N 毫秒才渲染子节点,用来给 DecryptedText 制造"按时间序列启动"的错觉。
-function Delayed({ ms, children }: { ms: number; children: React.ReactNode }) {
-  const [show, setShow] = useState(false);
-  useEffect(() => {
-    const t = window.setTimeout(() => setShow(true), ms);
-    return () => window.clearTimeout(t);
-  }, [ms]);
-  return show ? <>{children}</> : null;
-}
-
-// Hero demo — 3 行短语模拟「读完一句,写出来」的过程:
-//   行 1:中文提示(BlurText 模糊渐入 — 代表「听 / 看」)
-//   行 2:英文拼出(DecryptedText 字符随机化后还原 — 代表「写」)
-//   行 3:✓  完成(DecryptedText 快速定型 — 代表「对」)
-// 每一行按时间间隔 ~900ms 入场,形成「读 → 写 → 对」的视觉节奏。
-const DEMO_LINES: Array<{
-  zh: string;
-  en: string;
-  zhStartMs: number;
-  enStartMs: number;
-  checkStartMs: number;
-}> = [
-  { zh: '苹果',        en: 'apple',                       zhStartMs: 200,  enStartMs: 950,  checkStartMs: 1500 },
-  { zh: '今天天气真好', en: "today's weather is nice",   zhStartMs: 1700, enStartMs: 2500, checkStartMs: 3200 },
-  { zh: '我想点一杯拿铁', en: "i'd like a latte",          zhStartMs: 3500, enStartMs: 4300, checkStartMs: 5100 },
+// 信任承诺条 —— 原 hero 的 stats 行(免登/录即用、1 键/即开始、错自动/入错题本)
+// 已合并进这里,统一为一条承诺,避免与 demo 下方信息重复、层级冗余。
+const TRUST_BADGES: ReadonlyArray<{ icon: string; text: string }> = [
+  { icon: '✓', text: '不需注册 · 打开即读' },
+  { icon: '✓', text: '1 键开始 · 30 秒上手' },
+  { icon: '✓', text: '错自动入错题本' },
 ];
 
-/**
- * Hero — 单屏 Bento(Q2 骨架)
- *
- * 业界标准重做(2026-08):从单条 `苹果 → apple` 升级为 3 行短语演示
- * (苹果 / 今天天气真好 / 我想点一杯拿铁) — 每行 stagger ~1.4s,模拟
- * 「读一句 → 写出来 → 记住」的完整过程。视觉编排:
- *
- *   top kicker:    Badge "已上线 · 永久免费"
- *   title block:   ShinyText h1 + 普通副标(进 hero 即入场)
- *   demo card:     BlurText 中文(模拟「读」)+ DecryptedText 英文(模拟「写」)
- *                  + DecryptedText 勾号(模拟「对」)— 时间序列 stagger
- *   stats:         3 个 AnimatedCounter(滚动到目标值)— startOnView
- *   CTA:           SpecularButton "开始读 →" (start once onView)
- *
- * 之前这版用了一个 414 行的 TypefallDemo(原生 <div> + CSS keyframe 打字机)。
- * 现在 3 行短语全部由 BlurText + DecryptedText 承载,统一在 react-bits 套件内。
- */
 export default function Hero({ libs, onPickLib }: HeroProps) {
   const { user } = useAuth();
-
   const firstLib = libs[0];
   const canStart = !!firstLib;
 
@@ -89,126 +72,93 @@ export default function Hero({ libs, onPickLib }: HeroProps) {
       : '开始读第一句'
     : '暂无课程';
 
-  // stats 派生自现有 VocabularyLib 数据(现在用 AnimatedCounter 入场滚动):
-  const libCount = libs.length;
-  const totalSentences = libs.reduce((acc, l) => acc + (l.sentence_count ?? 0), 0);
-  const totalWords = libs.reduce((acc, l) => acc + l.word_count, 0);
-  const firstLibName = firstLib?.name ?? '—';
-
   return (
     <section id="hero" className={styles.bento} aria-label="产品介绍">
-      {/* 顶部 kicker badge — 业界 hero 标配,放产品状态 + 信任标记 */}
-      <ScrollReveal y={12} delay={0} className={styles.kickerRow}>
-        <Badge variant="slate">已上线 · 永久免费</Badge>
-        <span className={styles.kickerDot} aria-hidden="true" />
-        <span className={styles.kickerText}>
-          {libCount} 词库 · {totalSentences.toLocaleString()}+ 句 · {totalWords.toLocaleString()} 词
-        </span>
-      </ScrollReveal>
 
-      <div className={styles.bentoGrid}>
-        {/* 左半:标题区 */}
-        <ScrollReveal y={16} delay={100} className={styles.bentoLeft}>
-          <ShinyText
-            as="h1"
-            text={HERO_TITLE}
-            className={styles.title}
-            speed={4}
+      {/* TITLE 区:主标题 + 副标,垂直居中,无 CTA。
+         T2 决策(2026-08):title 上移到 demo 上方,作为第一眼门面。 */}
+      <AnimatedContent
+        distance={16}
+        delay={0 / 1000}
+        direction="vertical"
+        className={styles.titleBlock}
+      >
+        <h1 className={styles.title}>
+          <ShinyText text={HERO_TITLE} speed={4} delay={0.5} />
+        </h1>
+        <p className={styles.subtitle}>{HERO_SUBTITLE}</p>
+      </AnimatedContent>
+
+      <AnimatedContent
+        distance={14}
+        delay={160 / 1000}
+        scale={0.94}
+        direction="vertical"
+        className={styles.demoBlock}
+      >
+        <div className={styles.mock}>
+          <div className={styles.mockTopbar}>
+            <span className={styles.mockDot} />
+            <span className={styles.mockDot} />
+            <span className={styles.mockDot} />
+            <span className={styles.mockLib}>{firstLib ? firstLib.name : '练习'}</span>
+          </div>
+
+          {/* Hero 跟打练习微观动作演示 — 多句轮播 */}
+          <TypefallDemo
+            libId={firstLib?.id}
           />
-          <p className={styles.subtitle}>{HERO_SUBTITLE}</p>
-          <div className={styles.heroCtaWrap}>
-            <SpecularButton
-              size="lg"
-              onClick={handleStart}
-              disabled={!canStart}
-              /* 实色填充(婴儿蓝)+ 深字 —— light/dark 都高对比 */
-              tint="#8FCBF0"
-              tintOpacity={1}
-              baseColor="#5BA8D8"
-              lineColor="#FFFFFF"
-              textColor="#0C2C53"
-              blur={6}
-              followMouse
-              proximity={300}
-              className={styles.ctaBtn}
-            >
-              {startLabel} →
-            </SpecularButton>
-          </div>
-        </ScrollReveal>
 
-        {/* 右半:demo 卡 + stats */}
-        <ScrollReveal y={20} delay={200} className={styles.bentoRight}>
-          <div className={styles.demoCard} aria-label="跟打示意:读中文,写英文">
-            <div className={styles.demoHeader}>
-              <span className={styles.demoKicker}>DEMO · 跟打三连</span>
-              <span className={styles.demoLive} aria-hidden="true">
-                <span className={styles.demoLiveDot} /> LIVE
+        </div>
+
+        {/* Trust 条:demo 下方的小型承诺,跟 mock 卡视觉共生。
+            跟 stats 的"心理安全"分工 —— 这条说"承诺",stats 说"具体数据"。 */}
+        <ul className={styles.trustBadges} role="list" aria-label="使用承诺">
+          {TRUST_BADGES.map((b) => (
+            <li key={b.text} className={styles.trustBadgeItem}>
+              <span className={styles.trustBadgeIcon} aria-hidden="true">
+                {b.icon}
               </span>
-            </div>
+              <span className={styles.trustBadgeText}>{b.text}</span>
+            </li>
+          ))}
+        </ul>
+      </AnimatedContent>
 
-            <div className={styles.demoLines}>
-              {DEMO_LINES.map((line, i) => (
-                <div key={i} className={styles.demoLine}>
-                  <Delayed ms={line.zhStartMs}>
-                    <BlurText
-                      as="span"
-                      text={line.zh}
-                      className={styles.demoZh}
-                      animateBy="characters"
-                      direction="top"
-                      stepDuration={0.32}
-                      delay={45}
-                    />
-                  </Delayed>
-                  <Delayed ms={line.enStartMs}>
-                    <DecryptedText
-                      text={`→ ${line.en}`}
-                      speed={45}
-                      maxIterations={6}
-                      sequential
-                      revealDirection="start"
-                      className={styles.demoEn}
-                    />
-                  </Delayed>
-                  <Delayed ms={line.checkStartMs}>
-                    <DecryptedText
-                      text="✓"
-                      speed={120}
-                      maxIterations={3}
-                      className={styles.demoCheck}
-                    />
-                  </Delayed>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className={styles.stats} role="list" aria-label="产品数据">
-            <div className={styles.stat} role="listitem">
-              <div className={styles.statNum}>
-                <AnimatedCounter value={libCount} startOnView duration={900} />
-              </div>
-              <div className={styles.statLbl}>词库</div>
-            </div>
-            <div className={styles.stat} role="listitem">
-              <div className={styles.statNum}>
-                <AnimatedCounter
-                  value={totalSentences}
-                  startOnView
-                  duration={1400}
-                />
-                <span className={styles.statPlus}>+</span>
-              </div>
-              <div className={styles.statLbl}>收录句数</div>
-            </div>
-            <div className={styles.stat} role="listitem">
-              <div className={styles.statName}>{firstLibName}</div>
-              <div className={styles.statLbl}>入门词库</div>
-            </div>
-          </div>
-        </ScrollReveal>
-      </div>
+      {/* 底部 CTA:从原来"贴在 title 旁"挪到 hero 最底,作为整个 hero
+          的转化锚点。单独 AnimatedContent 让它最后入场,变成
+          「前 3 块铺陈 → CTA 就绪」的阅读闭环。 */}
+      <AnimatedContent
+        distance={12}
+        delay={320 / 1000}
+        direction="vertical"
+        className={styles.heroBottomCta}
+      >
+        <SpecularButton
+          size="lg"
+          onClick={handleStart}
+          disabled={!canStart}
+          /* tint 走 token(--ds-action-tint babyblue 极淡 wash);
+             baseColor / lineColor / textColor 必须是字面 hex ——
+             SpecularButton 把它们喂给 ogl WebGL shader,shader
+             不解析 var(),必须是字符串 hex。这里 #5BA8D8 是
+             --ds-action (#8FCBF0) 与 --ds-action-deep (#2F80C0)
+             之间的中间蓝,作为 rim 阴影环的基色;纯白 shine +
+             深蓝 text 制造 Specular 高光感。 */
+          tint="var(--ds-action-tint)"
+          tintOpacity={1}
+          baseColor="#5BA8D8"
+          lineColor="#FFFFFF"
+          textColor="#0C2C53"
+          blur={6}
+          followMouse
+          proximity={300}
+          className={styles.bottomCtaBtn}
+          aria-label={startLabel}
+        >
+          {startLabel} →
+        </SpecularButton>
+      </AnimatedContent>
     </section>
   );
 }

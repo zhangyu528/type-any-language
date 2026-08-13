@@ -26,17 +26,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { CurvedInput } from '@/components/effects';
-import { TiltCard } from '@/components/effects/tilt-card';
-import { GlowCard } from '@/components/effects/glow-card';
+import BorderGlow from '@/components/BorderGlow';
+import CurvedInput from '@/components/CurvedInput';
+import AnimatedContent from '@/components/AnimatedContent';
 import { DriftWall } from './DriftWall';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import styles from './ImmersiveAuth.module.css';
 
 /* 4 个真实场景 demo —— 登录/注册左面板展示
@@ -282,9 +275,9 @@ export default function ImmersiveAuth({
       </aside>
 
       {/* ──── 右面板:玻璃登录卡 ──── */}
-      <TiltCard className={`${styles.shell} ${styles.authCard}`} maxTilt={0} scale={1}>
-        <GlowCard className={styles.glow} glowSize={360}>
-          <Card className={styles.card}>
+      <div className={`${styles.shell} ${styles.authCard}`}>
+        <BorderGlow className={styles.glow} glowRadius={40} glowColor="143, 203, 240" glowIntensity={1.0}>
+          <div className={styles.card}>
             {onClose && (
               <button
                 type="button"
@@ -309,20 +302,20 @@ export default function ImmersiveAuth({
               </button>
             )}
 
-            <CardHeader className={styles.header}>
+            <div className={styles.header}>
               {/* ME-Q6: dropped the "01 / 02" progress counter —
                   it was floating in the top-right with no visual
                   anchor and redundant with the eyebrow below. The
                   eyebrow + title + input area are enough to orient
                   the user. */}
               <span className={styles.eyebrow}>Type Any Language</span>
-              <CardTitle className={styles.title}>
+              <h2 className={styles.title}>
                 {mode === 'signup' ? '注册' : '登录'}
-              </CardTitle>
+              </h2>
               <p className={styles.subtitle}>用真实场景练习外语口语</p>
-            </CardHeader>
+            </div>
 
-            <CardContent className={styles.content}>
+            <div className={styles.content}>
               <div className={styles.stage}>
                 <AnimatePresence mode="wait" initial={false} custom={direction}>
                   <motion.div
@@ -441,7 +434,7 @@ export default function ImmersiveAuth({
                   ) : null}
                 </div>
               )}
-            </CardContent>
+            </div>
 
             <div className={styles.footer}>
               <button
@@ -452,9 +445,9 @@ export default function ImmersiveAuth({
                 {mode === 'signup' ? '已有账号？直接登录' : '新用户？立即注册'}
               </button>
             </div>
-          </Card>
-        </GlowCard>
-      </TiltCard>
+          </div>
+        </BorderGlow>
+      </div>
     </div>
   );
 }

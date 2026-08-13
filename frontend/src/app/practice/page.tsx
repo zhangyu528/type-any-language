@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingMark from '../components/LoadingMark';
 import TranslationSession from '../TranslationSession';
 import { useAuth } from '../lib/auth';
-import { AuroraBackground } from '@/components/effects';
+import Aurora from '@/components/Aurora';
 import styles from './Practice.module.css';
 
 /**
@@ -65,7 +65,7 @@ function PracticeRouteInner() {
   return (
     <main className={styles.root}>
       {/* Aurora background - subtle layer behind content */}
-      <AuroraBackground className="fixed inset-0 z-0" />
+      <Aurora className="fixed inset-0 z-0" />
 
       <div className={styles.content}>
         <header className={styles.masthead} aria-label="练习页头部">

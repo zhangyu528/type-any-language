@@ -26,6 +26,13 @@ html {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  scroll-behavior: smooth;
+}
+
+#how-it-works,
+#scenarios,
+#lib-strip {
+  scroll-margin-top: 130px;
 }
 
 body {
@@ -40,12 +47,18 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--ds-bg);
   transition: background-color var(--dur-base) var(--ease-out);
+}
+/* Landing 路由(<html data-route="landing">):body bg 透明,让 SoftAurora /
+   Galaxy 的 transparent canvas 区域显示真正的"底"(browser 默认 white)。
+   其它路由(/dashboard /practice /me)保留 --ds-bg 不透明,视觉一致。 */
+[data-route="landing"] body {
+  background-color: transparent;
   /* Landing page section snap — proximity 只在用户接近 snap point 时吸附,
      短 section 不强制卡死。 */
   scroll-snap-type: y proximity;
   /* 一次性 header-aware offset:任何 scroll-snap target / scrollIntoView /
      :focus 跳转,顶部都会落到 header 下方 52px。 */
-  scroll-padding-top: 52px;
+  scroll-padding-top: 120px;
 }
 
 ::selection {
@@ -67,48 +80,88 @@ a:focus-visible {
    ------------------------------------------------------------
    类名与 AppHeader.tsx 保持契约,此处是唯一样式出处。
    ============================================================ */
+/* ============================================================
+   AppHeader — 60px 全局顶部 chrome
+   磨砂薄荷底 + 单点金属(主 CTA 用 SpecularButton)。
+   控件统一:ghost IconButton(主题) / ghost 文字(登录·登出) /
+   圆点头像 / 金属主按钮(开始读)。无 GlareHover、GradientText、
+   SpotlightCard 包裹。
+   ============================================================ */
 .app-header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 52px;
-  padding: 0 clamp(20px, 4vw, 40px);
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: color-mix(in srgb, var(--ds-bg) 78%, transparent);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
-  border-bottom: 1px solid var(--ds-border);
-  z-index: 50;
-  font-family: var(--font-sans);
+  width: calc(100% - clamp(48px, 8vw, 80px));
+  max-width: 720px;
+  min-height: 64px;
+  padding: 0 24px;
+  margin: clamp(28px, 4vh, 40px) auto clamp(20px, 3vh, 28px);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ds-surface) 78%, transparent);
+  backdrop-filter: blur(36px) saturate(180%);
+  -webkit-backdrop-filter: blur(36px) saturate(180%);
+  border: 1px solid color-mix(in srgb, var(--ds-border) 70%, transparent);
+
+  /* 多层 box-shadow —— 漂浮感的核心。pill 圆角让阴影跟着曲线走,
+     四层由内到外:
+       1. inset top highlight  玻璃顶缘高光(1px 内嵌白线)
+       2. 1px 极近投影         接触"页面"的细线,提示被抬起
+       3. 6px mid 投影          近距浮起,卡"脱离页面"的主要信号
+       4. 18px far ambient      远距氛围光晕,卡片"漂浮"于背景之上
+     不写 transform 是为了不和入场动画冲突 —— 入场用 opacity + blur,
+     hover 用 shadow 加深,保留 GPU 合成友好。 */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 1px 2px rgba(12, 68, 124, 0.05),
+    0 6px 14px -2px rgba(12, 68, 124, 0.10),
+    0 18px 36px -6px rgba(12, 68, 124, 0.18);
+
+  z-index: 2;
+
+  /* 入场:opacity 0 + 8px blur drop-in 到 1 + 0。420ms 后停在终态,
+     不动 transform → hover 阴影接管不会冲突。 */
+  animation: app-header-drop-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+
+  /* hover 阴影过渡(只动 box-shadow,避免和入场动画 transform 冲突)。
+     但入场不写 transform,所以这里 transition 包括 transform 也可以
+     留给将来 scroll-state 等微动效用。 */
+  transition: box-shadow 280ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.app-header:hover {
+  /* hover:阴影外扩 + 加深,从"卡片"变成"浮起磁铁"。 */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 2px 4px rgba(12, 68, 124, 0.06),
+    0 10px 22px -4px rgba(12, 68, 124, 0.14),
+    0 24px 48px -8px rgba(12, 68, 124, 0.24);
+}
+
+@keyframes app-header-drop-in {
+  from { opacity: 0; filter: blur(8px); }
+  to   { opacity: 1; filter: blur(0);   }
+}
 .app-header__brand {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-1) var(--space-2);
-  margin: calc(var(--space-1) * -1) calc(var(--space-2) * -1);
+  padding: 0;
   border-radius: var(--radius-sm);
   color: var(--ds-ink);
   text-decoration: none;
-  cursor: default;
   user-select: none;
 }
 .app-header__brand-mark {
-  font-size: 18px;
-  color: var(--ds-action-deep);
-  line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 22px;
   height: 22px;
+  flex: none;
 }
 .app-header__brand-name {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: var(--weight-medium);
   letter-spacing: -0.015em;
   color: var(--ds-ink);
@@ -118,74 +171,36 @@ a:focus-visible {
   .app-header__brand-name { display: none; }
 }
 
+
 .app-header__nav {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
 }
 
-/* 登录:ghost 文字链接 —— 把注册(primary mint)推为 header 上唯一的
-   主行动。Landing funnel 是新用户为主,老用户进登录走轻量入口。
-   颜色 resting 用 --ds-ink-soft(中性),hover 走 --ds-action-deep +
-   --ds-tint 软底 —— 跟 .app-header__logout 同 pattern。
-   不加 border / transform / shadow:那些是 CTA 形状的 affordance。 */
-.app-header__login {
+/* 登录 / 登出:ghost 文字按钮,统一 hover 淡底。 */
+.app-header__loginBtn,
+.app-header__logoutBtn {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  height: var(--control-sm);
-  padding: 0 var(--space-4);
-  font-family: inherit;
+  padding: 0 14px;
+  height: 32px;
   font-size: 13px;
-  font-weight: var(--weight-medium);
-  letter-spacing: 0.005em;
-  color: var(--ds-ink-soft);
+  font-weight: 500;
+  color: var(--ds-ink);
   background: transparent;
   border: 0;
   border-radius: var(--radius-pill);
-  text-decoration: none;
+  letter-spacing: -0.01em;
   cursor: pointer;
-  transition:
-    background var(--dur-fast) var(--ease-out),
-    color var(--dur-fast) var(--ease-out);
+  transition: background-color var(--dur-fast, 150ms) var(--ease-out);
 }
-.app-header__login:hover {
-  background: var(--ds-tint);
-  color: var(--ds-action-deep);
+.app-header__loginBtn:hover,
+.app-header__logoutBtn:hover {
+  background-color: rgba(143, 203, 240, 0.22);
 }
 
-/* 注册:primary mint pill —— header 唯一主行动。
-   填充用 --ds-action-deep(mint-600),--ds-action(mint-400) 在 light
-   下白字对比度 3.05:1 不过 WCAG AA;deep 色 (mint-600) ≥ 5.5:1。
-   跟 HowItWorks.module.css 的 kbHit 模式一致(同一 deep + 白字)。
-   hover 不换色,只 translateY + shadow —— avatar pattern。 */
-.app-header__signup {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: var(--control-sm);
-  padding: 0 var(--space-5);
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: var(--weight-medium);
-  letter-spacing: 0.005em;
-  color: var(--ds-on-action);
-  background: var(--ds-action-deep);
-  border: 1px solid var(--ds-action-deep);
-  border-radius: var(--radius-pill);
-  text-decoration: none;
-  cursor: pointer;
-  transition:
-    transform var(--dur-fast) var(--ease-spring),
-    box-shadow var(--dur-fast) var(--ease-out);
-}
-.app-header__signup:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--elev-1);
-}
-.app-header__signup:active { transform: translateY(0); }
-
-/* 登录态:头像 + 登出 */
+/* 头像:圆点 Link,薄荷底白字。 */
 .app-header__avatar {
   display: inline-flex;
   align-items: center;
@@ -198,42 +213,64 @@ a:focus-visible {
   font-size: 13px;
   font-weight: var(--weight-medium);
   text-decoration: none;
-  transition: transform var(--dur-fast) var(--ease-spring),
-              box-shadow var(--dur-fast) var(--ease-out);
-}
-.app-header__avatar:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--elev-1);
-}
-.app-header__logout {
-  display: inline-flex;
-  align-items: center;
-  height: 28px;
-  padding: 0 var(--space-3);
-  font-family: inherit;
-  font-size: var(--text-caption);
-  color: var(--ds-ink-soft);
-  background: transparent;
-  border: 0;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: color var(--dur-fast) var(--ease-out),
-              background var(--dur-fast) var(--ease-out);
-}
-.app-header__logout:hover {
-  color: var(--ds-ink);
-  background: var(--ds-tint);
 }
 
-/* Landing 变体:依然浮于 hero 上,但保留半透底 + 细 hairline,
-   避免 header 与 hero bg 撞色(裸透明会让登录按钮看起来像悬浮塑料)。
-   color-mix 72% 比默认的 78% 更轻,hero 透过来仍能隐约读到底色,
-   但能跟下面的 hero bg 拉开一个层级。 */
+/* Landing 变体:磨砂更透一点,让 Aurora 在 nav 下隐约流动。
+   阴影比默认更深(因为背景更透,需要更强的"脱离页面"信号);
+   其余与基础 chrome 一致(单点金属仍在主 CTA)。 */
 .app-header--landing {
-  background: color-mix(in srgb, var(--ds-bg) 72%, transparent);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
-  border-bottom-color: color-mix(in srgb, var(--ds-border) 70%, transparent);
+  background: color-mix(in srgb, var(--ds-surface) 64%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 1px 2px rgba(12, 68, 124, 0.06),
+    0 8px 18px -2px rgba(12, 68, 124, 0.14),
+    0 22px 44px -6px rgba(12, 68, 124, 0.22);
+}
+.app-header--landing:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 2px 4px rgba(12, 68, 124, 0.08),
+    0 12px 26px -4px rgba(12, 68, 124, 0.18),
+    0 28px 56px -8px rgba(12, 68, 124, 0.28);
+}
+
+/* Dark 主题:阴影用深色 ambient(亮底色对深阴影更明显),
+   inset highlight 改用浅蓝薄光("夜景金属"signature)。 */
+[data-theme="dark"] .app-header {
+  box-shadow:
+    inset 0 1px 0 rgba(143, 203, 240, 0.14),
+    0 1px 2px rgba(0, 0, 0, 0.25),
+    0 6px 14px -2px rgba(0, 0, 0, 0.35),
+    0 18px 36px -6px rgba(0, 0, 0, 0.45);
+}
+[data-theme="dark"] .app-header:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(143, 203, 240, 0.18),
+    0 2px 4px rgba(0, 0, 0, 0.30),
+    0 10px 22px -4px rgba(0, 0, 0, 0.42),
+    0 24px 48px -8px rgba(0, 0, 0, 0.55);
+}
+[data-theme="dark"] .app-header--landing {
+  box-shadow:
+    inset 0 1px 0 rgba(143, 203, 240, 0.12),
+    0 1px 2px rgba(0, 0, 0, 0.30),
+    0 8px 18px -2px rgba(0, 0, 0, 0.40),
+    0 22px 44px -6px rgba(0, 0, 0, 0.50);
+}
+[data-theme="dark"] .app-header--landing:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(143, 203, 240, 0.16),
+    0 2px 4px rgba(0, 0, 0, 0.35),
+    0 12px 26px -4px rgba(0, 0, 0, 0.48),
+    0 28px 56px -8px rgba(0, 0, 0, 0.60);
+}
+
+/* reduced-motion:不入场 + 不 hover 过渡,只保留静态阴影 */
+@media (prefers-reduced-motion: reduce) {
+  .app-header {
+    animation: none;
+    transition: none;
+  }
 }
 
 /* ============================================================
@@ -343,22 +380,54 @@ a:focus-visible {
    (The always-dark FinalCTA block reads --ds-tint here, so this
    light override also fixes its dark-theme contrast bug.)
    ============================================================ */
+/* ============================================================
+   Landing-page palette (Baby Blue + Soft Coral + Violet).
+   ------------------------------------------------------------
+   这是 [data-babyblue] 作用域 —— LandingPage 根上挂这个属性,
+   整页 token 走冷蓝主调,跟 dashboard 默认 Slate 母题区分。
+
+   角色分配:
+     --ds-action*   (冷蓝家族)  结构 / 节奏 / 边框 / chip
+     --ds-cta*      (软珊瑚)    主转化锚 (FinalCTA CTA)
+     --ds-convert*  (紫色)      弱转化 / 推荐 (LibStrip featured 卡 +
+                                 DataBento "免费" stat + FinalCTA 备选 CTA)
+     --shiny-*      (ShinyText) 标题 shimmer
+
+   三种颜色各司其职,一页里每种只承担一个角色 —— 避免"所有强调
+   都是珊瑚红"的廉价感。详细色板见 ds/themes.css 的 --ds-convert*。
+   ============================================================ */
 [data-babyblue] {
-  --ds-action: #8FCBF0;
-  --ds-action-deep: #2F80C0;
-  --ds-action-soft: #DCEFFB;
-  --ds-cta: #F4A6B0;
-  --ds-cta-deep: #E98A97;
+  --ds-action: #8FCBF0;             /* 填充专用,禁小字 */
+  --ds-action-deep: #2F80C0;        /* 文字级 / 链接 / hover */
+  --ds-action-ink: #0C447C;         /* 标题级 */
+  --ds-action-soft: #DCEFFB;        /* hover 浅底 / ghost border */
+  --ds-action-tint: #CDEBFB;        /* 极淡 wash(scrim / nebula / 描边),
+                                       原 #8FCBF0 跟 --ds-action 同色,语义错位 */
+  --ds-on-action: #0C447C;          /* 婴儿蓝按钮上的字 */
+
+  --ds-tint: #E6F2FB;               /* chip / 副底 */
+  --ds-tint-deep: #D7E8F6;          /* section 切色块 */
+  --ds-border: #D7E8F6;
   --ds-bg: #F2F8FE;
   --ds-surface: #FFFFFF;
-  --ds-tint: #E6F2FB;
-  --ds-border: #D7E8F6;
-  --ds-on-action: #0C447C;
-  --shiny-base:  #0C447C;              /* 深蓝,静态文字清晰 */
-  --shiny-shine: #5BB3F0;              /* 高饱和亮婴儿蓝,跟 base 形成强对比,
-                                          拉开足够亮度让 shimmer band 显眼.
-                                          避免 #CDEBFB 在 #F2F8FE 上消失(曾导致
-                                          "读完一句" 4 个字完全看不见) */
+
+  --ds-cta: #F4A6B0;                /* 主 CTA 填充(珊瑚) */
+  --ds-cta-deep: #E98A97;           /* hover / pressed */
+  --ds-cta-tint: #FBE4E8;           /* 珊瑚 scrim */
+  --ds-on-cta: #3A1018;
+
+  /* 弱化转化 —— 推荐卡 / "免费" stat / 紫色备选 CTA 的边框与底 */
+  --ds-convert: #8B5CF6;
+  --ds-convert-deep: #6D28D9;
+  --ds-convert-light: #A78BFA;
+  --ds-convert-tint: #EDE9FE;
+  --ds-on-convert: #FFFFFF;
+
+  --shiny-base:  #0C447C;           /* 深蓝,静态文字清晰 */
+  --shiny-shine: #5BB3F0;           /* 高饱和亮婴儿蓝,跟 base 形成强对比,
+                                       拉开足够亮度让 shimmer band 显眼.
+                                       避免 #CDEBFB 在 #F2F8FE 上消失(曾导致
+                                       "读完一句" 4 个字完全看不见) */
 }
 
 /* ------------------------------------------------------------
@@ -398,7 +467,15 @@ a:focus-visible {
 
   --ds-cta:           #F4A6B0;   /* 软珊瑚强调 */
   --ds-cta-deep:      #FAC2C9;
+  --ds-cta-tint:      #5B2C36;      /* 暗主题珊瑚 scrim */
   --ds-on-cta:        #3A1018;
+
+  /* 暗主题紫色反转 —— 跟亮主题对齐"推荐 = 紫"的语义,但用亮紫字配深紫底 */
+  --ds-convert:       #A78BFA;
+  --ds-convert-deep:  #C4B5FD;
+  --ds-convert-light: #8B5CF6;
+  --ds-convert-tint:  #1E1B4B;
+  --ds-on-convert:    #1E1B4B;
 
   --ds-focus:         #8FCBF0;
 
@@ -424,4 +501,28 @@ a:focus-visible {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+
+/* Galaxy landing background — full-viewport fixed behind all content.
+   Galaxy 默认 relative + 100% (跟着父容器高度),父 .root 没
+   显式高度,坍缩为 0 → 看不到。这里 override 为 fixed inset:0
+   覆盖整个 landing viewport,pointer-events: none 不拦截点击,
+   z-index: 0 在 .content(z-index: 1) 之下。 */
+/* Light + Dark 共用 WebGL 背景组件 —— full-viewport fixed。
+   reactbits 组件默认 position relative + 100% 高度,父 .root 没
+   显式高度,坍缩为 0 → 看不到。这里 override 为 fixed inset:0
+   覆盖整个 landing viewport,pointer-events: none 不拦截点击,
+   z-index 0 在 .content(z-index: 1) 之下。
+   Light → .gradient-waves-container (波浪,babyblue + coral 配色)
+   Dark  → .galaxy-container (星空 + 慢速旋转,navy + accent) */
+.gradient-waves-container,
+.soft-aurora-container,
+.galaxy-container {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 0 !important;
+  pointer-events: none !important;
 }

@@ -18,7 +18,7 @@
 
 import ProgressRing from '../ds/components/ProgressRing';
 import { DailyGoalState } from '../api';
-import { SpecularButton } from '@/components/effects';
+import SpecularButton from '@/components/SpecularButton';
 import { useCountUp } from '../me/useCountUp';
 import styles from './DailyGoal.module.css';
 

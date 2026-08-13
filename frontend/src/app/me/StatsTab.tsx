@@ -26,12 +26,9 @@ import {
   getDashboardSnapshot,
   type DashboardSnapshot,
 } from '../api';
-import {
-  AnimatedCounter,
-  MagicBento,
-  type MagicBentoCard,
-  VariableProximity,
-} from '@/components/effects';
+import MagicBento from '@/components/MagicBento';
+import VariableProximity from '@/components/VariableProximity';
+import Counter from '@/components/Counter';
 import { riseIn, staggerParent } from '../ds/motion';
 import styles from '../me/me-page.module.css';
 
@@ -111,93 +108,14 @@ export default function StatsTab({ catalog, catalogError, userId }: StatsTabProp
       ? `基于 ${kpis.sentencesTotal} 句`
       : '完成第一句练习后开始统计';
 
-  const magicCards: MagicBentoCard[] = [
-    {
-      // ME-1: was #1c2538 hardcoded dark navy. Now uses CSS var
-      // resolved via me-mb-hero custom property (set below) so the
-      // hero reads as "tinted glass" in both light + dark themes.
-      color: 'var(--me-mb-hero-bg, var(--ds-action-soft))',
-      label: '总正确率',
-      children: (
-        <div className={styles['me-mb-hero']}>
-          <div className={styles['me-mb-number']}>
-            {accuracyValue != null ? (
-              <>
-                <AnimatedCounter
-                  value={accuracyValue}
-                  startOnView
-                  duration={1200}
-                  className={styles['me-mb-counter']}
-                />
-                <span className={styles['me-mb-unit']} aria-hidden>%</span>
-              </>
-            ) : (
-              <span className={styles['me-mb-empty']}>—</span>
-            )}
-          </div>
-          <p className={styles['me-mb-hint']}>{accuracyHint}</p>
-        </div>
-      ),
-    },
-    {
-      // ME-1: was hardcoded #0f1614. Now uses --ds-surface (white in
-      // light mode, navy in dark mode) so cards automatically theme.
-      color: 'var(--ds-surface)',
-      label: '已练词库',
-      children: (
-        <StatBody
-          value={hydrated ? kpis.libsCount : null}
-          unit="个"
-        />
-      ),
-    },
-    {
-      color: 'var(--ds-surface)',
-      label: '已判句子',
-      children: (
-        <StatBody
-          value={hydrated ? kpis.sentencesTotal : null}
-          unit="句"
-        />
-      ),
-    },
-    {
-      color: 'var(--ds-surface)',
-      label: '今日已练',
-      children: (
-        <StatBody
-          value={todayCount}
-          unit="句"
-          hint={snapshotError ? '需要 dashboard 数据' : todayHint ?? undefined}
-        />
-      ),
-    },
-    {
-      // Achievement state: use --ds-correct tint (mint) instead of
-      // the dark green that was previously hardcoded. Non-achievement
-      // keeps the regular surface.
-      color: streakCurrent >= 7
-        ? 'var(--ds-correct-fill, var(--ds-action-soft))'
-        : 'var(--ds-surface)',
-      label: '连续天数',
-      children: (
-        <StatBody
-          value={streakCurrent}
-          unit="天"
-          hint={streakHint}
-          achievement={streakCurrent >= 7}
-        />
-      ),
-    },
-  ];
 
   return (
     <div className={styles['me-stats']}>
       <section aria-label="总览统计">
         <KickerLabel>总览统计</KickerLabel>
         <div className={styles['me-magic-bento-wrap']}>
+          {/* shadcn MagicBento:硬编码 6 张英文示例卡 */}
           <MagicBento
-            cards={magicCards}
             glowColor="91, 168, 240"
             spotlightRadius={420}
             enableBorderGlow
@@ -261,11 +179,10 @@ function KickerLabel({ children }: { children: string }) {
     <h2 className={styles['me-section-title']}>
       <VariableProximity
         label={children}
-        from={{ wght: 400 }}
-        to={{ wght: 700 }}
+        fromFontVariationSettings={{ wght: 400 }}
+        toFontVariationSettings={{ wght: 700 }}
         radius={80}
         falloff="linear"
-        as="span"
         className={styles['me-section-title__prox']}
       />
     </h2>
@@ -294,12 +211,7 @@ function StatBody({
       <div className={styles['me-mb-stat__number']}>
         {value != null ? (
           <>
-            <AnimatedCounter
-              value={value}
-              startOnView
-              duration={1000}
-              className={styles['me-mb-stat__counter']}
-            />
+            <Counter value={value} fontSize={40} className={styles['me-mb-stat__counter']} />
             <span className={styles['me-mb-stat__unit']} aria-hidden>{unit}</span>
           </>
         ) : (
@@ -324,10 +236,9 @@ function AccuracyBar({ accuracy }: { accuracy: number | null }) {
           transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
         />
       </span>
-      <AnimatedCounter
+      <Counter
         value={target}
-        startOnView={false}
-        duration={900}
+        fontSize={64}
         className={styles['me-accuracy__counter']}
       />
       <span className={styles['me-accuracy__unit']} aria-hidden>%</span>

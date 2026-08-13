@@ -37,7 +37,9 @@ import {
   readPrefAudioRate,
   removeFromCollection,
 } from '../api';
-import { Particles, SpecularButton, VariableProximity } from '@/components/effects';
+import Particles from '@/components/Particles';
+import SpecularButton from '@/components/SpecularButton';
+import VariableProximity from '@/components/VariableProximity';
 import { riseIn, staggerParent } from '../ds/motion';
 import styles from '../me/me-page.module.css';
 
@@ -304,12 +306,9 @@ export default function CollectionTab({
          ContinueCard / DailyGoal. */
       <div className={styles['me-wrong-empty']}>
         <Particles
-          count={14}
-          minSize={0.8}
-          maxSize={2.0}
+          particleCount={14}
           speed={0.18}
-          connectDistance={80}
-          color="55, 138, 221"
+          particleColors={["#378ADD"]}
           className={styles['me-wrong-empty__particles']}
         />
         <p className={styles['me-wrong-empty__title']}>还没有收藏</p>
@@ -349,11 +348,10 @@ export default function CollectionTab({
         <h2 className={styles['me-section-title']}>
           <VariableProximity
             label="收藏夹"
-            from={{ wght: 400 }}
-            to={{ wght: 700 }}
+            fromFontVariationSettings={{ wght: 400 }}
+            toFontVariationSettings={{ wght: 700 }}
             radius={80}
             falloff="linear"
-            as="span"
             className={styles['me-section-title__prox']}
           />
         </h2>

@@ -31,6 +31,13 @@
   --ds-action-ink:    var(--slate-800);    /* 标题级 */
   --ds-on-action:     var(--white);
 
+  /* 注意:GooeyNav 粒子颜色不在这里定义。reactbits GooeyNav.css 没
+     有 --color-1..4 变量,粒子 fallback 到 white (原生的"黑底 hero
+     + 白粒子"配色)。TAL 把 nav 放进浅色磨砂 chrome,粒子保持
+     白色反而在浅底上不可见 — 接受这个原生效果,而不是改色。
+     如果以后想在 landing 顶部单独放 GooeyNav hero 区块(深底),粒
+     子会自动是白色匹配。*/
+
   /* 反馈:正确(保留薄荷通行色) */
   --ds-correct:       var(--mint-600);
   --ds-correct-fill:  var(--mint-400);
@@ -45,6 +52,22 @@
   --ds-cta:           var(--amber-400);
   --ds-cta-deep:      var(--amber-600);
   --ds-on-cta:        var(--white);
+
+  /* 浅蓝修饰(聚光/边框/卡片光晕,非文字)—— 把 landing 硬编码 #8FCBF0 收口为 token */
+  --ds-action-tint:    #8FCBF0;
+
+  /* 弱化转化语义(推荐卡 / "免费" stat / 紫色备选 CTA)。
+     landing 专属 —— 在默认主题也定义以防 dashboard 误引用。
+     紫色 = 推荐 / 弱转化,区别于 --ds-cta(珊瑚)= 主转化,
+     让 landing 有强 / 弱两层转化锚,不抢戏。 */
+  --ds-convert:        #8B5CF6;
+  --ds-convert-deep:   #6D28D9;
+  --ds-convert-light:  #A78BFA;
+  --ds-convert-tint:   #EDE9FE;
+  --ds-on-convert:     #FFFFFF;     /* 推荐/弱转化元素上的字色(浅色紫底用白字) */
+
+  /* CTA 珊瑚 scrim(FinalCTA 内部 / 备用底色) */
+  --ds-cta-tint:       #FBE4E8;
 
   /* focus 环 */
   --ds-focus:         var(--slate-300);
@@ -90,6 +113,16 @@
   --ds-cta:           #EFA535;            /* 琥珀 */
   --ds-cta-deep:      #FAC775;
   --ds-on-cta:        #412402;
+  --ds-cta-tint:      #3A1018;
+
+  --ds-action-tint:    #5BA8F0;
+
+  /* 暗主题紫色反转:light 紫 → 深紫底 + 亮紫边 */
+  --ds-convert:       #A78BFA;
+  --ds-convert-deep:  #C4B5FD;
+  --ds-convert-light: #8B5CF6;
+  --ds-convert-tint:  #1E1B4B;
+  --ds-on-convert:    #1E1B4B;     /* 暗主题紫底用深紫字(亮紫 + 深字保对比) */
 
   --ds-focus:         #5BA8F0;
 
@@ -129,6 +162,13 @@
     --ds-cta:           #EFA535;
     --ds-cta-deep:      #FAC775;
     --ds-on-cta:        #412402;
+    --ds-cta-tint:      #3A1018;
+    --ds-action-tint:    #5BA8F0;
+    --ds-convert:       #A78BFA;
+    --ds-convert-deep:  #C4B5FD;
+    --ds-convert-light: #8B5CF6;
+    --ds-convert-tint:  #1E1B4B;
+    --ds-on-convert:    #1E1B4B;
     --ds-focus:         #5BA8F0;
     --ds-char-untyped:  #5F7896;
     --ds-char-correct:  #5DE89A;

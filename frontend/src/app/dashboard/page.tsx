@@ -29,8 +29,9 @@ import {
   getDashboardSnapshot,
 } from '../api';
 import { useAuth } from '../lib/auth';
-import { AuroraBackground, GlowCard, ScrollReveal } from '@/components/effects';
-import { BABY_BLUE_CURTAINS } from '@/components/effects/baby-blue-curtains';
+import Aurora from '@/components/Aurora';
+import BorderGlow from '@/components/BorderGlow';
+import AnimatedContent from '@/components/AnimatedContent';
 import LoadingMark from '../components/LoadingMark';
 import ModalShell from '../components/ModalShell';
 
@@ -271,7 +272,7 @@ function DashboardInner() {
   return (
     <main className={styles.root}>
       {/* Aurora background - full screen, behind all content */}
-      <AuroraBackground className="fixed inset-0 z-0" curtains={BABY_BLUE_CURTAINS} />
+      <Aurora className="fixed inset-0 z-0" />
 
       {/* Hero section - full width with aurora */}
       <section className={styles.hero}>
@@ -284,27 +285,28 @@ function DashboardInner() {
       </section>
 
       {/* Cards grid - glassmorphism + glow.
-          ScrollReveal wraps each major section so when the user scrolls
+          AnimatedContent wraps each major section so when the user scrolls
           down they fade up in sequence. cardsGrid is on-screen at load
           (1440×980 viewport) — its IntersectionObserver fires
           immediately; weekRhythmSection / progressSection are below the
           fold and wait for scroll. */}
-      <ScrollReveal y={20} className={styles.cardsGrid}>
+      <AnimatedContent distance={20} direction="vertical" className={styles.cardsGrid}>
         <div className={styles.cardGlass}>
           {/* ContinueCard 包一层 GlowCard:鼠标在卡上移动时,光标位置
              跟随一圈淡 slate 辉光,作为"主 CTA"卡的视觉重音。
              DailyGoal 暂不加(它不强调 hover 反馈,hover 是 stack 装饰)。 */}
-          <GlowCard
+          <BorderGlow
             className={styles.continueGlow}
-            glowColor="var(--ds-action)"
-            glowSize={280}
+            glowColor="143, 203, 240"
+            glowRadius={40}
+            glowIntensity={1.0}
           >
             <ContinueCard
               state={snapshot.continue}
               onResume={handleResume}
               onPickLib={openLibPicker}
             />
-          </GlowCard>
+          </BorderGlow>
         </div>
         <div className={styles.cardGlass}>
           <DailyGoal
@@ -312,19 +314,19 @@ function DashboardInner() {
             onStartPractice={handleStartPractice}
           />
         </div>
-      </ScrollReveal>
+      </AnimatedContent>
 
       {/* Week rhythm - the current-week activity strip. Monthly
           goal progress lives in GreetingBar now (one signal, one place). */}
-      <ScrollReveal y={24} delay={120} className={styles.weekRhythmSection}>
+      <AnimatedContent distance={24} delay={120 / 1000} direction="vertical" className={styles.weekRhythmSection}>
         <WeekRhythm days={snapshot.calendar} />
-      </ScrollReveal>
+      </AnimatedContent>
 
       {/* Progress section */}
-      <ScrollReveal y={24} delay={220} className={styles.progressSection}>
+      <AnimatedContent distance={24} delay={220 / 1000} direction="vertical" className={styles.progressSection}>
         <ProgressSnapshot kpis={snapshot.progress} />
         <LearnedLibProgress userId={snapshot.user.id} />
-      </ScrollReveal>
+      </AnimatedContent>
 
       <ModalShell
         open={practice.pickerOpen}

@@ -1,436 +1,333 @@
-/* LibStrip — 方案 C SECTION 3 (修订:Persistent Side Panel)
-   --------------------------------------------------------------
-   2 列布局:左 2x2 lib 卡 grid (CTA + hover 切换右侧面板) +
-           右 永远显示的详情面板(封面/词句数/描述/示例句/CTA)。
-   主题感知:--glow-color 给左侧卡 cursor-follow border glow;
-            ScenariosSection (section 2) 也用同样的 --glow-color,
-            全 landing 语言统一。
-   -------------------------------------------------------------- */
+/* LibStrip — SECTION 3 选词库(2026-08 polish)
+ * 真实词库卡网格(响应式 auto-fill)。视觉语言与 Section 1/2 统一:
+ *   - 玻璃卡 + BorderGlow 光标微光
+ *   - header 居中(跟全站统一)
+ *   - 第一张 featured 视觉锚点(粉色边框 + 推荐小标) */
 
 .root {
   width: 100%;
   max-width: var(--content-max);
   margin: 0 auto;
-  padding: clamp(var(--space-10), 9vh, 96px) var(--space-5);
+  /* 节奏:section 3 顶部 6vh 紧接 Section 1/2,底部 12vh 让"选词库"
+     与下面"数据背书"之间有清晰呼吸(进入收尾段) */
+  padding: clamp(var(--space-7), 6vh, 64px) var(--space-5) clamp(72px, 12vh, 120px);
   box-sizing: border-box;
-  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
 }
 
-.shell {
-  position: relative;
-  padding: clamp(var(--space-6), 5vh, 56px) clamp(var(--space-5), 4vw, 56px);
-  border-radius: var(--radius-xl);
-  background: color-mix(in srgb, var(--ds-action-soft) 65%, var(--ds-bg));
-  border: 1px solid color-mix(in srgb, var(--ds-action) 25%, transparent);
-  box-shadow: var(--ds-elevate-1);
-  overflow: hidden;
-  isolation: isolate;
-}
-
-.shell::before {
-  content: '';
-  position: absolute;
-  top: -40%;
-  right: -20%;
-  width: 60%;
-  height: 200%;
-  background: radial-gradient(
-    ellipse,
-    color-mix(in srgb, var(--ds-cta) 10%, transparent) 0%,
-    transparent 60%
-  );
-  pointer-events: none;
-  z-index: 0;
-}
-
-.shell > * {
-  position: relative;
-  z-index: 1;
-}
-
-/* ---------- 头部 ---------- */
-
+/* 全居中:header kicker / title / subtitle 都居中(跟 hero / HowItWorks 统一) */
 .header {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-4);
-  margin-bottom: var(--space-5);
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 720px;
+  margin: 0 auto;
+  flex-shrink: 0;
+  text-align: center;
 }
 
-.titleBlock {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
+/* Kicker 改 ::before 微章(跟 HowItWorks 一致,删 border-left 装饰线) */
 .kicker {
-  margin: 0 0 var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   font-family: var(--font-mono), monospace;
-  font-size: var(--text-caption);
-  letter-spacing: 0.1em;
-  color: var(--ds-ink-soft);
+  font-size: 11px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
+  color: var(--ds-action-deep);
+  margin: 0;
+}
+
+.kicker::before {
+  content: '·';
+  color: var(--ds-action);
+  font-size: 16px;
+  line-height: 1;
 }
 
 .title {
   margin: 0;
   font-family: var(--font-display), var(--font-sans), serif;
-  font-size: clamp(22px, 2.4vw, 30px);
-  font-weight: 600;
-  letter-spacing: -0.005em;
+  font-size: clamp(22px, 2.6vw, 32px);
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.015em;
   color: var(--ds-ink);
-}
-
-.totalCount {
-  font-family: var(--font-mono), monospace;
-  font-size: var(--text-caption);
-  letter-spacing: 0.04em;
-  color: var(--ds-ink-soft);
-  white-space: nowrap;
-}
-
-/* ---------- 2 列布局:左 list + 右 panel ---------- */
-
-.layout {
-  display: grid;
-  grid-template-columns: 1.6fr 1fr;
-  gap: var(--space-4);
-  min-height: 380px;
-}
-
-@media (max-width: 1023px) {
-  .layout {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* ---------- 左侧:2x2 lib 卡 grid ---------- */
-
-.list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-  align-content: start;
-}
-
-.libCardWrap {
-  --glow-x: 50%;
-  --glow-y: 50%;
-
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  transition:
-    transform var(--dur-fast) var(--ease-out);
-}
-
-.libCardWrap:hover {
-  transform: translateY(-2px);
-}
-
-/* SpecularButton 内部按钮撑满 wrapper */
-.libCardWrap :global(.libCardBtn) {
-  width: 100%;
-  flex: 1;
-}
-
-/* MagicBento 同款 cursor-follow 边框辉光 — mask 技巧:
-   ::after 绝对定位 + padding=6px,content-box mask 让外圈 6px 边留下
-   radial-gradient 跟随 --glow-x/--glow-y 变化 */
-.libCardWrap::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  padding: 6px;
-  background: radial-gradient(
-    320px circle at var(--glow-x) var(--glow-y),
-    rgba(var(--glow-color), 0.85) 0%,
-    rgba(var(--glow-color), 0.45) 30%,
-    transparent 60%
-  );
-  border-radius: inherit;
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  mask-composite: exclude;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: 1;
-}
-
-.libCardHover::after {
-  opacity: 1;
-}
-
-/* Active = 当前查看(右侧面板显示的): 更明显的边色 + 持续 glow */
-.libCardActive {
-  outline: 2px solid color-mix(in srgb, var(--ds-action-deep) 70%, transparent);
-  outline-offset: 2px;
-  box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--ds-action) 18%, transparent),
-    0 4px 16px color-mix(in srgb, var(--ds-action) 14%, transparent);
-}
-
-.libCardActive::after {
-  opacity: 0.6; /* 持续微亮,不依赖 hover */
-}
-
-/* ---------- left card 内容 ---------- */
-
-.libLevel {
-  font-family: var(--font-mono), monospace;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  color: var(--ds-ink-faint);
-  text-transform: uppercase;
-}
-
-.libName {
-  font-family: var(--font-display), var(--font-sans), serif;
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: inherit;
-  letter-spacing: -0.005em;
-  line-height: 1.3;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.libCount {
-  font-family: var(--font-mono), monospace;
-  font-size: var(--text-caption);
-  color: var(--ds-ink-soft);
-  margin-top: auto;
-}
-
-.libCta {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  color: var(--ds-action-deep);
-  opacity: 0.75;
-  transition: opacity var(--dur-fast) var(--ease-out);
-}
-
-.libCardWrap:hover .libCta {
-  opacity: 1;
-}
-
-/* ---------- 右侧:detail panel ---------- */
-
-.panel {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-5);
-  background: var(--ds-surface);
-  border: 1px solid color-mix(in srgb, var(--ds-action) 35%, transparent);
-  border-radius: var(--radius-lg);
-  box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--ds-action) 8%, transparent),
-    0 8px 30px color-mix(in srgb, var(--ds-action) 12%, transparent);
-  overflow: hidden;
-}
-
-.panel::before {
-  content: '';
-  position: absolute;
-  top: -40%;
-  right: -20%;
-  width: 70%;
-  height: 200%;
-  background: radial-gradient(
-    ellipse,
-    color-mix(in srgb, var(--ds-action) 18%, transparent) 0%,
-    transparent 60%
-  );
-  pointer-events: none;
-}
-
-.panel > * {
-  position: relative;
-  z-index: 1;
-}
-
-[data-theme='dark'] .panel {
-  background: color-mix(in srgb, #0A1428 88%, transparent);
-  color: #FFFFFF;
-}
-
-.panelTop {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
-.panelKicker {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  font-family: var(--font-mono), monospace;
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ds-action-deep);
-  background: color-mix(in srgb, var(--ds-action) 18%, transparent);
-  border-radius: 999px;
-}
-
-.panelLevel {
-  font-family: var(--font-mono), monospace;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  color: var(--ds-ink-faint);
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.panelImageSlot {
-  position: relative;
-  width: 100%;
-  height: 96px;
-  border-radius: var(--radius-md);
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--ds-action) 18%, transparent),
-    color-mix(in srgb, var(--ds-cta) 18%, transparent)
-  );
-  border: 1px dashed color-mix(in srgb, var(--ds-action) 45%, transparent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.panelImageHint {
-  font-family: var(--font-mono), monospace;
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  color: var(--ds-ink-soft);
-  opacity: 0.7;
-}
-
-.panelName {
-  margin: 0;
-  font-family: var(--font-display), var(--font-sans), serif;
-  font-size: clamp(20px, 1.8vw, 26px);
-  font-weight: 600;
-  letter-spacing: -0.01em;
   line-height: 1.2;
-  color: inherit;
 }
 
-.panelMeta {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
+.subtitle {
+  margin: 0;
   font-family: var(--font-mono), monospace;
   font-size: 12px;
   color: var(--ds-ink-soft);
+  letter-spacing: 0.04em;
 }
 
-.panelDot {
-  display: inline-block;
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: var(--ds-ink-faint);
+/* ---------- 词库卡网格 ---------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-4);
+  width: 100%;
 }
 
-.panelDesc {
-  margin: 0;
-  font-family: var(--font-sans);
-  font-size: var(--text-caption);
-  line-height: 1.55;
-  color: var(--ds-ink-soft);
+/* libCardWrap:AnimatedContent 的容器,实际渲染 .libCard 时
+   控制 min-height 让 4 张卡同高(跟 HowItWorks 锁定对齐) */
+.libCardWrap {
+  display: flex;
+  /* 删 min-height:280px —— 之前让 wrapper 高于 card 自然高度,
+     产生 80px 空 padding 区域,鼠标 hover 空区也会触发
+     hover 效果,看起来像"动态外溢"。
+     现在 wrapper 跟 card 同高,hover 范围 = 实际卡大小 */
 }
 
-.panelSample {
+/* BorderGlow wrapper:跟 HowItWorks 一致,height: auto + overflow hidden
+   避免 wrapper 高度溢出 / canvas 溢出卡框。
+   关键:必须 display:flex + height:100%,把高度从被 grid 拉伸的
+   .libCardWrap 一路传到 .border-glow-inner,否则 .libCard 的
+   height/flex 因父级高度不定而塌缩为内容高度 —— 各卡高度不一、
+   "开始读"按钮不在同一水平线。 */
+.cardGlowWrap {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
-  background: var(--ds-tint);
-  border-left: 3px solid var(--ds-action-deep);
+  height: 100%;
+  width: 100%;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
 }
 
-[data-theme='dark'] .panelSample {
+/* BorderGlow 自带深色样式全透明化,只保留光标微光。
+   用 (0,2,0) + !important 压过 BorderGlow.css 的
+   .border-glow-card { display: grid; overflow: visible },强制 wrapper
+   用我们的 flex 列布局 + 裁内容,防止 .edge-light / .libCard hover
+   shadow 外溢,同时保证高度链路贯通。 */
+:global(.border-glow-card).cardGlowWrap {
+  display: flex !important;
+  flex-direction: column !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+}
+
+/* BorderGlow 内部 .border-glow-inner 必须填满 glow 容器,否则 .libCard
+   撑不满、各卡高度随内容变化。LibStrip 作用域内覆盖,不影响其它
+   BorderGlow 用法。 */
+.cardGlowWrap :global(.border-glow-inner) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ---------- 单卡(玻璃卡) ---------- */
+
+.libCard {
+  /* 4 张卡同高:min-height 锁 280px,无论内容多寡,卡片
+     高度一致。wrapper height: auto 跟卡同高,避免
+     之前 wrapper > card 的"外溢"问题 */
+  /* 4 张卡同高(收紧到 240px,比 280 紧凑,内容适配高度) */
+  min-height: 240px;
+  width: 100%;
+  /* 撑满 BorderGlow 内层(.border-glow-inner,高度由 grid 行高驱动),
+     保证同一行各卡等高、"开始读"按钮落同一水平线 */
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--ds-surface);
+  border: 1px solid color-mix(in srgb, var(--ds-action) 22%, transparent);
+  color: var(--ds-ink);
+  box-shadow: 0 1px 2px rgba(12, 44, 83, 0.04);
+  /* 与 HowItWorks .card 一致:position: relative + overflow: hidden
+     让卡片自己 clip 自己的 hover shadow,
+     避免 shadow 外溢 */
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+[data-theme="dark"] .libCard {
+  /* 暗主题卡底 = --ds-surface (深空蓝卡) + 微透,字色走 --ds-ink
+     —— 原 #0A1428 / #FFFFFF 散落字面量已收口为 token */
+  background: color-mix(in srgb, var(--ds-surface) 88%, transparent);
+  color: var(--ds-ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.libCard:hover {
+  border-color: color-mix(in srgb, var(--ds-action) 38%, transparent);
+  /* 跟 HowItWorks 一致 22px blur —— overflow: hidden 在卡上裁掉外溢 */
+  box-shadow: 0 6px 22px color-mix(in srgb, var(--ds-action-deep) 18%, transparent);
+}
+
+[data-theme="dark"] .libCard:hover {
+  border-color: color-mix(in srgb, var(--ds-action-tint) 45%, transparent);
+  box-shadow: 0 6px 22px color-mix(in srgb, var(--ds-action-tint) 22%, transparent);
+}
+
+/* 推荐卡 —— 视觉差异化,一眼锚点。紫色边框 + 2px 微抬 */
+.libCardFeatured {
+  border-width: 2px;
+  /* 紫色 = 推荐/转化语义(走 --ds-convert token);薄荷=正确,冷蓝=结构 */
+  border-color: var(--ds-convert);
+  background: color-mix(in srgb, var(--ds-convert) 4%, var(--ds-surface));
+  box-shadow:
+    0 4px 16px rgba(139, 92, 246, 0.18),
+    0 1px 2px rgba(12, 44, 83, 0.06);
+  /* 静态,无 transform —— overflow: hidden 不裁切外溢 */
+}
+
+.libCardFeatured:hover {
+  border-color: var(--ds-convert-deep);
+  box-shadow:
+    0 8px 28px rgba(139, 92, 246, 0.28),
+    0 2px 4px rgba(12, 44, 83, 0.08);
+}
+
+[data-theme="dark"] .libCardFeatured {
+  border-color: var(--ds-convert-light);
+  box-shadow:
+    0 4px 16px rgba(139, 92, 246, 0.22),
+    0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .libCardFeatured:hover {
+  border-color: var(--ds-convert);
+  box-shadow:
+    0 8px 28px rgba(139, 92, 246, 0.32),
+    0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* 推荐小标 —— 卡片右上角 chip,紫色底白字 */
+.featuredBadge {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  /* 推荐徽章字色 = --ds-on-convert(深紫底配白字);
+     暗主题自动映射为深紫字配亮紫底(已在 globals.css 配) */
+  color: var(--ds-on-convert);
+  background: var(--ds-convert);
+  padding: 3px 8px;
+  border-radius: 999px;
+  line-height: 1;
+}
+
+[data-theme="dark"] .featuredBadge {
+  /* 暗主题紫色徽章字色用 --ds-on-convert(亮紫底配深紫字),
+     自动在 globals.css [data-theme="dark"] [data-babyblue] 里映射为 #1E1B4B;
+     背景 = 暗主题反转后的 --ds-convert(亮紫) —— 修复前 --ds-convert
+     未定义,徽章透明看不见 */
+  color: var(--ds-on-convert);
+  background: var(--ds-convert);
+}
+
+/* ---------- 卡内布局 ---------- */
+
+.cardInner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1 1 auto;
+  min-height: 0;
+  /* 让 .featuredBadge 绝对定位以右上角 chip 呈现 */
+  position: relative;
+}
+
+.libLevel {
+  align-self: flex-start;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--ds-action-deep);
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
   background: color-mix(in srgb, var(--ds-action) 14%, transparent);
 }
 
-.panelSampleLabel {
-  font-family: var(--font-mono), monospace;
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+[data-theme="dark"] .libLevel {
+  /* 暗主题等级 chip 文字走 --ds-action-deep —— 原 #BFE0F5 散落字面量已收口 */
   color: var(--ds-action-deep);
+  background: color-mix(in srgb, var(--ds-action-tint) 18%, transparent);
 }
 
-.panelSampleEn {
-  font-family: var(--font-mono), monospace;
-  font-size: 13px;
-  line-height: 1.5;
+.libName {
+  margin: 0;
+  font-family: var(--font-display), var(--font-sans), serif;
+  font-size: 1.25rem;
+  font-weight: 600;
   color: var(--ds-ink);
-  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
 }
 
-.panelSampleZh {
-  font-family: var(--font-sans);
+[data-theme="dark"] .libName {
+  /* 暗主题词库名走 --ds-ink(浅婴儿蓝白) —— 原 #FFFFFF 纯白散落 */
+  color: var(--ds-ink);
+}
+
+.libMeta {
+  margin: 0;
+  font-family: var(--font-mono), monospace;
   font-size: 12px;
-  line-height: 1.5;
+  color: var(--ds-ink-soft);
+  letter-spacing: 0.02em;
+}
+
+[data-theme="dark"] .libMeta {
+  /* 暗主题词数走 --ds-ink-soft —— 原 #9AB6CE 散落字面量已收口 */
   color: var(--ds-ink-soft);
 }
 
-[data-theme='dark'] .panelSampleEn {
-  color: var(--ds-ink);
-}
-
-.panelCtaRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin-top: auto;
-  padding-top: var(--space-2);
-}
-
-.panelCta {
-  flex: 1;
-}
-
-.panelHint {
-  font-family: var(--font-mono), monospace;
-  font-size: 10px;
-  letter-spacing: 0.04em;
+.libLevelLabel {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 11px;
   color: var(--ds-ink-faint);
-  white-space: pre-line;
-  line-height: 1.4;
-  text-align: right;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
 }
 
-/* ---------- reduced-motion ---------- */
+[data-theme="dark"] .libLevelLabel {
+  /* 暗主题描述走 --ds-ink-faint —— 原 #7E9CB6 散落字面量已收口 */
+  color: var(--ds-ink-faint);
+}
+
+
+
+.libBtn {
+  /* 右下角对齐:margin-top: auto 推到底(替代 Spacer),
+     align-self: flex-end 让 button 在 cross-axis(横向)右对齐。
+     4 张卡 button 位置完全一致(底部 y + 右 x) */
+  margin-top: auto;
+  align-self: flex-end;
+  font-size: 12px !important;
+  padding: 6px 14px !important;
+  /* min-width 让 4 张卡的"开始读 →" 按钮视觉对齐(宽度一致),
+     即使有 featured/非 featured 状态区分(颜色/边框),宽度统一 */
+  min-width: 96px;
+  text-align: center;
+}
+
+/* ---------- 响应式 ---------- */
 
 @media (prefers-reduced-motion: reduce) {
-  .libCardWrap,
-  .libCardWrap::after,
-  .libCta {
-    transition: none;
+  .libCard,
+  .libCard:hover {
+    transition: none !important;
   }
-  .libCardWrap:hover {
-    transform: none;
-  }
+
 }

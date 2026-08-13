@@ -1059,3 +1059,35 @@ export async function endPracticeSession(
   }
   return res.json();
 }
+
+
+/**
+ * Fetch N random sentences from a vocab lib (typically the first /
+ * beginner lib). Used by TypefallDemo in the hero to populate the
+ * "中→英" typewriter demo with real curriculum data instead of
+ * hardcoded strings. Cached per-lib on the landing page; no polling.
+ */
+export async function fetchRandomSentences(
+  libId: string,
+  count: number = 3,
+  difficulty: string = 'beginner'
+): Promise<LessonSentence[]> {
+  if (DEMO_MODE) {
+    // 复用 listLessons 里的 DEMO_LESSON_DETAIL.sentences_by_word 第一组,
+    // 截取前 count 条作为 demo 数据,确保 DEMO 模式跟真实模式视觉一致。
+    const all = Object.values(DEMO_LESSON_DETAIL.sentences_by_word).flat();
+    return all.slice(0, count);
+  }
+  const params = new URLSearchParams({
+    lib_id: libId,
+    difficulty,
+    count: String(count),
+  });
+  const response = await fetch(
+    `${API_BASE_URL}/api/sentences/random?${params.toString()}`
+  );
+  if (!response.ok) {
+    throw new Error(`拉取 demo 句失败 (HTTP ${response.status})`);
+  }
+  return response.json();
+}
