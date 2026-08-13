@@ -32,7 +32,7 @@ html {
 #how-it-works,
 #scenarios,
 #lib-strip {
-  scroll-margin-top: 70px;
+  scroll-margin-top: 130px;
 }
 
 body {
@@ -52,7 +52,7 @@ body {
   scroll-snap-type: y proximity;
   /* 一次性 header-aware offset:任何 scroll-snap target / scrollIntoView /
      :focus 跳转,顶部都会落到 header 下方 52px。 */
-  scroll-padding-top: 52px;
+  scroll-padding-top: 120px;
 }
 
 ::selection {
@@ -82,28 +82,60 @@ a:focus-visible {
    SpotlightCard 包裹。
    ============================================================ */
 .app-header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 60px;
-  padding: 0 clamp(20px, 4vw, 40px);
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+  position: relative;
+  display: flex;
   align-items: center;
-  gap: clamp(12px, 2vw, 32px);
-  /* 磨砂半透:表面色 78% + blur,底部发丝边。 */
+  justify-content: space-between;
+  width: calc(100% - clamp(48px, 8vw, 80px));
+  max-width: 720px;
+  min-height: 64px;
+  padding: 0 24px;
+  margin: clamp(28px, 4vh, 40px) auto clamp(20px, 3vh, 28px);
+  border-radius: 999px;
   background: color-mix(in srgb, var(--ds-surface) 78%, transparent);
-  backdrop-filter: blur(14px) saturate(150%);
-  -webkit-backdrop-filter: blur(14px) saturate(150%);
-  border-bottom: 1px solid color-mix(in srgb, var(--ds-border) 80%, transparent);
-  z-index: 50;
-  font-family: var(--font-sans);
-  transition: background-color var(--dur-base) var(--ease-out),
-    backdrop-filter var(--dur-base) var(--ease-out);
+  backdrop-filter: blur(36px) saturate(180%);
+  -webkit-backdrop-filter: blur(36px) saturate(180%);
+  border: 1px solid color-mix(in srgb, var(--ds-border) 70%, transparent);
+
+  /* 多层 box-shadow —— 漂浮感的核心。pill 圆角让阴影跟着曲线走,
+     四层由内到外:
+       1. inset top highlight  玻璃顶缘高光(1px 内嵌白线)
+       2. 1px 极近投影         接触"页面"的细线,提示被抬起
+       3. 6px mid 投影          近距浮起,卡"脱离页面"的主要信号
+       4. 18px far ambient      远距氛围光晕,卡片"漂浮"于背景之上
+     不写 transform 是为了不和入场动画冲突 —— 入场用 opacity + blur,
+     hover 用 shadow 加深,保留 GPU 合成友好。 */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 1px 2px rgba(12, 68, 124, 0.05),
+    0 6px 14px -2px rgba(12, 68, 124, 0.10),
+    0 18px 36px -6px rgba(12, 68, 124, 0.18);
+
+  z-index: 2;
+
+  /* 入场:opacity 0 + 8px blur drop-in 到 1 + 0。420ms 后停在终态,
+     不动 transform → hover 阴影接管不会冲突。 */
+  animation: app-header-drop-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+
+  /* hover 阴影过渡(只动 box-shadow,避免和入场动画 transform 冲突)。
+     但入场不写 transform,所以这里 transition 包括 transform 也可以
+     留给将来 scroll-state 等微动效用。 */
+  transition: box-shadow 280ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Brand:静态点阵 mark + 文字。 */
+.app-header:hover {
+  /* hover:阴影外扩 + 加深,从"卡片"变成"浮起磁铁"。 */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 2px 4px rgba(12, 68, 124, 0.06),
+    0 10px 22px -4px rgba(12, 68, 124, 0.14),
+    0 24px 48px -8px rgba(12, 68, 124, 0.24);
+}
+
+@keyframes app-header-drop-in {
+  from { opacity: 0; filter: blur(8px); }
+  to   { opacity: 1; filter: blur(0);   }
+}
 .app-header__brand {
   display: inline-flex;
   align-items: center;
@@ -123,7 +155,7 @@ a:focus-visible {
   flex: none;
 }
 .app-header__brand-name {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: var(--weight-medium);
   letter-spacing: -0.015em;
   color: var(--ds-ink);
@@ -133,45 +165,6 @@ a:focus-visible {
   .app-header__brand-name { display: none; }
 }
 
-/* Anchors column (landing-only):安静文字链接。hover 变品牌色,
-   当前 section 用 data-active 下划线高亮。不做彩虹循环文字。 */
-.app-header__anchors {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: clamp(4px, 1.4vw, 20px);
-  min-width: 0;
-  height: 100%;
-}
-.app-header__anchor {
-  text-decoration: none;
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  padding: 4px 10px;
-  border-radius: 999px;
-  color: var(--ds-ink-soft);
-  transition: color var(--dur-fast) var(--ease-out);
-}
-.app-header__anchor:hover {
-  color: var(--ds-action-deep);
-}
-.app-header__anchor[data-active] {
-  color: var(--ds-action-deep);
-}
-.app-header__anchor[data-active]::after {
-  content: '';
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 2px;
-  height: 2px;
-  background: var(--ds-action-deep);
-  border-radius: 2px;
-}
-@media (max-width: 900px) {
-  .app-header__anchors { display: none; }
-}
 
 .app-header__nav {
   display: inline-flex;
@@ -216,10 +209,62 @@ a:focus-visible {
   text-decoration: none;
 }
 
-/* Landing 变体:磨砂更透一点,让 Aurora 在 nav 下隐约流动;
+/* Landing 变体:磨砂更透一点,让 Aurora 在 nav 下隐约流动。
+   阴影比默认更深(因为背景更透,需要更强的"脱离页面"信号);
    其余与基础 chrome 一致(单点金属仍在主 CTA)。 */
 .app-header--landing {
   background: color-mix(in srgb, var(--ds-surface) 64%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 1px 2px rgba(12, 68, 124, 0.06),
+    0 8px 18px -2px rgba(12, 68, 124, 0.14),
+    0 22px 44px -6px rgba(12, 68, 124, 0.22);
+}
+.app-header--landing:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 2px 4px rgba(12, 68, 124, 0.08),
+    0 12px 26px -4px rgba(12, 68, 124, 0.18),
+    0 28px 56px -8px rgba(12, 68, 124, 0.28);
+}
+
+/* Dark 主题:阴影用深色 ambient(亮底色对深阴影更明显),
+   inset highlight 改用浅蓝薄光("夜景金属"signature)。 */
+[data-theme="dark"] .app-header {
+  box-shadow:
+    inset 0 1px 0 rgba(143, 203, 240, 0.14),
+    0 1px 2px rgba(0, 0, 0, 0.25),
+    0 6px 14px -2px rgba(0, 0, 0, 0.35),
+    0 18px 36px -6px rgba(0, 0, 0, 0.45);
+}
+[data-theme="dark"] .app-header:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(143, 203, 240, 0.18),
+    0 2px 4px rgba(0, 0, 0, 0.30),
+    0 10px 22px -4px rgba(0, 0, 0, 0.42),
+    0 24px 48px -8px rgba(0, 0, 0, 0.55);
+}
+[data-theme="dark"] .app-header--landing {
+  box-shadow:
+    inset 0 1px 0 rgba(143, 203, 240, 0.12),
+    0 1px 2px rgba(0, 0, 0, 0.30),
+    0 8px 18px -2px rgba(0, 0, 0, 0.40),
+    0 22px 44px -6px rgba(0, 0, 0, 0.50);
+}
+[data-theme="dark"] .app-header--landing:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(143, 203, 240, 0.16),
+    0 2px 4px rgba(0, 0, 0, 0.35),
+    0 12px 26px -4px rgba(0, 0, 0, 0.48),
+    0 28px 56px -8px rgba(0, 0, 0, 0.60);
+}
+
+/* reduced-motion:不入场 + 不 hover 过渡,只保留静态阴影 */
+@media (prefers-reduced-motion: reduce) {
+  .app-header {
+    animation: none;
+    transition: none;
+  }
 }
 
 /* ============================================================
@@ -412,3 +457,17 @@ a:focus-visible {
   }
 }
 
+
+/* Galaxy landing background — full-viewport fixed behind all content.
+   Galaxy 默认 relative + 100% (跟着父容器高度),父 .root 没
+   显式高度,坍缩为 0 → 看不到。这里 override 为 fixed inset:0
+   覆盖整个 landing viewport,pointer-events: none 不拦截点击,
+   z-index: 0 在 .content(z-index: 1) 之下。 */
+.galaxy-container {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 0 !important;
+  pointer-events: none !important;
+}

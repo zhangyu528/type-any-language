@@ -1,29 +1,23 @@
 'use client';
 
 /**
- * DataBento — 方案 B SECTION 4(2026-08 polish)
+ * DataBento — SECTION 3 数据(2026-08 inline 范式)
  *
- * 4 数据横排(产品口径):词库数 / 句数 / 上手时间 / 价格
- * 大数字走 Counter,进视口才从 0 滚到目标。
+ * 4 数据点(产品口径):词库数 / 句数 / 上手时间 / 价格
+ * 数据派生自 props.libs(后端 catalog)—— 不再硬编码营销数字。
  *
- * 数据口径全部派生自 props.libs(后端 catalog)—— 不再硬编码 "12" /
- * "3000+" 之类的营销数字,避免用户被虚假承诺骗。
+ * 2026-08 范式重设计:
+ *   - 之前:4 cell 网格 + BlurText,跟 HowItWorks / LibStrip 同构(卡片矩阵)
+ *   - 现在:inline stats row,1 行 4 个数据点(数字+小字标签) + · 分隔
+ *   - 完全脱离"卡片"形态,跟前 3 个 section 形成视觉反差
+ *   - 副标签放第二行(mono font,缩进对齐主数字),信息密度高
  *
- * 业界标准 polish:
- *   - 每张 cell 包 GlowCard,hover 时微弱 glow,提升"数据卡片"的存在感
- *   - header 用 AnimatedContent 替 motion 散件
- *   - "免费" 单独用 Card 包裹区别于数字 cell
- *
- *   - 词库数:libs.length(当前 4)
- *   - 句数:sum(libs[].sentence_count)(catalog 接口新增字段,
- *     backend get_catalog 走一次 grouped COUNT(*) 算出)
- *   - 上手时间:30(秒)—— 这是登录后第一句开始打字的耗时口径,
- *     跟 FinalCTA "30 秒开始第一句" 一致;不依赖后端
- *   - 价格:免费 —— 文字,不进 counter
+ * 数字走 Counter 进视口 0 → 目标;"免费"用 --ds-cta 朱砂粉保留转化色。
  */
 
 import AnimatedContent from '@/components/AnimatedContent';
 import Counter from '@/components/Counter';
+import { useReducedMotion } from 'motion/react';
 import { VocabularyLib } from '../api';
 import styles from './DataBento.module.css';
 
@@ -35,59 +29,70 @@ interface DataPoint {
   value: number | 'free';
   counterSuffix?: string;
   unit?: string;
-  sub: string;
+  label: string;
 }
 
 export default function DataBento({ libs }: DataBentoProps) {
+  const reduce = useReducedMotion();
   const libCount = libs.length;
   const sentenceCount = libs.reduce(
     (acc, l) => acc + (l.sentence_count ?? 0),
     0,
   );
 
+  // 4 个数据点 —— 主数据(数字 + 单位) + 副标签(产品自描述)
   const DATA: DataPoint[] = [
-    { value: libCount, unit: '词库', sub: '入门到雅思' },
-    { value: sentenceCount, counterSuffix: '+', unit: '句', sub: '真实语料' },
-    { value: 30, unit: '秒', sub: '即可开始' },
-    { value: 'free', sub: '无需注册' },
+    { value: libCount,           unit: '份', label: 'A1-C1 全覆盖' },
+    { value: sentenceCount,      counterSuffix: '+', unit: '句', label: '真句库' },
+    { value: 30,                 unit: '秒', label: '即可开口' },
+    { value: 'free',                                label: '永久免费' },
   ];
 
   return (
-    <section className={styles.root} aria-labelledby="data-bento-title">
+    <section id="data-bento" className={styles.root} aria-labelledby="data-bento-title">
       <AnimatedContent distance={20} delay={0 / 1000} direction="vertical" className={styles.header}>
-        <p className={styles.kicker}>SECTION 4 · 数据</p>
+        <p className={styles.kicker}>SECTION 3 · 数据</p>
         <h2 id="data-bento-title" className={styles.title}>
           看见上手成本有多低。
         </h2>
       </AnimatedContent>
 
-      <div className={styles.grid}>
-        {DATA.map((d, i) => (
-          <AnimatedContent
-            key={i}
-            distance={20}
-            delay={(80 + i * 100) / 1000}
-            direction="vertical"
-            className={styles.cell}
-          >
-            <div className={styles.big}>
-              {d.value === 'free' ? (
-                <span>免费</span>
-              ) : (
-                <>
-                  <Counter
-                    value={d.value}
-                    fontSize={56}
-                    className={styles.big}
-                  />
-                  {d.unit && <span className={styles.unit}>{d.unit}</span>}
-                </>
-              )}
+      {/* inline stats row —— 完全脱离卡片形态,4 个数据点一行扫读 */}
+      <AnimatedContent
+        distance={12}
+        delay={120 / 1000}
+        direction="vertical"
+        className={styles.statsRow}
+        role="list"
+        aria-label="产品数据"
+      >
+        {DATA.map((d, i) => {
+          const isFree = d.value === 'free';
+          return (
+            <div
+              key={i}
+              className={`${styles.statItem} ${isFree ? styles.statFree : ''}`}
+              role="listitem"
+            >
+              <div className={styles.mainValue}>
+                {isFree ? (
+                  <span className={styles.freeText}>免费</span>
+                ) : (
+                  <>
+                    <Counter
+                      value={typeof d.value === 'number' ? d.value : 0}
+                      fontSize={48}
+                      className={styles.value}
+                    />
+                    {d.unit && <span className={styles.unit}>{d.unit}</span>}
+                  </>
+                )}
+              </div>
+              <p className={styles.label}>{d.label}</p>
             </div>
-            <p className={styles.sub}>{d.sub}</p>
-          </AnimatedContent>
-        ))}
-      </div>
+          );
+        })}
+      </AnimatedContent>
     </section>
   );
 }

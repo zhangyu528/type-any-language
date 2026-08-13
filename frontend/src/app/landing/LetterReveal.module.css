@@ -1,0 +1,15 @@
+/* LetterReveal — 逐字 fade-in 字符动画
+ * 跟 TypefallDemo 的 demoWordInner / demoChar 样式对齐,
+ * 让 Section 1 Step 2 的"写"演示跟 hero demo 视觉一致 */
+.root {
+  display: inline-flex;
+  gap: 0.05em;
+  font-variant-numeric: tabular-nums;
+}
+
+.char {
+  display: inline-block;
+  min-width: 0.55em;
+  text-align: center;
+  transition: opacity 80ms linear;
+}

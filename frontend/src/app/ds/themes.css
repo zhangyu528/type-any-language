@@ -53,6 +53,9 @@
   --ds-cta-deep:      var(--amber-600);
   --ds-on-cta:        var(--white);
 
+  /* 浅蓝修饰(聚光/边框/卡片光晕,非文字)—— 把 landing 硬编码 #8FCBF0 收口为 token */
+  --ds-action-tint:    #8FCBF0;
+
   /* focus 环 */
   --ds-focus:         var(--slate-300);
 
@@ -98,6 +101,8 @@
   --ds-cta-deep:      #FAC775;
   --ds-on-cta:        #412402;
 
+  --ds-action-tint:    #5BA8F0;
+
   --ds-focus:         #5BA8F0;
 
   --ds-char-untyped:  #5F7896;
@@ -136,6 +141,7 @@
     --ds-cta:           #EFA535;
     --ds-cta-deep:      #FAC775;
     --ds-on-cta:        #412402;
+    --ds-action-tint:    #5BA8F0;
     --ds-focus:         #5BA8F0;
     --ds-char-untyped:  #5F7896;
     --ds-char-correct:  #5DE89A;

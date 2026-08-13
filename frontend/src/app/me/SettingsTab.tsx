@@ -14,7 +14,7 @@
  *   - audioRate → TranslationStage 的 audioRef.playbackRate（详见
  *     TranslationStage.tsx 中读 prefs.audioRate 的代码）
  *   - defaultDifficulty → landing 拼接 catalog defaults.difficulty 时
- *     优先于 catalog 默认（见 landing/data.ts）
+ *     优先于 catalog 默认（见 api.ts::readPrefString）
  *   - showPhonetic → 控制 TranslationStage 是否渲染 wordCard 音标
  */
 import { useEffect, useState } from 'react';

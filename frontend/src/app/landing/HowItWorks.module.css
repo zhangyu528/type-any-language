@@ -1,33 +1,63 @@
+/* Section 1 — HowItWorks 读 → 抄 → 记 三步时间轴
+ * 2026-08 polish:
+ *   - .header / .kicker / .title 全居中(跟 hero 风格统一)
+ *   - .kicker 装饰线清理(原 border-left 冗余,改 ::before 微章)
+ *   - Step 3 改数字卡(原 3 行收藏词视觉太弱,改成 3 个 mini-stats)
+ *   - .zh 字号 1.75-2.5rem → 1.5-2rem(240px 宽卡里不再 wrap)
+ *   - .en 字号 1-1.2rem → 1.1-1.35rem(更像展示性)
+ *   - .stepNumber 删 opacity:0.85(锚点不透明)
+ *   - .card transition 删 transform(dead,没 transform 状态)
+ *   - BorderGlow 改婴儿蓝(原红是 dead code)
+ *   - 删 .list/.listRow/.listEn/.listZh/.listTag(step3 旧样式 dead) */
+
 .root {
   width: 100%;
   max-width: var(--content-max);
   margin: 0 auto;
-  padding: var(--space-12) var(--space-5);
+  box-sizing: border-box;
+  padding: clamp(var(--space-7), 6vh, 64px) var(--space-5) clamp(var(--space-7), 6vh, 64px);
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
+  gap: var(--space-5);
 }
 
+/* 全居中(跟 hero 一致):header 内 .kicker / .title 都居中显示 */
 .header {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: var(--space-2);
-  text-align: center;
   max-width: 720px;
   margin: 0 auto;
+  flex-shrink: 0;
+  text-align: center;
 }
 
+/* kicker:删冗余 border-left 装饰线,加 ::before 微章 "·" 做节奏点 */
 .kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   font-family: var(--font-mono), monospace;
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ds-action-deep);
+  margin: 0;
 }
 
+.kicker::before {
+  content: '·';
+  color: var(--ds-action);
+  font-size: 16px;
+  line-height: 1;
+  /* 微章"·"作节奏点,替代原 border-left 装饰线 */
+}
+
+/* title 同 hero:h2 大字居中 */
 .title {
   font-family: var(--font-display), serif;
-  font-size: clamp(28px, 3.4vw, 40px);
+  font-size: clamp(22px, 2.6vw, 32px);
   font-weight: var(--weight-medium);
   letter-spacing: -0.015em;
   line-height: 1.2;
@@ -35,178 +65,373 @@
   margin: 0;
 }
 
-.grid {
+/* ---------- 时间轴横排 ---------- */
+
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: grid;
-  grid-template-columns: 1.5fr 1fr;
-  grid-template-rows: auto auto;
-  gap: var(--space-5);
+  grid-template-columns: 1fr 1fr 1fr;
+  /* gap 从 0 → space-7 (64px):3 张卡独立,不再拼接成大卡;
+     gap 中间留出空间给 → 箭头,不再压卡边界 */
+  gap: var(--space-7);
+  align-items: stretch;
 }
 
-.stepLarge {
-  grid-row: 1 / span 2;
-  grid-column: 1;
+.stepTimeline {
+  display: flex;
+  min-width: 0;
+  position: relative;
 }
 
-.stepSmall {
-  grid-column: 2;
+/* 卡间 → 箭头连接线 */
+.stepTimeline:not(.stepLast)::after {
+  content: '→';
+  position: absolute;
+  top: 50%;
+  /* 重新定位:箭头中心 = gap 中央 = card.right + gap/2
+     = 100% + (gap - arrow_width) / 2 = 100% + (64-24)/2 = 100% + 20px
+     箭头不再超出卡边界,在 gap 内居中,跟两侧卡视觉独立 */
+  left: calc(100% + (var(--space-7) - var(--space-5)) / 2);
+  transform: translateY(-50%);
+  width: var(--space-5);
+  height: 1.5px;
+  font-family: var(--font-mono), monospace;
+  font-size: 18px;
+  color: var(--ds-action);
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    color-mix(in srgb, var(--ds-action) 30%, transparent) 30%,
+    var(--ds-action) 100%
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  pointer-events: none;
+  line-height: 1;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
 }
 
-.cardLarge,
-.cardSmall {
+[data-theme="dark"] .stepTimeline:not(.stepLast)::after {
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    color-mix(in srgb, var(--ds-action-tint) 30%, transparent) 30%,
+    var(--ds-action-tint) 100%
+  );
+}
+
+/* ---------- 卡片自身 ---------- */
+
+.card {
   background: var(--ds-surface);
   border: 1px solid color-mix(in srgb, var(--ds-action) 22%, transparent);
   border-radius: var(--radius-xl);
-  padding: var(--space-6);
+  padding: var(--space-5);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
   height: 100%;
+  width: 100%;
+  /* min-height: 3 张卡最小高度 = 内容最高的 step 3(数字卡 ~120px)
+     + stepNumber 44 + stepLabel 14 + cardSub 18 + 3 个 gap(24) + padding(40)
+     ≈ 260px → 取 260 锁对齐 */
+  min-height: 260px;
   position: relative;
   overflow: hidden;
+  /* 独立层叠上下文:让 .cardActive::after 的聚光稳定压在文字下方、卡背景之上 */
+  isolation: isolate;
   box-shadow: 0 1px 2px rgba(12, 44, 83, 0.04);
-  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+  /* 循环高亮 + hover 共用:边框/阴影/位移/底色/透明度一起过渡 */
+  transition:
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.25s ease,
+    opacity 0.3s ease;
 }
 
-.cardLarge:hover,
-.cardSmall:hover {
+/* ---------- 循环高亮(01→02→03 自动轮播)----------
+   当前步:边框加深 + 底色微亮 + 轻微浮起 + 大数字辉光,从 3 卡中"跳"出来;
+   非当前步:降透明度,让视线跟着循环走。hover 会经 JS 把该卡设为 active
+   并暂停循环(见 HowItWorks.tsx)。reduceMotion 时 JS 不挂这两个类。 */
+.cardActive {
+  border-color: color-mix(in srgb, var(--ds-action) 55%, transparent);
+  background: color-mix(in srgb, var(--ds-tint) 20%, var(--ds-surface));
+  transform: translateY(-4px);
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--ds-action) 20%, transparent);
+}
+
+.cardActive .stepNumber {
+  text-shadow: 0 0 18px color-mix(in srgb, var(--ds-action) 40%, transparent);
+}
+
+/* 模拟 BorderGlow 鼠标聚光:active 卡底部升起的辉光(像鼠标停在卡底)。
+   z-index:-1 + .card 的 isolation 让它压在文字下、卡背景上;
+   overflow:hidden 把它裁在卡内,跟真实光标聚光同形。2.2s 呼吸与循环
+   同周期,让光"活"在卡里。 */
+.cardActive::after {
+  content: '';
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  bottom: -10%;
+  height: 72%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at center bottom,
+    color-mix(in srgb, var(--ds-action) 40%, transparent) 0%,
+    color-mix(in srgb, var(--ds-action) 16%, transparent) 42%,
+    transparent 72%
+  );
+  filter: blur(20px);
+  opacity: 1;
+  pointer-events: none;
+  animation: spotlightBreath 2.2s ease-in-out infinite;
+}
+
+@keyframes spotlightBreath {
+  0%, 100% { opacity: 0.5; transform: translateY(5px); }
+  50%      { opacity: 1;   transform: translateY(0); }
+}
+
+.cardDim {
+  opacity: 0.62;
+}
+
+[data-theme="dark"] .cardActive {
+  border-color: color-mix(in srgb, var(--ds-action-tint) 60%, transparent);
+  background: color-mix(in srgb, #0A1428 70%, var(--ds-action-tint) 12%);
+  box-shadow: 0 10px 30px rgba(143, 203, 240, 0.22);
+}
+
+[data-theme="dark"] .cardActive .stepNumber {
+  text-shadow: 0 0 18px rgba(143, 203, 240, 0.5);
+}
+
+[data-theme="dark"] .cardActive::after {
+  background: radial-gradient(
+    ellipse at center bottom,
+    color-mix(in srgb, var(--ds-action-tint) 45%, transparent) 0%,
+    color-mix(in srgb, var(--ds-action-tint) 18%, transparent) 42%,
+    transparent 72%
+  );
+}
+
+.card:hover {
   border-color: color-mix(in srgb, var(--ds-action) 38%, transparent);
   box-shadow: 0 6px 22px rgba(47, 128, 192, 0.12);
 }
 
-[data-theme="dark"] .cardLarge,
-[data-theme="dark"] .cardSmall {
+[data-theme="dark"] .card {
   background: color-mix(in srgb, #0A1428 88%, transparent);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
-[data-theme="dark"] .cardLarge:hover,
-[data-theme="dark"] .cardSmall:hover {
-  border-color: color-mix(in srgb, #8FCBF0 45%, transparent);
+[data-theme="dark"] .card:hover {
+  border-color: color-mix(in srgb, var(--ds-action-tint) 45%, transparent);
   box-shadow: 0 6px 22px rgba(143, 203, 240, 0.18);
 }
 
-/* BorderGlow 自带一套深色硬编码(bg #120F17 / 白 15% 边 / 黑投影),
-   与主题玻璃卡冲突。这里把这些清掉,只保留它的婴儿蓝光标微光,
-   让 cardSmall 的玻璃表面 + 婴儿蓝边框成为唯一可见底。 */
+/* BorderGlow 自带深色样式被 .cardGlowWrap 全透明覆盖,只保留光标微光 */
 :global(.border-glow-card).cardGlowWrap {
   background: transparent !important;
   border-color: transparent !important;
   box-shadow: none !important;
 }
 
-/* SpotlightCard.css 硬编码 bg #111 / border #222(仅深主题)。
-   同样清成透明,只留婴儿蓝光标 spotlight 打在 cardSmall 上。 */
-:global(.card-spotlight).cardSpotlightWrap {
-  background: transparent !important;
-  border-color: transparent !important;
-}
-
-.cardGlowWrap,
-.cardSpotlightWrap {
+.cardGlowWrap {
   display: block;
-  height: 100%;
+  /* height: auto(原 100% 在 AnimatedContent auto 父级下未明确定义),
+     改成 auto 后 wrapper 严格跟 .card 内容同高,不会出现
+     wrapper 比 card 高导致 hover glow 溢出 */
+  height: auto;
+  width: 100%;
   border-radius: var(--radius-xl);
+  /* overflow hidden:BorderGlow canvas 默认溢出 wrapper 边界,在卡下方
+     可见 glow(用户反馈 hover 范围跟卡框不一致,下面多出一块),
+     裁回 wrapper 范围让 hover effect 跟 .card 可见框完全对齐 */
+  overflow: hidden;
 }
 
+/* ---------- 大数字锚点(01/02/03)----------
+   Fraunces italic 不透明(删 opacity:0.85,锚点要"实") */
+.stepNumber {
+  font-family: var(--font-display), serif;
+  font-size: clamp(32px, 3.6vw, 44px);
+  font-style: italic;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ds-action);
+  letter-spacing: -0.02em;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+[data-theme="dark"] .stepNumber {
+  color: var(--ds-action-tint);
+}
+
+/* step 标签(读/抄/记) */
 .stepLabel {
   font-family: var(--font-mono), monospace;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--ds-action-deep);
   font-weight: 600;
-}
-
-.zh {
-  font-family: var(--font-display), var(--font-sans), serif;
-  font-size: clamp(2rem, 4vw, 3.4rem);
-  font-weight: 700;
-  color: var(--ds-ink);
-  letter-spacing: -0.02em;
-  line-height: 1.15;
   margin: 0;
 }
 
-.enBox {
+/* 中文提示(Step 1):字号 1.75-2.5rem → 1.5-2rem(240px 宽卡不 wrap) */
+.zh {
+  font-family: var(--font-display), var(--font-sans), serif;
+  font-size: clamp(1.5rem, 2.4vw, 2rem);
+  font-weight: 700;
+  color: var(--ds-ink);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin: 0;
+}
+
+/* demoBox:Step 1 zh + Step 2 en 通用 tinted 容器,3 卡视觉容器框统一 */
+.demoBox {
+  /* min-height:3 张卡内容容器同高,Step 1/2 单行文字 (~30px) +
+     Step 3 数字+标签 (~46px) 都装得下,68 给点呼吸 */
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: color-mix(in srgb, var(--ds-tint) 35%, transparent);
   border: 1px solid color-mix(in srgb, var(--ds-action) 22%, transparent);
   border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-4);
 }
 
+/* 英文跟打(Step 2):字号 1-1.2rem → 1.1-1.35rem,更像展示性 */
 .en {
   font-family: var(--font-mono), monospace;
-  font-size: clamp(1rem, 1.5vw, 1.2rem);
+  font-size: clamp(1.1rem, 1.8vw, 1.35rem);
   color: var(--ds-action-deep);
   letter-spacing: 0.01em;
 }
 
+/* cardSub:3 步体验描述 */
 .cardSub {
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 12px;
   color: var(--ds-ink-soft);
   line-height: 1.55;
   margin: 0;
   margin-top: auto;
 }
 
-.list {
+/* ---------- Step 3 数字卡(2026-08 polish v2) ----------
+   替代原 3 个独立 cell(grid + background)设计 —— 现在 3 个 stats 在单个 demoBox 内
+   inline 横排(像 Linear 的 step indicator),跟 Step 1/2 的 demoBox 同形,
+   3 张卡的视觉容器框完全一致(都是 demoBox)。 */
+
+.step3Stats {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+  height: 100%;
+}
+
+.step3Stat {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+  padding: 0 var(--space-2);
 }
 
-.listRow {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: var(--space-3);
-  align-items: baseline;
-  padding: 8px 12px;
-  background: color-mix(in srgb, var(--ds-tint) 25%, transparent);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-mono), monospace;
-  font-size: 13px;
+/* stat 之间的细分隔线 —— 让 3 个数字读起来不挤在一起 */
+.step3Stat + .step3Stat {
+  border-left: 1px solid color-mix(in srgb, var(--ds-action) 18%, transparent);
+  padding-left: calc(var(--space-3) + var(--space-2));
+  padding-right: calc(var(--space-3) + var(--space-2));
 }
 
-.listTag {
-  color: var(--ds-ink-faint);
-  font-size: 14px;
-}
-
-.listEn {
+.stepStatValue {
+  font-family: var(--font-display), serif;
+  font-size: clamp(20px, 2.2vw, 26px);
+  font-weight: 700;
+  line-height: 1;
   color: var(--ds-action-deep);
-  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
 }
 
-.listZh {
+.stepStatLabel {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--ds-ink-soft);
-  font-family: var(--font-sans);
-  font-size: 12px;
 }
+
+[data-theme="dark"] .stepStatValue {
+  color: #BFE0F5;
+}
+/* ---------- 响应式 ---------- */
 
 @media (max-width: 880px) {
-  .grid {
+  /* 移动端:3 卡退单列,卡间连接线用 ↓ 垂直箭头 */
+  .timeline {
     grid-template-columns: 1fr;
-    grid-template-rows: auto;
+    gap: var(--space-3);
   }
-  .stepLarge {
-    grid-row: auto;
-    grid-column: 1;
+  .stepTimeline:not(.stepLast)::after {
+    content: '↓';
+    top: auto;
+    /* 垂直布局:箭头中心 = gap 中央 = card.bottom + gap/2 */
+    left: 50%;
+    bottom: calc(-1 * var(--space-3) / 2);
+    transform: translate(-50%, 50%);
+    width: auto;
+    height: var(--space-3);
+    font-size: 18px;
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      color-mix(in srgb, var(--ds-action) 30%, transparent) 30%,
+      var(--ds-action) 100%
+    );
   }
-  .stepSmall {
-    grid-column: 1;
+  [data-theme="dark"] .stepTimeline:not(.stepLast)::after {
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      color-mix(in srgb, var(--ds-action-tint) 30%, transparent) 30%,
+      var(--ds-action-tint) 100%
+    );
   }
 }
 
 /* ---------- reduced-motion ---------- */
 
 @media (prefers-reduced-motion: reduce) {
-  .cardLarge,
-  .cardSmall {
+  .card,
+  .cardActive,
+  .cardDim {
     transition: none !important;
   }
-  /* 作用域挂到本地 .root 下,让 :global 选择器仍含本地类(css-modules
-     "pure selector" 要求),否则构建报 Selector is not pure。 */
+  .cardActive::after {
+    animation: none !important;
+  }
   .root :global(.border-glow-card),
   .root :global(.card-spotlight) {
     transition: none !important;

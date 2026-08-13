@@ -1,0 +1,92 @@
+/* TypefallDemo — Hero mock 卡内的「读 → 写 → 对」跟打演示
+   * demoZh 中文题面(读什么)
+   * demoEnRow 英文逐字跟打(写什么),逐字 fade + 落字 pop
+   * demoProgress 词级进度条 */
+
+.demoRoot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 120px;
+  text-align: center;
+}
+
+.demoProgress {
+  align-self: stretch;
+  position: relative;
+  height: 3px;
+  background: color-mix(in srgb, var(--ds-border) 50%, transparent);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.demoProgressFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--ds-action);
+  border-radius: 999px;
+  transition: width 200ms linear;
+}
+
+.demoZh {
+  margin: 0;
+  font-family: var(--font-sans);
+  /* 中文提示 17px:跟 demoEnRow 视觉重量平衡(Section 499 层级) */
+  font-size: 17px;
+  color: var(--ds-ink-soft);
+  letter-spacing: 0.01em;
+  text-align: center;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.demoEnRow {
+  font-family: var(--font-mono), monospace;
+  /* 英文跟打 16-22px 区间上限(Section 499:demoWord 16-22,层级差 8-10px) */
+  font-size: clamp(16px, 1.8vw, 22px);
+  color: var(--ds-action-deep);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.55;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: center;
+  min-height: 36px;
+  width: 100%;
+}
+
+.demoChar {
+  display: inline-block;
+  white-space: pre;
+  transition: opacity 200ms ease;
+}
+
+.demoCharArriving {
+  animation: charFall 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes charFall {
+  0% {
+    transform: translateY(-0.5em);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demoChar {
+    transition: none;
+    opacity: 1 !important;
+  }
+  .demoCharArriving {
+    animation: none;
+  }
+}

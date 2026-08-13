@@ -79,3 +79,55 @@
   position: relative;
   z-index: 2;
 }
+
+/* ---------- Landing-page CTA hover ----------
+   Scoped to the landing root so modals / practice controls keep their
+   own behaviour. Adds an inviting "nudge to act" feel on hover:
+   the button lifts, scales up slightly, and gains a soft purple glow
+   (the landing conversion accent). Spring easing makes it feel alive
+   rather than mechanical. Falls back to a sane curve if the design
+   tokens aren't in scope. */
+[data-landing-root] .specular-button {
+  transition:
+    transform 0.3s var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1)),
+    box-shadow 0.3s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+  will-change: transform;
+}
+
+[data-landing-root] .specular-button:not(:disabled):hover {
+  transform: translateY(-4px) scale(1.04);
+  box-shadow:
+    0 16px 40px rgba(139, 92, 246, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+[data-landing-root] .specular-button:not(:disabled):active {
+  transform: translateY(-1px) scale(0.98);
+  transition-duration: 0.12s;
+}
+
+/* ---------- AppHeader "注册" CTA hover ----------
+   The header's 注册 button is the top-of-funnel conversion CTA — the same
+   role as the landing CTAs — so it gets the same inviting "nudge to act"
+   hover (lift + scale + soft purple glow, the project's conversion accent).
+   Scoped to .app-header so in-page practice / modal SpecularButtons keep
+   their own behaviour. The button's own tint stays --ds-action; only the
+   hover glow borrows purple to echo the landing conversion semantic. */
+.app-header .specular-button {
+  transition:
+    transform 0.3s var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1)),
+    box-shadow 0.3s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+  will-change: transform;
+}
+
+.app-header .specular-button:not(:disabled):hover {
+  transform: translateY(-4px) scale(1.04);
+  box-shadow:
+    0 16px 40px rgba(139, 92, 246, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.app-header .specular-button:not(:disabled):active {
+  transform: translateY(-1px) scale(0.98);
+  transition-duration: 0.12s;
+}

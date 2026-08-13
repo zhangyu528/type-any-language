@@ -1,64 +1,103 @@
-/* DataBento — 方案 B SECTION 4
-   4 数据横排(产品口径)
-   --------------------------------------------------------------
-   - 4 列等宽 grid;md 退 2x2;sm 单列
-   - 每格:Fraunces display 大数字(蓝)+ 副标题(slate-500)
-   - 数字走 AnimatedCounter,进视口才从 0 滚到目标 */
+/* DataBento — SECTION 3 数据(2026-08 inline 范式)
+ * 4 个数据点 inline 横向排列 —— 完全脱离卡片形态,
+ * 跟 hero / HowItWorks / LibStrip 的卡片矩阵视觉反差最大。
+ *
+ * 视觉:1 行 4 个 stat item,每个 item 垂直堆叠
+ *   - mainValue:大数字(36-56px) + 小单位
+ *   - label:mono 小字产品自描述(A1-C1 / 真句库 / 即可开口 / 永久免费)
+ *   - item 之间用 gap 控制间距
+ *   - "免费"用 --ds-cta 朱砂粉保留转化色
+ *
+ * 响应式:
+ *   - 默认 4 items 横向
+ *   - 窄屏 900px 退 2x2
+ *   - 480px 退单列 */
 
 .root {
   width: 100%;
   max-width: var(--content-max);
   margin: 0 auto;
-  padding: clamp(var(--space-10), 9vh, 96px) var(--space-5);
+  /* 顶部 padding 大(给 header 留呼吸),底部 padding 小 —— 紧贴
+     FinalCTA 形成"数据 → 行动"连贯节奏 */
+  padding: clamp(var(--space-10), 9vh, 96px) var(--space-5) clamp(var(--space-4), 4vh, var(--space-6));
   box-sizing: border-box;
-  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
 }
 
+/* 全居中(跟全站统一) */
 .header {
-  margin-bottom: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 720px;
+  margin: 0 auto;
+  flex-shrink: 0;
+  text-align: center;
 }
 
+/* Kicker:跟全站统一(其他 section 一样 · 居中) */
 .kicker {
-  margin: 0 0 var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   font-family: var(--font-mono), monospace;
-  font-size: var(--text-caption);
-  letter-spacing: 0.1em;
-  color: var(--ds-ink-soft);
+  font-size: 11px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
+  color: var(--ds-action-deep);
+  margin: 0;
+}
+
+.kicker::before {
+  content: '·';
+  color: var(--ds-action);
+  font-size: 16px;
+  line-height: 1;
 }
 
 .title {
   margin: 0;
   font-family: var(--font-display), var(--font-sans), serif;
-  font-size: clamp(20px, 2.2vw, 26px);
+  font-size: clamp(22px, 2.6vw, 32px);
   font-weight: 600;
   color: var(--ds-ink);
-  letter-spacing: -0.005em;
+  letter-spacing: -0.01em;
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-4);
+/* ---------- Inline stats row ---------- */
+/* 4 个 item 横向居中,中间留呼吸 gap,
+   完全脱离"卡片矩阵"形态,跟 hero / HowItWorks / LibStrip 卡片矩阵形成视觉反差 */
+.statsRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: var(--space-3) var(--space-7);
+  max-width: 880px;
+  margin: 0 auto;
+  list-style: none;
+  padding: 0;
 }
 
-.cell {
+.statItem {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-5) var(--space-4);
-  background: var(--ds-surface);
-  border: 1px solid color-mix(in srgb, var(--ds-border) 70%, transparent);
-  border-radius: var(--radius-lg);
-  /* 不让 cell 沾染背景暖色 —— 这是数据展示,要冷静 */
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 0 0 auto;
 }
 
-.big {
-  display: flex;
+/* 主数字行:大字号 + 小单位(baseline 对齐) */
+.mainValue {
+  display: inline-flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 4px;
   font-family: var(--font-display), var(--font-sans), serif;
-  font-size: clamp(36px, 4vw, 56px);
+  font-size: clamp(32px, 4vw, 48px);
   font-weight: 600;
   line-height: 1.05;
   letter-spacing: -0.02em;
@@ -66,31 +105,66 @@
   font-variant-numeric: tabular-nums;
 }
 
+.value {
+  /* Counter 数字本身 —— inherit 自 .mainValue */
+  display: inline;
+}
+
 .unit {
   font-family: var(--font-display), serif;
-  font-size: clamp(20px, 2vw, 28px);
+  font-size: clamp(14px, 1.4vw, 18px);
   font-weight: 500;
   color: var(--ds-action);
 }
 
-.sub {
-  margin: var(--space-2) 0 0;
-  font-family: var(--font-sans);
-  font-size: var(--text-caption);
+/* 副标签:mono 小字,产品自描述 */
+.label {
+  margin: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--ds-ink-soft);
-  letter-spacing: 0.02em;
+}
+
+/* "免费"特殊色 —— 紫色(呼应 LibStrip featured 卡 + FinalCTA CTA 的
+   "紫色=转化"语义;与下方 .statFree .label 的紫色保持统一) */
+.freeText {
+  font-family: var(--font-display), var(--font-sans), serif;
+  font-size: clamp(32px, 4vw, 48px);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--ds-convert);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-theme="dark"] .freeText {
+  color: var(--ds-convert-light);
+}
+
+/* "免费" 副标签略加粗,让转化元素视觉权重稍大 */
+.statFree .label {
+  color: var(--ds-convert);
+  font-weight: 600;
+}
+
+[data-theme="dark"] .statFree .label {
+  color: var(--ds-convert-light);
 }
 
 /* ---------- 响应式 ---------- */
-
 @media (max-width: 900px) {
-  .grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .statsRow {
+    /* 4 items 退 2x2 */
+    max-width: 480px;
   }
 }
 
 @media (max-width: 480px) {
-  .grid {
-    grid-template-columns: minmax(0, 1fr);
+  .statsRow {
+    /* 单列 */
+    flex-direction: column;
+    align-items: center;
   }
 }

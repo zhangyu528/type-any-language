@@ -1,84 +1,107 @@
-/* Hero — 单屏 Bento(Q2 骨架)
- *   左半:标题 + 副标
- *   右半:TiltedCard demo + 三块 stats
- *   底部:深色 CTA 横条,横跨整屏
- *   小屏 fallback: @media (max-width: 980px) 退化为单列垂直堆叠 */
+/* Hero — 垂直堆叠首屏 (2026-08 重设计,T2 调整)
+ *   顶:title + subtitle     ← T2:title 上移,作为第一眼门面
+ *   中:demo 卡 + trust 条    ← 第二眼:演示产品 + 信任承诺(已合并原 stats)
+ *   底:大 CTA 居中            ← 转化锚点
+ * kicker 已删除(2026-08 T2):原"外语跟读 · 读 → 写 → 对"徽章
+ * 跟 demo 卡下面的 trust 条信息重复,删去简化层级。
+ * 布局从"左右 bento"改成"垂直堆叠",已去掉 .bentoGrid /
+ * .bentoLeft / .bentoRight / .heroCtaWrap / .bentoCta 等旧类。 */
 
-/* ---- 顶部 kicker row(badge + 统计) ---- */
-.kickerRow {
+/* ---------- demoBlock(NEW) ----------
+   mock 卡 + trust 条的整体容器:
+     - 居中,max-width 720px(跟 content-max 对齐)
+     - flex column 让 trust 条紧贴 mock 卡下方
+     - gap 控制两块之间的间距
+   这个块在 hero 里是"视觉钩子",负责让用户 0.5 秒看到产品在做什么。 */
+.demoBlock {
   grid-column: 1 / -1;
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* mock→trust 间距:12px,比之前 16px 紧凑,demo 整体高度更聚焦 */
+  gap: var(--space-3);
+}
+
+/* ---------- trust 条(NEW) ----------
+   demo 卡下方的 3 条承诺 pill,跟 mock 卡视觉共生。
+   设计:
+     - flex 居中,小屏自动换行
+     - pill 之间用细 gap 隔开(不用分隔符,更干净)
+     - 颜色走 --ds-action-deep / mint,与"读出来"母题统一
+     - icon 用 ✓ 字符而非 SVG,跟 mock 卡 footer 的 ✓ 同款 */
+.trustBadges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trustBadgeItem {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
-  font-family: var(--font-mono), monospace;
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  color: var(--ds-ink-soft);
-  text-transform: uppercase;
-}
-
-.kickerDot {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--ds-action) 70%, transparent);
-}
-
-.kickerText {
+  gap: 6px;
   font-family: var(--font-sans);
-  font-size: 12px;
-  letter-spacing: 0.01em;
-  color: var(--ds-ink-soft);
-}
-
-/* 左上角永久免费 badge — 玻璃胶囊,婴儿蓝描边 */
-.kickerBadge {
-  font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-size: 14px;
   color: var(--ds-action-deep);
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ds-action) 16%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ds-action) 32%, transparent);
+  letter-spacing: -0.005em;
 }
 
-[data-theme="dark"] .kickerBadge {
-  color: #BFE0F5;
-  background: color-mix(in srgb, #8FCBF0 18%, transparent);
-  border-color: color-mix(in srgb, #8FCBF0 36%, transparent);
-}
-
-/* Bento 网格改为横向两栏,kickerRow 跨两栏 */
-.bentoGrid {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  gap: var(--space-6);
+.trustBadgeIcon {
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ds-action) 24%, transparent);
+  color: var(--ds-action-deep);
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-mono), monospace;
 }
 
-/* Hero CTA 在左栏底部(原本在右栏 bentoCta) */
-.heroCtaWrap {
-  margin-top: var(--space-2);
+.trustBadgeText {
+  font-weight: 500;
 }
 
+[data-theme="dark"] .trustBadgeItem {
+  color: #BFE0F5;
+}
+[data-theme="dark"] .trustBadgeIcon {
+  background: color-mix(in srgb, var(--ds-action-tint) 22%, transparent);
+  color: #BFE0F5;
+}
+
+/* ---------- bento section root ---------- */
 .bento {
   position: relative;
   width: 100%;
-  min-height: calc(100vh - 52px);
-  padding: clamp(var(--space-12), 12vh, 140px) var(--space-5) clamp(var(--space-12), 14vh, 128px);
+  /* 与其他 section 同节奏:左缘起算,kicker/demoBlock/title/CTA
+     严格对齐 content-max。 */
+  max-width: var(--content-max);
+  margin: 0 auto;
+  box-sizing: border-box;
+  /* 顶部 padding clamp(64px, 9vh, 96px) 给首屏 56-96px 呼吸;
+     底部 padding clamp(48px, 7vh, 80px) 收尾(底部有大 CTA + 后续 section,
+     不需要太多底部呼吸)。 */
+  padding: clamp(64px, 9vh, 96px) var(--space-5) clamp(48px, 7vh, 80px);
   display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  grid-template-rows: auto 1fr auto;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto auto;
+  /* 各块之间 24px 间隔(kicker→demo→title→CTA),
+     各块自带 margin-bottom: 0 让 grid gap 单独生效。 */
   gap: var(--space-5);
-  align-content: center;
-  overflow: hidden;
+  align-content: start;
   isolation: isolate;
   background: transparent;
   color: var(--ds-ink);
-  scroll-snap-align: start;
 }
 
 /* Scrim — radial veil behind content so aurora doesn't wash out text */
@@ -100,321 +123,411 @@
   background: radial-gradient(ellipse, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.2) 45%, transparent 72%);
 }
 
-/* ---- 左半:标题区 ---- */
-.bentoLeft {
-  position: relative;
-  z-index: 1;
+/* ---------- titleBlock(NEW,原 .bentoLeft 改写)----------
+   主标题 + 副标。垂直居中,无 CTA(CTA 移到 heroBottomCta)。
+   max-width 720px 跟 .demoBlock 对齐,文字读起来一行 ~28 字左右,
+   大标题刚好 1 行(subtitle 也基本 1 行)。 */
+.titleBlock {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: var(--space-3);
-  padding-right: var(--space-3);
-  text-align: left;
-}
-
-/* ShinyText h1 — 浅/深 baby-blue 下用 --shiny-base / --shiny-shine token */
-.title {
-  font-family: var(--font-display);
-  font-size: clamp(28px, 3.6vw, 42px);
-  font-weight: var(--weight-medium);
-  letter-spacing: -0.015em;
-  line-height: 1.2;
-  margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.02em;
-  filter: drop-shadow(0 2px 12px color-mix(in srgb, var(--ds-ink) 25%, transparent));
-}
-[data-theme="light"] .title {
-  filter: drop-shadow(0 2px 8px rgba(255, 255, 255, 0.4));
-}
-
-.subtitle {
-  font-family: var(--font-sans);
-  font-size: clamp(14px, 1.4vw, 17px);
-  color: var(--ds-ink-soft);
-  line-height: 1.55;
-  letter-spacing: 0.005em;
-  margin: 0;
-  max-width: 46ch;
-  opacity: 0.85;
-  text-shadow: 0 1px 8px color-mix(in srgb, var(--ds-bg) 60%, transparent);
-}
-[data-theme="light"] .subtitle {
-  text-shadow: 0 1px 8px rgba(255, 255, 255, 0.5);
-}
-
-/* ---- 右半:demo + stats ---- */
-.bentoRight {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-rows: 1fr auto;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-/* 跟打 mock 卡 — 玻璃态 + 投影,内部模拟 TranslationStage「读 → 写 → 对」 */
-.mock {
-  position: relative;
-  width: 100%;
-  padding: var(--space-4);
-  background: color-mix(in srgb, var(--ds-surface) 75%, transparent);
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
-  border: 1px solid color-mix(in srgb, var(--ds-border) 70%, transparent);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--elev-1);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  min-height: 260px;
-}
-
-.mockTopbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--font-mono), monospace;
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  color: var(--ds-ink-soft);
-  padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--ds-border);
-}
-
-.mockDot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--ds-ink-faint);
-  opacity: 0.35;
-}
-.mockDot:nth-child(1) { background: #FF6B6B; opacity: 0.7; }
-.mockDot:nth-child(2) { background: #FFD93D; opacity: 0.7; }
-.mockDot:nth-child(3) { background: #6BCF7F; opacity: 0.7; }
-
-.mockLib {
-  margin-left: auto;
-  color: var(--ds-ink-soft);
-  text-transform: uppercase;
-}
-
-.mockProgress {
-  width: 100%;
-  height: 4px;
-  background: color-mix(in srgb, var(--ds-action) 18%, transparent);
-  border-radius: 99px;
-  overflow: hidden;
-}
-.mockProgressFill {
-  display: block;
-  height: 100%;
-  background: linear-gradient(90deg, var(--ds-action), var(--ds-action-deep));
-  border-radius: 99px;
-}
-
-.mockPrompt {
-  margin-top: var(--space-2);
-  min-height: 48px;
-  display: flex;
-  align-items: center;
-}
-
-.mockZh {
-  font-family: var(--font-display), var(--font-sans), serif;
-  font-size: clamp(1.4rem, 2.4vw, 1.8rem);
-  font-weight: 700;
-  color: var(--ds-ink);
-  letter-spacing: -0.005em;
-  line-height: 1.2;
-  margin: 0;
-}
-
-.mockTyping {
-  background: color-mix(in srgb, var(--ds-tint) 35%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ds-action) 22%, transparent);
-  border-radius: var(--radius-md);
-  padding: var(--space-3) var(--space-4);
-  font-family: var(--font-mono), monospace;
-  min-height: 56px;
-  display: flex;
-  align-items: center;
-}
-
-.mockEn {
-  font-size: clamp(1rem, 1.4vw, 1.2rem);
-  color: var(--ds-action-deep);
-  letter-spacing: 0.01em;
-}
-
-.mockFooter {
-  display: flex;
+  /* 全居中:title + subtitle 居中对齐。
+     短标题("读完一句,写出来就是你的。" 11 字)居中读起来更聚焦,
+     像 hero 海报。长标题(>20 字)时再切回左对齐避免两行不齐。 */
   align-items: center;
   gap: var(--space-3);
-  font-family: var(--font-mono), monospace;
-  font-size: 11px;
-  color: var(--ds-ink-faint);
-  margin-top: auto;
-}
-
-.mockStar {
-  font-size: 18px;
-  color: var(--ds-ink-soft);
-}
-
-.mockCount {
-  margin-left: auto;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.mockCheck {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--ds-action-deep);
-  width: 1.4em;
+  padding-right: 0;
   text-align: center;
 }
 
-/* Light 主题下 mock 卡需要更明确的边+阴影,与 --ds-bg 拉开层次 */
-[data-theme="light"] .mock {
+.title {
+  margin: 0;
+  font-family: var(--font-display), var(--font-sans), serif;
+  font-size: clamp(28px, 4.2vw, 44px);
+  font-weight: var(--weight-semibold, 600);
+  letter-spacing: -0.025em;
+  line-height: 1.18;
+  color: var(--ds-ink);
+  /* 居中下 flex column 让 ShinyText 居中;align-self center
+     防止 flex 父容器的 align-items: center 干扰。 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  align-self: center;
+  text-align: center;
+  word-break: keep-all;
+}
+
+.subtitle {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: clamp(13px, 1.3vw, 15px);
+  font-weight: 400;
+  color: var(--ds-ink-soft);
+  letter-spacing: 0.005em;
+  line-height: 1.55;
+}
+
+/* ---------- mock 卡(原有,居中用)---------- */
+.mock {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
   background: color-mix(in srgb, var(--ds-surface) 92%, transparent);
   border-color: color-mix(in srgb, var(--ds-border-strong) 30%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ds-border) 70%, transparent);
+  border-radius: var(--radius-xl);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.6) inset,
     0 4px 16px rgba(14, 26, 46, 0.06),
     0 12px 32px rgba(14, 26, 46, 0.05);
+  /* 逐词脉冲层 .mockBeat 的锚点:relative 让其 absolute 定位卡内,
+     isolate 把负 z-index 收在卡内不漏到其它 section。
+     注意:外框联动只在打字过程中逐词触发(beatPulse),句子完成后
+     不保留任何常驻/高亮光 —— 卡回到安静态。 */
+  position: relative;
+  isolation: isolate;
 }
 
-/* stats 三块 —— 数据全部从 libs 派生 */
-.stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-2);
-  width: 100%;
+/* 逐词呼吸脉冲:每打完一个词,外层卡片"吸气"亮一下再完全消散。
+   该层由 Hero 的 <div key={wordBeat}> remount 重放一次(零新增定时器),
+   节奏来自 TypefallDemo 的 now 时间线 —— 完成一个词触发一次效果。
+   句子完成后(now 归零 / 进入 dwell)不再有新词,脉冲自然停在 100% 的
+   透明态,外框回归无光安静态(满足"完成后就不需要触发了")。 */
+.mockBeat {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  animation: beatPulse 0.7s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
 }
-.stat {
-  padding: 10px 12px;
-  border: 1px solid var(--ds-border);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--ds-tint) 50%, transparent);
+@keyframes beatPulse {
+  0% { box-shadow: 0 0 8px 0 color-mix(in srgb, var(--ds-action) 18%, transparent); opacity: 0.5; }
+  35% { box-shadow: 0 0 30px 8px color-mix(in srgb, var(--ds-action) 72%, transparent); opacity: 1; }
+  100% { box-shadow: 0 0 8px 0 color-mix(in srgb, var(--ds-action) 18%, transparent); opacity: 0; }
+}
+
+/* ---------- mock topbar / dots / lib name ---------- */
+.mockTopbar {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.statNum {
-  font-family: var(--font-display);
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--ds-ink);
-  line-height: 1.1;
-  overflow: hidden;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 1px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.statPlus {
-  font-family: var(--font-display);
-  font-size: 0.7em;
-  color: var(--ds-action);
-  font-weight: 600;
-}
-.statName {
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--ds-ink);
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.statLbl {
+  align-items: center;
+  gap: 6px;
   font-family: var(--font-mono), monospace;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--ds-ink-soft);
   letter-spacing: 0.04em;
 }
-
-/* ---- CTA 按钮:放到右栏底部 ----
-   原"深色横条 + 左侧文字"组合重复展示了 stats + bento 大卡已有的首推信息。
-   现在只保留按钮,作为 demo + stats 之下的转化锚点。 */
-.bentoCta {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  /* 不设 background / padding / shadow —— SpecularButton 自带 WebGL 镜面背景 */
+.mockDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ds-ink-faint);
+  display: inline-block;
 }
-.ctaText {
+.mockDot:nth-child(1) { background: #FF6B6B; opacity: 0.7; }
+.mockDot:nth-child(2) { background: #FFD93D; opacity: 0.7; }
+.mockDot:nth-child(3) { background: #6BCF7F; opacity: 0.7; }
+.mockLib {
+  margin-left: auto;
+  padding: 2px 8px;
+  background: color-mix(in srgb, var(--ds-action) 14%, transparent);
+  border-radius: 999px;
+  color: var(--ds-action-deep);
+}
+
+/* ---------- mock progress bar ---------- */
+.mockProgress {
+  position: relative;
+  height: 3px;
+  background: color-mix(in srgb, var(--ds-border) 50%, transparent);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.mockProgressFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--ds-action);
+  border-radius: 999px;
+  transition: width 200ms linear;
+}
+
+/* ---------- mock prompt / zh / typing / en ---------- */
+.mockPrompt {
+  margin-top: var(--space-2);
+  min-height: 48px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+  gap: var(--space-2);
 }
-.ctaTitle {
+.mockZh {
+  margin: 0;
   font-family: var(--font-sans);
-  font-size: clamp(15px, 1.6vw, 18px);
-  font-weight: 500;
-  color: inherit;
-  letter-spacing: 0.005em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 15px;
+  color: var(--ds-ink-soft);
+  letter-spacing: 0.01em;
 }
-.ctaMeta {
+.mockTyping {
+  margin: 0;
   font-family: var(--font-mono), monospace;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  color: color-mix(in srgb, #E8F4FC 55%, transparent);
+  font-size: 18px;
+  color: var(--ds-ink);
+  letter-spacing: 0.01em;
+  line-height: 1.5;
+  word-break: break-all;
 }
-.ctaBtn {
-  /* 缩小 SpecularButton 在横条里的视觉锚点 */
-  flex-shrink: 0;
+.mockEn {
+  margin: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 18px;
+  color: var(--ds-action-deep);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.5;
+  word-break: break-all;
+}
+.mockWrong {
+  text-decoration: line-through;
+  text-decoration-color: rgba(244, 100, 100, 0.6);
+  color: var(--ds-ink-faint);
+}
+.mockWrong .glitch,
+.mockWrong .glitch::before,
+.mockWrong .glitch::after {
+  /* 错改字符的 glitch 效果由 react-bits GlitchText 自带,这里只占位 */
+  display: inline;
 }
 
-/* ---- 小屏 fallback:退化为单列垂直堆叠 ---- */
-@media (max-width: 980px) {
-  .bento {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto;
-    min-height: auto;
-    padding: clamp(var(--space-8), 8vh, 96px) var(--space-5);
-    gap: var(--space-4);
+/* ---------- mock footer ---------- */
+.mockFooter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px dashed color-mix(in srgb, var(--ds-border) 80%, transparent);
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  color: var(--ds-ink-soft);
+}
+.mockStar {
+  color: var(--ds-action);
+  font-size: 12px;
+}
+.mockCount {
+  margin-left: auto;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+.mockCheck {
+  color: var(--ds-action-deep);
+  font-size: 13px;
+}
+
+/* ---------- TypefallDemo 内部样式 ---------- */
+.demoRoot {
+  display: flex;
+  flex-direction: column;
+  /* 稳定布局:
+     - align-items center:子项横向居中
+     - justify-content flex-start:子项从顶部贴齐(原 center 让内容
+       从中线散开,EnRow 长高时会把 zh/progress 向上推)
+     - min-height 140:progress(3) + gap(8) + zh(28) + gap(8) + EnRow 2行(80)
+       + 底部呼吸(13) ≈ 140。锁住卡片高度,切换句子/字符 typing 时
+       不会让上方元素位置漂移。 */
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  min-height: 140px;
+}
+.demoProgress {
+  /* 进度条要跨全宽(不是文字),覆盖父容器的 align-items: center */
+  align-self: stretch;
+  position: relative;
+  height: 3px;
+  background: color-mix(in srgb, var(--ds-border) 50%, transparent);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.demoProgressFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--ds-action);
+  border-radius: 999px;
+  transition: width 200ms linear;
+}
+.demoZh {
+  margin: 0;
+  font-family: var(--font-sans);
+  /* demo 中文提示 14→16:更易读,跟 demoEnRow 视觉重量更平衡 */
+  font-size: 17px;
+  color: var(--ds-ink-soft);
+  letter-spacing: 0.01em;
+  text-align: center;
+  /* 锁单行高度(17 * 1.55 ≈ 26 → 28):中文提示 1 行稳定占位,
+     防止 EnRow 字符 typing 时把上方 zh 行挤上去 */
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+.demoEnRow {
+  font-family: var(--font-mono), monospace;
+  /* demo 英文跟打字号 17→24:用户在 hero 看的是「产品演示」,
+     字号太小显得 demo 不重要 */
+  font-size: 24px;
+  color: var(--ds-action-deep);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.55;
+  display: flex;
+  flex-wrap: wrap;
+  /* 全居中:单词逐字显现时以行为中心铺开,而非左对齐 */
+  justify-content: center;
+  /* 多行 wrap 时垂直居中(避免多行偏到底部) */
+  align-content: center;
+  /* 锁 1.5 行高度(24 * 1.55 ≈ 37 → 56):短句不会让卡片塌陷,
+     长句允许扩展到 2 行(总高 ≈ 80),demoRoot min-height 140 容纳 */
+  min-height: 56px;
+  width: 100%;
+  /* 词间水平间距 — `display:flex` 会折叠 JSX 文本节点(原本
+     `{' '}` 是默认 block + inline 的空格来源),所以必须显式给
+     gap。`0.4em` ≈ 7px,符合 mono 字体中等字距的"句中词"节奏。
+     row gap 0 → 单词不换行时垂直不空。 */
+  gap: 0 0.4em;
+}
+.demoWord {
+  display: inline-flex;
+  position: relative;
+}
+.demoWord .demoDecrypted,
+.demoWord .demoWrong {
+  display: inline;
+}
+.demoWord .demoWrong {
+  color: var(--ds-ink-faint);
+  text-decoration: line-through;
+  text-decoration-color: rgba(244, 100, 100, 0.6);
+}
+.demoWord .demoWrong::before,
+.demoWord .demoWrong::after {
+  /* react-bits GlitchText 自带,这里仅占位 */
+  content: '';
+}
+.demoPlaceholder {
+  display: inline-block;
+  width: 1em;
+}
+
+.demoWordInner {
+  display: inline-flex;
+  gap: 1px;
+  font-variant-numeric: tabular-nums;
+}
+.demoChar {
+  display: inline-block;
+  min-width: 0.55em;
+  text-align: center;
+  /* 默认隐藏:字符出现时由 charFall 动画带到 opacity:1(落字感)。
+     减少动效偏好下在文件末尾 reduced-motion 块里强制 opacity:1。 */
+  opacity: 0;
+  transition: color 100ms linear;
+}
+.demoCharScrambling {
+  color: var(--ds-action);
+  font-weight: 700;
+  animation: charShake 60ms steps(2) infinite;
+}
+.demoCharSettled {
+  color: var(--ds-action-deep);
+  font-weight: 600;
+}
+@keyframes charShake {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-1px); }
+  100% { transform: translateY(1px); }
+}
+
+/* ---------- 字母节奏联动(光标 + 落字 + 声波)----------
+   全部由 TypefallDemo 的 now 时间线驱动,不新增定时器。 */
+/* 刚打出的字符:从上方轻落 + 淡入(呼应 TypefallDemo 的 "fall" 语义) */
+.demoCharArriving {
+  animation: charFall 260ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+@keyframes charFall {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 跨组件联动:整句打完(dwell 期)footer ★/✓ 点亮 + 轻 pop */
+.mockStarLit {
+  animation: starPop 440ms var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1)) both;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ds-action) 75%, transparent));
+}
+.mockCheckLit {
+  animation: checkPop 440ms var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1)) both;
+  color: var(--ds-action-deep);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ds-action) 75%, transparent));
+}
+@keyframes starPop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+@keyframes checkPop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demoChar { opacity: 1; }
+  .demoCharArriving { animation: none; }
+  .mockBeat { animation: none; }
+  .mockStarLit, .mockCheckLit { animation: none; }
+}
+
+/* ---------- bottom CTA(NEW)----------
+   hero 收尾转化锚点:居中,max-width 跟 .demoBlock 对齐。
+   margin-top 略大(给 demo 一些"停一停"的节奏,CTA 是决策时刻)。 */
+.heroBottomCta {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: var(--content-max);
+  margin: var(--space-3) auto 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.bottomCtaBtn {
+  /* SpecularButton 在 hero 收尾位置需要更显眼的锚点 —— min-width
+     给个最小宽度让按钮在小屏也不至于太挤;focus ring 留给默认。 */
+  min-width: 200px;
+}
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 720px) {
+  .trustBadges {
+    gap: var(--space-2) var(--space-4);
   }
-  .bentoLeft {
-    text-align: center;
-    align-items: center;
-    padding-right: 0;
+  .heroBottomCta {
+    margin-top: var(--space-4);
   }
-  .title {
-    justify-content: center;
-  }
-  .subtitle {
-    text-align: center;
-  }
-  .stats {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  .bentoCta {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-3);
-    padding: 14px 16px;
-  }
-  .ctaBtn {
+  .bottomCtaBtn {
     width: 100%;
   }
-}
-
-@media (max-width: 520px) {
-  /* 极小屏:stats 降为 1 列纵排,保证每块不挤 */
-  .stats {
-    grid-template-columns: 1fr;
+  .bento {
+    /* 小屏顶部 padding 略小,给首屏更大可视区域 */
+    padding: clamp(48px, 7vh, 80px) var(--space-4) clamp(40px, 6vh, 64px);
   }
 }
 

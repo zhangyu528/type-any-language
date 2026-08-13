@@ -3,16 +3,66 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  /* body bg fallback (slate); landing root is transparent so the
-     fixed-position Aurora behind it shows through. data-babyblue on
-     the html root scopes --ds-bg to F2F8FE in light / matching deep
-     blue in dark, but body retains its base color so the fixed Aurora
-     stays visible across the full viewport. */
+  /* 回到普通文档流:不再 height: 100vh + overflow-y: auto,
+     scroll-snap 也不要了,用户操作顶层 body 滚动条,与其它路由一致。
+     background: transparent 让 fixed Galaxy 透过来;data-babyblue
+     在 html root 上为 landing scoped --ds-bg。 */
   background: transparent;
   color: var(--ds-ink);
   font-family: var(--font-sans);
 }
 
+
+/* ---------- 背景层(性能优化)----------
+   - .landingBg      永远挂载:CSS 渐变 + inline SVG 星点,0 GPU 占用
+   - .landingBgGalaxy 只在 dark + reduced-motion=off + viewport 可见 +
+     ≥ 720px 时挂载,IntersectionObserver 控制 mount/unmount。Galaxy
+     (ogl WebGL) 在长 landing 页(5 个 section)滚出 hero 后会主动卸载,
+     节省 GPU —— 等用户滚回再 mount。
+   - 两层共享 `position: fixed; inset: 0; z-index: 0;`,由 .content(z-1)
+     覆盖。Galaxy 在 CSS 之上叠加,关掉时 CSS 单独可见,视觉连续。 */
+
+.landingBg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  /* Light:浅蓝 + 浅粉双色 nebula,叠 SVG 星点,色值用 mix 适配主题;
+     Dark:深空蓝单色 nebula 替 CSS gradient 上叠,避免和 Galaxy 重复。 */
+  background:
+    radial-gradient(circle at 18% 28%, color-mix(in srgb, var(--ds-action-deep) 18%, transparent), transparent 55%),
+    radial-gradient(circle at 82% 72%, color-mix(in srgb, var(--ds-action-tint) 8%, transparent), transparent 55%),
+    radial-gradient(1.4px 1.4px at 14% 18%, color-mix(in srgb, var(--ds-action-deep) 45%, transparent), transparent 70%),
+    radial-gradient(1px 1px at 78% 24%, color-mix(in srgb, var(--ds-action) 38%, transparent), transparent 70%),
+    radial-gradient(1.2px 1.2px at 42% 68%, color-mix(in srgb, var(--ds-action-deep) 32%, transparent), transparent 70%),
+    radial-gradient(1px 1px at 92% 80%, color-mix(in srgb, var(--ds-action) 42%, transparent), transparent 70%),
+    radial-gradient(0.8px 0.8px at 8% 92%, color-mix(in srgb, var(--ds-action-deep) 28%, transparent), transparent 70%);
+  background-color: transparent;
+}
+
+[data-theme="dark"] .landingBg {
+  /* Dark:Galaxy 会叠在上面,CSS 退为深空底色 + 极弱蓝晕,
+     避免双重叠加后整页颜色过曝。 */
+  background:
+    radial-gradient(circle at 20% 30%, color-mix(in srgb, var(--ds-action-tint) 10%, transparent), transparent 60%),
+    radial-gradient(circle at 78% 70%, color-mix(in srgb, var(--ds-action-tint) 4%, transparent), transparent 60%);
+}
+
+.landingBgGalaxy {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.85; /* Galaxy 稍微降透明,让 .landingBg 的 CSS 渐变仍可透出 */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* reduced-motion 用户 Galaxy 已被 hook 拦截不挂,但 CSS 渐变本身的
+     视差感如果将来要做再这里关掉。当前 CSS 静态,无需 transition。 */
+  .landingBg {
+    /* 不变,纯静态渐变 */
+  }
+}
 .content {
   position: relative;
   z-index: 1;
@@ -41,7 +91,7 @@
 .footerBrand {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 
 .footerBrandName {

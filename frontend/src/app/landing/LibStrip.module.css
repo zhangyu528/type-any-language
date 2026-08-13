@@ -1,44 +1,58 @@
-/* LibStrip — 重设计 SECTION 3
-   ----------------------------------------------------------
-   真实词库卡网格(响应式 auto-fill)。视觉语言与 ScenariosSection
-   完全对齐:玻璃卡 + 婴儿蓝边框辉光(hover 加深),单金属
-   SpecularButton 贴底。
-   ---------------------------------------------------------- */
+/* LibStrip — SECTION 3 选词库(2026-08 polish)
+ * 真实词库卡网格(响应式 auto-fill)。视觉语言与 Section 1/2 统一:
+ *   - 玻璃卡 + BorderGlow 光标微光
+ *   - header 居中(跟全站统一)
+ *   - 第一张 featured 视觉锚点(粉色边框 + 推荐小标) */
 
 .root {
   width: 100%;
   max-width: var(--content-max);
   margin: 0 auto;
-  padding: clamp(var(--space-10), 9vh, 96px) var(--space-5);
+  /* 节奏:section 3 顶部 6vh 紧接 Section 1/2,底部 12vh 让"选词库"
+     与下面"数据背书"之间有清晰呼吸(进入收尾段) */
+  padding: clamp(var(--space-7), 6vh, 64px) var(--space-5) clamp(72px, 12vh, 120px);
   box-sizing: border-box;
-  scroll-snap-align: start;
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
 }
 
+/* 全居中:header kicker / title / subtitle 都居中(跟 hero / HowItWorks 统一) */
 .header {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: var(--space-2);
-  text-align: center;
   max-width: 720px;
   margin: 0 auto;
+  flex-shrink: 0;
+  text-align: center;
 }
 
+/* Kicker 改 ::before 微章(跟 HowItWorks 一致,删 border-left 装饰线) */
 .kicker {
-  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   font-family: var(--font-mono), monospace;
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ds-action-deep);
+  margin: 0;
+}
+
+.kicker::before {
+  content: '·';
+  color: var(--ds-action);
+  font-size: 16px;
+  line-height: 1;
 }
 
 .title {
   margin: 0;
   font-family: var(--font-display), var(--font-sans), serif;
-  font-size: clamp(26px, 3vw, 36px);
+  font-size: clamp(22px, 2.6vw, 32px);
   font-weight: var(--weight-medium);
   letter-spacing: -0.015em;
   color: var(--ds-ink);
@@ -53,9 +67,7 @@
   letter-spacing: 0.04em;
 }
 
-/* ---------- 词库卡网格 ----------
-   auto-fill minmax(240px) → 宽屏多列、窄屏自动退列,
-   不依赖 libs 的具体数量(可能是 3,也可能是更多)。 */
+/* ---------- 词库卡网格 ---------- */
 
 .grid {
   display: grid;
@@ -64,24 +76,81 @@
   width: 100%;
 }
 
-/* ---------- 单卡(玻璃卡 + 婴儿蓝边框辉光) ----------
-   与 ScenariosSection .sceneCard 统一:同一组颜色 / 同一组
-   hover 加深,确保"读出来"签名里只有一种 hover 微光。 */
+/* libCardWrap:AnimatedContent 的容器,实际渲染 .libCard 时
+   控制 min-height 让 4 张卡同高(跟 HowItWorks 锁定对齐) */
+.libCardWrap {
+  display: flex;
+  /* 删 min-height:280px —— 之前让 wrapper 高于 card 自然高度,
+     产生 80px 空 padding 区域,鼠标 hover 空区也会触发
+     hover 效果,看起来像"动态外溢"。
+     现在 wrapper 跟 card 同高,hover 范围 = 实际卡大小 */
+}
+
+/* BorderGlow wrapper:跟 HowItWorks 一致,height: auto + overflow hidden
+   避免 wrapper 高度溢出 / canvas 溢出卡框。
+   关键:必须 display:flex + height:100%,把高度从被 grid 拉伸的
+   .libCardWrap 一路传到 .border-glow-inner,否则 .libCard 的
+   height/flex 因父级高度不定而塌缩为内容高度 —— 各卡高度不一、
+   "开始读"按钮不在同一水平线。 */
+.cardGlowWrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+/* BorderGlow 自带深色样式全透明化,只保留光标微光。
+   用 (0,2,0) + !important 压过 BorderGlow.css 的
+   .border-glow-card { display: grid; overflow: visible },强制 wrapper
+   用我们的 flex 列布局 + 裁内容,防止 .edge-light / .libCard hover
+   shadow 外溢,同时保证高度链路贯通。 */
+:global(.border-glow-card).cardGlowWrap {
+  display: flex !important;
+  flex-direction: column !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+}
+
+/* BorderGlow 内部 .border-glow-inner 必须填满 glow 容器,否则 .libCard
+   撑不满、各卡高度随内容变化。LibStrip 作用域内覆盖,不影响其它
+   BorderGlow 用法。 */
+.cardGlowWrap :global(.border-glow-inner) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ---------- 单卡(玻璃卡) ---------- */
 
 .libCard {
+  /* 4 张卡同高:min-height 锁 280px,无论内容多寡,卡片
+     高度一致。wrapper height: auto 跟卡同高,避免
+     之前 wrapper > card 的"外溢"问题 */
+  /* 4 张卡同高(收紧到 240px,比 280 紧凑,内容适配高度) */
   min-height: 240px;
+  width: 100%;
+  /* 撑满 BorderGlow 内层(.border-glow-inner,高度由 grid 行高驱动),
+     保证同一行各卡等高、"开始读"按钮落同一水平线 */
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
   padding: var(--space-5);
   border-radius: var(--radius-lg);
   background: var(--ds-surface);
   border: 1px solid color-mix(in srgb, var(--ds-action) 22%, transparent);
   color: var(--ds-ink);
   box-shadow: 0 1px 2px rgba(12, 44, 83, 0.04);
-  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
-}
-
-.libCard:hover {
-  border-color: color-mix(in srgb, var(--ds-action) 38%, transparent);
-  box-shadow: 0 6px 22px rgba(47, 128, 192, 0.12);
+  /* 与 HowItWorks .card 一致:position: relative + overflow: hidden
+     让卡片自己 clip 自己的 hover shadow,
+     避免 shadow 外溢 */
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
 [data-theme="dark"] .libCard {
@@ -90,9 +159,70 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
+.libCard:hover {
+  border-color: color-mix(in srgb, var(--ds-action) 38%, transparent);
+  /* 跟 HowItWorks 一致 22px blur —— overflow: hidden 在卡上裁掉外溢 */
+  box-shadow: 0 6px 22px rgba(47, 128, 192, 0.18);
+}
+
 [data-theme="dark"] .libCard:hover {
-  border-color: color-mix(in srgb, #8FCBF0 45%, transparent);
-  box-shadow: 0 6px 22px rgba(143, 203, 240, 0.18);
+  border-color: color-mix(in srgb, var(--ds-action-tint) 45%, transparent);
+  box-shadow: 0 6px 22px rgba(143, 203, 240, 0.22);
+}
+
+/* 推荐卡 —— 视觉差异化,一眼锚点。紫色边框 + 2px 微抬 */
+.libCardFeatured {
+  border-width: 2px;
+  /* 紫色 = 推荐/转化语义(走 --ds-convert token);薄荷=正确,冷蓝=结构 */
+  border-color: var(--ds-convert);
+  background: color-mix(in srgb, var(--ds-convert) 4%, var(--ds-surface));
+  box-shadow:
+    0 4px 16px rgba(139, 92, 246, 0.18),
+    0 1px 2px rgba(12, 44, 83, 0.06);
+  /* 静态,无 transform —— overflow: hidden 不裁切外溢 */
+}
+
+.libCardFeatured:hover {
+  border-color: var(--ds-convert-deep);
+  box-shadow:
+    0 8px 28px rgba(139, 92, 246, 0.28),
+    0 2px 4px rgba(12, 44, 83, 0.08);
+}
+
+[data-theme="dark"] .libCardFeatured {
+  border-color: var(--ds-convert-light);
+  box-shadow:
+    0 4px 16px rgba(139, 92, 246, 0.22),
+    0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .libCardFeatured:hover {
+  border-color: var(--ds-convert);
+  box-shadow:
+    0 8px 28px rgba(139, 92, 246, 0.32),
+    0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* 推荐小标 —— 卡片右上角 chip,紫色底白字 */
+.featuredBadge {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #FFFFFF;
+  background: var(--ds-convert);
+  padding: 3px 8px;
+  border-radius: 999px;
+  line-height: 1;
+}
+
+[data-theme="dark"] .featuredBadge {
+  color: #FFFFFF;
+  background: var(--ds-convert);
 }
 
 /* ---------- 卡内布局 ---------- */
@@ -101,7 +231,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  /* 让 .featuredBadge 绝对定位以右上角 chip 呈现 */
+  position: relative;
 }
 
 .libLevel {
@@ -119,16 +252,16 @@
 
 [data-theme="dark"] .libLevel {
   color: #BFE0F5;
-  background: color-mix(in srgb, #8FCBF0 18%, transparent);
+  background: color-mix(in srgb, var(--ds-action-tint) 18%, transparent);
 }
 
 .libName {
   margin: 0;
   font-family: var(--font-display), var(--font-sans), serif;
-  font-size: clamp(1.1rem, 1.6vw, 1.4rem);
+  font-size: 1.25rem;
   font-weight: 600;
   color: var(--ds-ink);
-  letter-spacing: -0.005em;
+  letter-spacing: -0.01em;
   line-height: 1.25;
 }
 
@@ -161,21 +294,28 @@
   color: #7E9CB6;
 }
 
-.cardSpacer {
-  flex: 1;
-}
+
 
 .libBtn {
-  align-self: flex-start;
+  /* 右下角对齐:margin-top: auto 推到底(替代 Spacer),
+     align-self: flex-end 让 button 在 cross-axis(横向)右对齐。
+     4 张卡 button 位置完全一致(底部 y + 右 x) */
+  margin-top: auto;
+  align-self: flex-end;
   font-size: 12px !important;
   padding: 6px 14px !important;
+  /* min-width 让 4 张卡的"开始读 →" 按钮视觉对齐(宽度一致),
+     即使有 featured/非 featured 状态区分(颜色/边框),宽度统一 */
+  min-width: 96px;
+  text-align: center;
 }
 
-/* ---------- reduced-motion ---------- */
+/* ---------- 响应式 ---------- */
 
 @media (prefers-reduced-motion: reduce) {
   .libCard,
   .libCard:hover {
     transition: none !important;
   }
+
 }

@@ -94,7 +94,7 @@ export default function ScenariosSection({ libs, onPickLib }: ScenariosSectionPr
                 size="sm"
                 onClick={handleTry}
                 disabled={!firstLib}
-                tint="#8FCBF0"
+                tint="var(--ds-action-tint)"
                 tintOpacity={0.9}
                 baseColor="#5BA8D8"
                 lineColor="#FFFFFF"
