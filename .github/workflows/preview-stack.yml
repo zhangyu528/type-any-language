@@ -173,31 +173,13 @@ jobs:
         if: steps.tunnel.outputs.url
         run: |
           URL="${{ steps.tunnel.outputs.url }}"
-          # GitHub Actions 工作流命令:让 URL 在 run 页面**顶部**
-          # 显示为可见的 annotation banner,立刻可点。
-          echo "::notice title=🌐 Preview URL — 点击访问::$URL"
-          # 再发一次让 banner 更显眼
-          echo "::notice title=🔗 $URL::$URL"
-          echo ""
-          # step log 里也用大 banner 输出,防止用户看不到 annotation
+          # === 立刻写 Summary (job 跑到这一步时,jobs summary 就有了) ===
           {
-            echo "╔═══════════════════════════════════════════════════════════════╗"
-            echo "║  🌐  PREVIEW URL  —  点击下方链接访问                                  ║"
-            echo "║                                                                    ║"
-            echo "║     $URL"
-            echo "║                                                                    ║"
-            echo "║     Branch:    ${{ inputs.branch || github.ref_name }}"
-            echo "║     Run:       #${{ github.run_number }}"
-            echo "║     Lifetime:  ~90 min                                                ║"
-            echo "║                                                                    ║"
-            echo "╚═══════════════════════════════════════════════════════════════╝"
-          }
-          echo ""
-          # 写入 Summary 面板(jobs summary, job 跑完后可见)
-          {
-            echo "## 🌐 Preview URL"
+            echo "# 🌐 Preview URL"
             echo ""
             echo "## [$URL]($URL)"
+            echo ""
+            echo "**复制访问**: \`$URL\`"
             echo ""
             echo "| 字段 | 值 |"
             echo "|---|---|"
@@ -211,8 +193,26 @@ jobs:
             echo "- uvicorn :8000 — FastAPI 真 backend"
             echo "- postgres :5432 — service container,数据从 cms/content/ import"
             echo "- cloudflared — 出站隧道"
+            echo ""
+            echo "### 怎么停"
+            echo "Actions tab → 选这次 run → Cancel workflow"
           } >> "$GITHUB_STEP_SUMMARY"
-          echo ""
+          # === Annotation banner(顶部 notification) ===
+          echo "::notice title=🌐 Preview URL — 点击访问::$URL"
+          echo "::notice title=🔗 $URL::$URL"
+          # === step log 大字 banner ===
+          {
+            echo "╔═══════════════════════════════════════════════════════════════╗"
+            echo "║  🌐  PREVIEW URL  —  点击下方链接访问                                  ║"
+            echo "║                                                                    ║"
+            echo "║     $URL"
+            echo "║                                                                    ║"
+            echo "║     Branch:    ${{ inputs.branch || github.ref_name }}"
+            echo "║     Run:       #${{ github.run_number }}"
+            echo "║     Lifetime:  ~90 min                                                ║"
+            echo "║                                                                    ║"
+            echo "╚═══════════════════════════════════════════════════════════════╝"
+          }
 
       - name: Keep alive
         if: steps.tunnel.outputs.url
