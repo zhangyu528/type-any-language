@@ -197,6 +197,19 @@ jobs:
             echo "### 怎么停"
             echo "Actions tab → 选这次 run → Cancel workflow"
           } >> "$GITHUB_STEP_SUMMARY"
+          # === 上传 artifact —— 让 URL 出现在 run 页面"Artifacts"区(很显眼) ===
+          echo "$URL" > /tmp/preview-url.txt
+          echo "Branch: ${{ inputs.branch || github.ref_name }}" >> /tmp/preview-url.txt
+          echo "Run: #${{ github.run_number }}" >> /tmp/preview-url.txt
+          echo "Started: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> /tmp/preview-url.txt
+
+      - name: Upload preview URL artifact
+        if: steps.tunnel.outputs.url
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-url-${{ github.run_number }}
+          path: /tmp/preview-url.txt
+          retention-days: 1
           # === Annotation banner(顶部 notification) ===
           echo "::notice title=🌐 Preview URL — 点击访问::$URL"
           echo "::notice title=🔗 $URL::$URL"
