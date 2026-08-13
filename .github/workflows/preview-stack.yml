@@ -205,19 +205,6 @@ jobs:
             echo "║                                                                    ║"
             echo "╚═══════════════════════════════════════════════════════════════╝"
           }
-          # === 写 URL 到 /tmp 供 artifact step 用 ===
-          echo "$URL" > /tmp/preview-url.txt
-          echo "Branch: ${{ inputs.branch || github.ref_name }}" >> /tmp/preview-url.txt
-          echo "Run: #${{ github.run_number }}" >> /tmp/preview-url.txt
-
-      - name: Upload preview URL as artifact
-        if: steps.tunnel.outputs.url
-        uses: actions/upload-artifact@v4
-        with:
-          name: preview-url-${{ github.run_number }}
-          path: /tmp/preview-url.txt
-          retention-days: 1
-
       - name: Keep alive
         if: steps.tunnel.outputs.url
         run: |
