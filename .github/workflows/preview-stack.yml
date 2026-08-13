@@ -173,13 +173,29 @@ jobs:
         if: steps.tunnel.outputs.url
         run: |
           URL="${{ steps.tunnel.outputs.url }}"
-          # GitHub Actions annotation: this shows up as a green notice
-          # banner at the TOP of the run page (above all step output).
-          # First link in the notice is auto-clickable.
-          echo "::notice title=🌐 Preview URL::$URL"
+          # GitHub Actions 工作流命令:让 URL 在 run 页面**顶部**
+          # 显示为可见的 annotation banner,立刻可点。
+          echo "::notice title=🌐 Preview URL — 点击访问::$URL"
+          # 再发一次让 banner 更显眼
+          echo "::notice title=🔗 $URL::$URL"
           echo ""
+          # step log 里也用大 banner 输出,防止用户看不到 annotation
           {
-            echo "## 🌐 Preview URL — 点击下方链接访问"
+            echo "╔═══════════════════════════════════════════════════════════════╗"
+            echo "║  🌐  PREVIEW URL  —  点击下方链接访问                                  ║"
+            echo "║                                                                    ║"
+            echo "║     $URL"
+            echo "║                                                                    ║"
+            echo "║     Branch:    ${{ inputs.branch || github.ref_name }}"
+            echo "║     Run:       #${{ github.run_number }}"
+            echo "║     Lifetime:  ~90 min                                                ║"
+            echo "║                                                                    ║"
+            echo "╚═══════════════════════════════════════════════════════════════╝"
+          }
+          echo ""
+          # 写入 Summary 面板(jobs summary, job 跑完后可见)
+          {
+            echo "## 🌐 Preview URL"
             echo ""
             echo "## [$URL]($URL)"
             echo ""
@@ -196,10 +212,6 @@ jobs:
             echo "- postgres :5432 — service container,数据从 cms/content/ import"
             echo "- cloudflared — 出站隧道"
           } >> "$GITHUB_STEP_SUMMARY"
-          echo ""
-          echo "============================================"
-          echo "  🌐 PREVIEW URL: $URL"
-          echo "============================================"
           echo ""
 
       - name: Keep alive
