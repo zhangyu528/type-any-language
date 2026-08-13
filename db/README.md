@@ -10,7 +10,7 @@ This directory has nothing to do with the application backend (FastAPI / SQLAlch
 
 1. **Schema bootstrap** — `CREATE TABLE IF NOT EXISTS` for fresh dbs, plus ordered versioned `upgrade()` modules for in-place upgrades.
 2. **CMS staging import (L 步)** — read `cms/content/` and UPSERT into the connected db (the local postgres in compose, typically). Idempotent; safe to re-run.
-3. **Schema migrations** — apply pending versioned DDL to the connected db. Idempotent (runner.py stamps `schema_migrations`). Applied by the backend container entrypoint (`backend/image-entrypoint.sh` runs `python3 -m migrations.runner` on boot), and from `make dev-migrate` on dev hosts after a code change.
+3. **Schema migrations** — apply pending versioned DDL to the connected db. Idempotent (runner.py stamps `schema_migrations`). Applied by the backend container entrypoint (`backend/image-entrypoint.sh` runs `python3 -m migrations.runner` on boot), and from `bash dev migrate` on dev hosts after a code change.
 
 ## Directory layout
 
@@ -95,7 +95,7 @@ Migrations use a tiny hand-written runner (`backend/migrations/runner.py`, ~60 l
 #    knows about the new column). Backend picks it up on next request.
 
 # 4. For dev iteration: no image bake needed — schema is now in the
-#    docker postgres directly. Just `make dev-restart` if backend needs a reload.
+#    docker postgres directly. Just `bash dev restart` if backend needs a reload.
 ```
 
 For dev hosts, `ops/dev/migrate.sh` is a thin wrapper that sources `db/scripts/lib.sh`, calls `db_assemble_url` (writes `DATABASE_URL` to env), and delegates to `db/scripts/migrate.sh`. Requires `python3` + `psycopg2-binary` + `sqlalchemy` on the host.

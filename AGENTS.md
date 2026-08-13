@@ -63,7 +63,7 @@ docker compose -f docker-compose.dev.yml down   # stop services
 rm -rf ./.docker-postgres-data                    # nuke the bind-mount target
 docker compose -f docker-compose.dev.yml up -d # restart with empty db
 ./dev-tools/migrate.sh                              # apply all migrations from scratch
-make dev-import-content                        # re-import cms/content/
+bash dev import-content                        # re-import cms/content/
 ```
 
 ### Why local (vs cloud)
@@ -161,7 +161,7 @@ in its environment via `$(cat /run/secrets/db_password)`.
 │   │   ├── logs.sh          # docker compose logs -f
 │   │   └── nginx/           # host nginx module (site.conf fragment + install.sh, called from bootstrap.sh)
 │   ├── publish/             # CI: ship-to-prod scripts (called by release/publish.yml)
-│   │   ├── deploy-prod.sh   # tar+scp + remote SSH (packages ops/cvm + ops/lib.sh + Makefile)
+│   │   ├── deploy-prod.sh   # tar+scp + remote SSH (packages ops/cvm + ops/lib.sh)
 │   │   ├── promote.sh       # rc -> vX.Y.Z tag + GH release
 │   │   └── assert-staging-verified.sh  # gate before prod (refuses unless staging validated)
 │   ├── staging/             # CI: ephemeral staging env (called by staging.yml)
@@ -279,14 +279,14 @@ in `docker-compose.dev.yml`. There is no dev image, no `compose watch`, no
 
 ```bash
 # Host-native dev — host Python venv + host Node + host ports 8000/3000
-make dev-setup                       # preflight + venv + node_modules + start docker db
-make dev-start                       # = ./dev-tools/native.sh start (uvicorn + next dev on host)
-make dev-stop
-make dev-status                      # pid + uptime + port + db health
-make dev-logs [backend|frontend|both]  # tail host-native process logs
-make dev-migrate                     # apply pending schema migrations to docker postgres
-make dev-import-content              # UPSERT latest cms/content/ into docker postgres
-make dev-doctor                      # preflight (docker + host-native deps + db)
+bash dev setup                       # preflight + venv + node_modules + start docker db
+bash dev start                       # = ./dev-tools/native.sh start (uvicorn + next dev on host)
+bash dev stop
+bash dev status                      # pid + uptime + port + db health
+bash dev logs [backend|frontend|both]  # tail host-native process logs
+bash dev migrate                     # apply pending schema migrations to docker postgres
+bash dev import-content              # UPSERT latest cms/content/ into docker postgres
+bash dev doctor                      # preflight (docker + host-native deps + db)
 ```
 
 No `.env` file is needed. `native.sh` exports the same env defaults that
@@ -386,7 +386,7 @@ Why TCR over dockerhub for Tencent Cloud prod:
 - CVM RAM role can pull from TCR without `docker login`
 - Same console as docker postgres — unified ops surface
 
-Setup steps: create a TCR Personal instance in the console, create a namespace, get a temporary access token (or attach a CVM RAM role for passwordless pull), fill in `REGISTRY`, `docker login` once on the build host. Subsequent `make release-prod vX.Y.Z -y` builds + pushes to TCR; CVM `make prod-restart` auto-pulls the new tag.
+Setup steps: create a TCR Personal instance in the console, create a namespace, get a temporary access token (or attach a CVM RAM role for passwordless pull), fill in `REGISTRY`, `docker login` once on the build host. Subsequent release is done via GitHub Actions (`release/build.yml` + `release/publish.yml`); CVM `bash ops/cvm/lifecycle.sh restart` auto-pulls the new tag.
 
 The `REGISTRY` file's inline comment block has more detail on this path. The same code path supports any registry (dockerhub, ghcr.io, gitlab registry, self-hosted) — TCR is just the recommended one for Tencent Cloud users.
 

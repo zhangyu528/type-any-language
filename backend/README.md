@@ -59,18 +59,18 @@ backend/
 
 ```bash
 # 一次性 bootstrap:venv + node_modules + 起 db 容器
-make dev-setup                  # = ./ops/dev/setup.sh
+bash dev setup                  # = ./ops/dev/setup.sh
 
 # 起 native 进程 (uvicorn + next dev 都在宿主机上)
-make dev-start                  # = ./ops/dev/native.sh start
+bash dev start                  # = ./ops/dev/native.sh start
 
 # 改 backend/ 下任何 .py → uvicorn 自动 --reload
-# 改 requirements.txt → make dev-restart(venv 会感知 hash 变化重 pip install)
+# 改 requirements.txt → bash dev restart(venv 会感知 hash 变化重 pip install)
 # 想看进程 / 日志:
-make dev-status
-make dev-logs
+bash dev status
+bash dev logs
 # 想停:
-make dev-stop
+bash dev stop
 ```
 
 默认环境变量(`native.sh` 自动 export,你不用手动):
@@ -80,16 +80,16 @@ make dev-stop
 | `DATABASE_URL` | `postgresql://english_dev:devpw@localhost:5432/english_dev` |
 | `ALLOWED_ORIGINS` | `http://localhost,http://localhost:3000,http://localhost:54102,http://localhost:55407,http://localhost:55500` |
 
-要换就 `ALLOWED_ORIGINS=... make dev-start`。
+要换就 `ALLOWED_ORIGINS=... bash dev start`。
 
 ## 热重载(dev — host-native)
 
 uvicorn 以 `--reload` 跑。改任意 `app/**/*.py` → FastAPI 自动重启,无需手
 动操作。改 `requirements.txt` → host 上 `setup.sh` 感知 hash 变化会重跑
-`pip install`(需要 `make dev-setup` 重新触发,然后 `make dev-restart` 重
+`pip install`(需要 `bash dev setup` 重新触发,然后 `bash dev restart` 重
 起 uvicorn 进程)。
 
-Schema 改动后:`make dev-migrate`(宿主机直接打 docker postgres,不会重
+Schema 改动后:`bash dev migrate`(宿主机直接打 docker postgres,不会重
 起 backend)。
 
 ## 测试
