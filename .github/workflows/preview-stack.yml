@@ -19,10 +19,15 @@ permissions:
   contents: read
 
 jobs:
-  preview:
+  # ============================================================
+  # preview-setup: ~5 分钟。build + 启动 cloudflared + 拿 URL
+  # ============================================================
+  preview-setup:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-
+    timeout-minutes: 10
+    outputs:
+      url: ${{ steps.tunnel.outputs.url }}
+      branch: ${{ steps.branch.outputs.branch }}
     services:
       postgres:
         image: postgres:15-alpine
@@ -46,8 +51,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.branch || github.ref }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -89,8 +92,11 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Build frontend (relative API URLs)
+      - name: Build frontend
         working-directory: frontend
+        env:
+          NEXT_PUBLIC_DEMO_MODE: 'false'
+          NEXT_PUBLIC_API_URL: ''
         run: npm run build:pages
 
       - name: Install cloudflared
@@ -100,8 +106,10 @@ jobs:
           chmod +x /tmp/cloudflared
           /tmp/cloudflared --version
 
-      - name: Start backend (uvicorn)
+      - name: Start backend
         working-directory: backend
+        env:
+          ALLOWED_ORIGINS: '*'
         run: |
           nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 \
             > /tmp/backend.log 2>&1 &
@@ -114,14 +122,11 @@ jobs:
             sleep 1
           done
 
-      - name: Install & start nginx (static + /api proxy)
+      - name: Install & start nginx
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq nginx > /dev/null
           cat > /tmp/nginx.conf <<EOF
-          # run workers as 'runner' user (owns frontend/out/) — avoids the
-          # Permission-denied that www-data hits on the runner-owned dir,
-          # AND keeps us off root. worker_processes stays auto-detected.
           user runner;
           events { worker_connections 1024; }
           http {
@@ -169,82 +174,73 @@ jobs:
             exit 1
           fi
 
-      - name: Display preview URL
-        if: steps.tunnel.outputs.url
+      - name: Get branch name
+        id: branch
         run: |
-          URL="${{ steps.tunnel.outputs.url }}"
           BRANCH="${{ inputs.branch || github.ref_name }}"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+  # ============================================================
+  # report: 5 秒内完成。读 preview-setup 的 URL,写 Summary。
+  # 完成后 run overview Summary tab 立刻渲染。
+  # ============================================================
+  report:
+    needs: preview-setup
+    if: needs.preview-setup.outputs.url != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Display preview URL in run overview summary
+        run: |
+          URL="${{ needs.preview-setup.outputs.url }}"
+          BRANCH="${{ needs.preview-setup.outputs.branch }}"
           RUN_NUM="${{ github.run_number }}"
-          # === 立刻写 Summary ===
           {
-            echo "## [🌐 $URL]($URL)"
+            echo "# 🌐 Preview URL"
+            echo ""
+            echo "## [🔗 $URL]($URL)"
             echo ""
             echo "\`$URL\`"
             echo ""
-            echo "| | |"
+            echo "| 字段 | 值 |"
             echo "|---|---|"
+            echo "| **URL** | [$URL]($URL) |"
             echo "| Branch | \`$BRANCH\` |"
             echo "| Run | #$RUN_NUM |"
-            echo "| Lifetime | ~90 min |"
+            echo "| Setup job | completed (URL 已生成) |"
+            echo "| Keep-alive job | in_progress (~90 min) |"
+            echo ""
+            echo "### 访问"
+            echo "1. 点击上面链接直接打开"
+            echo "2. 或复制 \`$URL\` 到浏览器"
+            echo ""
+            echo "### Stack"
+            echo "- nginx :4000 — 静态 + /api/* 反代到 uvicorn"
+            echo "- uvicorn :8000 — FastAPI 真 backend"
+            echo "- postgres :5432 — service container"
+            echo "- cloudflared — 出站隧道"
             echo ""
             echo "### 怎么停"
-            echo "Actions tab → 选这次 run → Cancel workflow"
+            echo "Actions tab → 选 preview-keep-alive job → Cancel workflow"
           } >> "$GITHUB_STEP_SUMMARY"
-          # === Post commit comment — URL 出现在 commit 页面,PR checks,commit list ===
-          COMMENT_BODY=$(cat <<EOF
-          🔗 **Preview URL**: $URL
+          echo "::notice title=🌐 Preview URL::$URL"
+          echo "URL: $URL"
 
-          - Branch: \`$BRANCH\`
-          - Run: #$RUN_NUM
-          - Lifetime: ~90 min (workflow keep-alive)
-
-          Visit: $URL
-          EOF
-          )
-          gh api \
-            --method POST \
-            -H "Accept: application/vnd.github+json" \
-            "/repos/${{ github.repository }}/commits/${{ github.sha }}/comments" \
-            -f body="$COMMENT_BODY" \
-            -f path=".github/workflows/preview-stack.yml" \
-            -f position=1 \
-            --silent || echo "::warning::Could not post commit comment (missing permission?)"
-          # === Post commit status — 状态图标出现在 commit 旁边 ===
-          gh api \
-            --method POST \
-            -H "Accept: application/vnd.github+json" \
-            "/repos/${{ github.repository }}/statuses/${{ github.sha }}" \
-            -f state="success" \
-            -f target_url="$URL" \
-            -f description="Preview: $URL" \
-            -f context="preview-stack/tunnel" \
-            --silent || echo "::warning::Could not post commit status (missing permission?)"
-          # === Annotation banner(顶部 notification) ===
-          echo "::notice title=🌐 Preview URL — 点击访问::$URL"
-          echo "::notice title=🔗 $URL::$URL"
-          # === step log 大字 banner ===
-          {
-            echo "╔═══════════════════════════════════════════════════════════════╗"
-            echo "║  🌐  PREVIEW URL  —  点击下方链接访问                                  ║"
-            echo "║                                                                    ║"
-            echo "║     $URL"
-            echo "║                                                                    ║"
-            echo "║     Branch:    $BRANCH"
-            echo "║     Run:       #$RUN_NUM"
-            echo "║     Lifetime:  ~90 min                                                ║"
-            echo "║                                                                    ║"
-            echo "╚═══════════════════════════════════════════════════════════════╝"
-          }
-      - name: Keep alive
-        if: steps.tunnel.outputs.url
+  # ============================================================
+  # preview-keep-alive: ~90 分钟。保持 tunnel 活着。
+  # ============================================================
+  preview-keep-alive:
+    needs: preview-setup
+    if: needs.preview-setup.outputs.url != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Keep tunnel alive
         run: |
-          URL="${{ steps.tunnel.outputs.url }}"
-          # 每 10 分钟刷新 Summary + emit ::notice
+          URL="${{ needs.preview-setup.outputs.url }}"
+          echo "Holding tunnel alive for 90 minutes: $URL"
           END=$((SECONDS + 5400))
-          while [ $SECONDS -lt $END ]; do
-            # 强制 GitHub 重新渲染 Summary 内容(append 触发现显示)
-            echo "_Heartbeat $(date +%H:%M:%S): $URL_" >> "$GITHUB_STEP_SUMMARY"
-            echo "::notice title=🌐 Preview URL — heartbeat::$URL"
+          while [ \$SECONDS -lt \$END ]; do
             echo "[$(date +%H:%M:%S)] tunnel alive: $URL"
             for i in 1 2 3 4 5 6 7 8 9 10; do
               sleep 60
