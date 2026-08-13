@@ -90,7 +90,11 @@ export default function ScenariosSection({ libs, onPickLib }: ScenariosSectionPr
                 )}
               </div>
               <div className={styles.cardSpacer} />
-              <SpecularButton
+              {/* baseColor / lineColor / textColor 必须是字面 hex ——
+                  SpecularButton 把它们喂给 ogl WebGL shader,shader
+                  不解析 var()。#5BA8D8 = --ds-action 与 --ds-action-deep
+                  之间的中间蓝 rim 基色,白 shine + 深字通用。 */}
+                            <SpecularButton
                 size="sm"
                 onClick={handleTry}
                 disabled={!firstLib}

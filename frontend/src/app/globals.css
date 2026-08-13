@@ -374,22 +374,54 @@ a:focus-visible {
    (The always-dark FinalCTA block reads --ds-tint here, so this
    light override also fixes its dark-theme contrast bug.)
    ============================================================ */
+/* ============================================================
+   Landing-page palette (Baby Blue + Soft Coral + Violet).
+   ------------------------------------------------------------
+   这是 [data-babyblue] 作用域 —— LandingPage 根上挂这个属性,
+   整页 token 走冷蓝主调,跟 dashboard 默认 Slate 母题区分。
+
+   角色分配:
+     --ds-action*   (冷蓝家族)  结构 / 节奏 / 边框 / chip
+     --ds-cta*      (软珊瑚)    主转化锚 (FinalCTA CTA)
+     --ds-convert*  (紫色)      弱转化 / 推荐 (LibStrip featured 卡 +
+                                 DataBento "免费" stat + FinalCTA 备选 CTA)
+     --shiny-*      (ShinyText) 标题 shimmer
+
+   三种颜色各司其职,一页里每种只承担一个角色 —— 避免"所有强调
+   都是珊瑚红"的廉价感。详细色板见 ds/themes.css 的 --ds-convert*。
+   ============================================================ */
 [data-babyblue] {
-  --ds-action: #8FCBF0;
-  --ds-action-deep: #2F80C0;
-  --ds-action-soft: #DCEFFB;
-  --ds-cta: #F4A6B0;
-  --ds-cta-deep: #E98A97;
+  --ds-action: #8FCBF0;             /* 填充专用,禁小字 */
+  --ds-action-deep: #2F80C0;        /* 文字级 / 链接 / hover */
+  --ds-action-ink: #0C447C;         /* 标题级 */
+  --ds-action-soft: #DCEFFB;        /* hover 浅底 / ghost border */
+  --ds-action-tint: #CDEBFB;        /* 极淡 wash(scrim / nebula / 描边),
+                                       原 #8FCBF0 跟 --ds-action 同色,语义错位 */
+  --ds-on-action: #0C447C;          /* 婴儿蓝按钮上的字 */
+
+  --ds-tint: #E6F2FB;               /* chip / 副底 */
+  --ds-tint-deep: #D7E8F6;          /* section 切色块 */
+  --ds-border: #D7E8F6;
   --ds-bg: #F2F8FE;
   --ds-surface: #FFFFFF;
-  --ds-tint: #E6F2FB;
-  --ds-border: #D7E8F6;
-  --ds-on-action: #0C447C;
-  --shiny-base:  #0C447C;              /* 深蓝,静态文字清晰 */
-  --shiny-shine: #5BB3F0;              /* 高饱和亮婴儿蓝,跟 base 形成强对比,
-                                          拉开足够亮度让 shimmer band 显眼.
-                                          避免 #CDEBFB 在 #F2F8FE 上消失(曾导致
-                                          "读完一句" 4 个字完全看不见) */
+
+  --ds-cta: #F4A6B0;                /* 主 CTA 填充(珊瑚) */
+  --ds-cta-deep: #E98A97;           /* hover / pressed */
+  --ds-cta-tint: #FBE4E8;           /* 珊瑚 scrim */
+  --ds-on-cta: #3A1018;
+
+  /* 弱化转化 —— 推荐卡 / "免费" stat / 紫色备选 CTA 的边框与底 */
+  --ds-convert: #8B5CF6;
+  --ds-convert-deep: #6D28D9;
+  --ds-convert-light: #A78BFA;
+  --ds-convert-tint: #EDE9FE;
+  --ds-on-convert: #FFFFFF;
+
+  --shiny-base:  #0C447C;           /* 深蓝,静态文字清晰 */
+  --shiny-shine: #5BB3F0;           /* 高饱和亮婴儿蓝,跟 base 形成强对比,
+                                       拉开足够亮度让 shimmer band 显眼.
+                                       避免 #CDEBFB 在 #F2F8FE 上消失(曾导致
+                                       "读完一句" 4 个字完全看不见) */
 }
 
 /* ------------------------------------------------------------
@@ -429,7 +461,15 @@ a:focus-visible {
 
   --ds-cta:           #F4A6B0;   /* 软珊瑚强调 */
   --ds-cta-deep:      #FAC2C9;
+  --ds-cta-tint:      #5B2C36;      /* 暗主题珊瑚 scrim */
   --ds-on-cta:        #3A1018;
+
+  /* 暗主题紫色反转 —— 跟亮主题对齐"推荐 = 紫"的语义,但用亮紫字配深紫底 */
+  --ds-convert:       #A78BFA;
+  --ds-convert-deep:  #C4B5FD;
+  --ds-convert-light: #8B5CF6;
+  --ds-convert-tint:  #1E1B4B;
+  --ds-on-convert:    #1E1B4B;
 
   --ds-focus:         #8FCBF0;
 

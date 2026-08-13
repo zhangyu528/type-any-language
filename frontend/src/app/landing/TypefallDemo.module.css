@@ -11,6 +11,7 @@
   gap: var(--space-2);
   min-height: 120px;
   text-align: center;
+  position: relative;
 }
 
 .demoProgress {
@@ -63,21 +64,38 @@
 .demoChar {
   display: inline-block;
   white-space: pre;
-  transition: opacity 200ms ease;
+  /* 不写 transition —— 让 animation 独占 opacity,避免 transition / animation
+     同一属性的优先级打架抹平 per-letter 节奏 */
+}
+
+/* 词间空格 cell —— 显式 width 撑视觉间距,不参与 punch 动画。
+   0.35em ≈ 标准英文词间距(letter-spacing 0 + 空格宽度),
+   monospace 22px 下约 7.7px,可读清晰。 */
+.demoCharSpace {
+  display: inline-block;
+  width: 0.35em;
 }
 
 .demoCharArriving {
-  animation: charFall 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  /* 打字机"键按下"感:opacity fade + 轻微 scale pop(0.85 → 1.04 → 1),
+     不做 translateY 滑落 —— 字符在原位 punch-in,有"哒"一下的物理感。
+     150ms Q-bouncy:70% 时 scale 略超 1 给 overshoot,后 30% 回弹到 1。
+     stagger 150ms = 动画时长,任意时刻最多 1 字在 punch。 */
+  animation: charType 150ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-@keyframes charFall {
+@keyframes charType {
   0% {
-    transform: translateY(-0.5em);
     opacity: 0;
+    transform: scale(0.85);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.04);
   }
   100% {
-    transform: translateY(0);
     opacity: 1;
+    transform: scale(1);
   }
 }
 

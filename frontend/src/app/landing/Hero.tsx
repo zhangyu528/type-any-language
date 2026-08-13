@@ -60,23 +60,6 @@ export default function Hero({ libs, onPickLib }: HeroProps) {
   const { user } = useAuth();
   const firstLib = libs[0];
   const canStart = !!firstLib;
-  // demo 句阶段:typing / done(dwell 期)。done 时 footer ★/✓ 点亮,
-  // 跟 TypefallDemo 的 now 时间线联动,不另起定时器。
-  const [demoPhase, setDemoPhase] = useState<'typing' | 'done'>('typing');
-  // 逐词节拍计数器:每打完一个词 +1,作为外框呼吸脉冲的重放信号。
-  const [wordBeat, setWordBeat] = useState(0);
-  const beatRef = useRef<HTMLDivElement>(null);
-
-  // 每打完一个词(wordBeat 变化)强制重放一次外框呼吸脉冲(beatPulse)。
-  // 用 ref + 强制 reflow 重启动画,避免用 key 重挂导致的 "same key" 警告。
-  useEffect(() => {
-    if (wordBeat === 0) return;
-    const el = beatRef.current;
-    if (!el) return;
-    el.style.animation = 'none';
-    void el.offsetWidth; // 强制回流,让 animation 重置生效
-    el.style.animation = '';
-  }, [wordBeat]);
 
   const handleStart = () => {
     if (!canStart) return;
@@ -114,15 +97,6 @@ export default function Hero({ libs, onPickLib }: HeroProps) {
         className={styles.demoBlock}
       >
         <div className={styles.mock}>
-          {/* 逐词呼吸脉冲:每打完一个词 wordBeat +1 → 通过 beatRef 强制
-             reflow 重放一次外框呼吸脉冲(beatPulse)。不用 key(避免 React
-             "same key" 警告),改用 ref 重启动画。wordBeat>0 才渲染,
-             避免加载时的多余脉冲。复用 TypefallDemo 的 now 时间线。
-             句子完成后不再有新词 → 脉冲停在透明态,外框回归安静
-             (满足"完成后就不需要触发了")。 */}
-          {wordBeat > 0 && (
-            <div ref={beatRef} className={styles.mockBeat} aria-hidden="true" />
-          )}
           <div className={styles.mockTopbar}>
             <span className={styles.mockDot} />
             <span className={styles.mockDot} />
@@ -133,26 +107,8 @@ export default function Hero({ libs, onPickLib }: HeroProps) {
           {/* Hero 跟打练习微观动作演示 — 多句轮播 */}
           <TypefallDemo
             libId={firstLib?.id}
-            onPhase={setDemoPhase}
-            onWord={() => setWordBeat((b) => b + 1)}
           />
 
-          {/* mockFooter:动作提示,让用户知道这是可互动的 */}
-          <div className={styles.mockFooter}>
-            <span
-              className={`${styles.mockStar}${demoPhase === 'done' ? ` ${styles.mockStarLit}` : ''}`}
-              aria-hidden="true"
-            >
-              ★
-            </span>
-            <span className={styles.mockCount}>试读这一句 · 点击跟打</span>
-            <span
-              className={`${styles.mockCheck}${demoPhase === 'done' ? ` ${styles.mockCheckLit}` : ''}`}
-              aria-hidden="true"
-            >
-              ✓
-            </span>
-          </div>
         </div>
 
         {/* Trust 条:demo 下方的小型承诺,跟 mock 卡视觉共生。
@@ -182,6 +138,13 @@ export default function Hero({ libs, onPickLib }: HeroProps) {
           size="lg"
           onClick={handleStart}
           disabled={!canStart}
+          /* tint 走 token(--ds-action-tint babyblue 极淡 wash);
+             baseColor / lineColor / textColor 必须是字面 hex ——
+             SpecularButton 把它们喂给 ogl WebGL shader,shader
+             不解析 var(),必须是字符串 hex。这里 #5BA8D8 是
+             --ds-action (#8FCBF0) 与 --ds-action-deep (#2F80C0)
+             之间的中间蓝,作为 rim 阴影环的基色;纯白 shine +
+             深蓝 text 制造 Specular 高光感。 */
           tint="var(--ds-action-tint)"
           tintOpacity={1}
           baseColor="#5BA8D8"

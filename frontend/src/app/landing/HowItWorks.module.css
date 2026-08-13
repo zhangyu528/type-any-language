@@ -384,7 +384,9 @@
 }
 
 [data-theme="dark"] .stepStatValue {
-  color: #BFE0F5;
+  /* 暗主题 step 数字用 --ds-action-deep 文字级 —— 原 #BFE0F5 散落
+     字面量已收口为 token,跟冷蓝主调统一 */
+  color: var(--ds-action-deep);
 }
 /* ---------- 响应式 ---------- */
 

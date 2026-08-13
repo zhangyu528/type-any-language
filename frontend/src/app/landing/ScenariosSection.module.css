@@ -97,14 +97,16 @@
 }
 
 [data-theme="dark"] .sceneCard {
-  background: color-mix(in srgb, #0A1428 88%, transparent);
-  color: #FFFFFF;
+  /* 暗主题卡底 = --ds-surface + 微透,字色走 --ds-ink —— 原 #0A1428 /
+     #FFFFFF 散落字面量已收口为 token,跟 LibStrip 对齐 */
+  background: color-mix(in srgb, var(--ds-surface) 88%, transparent);
+  color: var(--ds-ink);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 [data-theme="dark"] .sceneCard:hover {
   border-color: color-mix(in srgb, var(--ds-action-tint) 45%, transparent);
-  box-shadow: 0 6px 22px rgba(143, 203, 240, 0.18);
+  box-shadow: 0 6px 22px color-mix(in srgb, var(--ds-action-tint) 18%, transparent);
 }
 
 /* ---------- 卡内布局 ----------
@@ -135,7 +137,7 @@
 }
 
 [data-theme="dark"] .cardSceneName {
-  color: #FFFFFF;
+  color: var(--ds-ink);
 }
 
 /* .enWrap 包住 DecryptedText(或 reduced-motion 时的静态 span)。
@@ -155,7 +157,8 @@
 }
 
 [data-theme="dark"] .cardQuote {
-  color: #E8F4FC;
+  /* 暗主题英文 quote 走 --ds-ink —— 原 #E8F4FC 散落字面量已收口 */
+  color: var(--ds-ink);
 }
 
 .cardZh {
@@ -166,7 +169,7 @@
 }
 
 [data-theme="dark"] .cardZh {
-  color: #9AB6CE;
+  color: var(--ds-ink-soft);
 }
 
 .cardSpacer {

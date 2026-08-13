@@ -154,20 +154,22 @@
 }
 
 [data-theme="dark"] .libCard {
-  background: color-mix(in srgb, #0A1428 88%, transparent);
-  color: #FFFFFF;
+  /* 暗主题卡底 = --ds-surface (深空蓝卡) + 微透,字色走 --ds-ink
+     —— 原 #0A1428 / #FFFFFF 散落字面量已收口为 token */
+  background: color-mix(in srgb, var(--ds-surface) 88%, transparent);
+  color: var(--ds-ink);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .libCard:hover {
   border-color: color-mix(in srgb, var(--ds-action) 38%, transparent);
   /* 跟 HowItWorks 一致 22px blur —— overflow: hidden 在卡上裁掉外溢 */
-  box-shadow: 0 6px 22px rgba(47, 128, 192, 0.18);
+  box-shadow: 0 6px 22px color-mix(in srgb, var(--ds-action-deep) 18%, transparent);
 }
 
 [data-theme="dark"] .libCard:hover {
   border-color: color-mix(in srgb, var(--ds-action-tint) 45%, transparent);
-  box-shadow: 0 6px 22px rgba(143, 203, 240, 0.22);
+  box-shadow: 0 6px 22px color-mix(in srgb, var(--ds-action-tint) 22%, transparent);
 }
 
 /* 推荐卡 —— 视觉差异化,一眼锚点。紫色边框 + 2px 微抬 */
@@ -213,7 +215,9 @@
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #FFFFFF;
+  /* 推荐徽章字色 = --ds-on-convert(深紫底配白字);
+     暗主题自动映射为深紫字配亮紫底(已在 globals.css 配) */
+  color: var(--ds-on-convert);
   background: var(--ds-convert);
   padding: 3px 8px;
   border-radius: 999px;
@@ -221,7 +225,11 @@
 }
 
 [data-theme="dark"] .featuredBadge {
-  color: #FFFFFF;
+  /* 暗主题紫色徽章字色用 --ds-on-convert(亮紫底配深紫字),
+     自动在 globals.css [data-theme="dark"] [data-babyblue] 里映射为 #1E1B4B;
+     背景 = 暗主题反转后的 --ds-convert(亮紫) —— 修复前 --ds-convert
+     未定义,徽章透明看不见 */
+  color: var(--ds-on-convert);
   background: var(--ds-convert);
 }
 
@@ -251,7 +259,8 @@
 }
 
 [data-theme="dark"] .libLevel {
-  color: #BFE0F5;
+  /* 暗主题等级 chip 文字走 --ds-action-deep —— 原 #BFE0F5 散落字面量已收口 */
+  color: var(--ds-action-deep);
   background: color-mix(in srgb, var(--ds-action-tint) 18%, transparent);
 }
 
@@ -266,7 +275,8 @@
 }
 
 [data-theme="dark"] .libName {
-  color: #FFFFFF;
+  /* 暗主题词库名走 --ds-ink(浅婴儿蓝白) —— 原 #FFFFFF 纯白散落 */
+  color: var(--ds-ink);
 }
 
 .libMeta {
@@ -278,7 +288,8 @@
 }
 
 [data-theme="dark"] .libMeta {
-  color: #9AB6CE;
+  /* 暗主题词数走 --ds-ink-soft —— 原 #9AB6CE 散落字面量已收口 */
+  color: var(--ds-ink-soft);
 }
 
 .libLevelLabel {
@@ -291,7 +302,8 @@
 }
 
 [data-theme="dark"] .libLevelLabel {
-  color: #7E9CB6;
+  /* 暗主题描述走 --ds-ink-faint —— 原 #7E9CB6 散落字面量已收口 */
+  color: var(--ds-ink-faint);
 }
 
 

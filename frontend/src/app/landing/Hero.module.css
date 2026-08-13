@@ -72,11 +72,13 @@
 }
 
 [data-theme="dark"] .trustBadgeItem {
-  color: #BFE0F5;
+  /* 暗主题 trust badge 用 --ds-action-deep 文字级(亮紫蓝),
+     跟冷蓝主调统一 —— 原 #BFE0F5 散落字面量已收口为 token */
+  color: var(--ds-action-deep);
 }
 [data-theme="dark"] .trustBadgeIcon {
   background: color-mix(in srgb, var(--ds-action-tint) 22%, transparent);
-  color: #BFE0F5;
+  color: var(--ds-action-deep);
 }
 
 /* ---------- bento section root ---------- */
@@ -178,8 +180,11 @@
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
+  /* gap 12→16:topbar 跟 demo 之间多 4px 呼吸 */
+  gap: var(--space-4);
+  /* padding 上下 20→24:给整卡更多上下边距,适配两行英文 + 底部进度条的
+     整体高度(见 .demoRoot min-height 200px 注释),卡看起来更稳 */
+  padding: var(--space-6) var(--space-5);
   background: color-mix(in srgb, var(--ds-surface) 92%, transparent);
   border-color: color-mix(in srgb, var(--ds-border-strong) 30%, transparent);
   border: 1px solid color-mix(in srgb, var(--ds-border) 70%, transparent);
@@ -188,31 +193,10 @@
     0 1px 0 rgba(255, 255, 255, 0.6) inset,
     0 4px 16px rgba(14, 26, 46, 0.06),
     0 12px 32px rgba(14, 26, 46, 0.05);
-  /* 逐词脉冲层 .mockBeat 的锚点:relative 让其 absolute 定位卡内,
-     isolate 把负 z-index 收在卡内不漏到其它 section。
-     注意:外框联动只在打字过程中逐词触发(beatPulse),句子完成后
-     不保留任何常驻/高亮光 —— 卡回到安静态。 */
+  /* position: relative 给 .mockBeat absolute 锚点(已移除),保留以备未来内部浮层使用。
+     isolation: isolate 创建独立层叠上下文,避免跟其它 section 的 z-index 互窜。 */
   position: relative;
   isolation: isolate;
-}
-
-/* 逐词呼吸脉冲:每打完一个词,外层卡片"吸气"亮一下再完全消散。
-   该层由 Hero 的 <div key={wordBeat}> remount 重放一次(零新增定时器),
-   节奏来自 TypefallDemo 的 now 时间线 —— 完成一个词触发一次效果。
-   句子完成后(now 归零 / 进入 dwell)不再有新词,脉冲自然停在 100% 的
-   透明态,外框回归无光安静态(满足"完成后就不需要触发了")。 */
-.mockBeat {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  z-index: -1;
-  animation: beatPulse 0.7s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
-}
-@keyframes beatPulse {
-  0% { box-shadow: 0 0 8px 0 color-mix(in srgb, var(--ds-action) 18%, transparent); opacity: 0.5; }
-  35% { box-shadow: 0 0 30px 8px color-mix(in srgb, var(--ds-action) 72%, transparent); opacity: 1; }
-  100% { box-shadow: 0 0 8px 0 color-mix(in srgb, var(--ds-action) 18%, transparent); opacity: 0; }
 }
 
 /* ---------- mock topbar / dots / lib name ---------- */
@@ -244,93 +228,6 @@
 }
 
 /* ---------- mock progress bar ---------- */
-.mockProgress {
-  position: relative;
-  height: 3px;
-  background: color-mix(in srgb, var(--ds-border) 50%, transparent);
-  border-radius: 999px;
-  overflow: hidden;
-}
-.mockProgressFill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  background: var(--ds-action);
-  border-radius: 999px;
-  transition: width 200ms linear;
-}
-
-/* ---------- mock prompt / zh / typing / en ---------- */
-.mockPrompt {
-  margin-top: var(--space-2);
-  min-height: 48px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-.mockZh {
-  margin: 0;
-  font-family: var(--font-sans);
-  font-size: 15px;
-  color: var(--ds-ink-soft);
-  letter-spacing: 0.01em;
-}
-.mockTyping {
-  margin: 0;
-  font-family: var(--font-mono), monospace;
-  font-size: 18px;
-  color: var(--ds-ink);
-  letter-spacing: 0.01em;
-  line-height: 1.5;
-  word-break: break-all;
-}
-.mockEn {
-  margin: 0;
-  font-family: var(--font-mono), monospace;
-  font-size: 18px;
-  color: var(--ds-action-deep);
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  line-height: 1.5;
-  word-break: break-all;
-}
-.mockWrong {
-  text-decoration: line-through;
-  text-decoration-color: rgba(244, 100, 100, 0.6);
-  color: var(--ds-ink-faint);
-}
-.mockWrong .glitch,
-.mockWrong .glitch::before,
-.mockWrong .glitch::after {
-  /* 错改字符的 glitch 效果由 react-bits GlitchText 自带,这里只占位 */
-  display: inline;
-}
-
-/* ---------- mock footer ---------- */
-.mockFooter {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding-top: var(--space-2);
-  border-top: 1px dashed color-mix(in srgb, var(--ds-border) 80%, transparent);
-  font-family: var(--font-mono), monospace;
-  font-size: 12px;
-  color: var(--ds-ink-soft);
-}
-.mockStar {
-  color: var(--ds-action);
-  font-size: 12px;
-}
-.mockCount {
-  margin-left: auto;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  font-size: 12px;
-}
-.mockCheck {
-  color: var(--ds-action-deep);
-  font-size: 13px;
-}
-
 /* ---------- TypefallDemo 内部样式 ---------- */
 .demoRoot {
   display: flex;
@@ -339,13 +236,15 @@
      - align-items center:子项横向居中
      - justify-content flex-start:子项从顶部贴齐(原 center 让内容
        从中线散开,EnRow 长高时会把 zh/progress 向上推)
-     - min-height 140:progress(3) + gap(8) + zh(28) + gap(8) + EnRow 2行(80)
-       + 底部呼吸(13) ≈ 140。锁住卡片高度,切换句子/字符 typing 时
-       不会让上方元素位置漂移。 */
+     - min-height 200:zh(32) + gap(12) + EnRow 2行(96) + gap(12) +
+       progress(3) + 上下呼吸(45) ≈ 200。专门为 2 行英文(50+ 字符长句)
+       留出充分呼吸空间 —— 长句 wrap 后整卡不溢出,2 行之间不被裁剪。
+       配合 .mock padding 上下 24,整卡高度 ~290px,在 hero 里
+       "title(40px)-demo(290px)-CTA(48px)"形成稳固的"小-大-小"层次。 */
   align-items: center;
   justify-content: flex-start;
-  gap: var(--space-2);
-  min-height: 140px;
+  gap: var(--space-3);
+  min-height: 200px;
 }
 .demoProgress {
   /* 进度条要跨全宽(不是文字),覆盖父容器的 align-items: center */
@@ -371,9 +270,9 @@
   color: var(--ds-ink-soft);
   letter-spacing: 0.01em;
   text-align: center;
-  /* 锁单行高度(17 * 1.55 ≈ 26 → 28):中文提示 1 行稳定占位,
-     防止 EnRow 字符 typing 时把上方 zh 行挤上去 */
-  min-height: 28px;
+  /* 锁单行高度(17 * 1.55 ≈ 26 → 32):中文提示 1 行稳定占位,
+     防止 EnRow 字符 typing 时把上方 zh 行挤上去;28→32 多 4px 上下呼吸 */
+  min-height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -394,105 +293,16 @@
   justify-content: center;
   /* 多行 wrap 时垂直居中(避免多行偏到底部) */
   align-content: center;
-  /* 锁 1.5 行高度(24 * 1.55 ≈ 37 → 56):短句不会让卡片塌陷,
-     长句允许扩展到 2 行(总高 ≈ 80),demoRoot min-height 140 容纳 */
-  min-height: 56px;
+  /* 锁 2 行 + 上下微呼吸高度(24 * 1.55 ≈ 37 → 96):
+     短句(1 行 37px)不塌陷 → 撑高到 96px 留 59px 上下空白;
+     长句(2 行 74px)刚好填满,跟 demoRoot min-height 200px 协调。 */
+  min-height: 96px;
   width: 100%;
   /* 词间水平间距 — `display:flex` 会折叠 JSX 文本节点(原本
      `{' '}` 是默认 block + inline 的空格来源),所以必须显式给
      gap。`0.4em` ≈ 7px,符合 mono 字体中等字距的"句中词"节奏。
      row gap 0 → 单词不换行时垂直不空。 */
   gap: 0 0.4em;
-}
-.demoWord {
-  display: inline-flex;
-  position: relative;
-}
-.demoWord .demoDecrypted,
-.demoWord .demoWrong {
-  display: inline;
-}
-.demoWord .demoWrong {
-  color: var(--ds-ink-faint);
-  text-decoration: line-through;
-  text-decoration-color: rgba(244, 100, 100, 0.6);
-}
-.demoWord .demoWrong::before,
-.demoWord .demoWrong::after {
-  /* react-bits GlitchText 自带,这里仅占位 */
-  content: '';
-}
-.demoPlaceholder {
-  display: inline-block;
-  width: 1em;
-}
-
-.demoWordInner {
-  display: inline-flex;
-  gap: 1px;
-  font-variant-numeric: tabular-nums;
-}
-.demoChar {
-  display: inline-block;
-  min-width: 0.55em;
-  text-align: center;
-  /* 默认隐藏:字符出现时由 charFall 动画带到 opacity:1(落字感)。
-     减少动效偏好下在文件末尾 reduced-motion 块里强制 opacity:1。 */
-  opacity: 0;
-  transition: color 100ms linear;
-}
-.demoCharScrambling {
-  color: var(--ds-action);
-  font-weight: 700;
-  animation: charShake 60ms steps(2) infinite;
-}
-.demoCharSettled {
-  color: var(--ds-action-deep);
-  font-weight: 600;
-}
-@keyframes charShake {
-  0% { transform: translateY(0); }
-  50% { transform: translateY(-1px); }
-  100% { transform: translateY(1px); }
-}
-
-/* ---------- 字母节奏联动(光标 + 落字 + 声波)----------
-   全部由 TypefallDemo 的 now 时间线驱动,不新增定时器。 */
-/* 刚打出的字符:从上方轻落 + 淡入(呼应 TypefallDemo 的 "fall" 语义) */
-.demoCharArriving {
-  animation: charFall 260ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)) both;
-}
-@keyframes charFall {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* 跨组件联动:整句打完(dwell 期)footer ★/✓ 点亮 + 轻 pop */
-.mockStarLit {
-  animation: starPop 440ms var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1)) both;
-  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ds-action) 75%, transparent));
-}
-.mockCheckLit {
-  animation: checkPop 440ms var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1)) both;
-  color: var(--ds-action-deep);
-  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ds-action) 75%, transparent));
-}
-@keyframes starPop {
-  0% { transform: scale(1); }
-  45% { transform: scale(1.35); }
-  100% { transform: scale(1); }
-}
-@keyframes checkPop {
-  0% { transform: scale(1); }
-  45% { transform: scale(1.3); }
-  100% { transform: scale(1); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .demoChar { opacity: 1; }
-  .demoCharArriving { animation: none; }
-  .mockBeat { animation: none; }
-  .mockStarLit, .mockCheckLit { animation: none; }
 }
 
 /* ---------- bottom CTA(NEW)----------

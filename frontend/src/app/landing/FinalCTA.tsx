@@ -63,9 +63,12 @@ export default function FinalCTA({ onStart }: FinalCTAProps): ReactElement {
           size="lg"
           onClick={onStart}
           /* 紫色 CTA —— 跟 Section 2 featured 卡 + 数据 "免费" cell
-             建立"紫色=转化"语义,full-bleed 段内仍是唯一视觉锚点 */
-          /* 紫色 CTA —— 走 --ds-convert token(暗主题自动映射);
-             baseColor 进 WebGL shader 不认 var(),保留字面 #7C3AED(= --ds-convert-deep) */
+             建立"紫色=转化"语义,full-bleed 段内仍是唯一视觉锚点。
+             baseColor / lineColor / textColor 必须是字面 hex ——
+             SpecularButton 把它们喂给 ogl WebGL shader,shader
+             不解析 var()。这里 #7C3AED = --ds-convert-deep,作为
+             紫色 rim 阴影环基色;纯白 shine + 白字配深紫底制造
+             紫色系 Specular 高光感。 */
           tint="var(--ds-convert)"
           tintOpacity={1}
           baseColor="#7C3AED"
