@@ -173,13 +173,19 @@ jobs:
         if: steps.tunnel.outputs.url
         run: |
           URL="${{ steps.tunnel.outputs.url }}"
+          # GitHub Actions annotation: this shows up as a green notice
+          # banner at the TOP of the run page (above all step output).
+          # First link in the notice is auto-clickable.
+          echo "::notice title=🌐 Preview URL::$URL"
+          echo ""
           {
-            echo "## 🌐 Preview URL"
+            echo "## 🌐 Preview URL — 点击下方链接访问"
             echo ""
-            echo "**[$URL]($URL)**"
+            echo "## [$URL]($URL)"
             echo ""
-            echo "| | |"
+            echo "| 字段 | 值 |"
             echo "|---|---|"
+            echo "| **URL** | [$URL]($URL) |"
             echo "| Branch | \`${{ inputs.branch || github.ref_name }}\` |"
             echo "| Run | #${{ github.run_number }} |"
             echo "| Lifetime | ~90 min |"
@@ -194,6 +200,7 @@ jobs:
           echo "============================================"
           echo "  🌐 PREVIEW URL: $URL"
           echo "============================================"
+          echo ""
 
       - name: Keep alive
         if: steps.tunnel.outputs.url
