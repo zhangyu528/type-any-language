@@ -25,7 +25,7 @@
 // Usage:
 //   node scripts/preflight.mjs
 //   npm run preflight
-//   make dev-doctor  # (which will proxy to this)
+//   bash dev doctor  # (which will proxy to this)
 
 import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';

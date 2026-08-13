@@ -8,7 +8,6 @@
 # ops/cvm/_common.sh's compose() wrapper, or pass
 # `--project-directory <repo-root>` yourself. Entry points:
 #     ./ops/cvm/lifecycle.sh start|stop|restart
-#     make prod-start | prod-stop | prod-restart
 #
 # Runtime model: 3 services, all on the CVM, on the same compose project.
 # Pulled as a unit and recreated together on `lifecycle.sh restart`.

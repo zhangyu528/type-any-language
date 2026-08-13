@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# dev — 跨平台统一入口派发器 (Win/macOS/Linux)
+#
+# 取代原根 Makefile 的全部命令:dev-* (目标机日常) 与 cms-* (内容管线)
+# 都收在这里。根 Makefile 已删除,所有入口统一走 `bash dev <cmd>`。
+#
+# 三平台零安装前置:
+#   - macOS  / Linux  : bash 自带
+#   - Windows (Git Bash): bash.exe 自带 (C:\Program Files\Git\bin)
+#   - Windows (Git Bash): bash.exe 自带 (C:\Program Files\Git\bin)
+#   - Windows (PowerShell/cmd): 开 Git Bash 终端再跑 `bash dev start`
+#     (裸 PowerShell/cmd 的 bash 是 WSL 启动器,可能失败)
+#
+# 用法: bash dev {start|stop|restart|status|logs|doctor|setup|migrate|import|help}
+#
+# 选 bash 前缀运行 = 不需要 +x 权限 = macOS 不会踩 "permission denied" 坑;
+# 也兼容 Windows (Git Bash 的 `bash dev ...` 是标准用法)。
+#
+# 子命令自动转发到 dev-tools/ 下的脚本,所有参数透传。
+
+set -e
+
+# 定位 repo 根(脚本可能从任意目录被调用)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+# 取出 subcommand,剩余参数原样透传
+SUBCMD="${1:-help}"
+shift 2>/dev/null || true
+
+case "$SUBCMD" in
+  # ---- 服务生命周期 ----
+  start)              bash dev-tools/native.sh start              "$@" ;;
+  start-frontend)     bash dev-tools/native.sh start-frontend     "$@" ;;
+  stop)               bash dev-tools/native.sh stop               "$@" ;;
+  restart)            bash dev-tools/native.sh restart            "$@" ;;
+  restart-frontend)
+    # Makefile 走 npm run:避免在 backend 上误改 pid 文件
+    (cd frontend && npm run dev:restart)
+    ;;
+
+  # ---- 观测 ----
+  status)             bash dev-tools/native.sh status             "$@" ;;
+  logs)               bash dev-tools/native.sh logs               "$@" ;;
+  preflight)          bash dev-tools/native.sh preflight          "$@" ;;
+  doctor)             bash dev-tools/doctor.sh                    "$@" ;;
+
+  # ---- 一次性 / 数据 ----
+  setup)              bash dev-tools/setup.sh                     "$@" ;;
+  migrate)            bash dev-tools/migrate.sh                   "$@" ;;
+  import|import-content)
+                      bash dev-tools/import_content.sh            "$@" ;;
+
+  # ---- CMS 内容管线 (原 Makefile cms-*) ----
+  cms-vocab)          bash cms/scripts/staging.sh vocab           "$@" ;;
+  cms-sentences)      bash cms/scripts/staging.sh sentences       "$@" ;;
+  cms-audio)          bash cms/scripts/staging.sh audio           "$@" ;;
+  cms-staging-doctor) bash cms/scripts/staging.sh doctor          "$@" ;;
+  cms-run)            bash cms/run.sh                             "$@" ;;
+
+  # ---- 帮助 ----
+  help|--help|-h)
+    cat <<'USAGE'
+Usage: bash dev <command> [args]
+
+Service lifecycle:
+  start                 Start host-native backend (uvicorn) + frontend (next dev) + docker db
+  start-frontend        Start ONLY the frontend (next dev :3000)
+  stop                  Stop backend + frontend (docker db stays up)
+  restart               stop + start (docker db stays up)
+  restart-frontend      Restart ONLY the frontend (does NOT touch backend)
+
+Observation:
+  status                pid + uptime + port for backend/frontend + docker db health
+  logs [backend|frontend|both]   Tail native logs (default: both)
+  preflight             Read-only check (python >= 3.11, node >= 20, .venv, node_modules, db)
+  doctor                Full preflight (docker / compose / host python+node / db mount / ports)
+
+One-shot / data:
+  setup                 First-time install: deps + start docker db
+  migrate               Apply pending schema migrations to docker postgres
+  import [args]         UPSERT cms/content/ into docker postgres (= import-content)
+
+CMS content pipeline (runs on the CMS host):
+  cms-vocab             CSVs -> cms/content/vocabulary/<lib>.json (Extract)
+  cms-sentences         OpenAI -> cms/content/sentences/<lib>.jsonl
+  cms-audio             Tencent TTS -> fill audio_url in cms/content/sentences/*
+  cms-staging-doctor    CMS env + Python deps preflight
+  cms-run               Full CMS pipeline (vocab + sentences + audio, no db import)
+
+Other:
+  help                  Show this message
+
+Examples:
+  bash dev start
+  bash dev logs backend
+  bash dev doctor
+  bash dev migrate
+  bash dev import
+
+Cross-platform:
+  macOS  / Linux        bash dev start
+  Windows (Git Bash)    bash dev start
+  Windows (PowerShell/cmd)  开 Git Bash 终端再跑 bash dev start
+                            (裸 PowerShell/cmd 的 bash 是 WSL 启动器,可能失败)
+USAGE
+    ;;
+
+  *)
+    echo "Unknown command: $1" >&2
+    echo "Run 'bash dev help' for usage." >&2
+    exit 2
+    ;;
+esac

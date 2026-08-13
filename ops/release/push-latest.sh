@@ -2,7 +2,7 @@
 #
 # ops/release/push-latest.sh - retag + push each release image with the
 # mutable `:latest` tag, so a host with no explicit IMAGE_TAG (e.g. a bare
-# `make prod-bootstrap` that pulls `latest`) can fetch the newest published
+# `bash ops/cvm/bootstrap.sh` that pulls `latest`) can fetch the newest published
 # build zero-config.
 #
 # NOTE: if GHCR has immutable tags enabled for any of these packages,

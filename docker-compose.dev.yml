@@ -5,13 +5,13 @@
 # `english_dev`) on the host so the host-native dev loop (uvicorn +
 # `next dev` on the host) has a database to talk to. There are no
 # other services in this file — backend and frontend run on the host
-# via `make dev-start` (dev/native.sh), not in containers.
+# via `bash dev start` (dev-tools/native.sh), not in containers.
 #
 # One db per dev host (single-tenant). Data is bind-mounted to
 # ./.docker-postgres-data/ (gitignored) so container recreate preserves
 # state, and the data is visible on the host for backup / inspection.
 #
-# First-time data: run `make dev-import-content` on the host (or
+# First-time data: run `bash dev import` on the host (or
 # `python -m importer all` directly). The dev wrapper UPSERTs vocab +
 # sentences, then immediately re-runs migrations so rerunnable backfills
 # see the imported rows. No backend restart is required.

@@ -256,7 +256,7 @@ cmd_preflight() {
             failed=1
         fi
     else
-        err "backend/scripts/preflight.py 或 python3 缺失 — 重新跑 make dev-setup"
+        err "backend/scripts/preflight.py 或 python3 缺失 — 重新跑 bash dev setup"
         failed=1
     fi
 
@@ -269,7 +269,7 @@ cmd_preflight() {
             failed=1
         fi
     else
-        err "frontend/package.json 或 npm 缺失 — 重新跑 make dev-setup"
+        err "frontend/package.json 或 npm 缺失 — 重新跑 bash dev setup"
         failed=1
     fi
 
@@ -462,7 +462,8 @@ _start_one() {
 
 cmd_start_frontend() {
     if ! cmd_preflight >/dev/null; then
-        err "preflight 失败 — 跑 make dev-setup 修"
+        err "preflight 失败 — 见下方详情:"
+        cmd_preflight
         return 1
     fi
     _ensure_layout
@@ -499,12 +500,13 @@ cmd_start_frontend() {
     ok "frontend dev 已启动"
     echo -e "  前端: ${_LIB_BLUE}http://localhost:${FRONTEND_PORT}${_LIB_NC}"
     echo "  logs: tail -f $FRONTEND_LOG"
-    echo "        (or: make dev-logs frontend)"
+    echo "        (or: bash dev logs frontend)"
 }
 
 cmd_start() {
     if ! cmd_preflight >/dev/null; then
-        err "preflight 失败 — 跑 make dev-setup 修"
+        err "preflight 失败 — 见下方详情:"
+        cmd_preflight
         return 1
     fi
     _ensure_layout
@@ -625,13 +627,13 @@ usage() {
   BACKEND_PORT / FRONTEND_PORT  覆盖
 
 典型工作流:
-  make dev-setup            # 装 venv + node_modules + (lazy) docker image build
-  make dev-start            # native start
+  bash dev setup            # 装 venv + node_modules + (lazy) docker image build
+  bash dev start            # native start
   ...改代码,看热重载...
-  make dev-stop
+  bash dev stop
 
 想测 docker image 路径:
-  make dev-docker-start     # = ./dev-tools/lifecycle.sh start
+  bash dev start            # docker db 也随 start 一起拉起
 EOF
 }
 

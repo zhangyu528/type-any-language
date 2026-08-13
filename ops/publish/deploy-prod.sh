@@ -33,11 +33,13 @@ trap "rm -f $KEYFILE $UFILE $TFILE" EXIT
 echo "[deploy-prod] packaging ops scripts..."
 # The CVM only needs its runtime scripts (ops/cvm/*.sh), the prod stack
 # definition (docker-compose.yml at the repo root), the CVM nginx module
-# (ops/cvm/nginx/), the shared helpers (ops/lib.sh), and the Makefile
-# (prod-restart / prod-doctor targets). The publish scripts (this file,
-# promote.sh, assert-staging-verified.sh) run on the CI runner, NOT on
-# the CVM, so they are intentionally NOT shipped.
-tar czf /tmp/prod-deploy.tar.gz docker-compose.yml ops/cvm ops/lib.sh Makefile
+# (ops/cvm/nginx/), and the shared helpers (ops/lib.sh). The publish
+# scripts (this file, promote.sh, assert-staging-verified.sh) run on the
+# CI runner, NOT on the CVM, so they are intentionally NOT shipped.
+# (Entry points that used to live in the root Makefile — dev-* and cms-*
+# — now live in the `dev` dispatcher; prod-* / db-* / release-* live in
+# ops/cvm + .github/workflows, so the Makefile was deleted.)
+tar czf /tmp/prod-deploy.tar.gz docker-compose.yml ops/cvm ops/lib.sh
 
 echo "[deploy-prod] scp tarball + creds to CVM..."
 scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "$KEYFILE" /tmp/prod-deploy.tar.gz "$UFILE" "$TFILE" "$CVM_USER@$CVM_HOST:/tmp/"
@@ -54,7 +56,7 @@ cd /opt/type-any-language
 # stale copy of the old scripts lying around next to the new ones.
 sudo rm -rf ops/prod docker-compose.yml ops/cvm ops/lib.sh
 sudo tar xzf /tmp/prod-deploy.tar.gz
-sudo chown -R deploy:deploy ops Makefile
+sudo chown -R deploy:deploy ops
 rm -f /tmp/prod-deploy.tar.gz
 # nginx/install.sh lives in a subfolder, so a flat ops/cvm/*.sh glob
 # would miss it.
@@ -66,7 +68,7 @@ if [ -f /tmp/ghcr_user ] && [ -f /tmp/ghcr_token ]; then
     sudo docker login ghcr.io -u "\$(cat /tmp/ghcr_user)" --password-stdin < /tmp/ghcr_token
     rm -f /tmp/ghcr_user /tmp/ghcr_token
 fi
-# There is no 'make prod-deploy' target (build/release/deploy moved to
+# There is no single prod-deploy command (build/release/deploy moved to
 # .github/workflows/ by design), so the deploy is composed here from the
 # targets that do exist: restart pulls the new tags + recreates, then
 # doctor verifies the result. sudo resets the environment, so the two

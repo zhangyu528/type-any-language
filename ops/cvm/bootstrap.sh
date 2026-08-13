@@ -57,7 +57,7 @@ cmd_prepare() {
     info "    前端: http://localhost  (经 nginx :80)"
     info "    API:  http://localhost/api/docs"
     info "  若 deploy 被跳过(无已发布镜像 / BOOTSTRAP_SKIP_DEPLOY=1):"
-    info "    ./ops/cvm/lifecycle.sh start   (或 make prod-start)"
+    info "    ./ops/cvm/lifecycle.sh start"
 }
 
 usage() {

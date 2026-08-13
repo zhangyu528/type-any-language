@@ -14,7 +14,7 @@
 #
 # A dev host that just wants the L step (import) can do:
 #   ./dev-tools/import_content.sh          # or
-#   make dev-import-content
+#   bash dev import
 #
 # Equivalently, from inside the running container:
 #   docker compose exec backend python -m importer all
@@ -105,7 +105,7 @@ cmd_import() {
     #
     # We use the host-side runner (db/scripts/migrate.sh → runner.py)
     # rather than waiting for the next backend reload, because in the
-    # common flow `make dev-start` already brought up uvicorn — its
+    # common flow `bash dev start` already brought up uvicorn — its
     # initial connect saw an empty db, and any backfill migrations
     # won't re-run until the next request triggers a fresh connect.
     # Triggering them here makes the data → migration ordering correct
