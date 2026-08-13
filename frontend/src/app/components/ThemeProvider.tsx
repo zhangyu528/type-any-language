@@ -1,7 +1,13 @@
 'use client';
 
 /**
- * ThemeProvider — 全站 light/dark 切换(TAL Mint)
+ * ThemeProvider — 全站 light/dark 切换(默认 dark)
+ *
+ * 2026-08 改:DEFAULT_THEME 改为 dark,AppHeader 移除 ThemeToggle 按钮
+ * (主题切换从全局 nav 入口降到 /me/settings 偏好项)。
+ * localStorage 持久化逻辑保留,用户切回 light 后刷新页面仍生效。
+ *
+ * 之前的工作方式(参考):
  *
  * 工作方式:
  *   - 在 <html> 上写 `data-theme="light" | "dark"`,ds/themes.css 用
@@ -16,7 +22,8 @@ import { createContext, useContext, useEffect, useState } from 'react';
 export type Theme = 'light' | 'dark';
 
 const STORAGE_KEY = 'landing.theme';
-const DEFAULT_THEME: Theme = 'light';
+const DEFAULT_THEME: Theme = 'dark'; /* 2026-08 改:AppHeader 去掉 ThemeToggle,landing 默认走 dark
+   (Galaxy + 深空蓝渐变 + 星空主题)。用户可在 /me/settings 手动切回 light。 */
 
 function readStoredTheme(): Theme {
   if (typeof window === 'undefined') return DEFAULT_THEME;

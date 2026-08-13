@@ -6,9 +6,10 @@
  * 设计语言:统一、克制,单点金属。
  *   - 磨砂半透 + backdrop blur,底部 1px 发丝边。
  *   - 左:静态点阵品牌 mark + 文字(无像素溶解等抢戏动效)。
- *   - 右:主题切换(ghost IconButton) + 登录(ghost 文字) + 开始读
+ *   - 右:登录(ghost 文字) + 开始读
  *     (唯一主按钮,金属 SpecularButton 作为"单点金属"强调)。
- *     登录后:主题切换 + 头像圆点 + 登出(ghost 文字)。
+ *     登录后:头像圆点 + 登出(ghost 文字)。
+ *     (主题切换从 nav 移到 /me/settings 偏好项 —— 2026-08 简化 nav)
  *   - 中间不再放锚点(2026-08 优化):"怎么用 / 场景 / 词库"三个锚点
  *     删除 —— 场景对应的 section 已下线,#scenarios 锚点会 404;
  *     词库跳转价值低(LibStrip 卡直接可点);"怎么用"被同质化成"页内
@@ -24,7 +25,6 @@
 import { useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import ThemeToggle from './ThemeToggle';
 import SpecularButton from '@/components/SpecularButton';
 import { useAuth } from '../lib/auth';
 
@@ -80,7 +80,6 @@ export default function AppHeader() {
       </Link>
 
       <nav className="app-header__nav" aria-label="主导航">
-        <ThemeToggle />
         {loading ? null : user ? (
           <>
             <Link
