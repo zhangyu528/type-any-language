@@ -217,5 +217,21 @@ jobs:
       - name: Keep alive
         if: steps.tunnel.outputs.url
         run: |
-          echo "Holding for ~90 minutes..."
-          sleep 5400
+          URL="${{ steps.tunnel.outputs.url }}"
+          # 心跳:每 10 分钟重新 emit ::notice annotation,确保 annotation
+          # 标记时间始终新鲜(GitHub UI 有时按时间排序,旧的会被挤掉)
+          END=$((SECONDS + 5400))
+          while [ $SECONDS -lt $END ]; do
+            echo "::notice title=🌐 Preview URL — heartbeat::$URL"
+            echo "[$(date +%H:%M:%S)] tunnel alive: $URL"
+            # 10 分钟后再发一次
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              sleep 60
+              # 每分钟检查 workflow 是否被 cancel
+              if [ -f /tmp/cancel_signal ]; then
+                echo "Cancel signal received, exiting."
+                exit 0
+              fi
+            done
+          done
+          echo "Keep alive window ended (90 min)."
