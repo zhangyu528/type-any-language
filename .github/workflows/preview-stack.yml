@@ -174,25 +174,17 @@ jobs:
         run: |
           URL="${{ steps.tunnel.outputs.url }}"
           # === 立刻写 Summary (job 跑到这一步时,jobs summary 就有了) ===
+          # URL 在最顶部直接显示,链接 + 纯文本,无需下载
           {
-            echo "# 🌐 Preview URL"
+            echo "## [🌐 $URL]($URL)"
             echo ""
-            echo "## [$URL]($URL)"
+            echo "\`$URL\`"
             echo ""
-            echo "**复制访问**: \`$URL\`"
-            echo ""
-            echo "| 字段 | 值 |"
+            echo "| | |"
             echo "|---|---|"
-            echo "| **URL** | [$URL]($URL) |"
             echo "| Branch | \`${{ inputs.branch || github.ref_name }}\` |"
             echo "| Run | #${{ github.run_number }} |"
             echo "| Lifetime | ~90 min |"
-            echo ""
-            echo "### Stack 在跑"
-            echo "- nginx :4000 — 静态 + /api/* 反代到 uvicorn"
-            echo "- uvicorn :8000 — FastAPI 真 backend"
-            echo "- postgres :5432 — service container,数据从 cms/content/ import"
-            echo "- cloudflared — 出站隧道"
             echo ""
             echo "### 怎么停"
             echo "Actions tab → 选这次 run → Cancel workflow"
@@ -213,6 +205,18 @@ jobs:
             echo "║                                                                    ║"
             echo "╚═══════════════════════════════════════════════════════════════╝"
           }
+          # === 写 URL 到 /tmp 供 artifact step 用 ===
+          echo "$URL" > /tmp/preview-url.txt
+          echo "Branch: ${{ inputs.branch || github.ref_name }}" >> /tmp/preview-url.txt
+          echo "Run: #${{ github.run_number }}" >> /tmp/preview-url.txt
+
+      - name: Upload preview URL as artifact
+        if: steps.tunnel.outputs.url
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-url-${{ github.run_number }}
+          path: /tmp/preview-url.txt
+          retention-days: 1
 
       - name: Keep alive
         if: steps.tunnel.outputs.url
