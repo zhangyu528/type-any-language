@@ -185,7 +185,7 @@
   /* padding 上下 20→24:给整卡更多上下边距,适配两行英文 + 底部进度条的
      整体高度(见 .demoRoot min-height 200px 注释),卡看起来更稳 */
   padding: var(--space-6) var(--space-5);
-  background: color-mix(in srgb, var(--ds-surface) 92%, transparent);
+  background: color-mix(in srgb, var(--ds-surface) 88%, transparent);
   border-color: color-mix(in srgb, var(--ds-border-strong) 30%, transparent);
   border: 1px solid color-mix(in srgb, var(--ds-border) 70%, transparent);
   border-radius: var(--radius-xl);

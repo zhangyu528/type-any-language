@@ -324,10 +324,15 @@ export default function Galaxy({
       cancelAnimationFrame(animateId);
       window.removeEventListener('resize', resize);
       if (mouseInteraction) {
-        ctn.removeEventListener('mousemove', handleMouseMove);
-        ctn.removeEventListener('mouseleave', handleMouseLeave);
+        /* React 18 strict mode / fast refresh 下 ctn 可能已被卸载置 null */
+        ctn?.removeEventListener('mousemove', handleMouseMove);
+        ctn?.removeEventListener('mouseleave', handleMouseLeave);
       }
-      ctn.removeChild(gl.canvas);
+      /* ctn 可能为 null(组件已卸载),canvas 可能已被父级移除(StrictMode 双调用),
+         加两层保护避免 throw "Cannot read properties of null" */
+      if (ctn && ctn.contains(gl.canvas)) {
+        ctn.removeChild(gl.canvas);
+      }
       gl.getExtension('WEBGL_lose_context')?.loseContext();
     };
   }, [

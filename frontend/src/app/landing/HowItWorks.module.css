@@ -129,7 +129,9 @@
 /* ---------- 卡片自身 ---------- */
 
 .card {
-  background: var(--ds-surface);
+  /* 88% frosted surface —— 让 GradientWaves / Galaxy bg 透过 12%,形成
+     "卡片浮在光带之上" 的层次。100% surface 会完全遮住 bg。 */
+  background: color-mix(in srgb, var(--ds-surface) 88%, transparent);
   border: 1px solid color-mix(in srgb, var(--ds-action) 22%, transparent);
   border-radius: var(--radius-xl);
   padding: var(--space-5);

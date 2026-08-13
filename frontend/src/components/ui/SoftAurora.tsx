@@ -270,10 +270,17 @@ export default function SoftAurora({
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', resize);
       if (enableMouseInteraction) {
-        gl.canvas.removeEventListener('mousemove', handleMouseMove);
-        gl.canvas.removeEventListener('mouseleave', handleMouseLeave);
+        /* React 18 strict mode / fast refresh 下这些 listener 可能已被卸载,
+           gl.canvas.removeEventListener 不需要 null check(canvas 还在内存里),
+           但保险起见还是 try/catch */
+        try { gl.canvas.removeEventListener('mousemove', handleMouseMove); } catch {}
+        try { gl.canvas.removeEventListener('mouseleave', handleMouseLeave); } catch {}
       }
-      container.removeChild(gl.canvas);
+      /* container 可能为 null(组件已卸载),canvas 可能已被父级移除(StrictMode 双调用),
+         加两层保护避免 throw "Cannot read properties of null" */
+      if (container && container.contains(gl.canvas)) {
+        container.removeChild(gl.canvas);
+      }
       gl.getExtension('WEBGL_lose_context')?.loseContext();
     };
   }, [speed, scale, brightness, color1, color2, noiseFrequency, noiseAmplitude, bandHeight, bandSpread, octaveDecay, layerOffset, colorSpeed, enableMouseInteraction, mouseInfluence]);

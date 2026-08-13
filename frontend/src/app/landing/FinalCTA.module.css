@@ -1,39 +1,20 @@
-/* FinalCTA — SECTION 4 收尾 CTA(full-bleed 范式,2026-08 重设计)
+/* FinalCTA — SECTION 4 收尾 CTA(普通 section,不再 full-bleed)
  *
- * 视觉:整段 section 背景填满 viewport 宽度(无 max-width 限制),
- * 内部内容居中 max-width 跟其他 section 一致。
- * 背景用渐变(light: 浅薄荷 → 奶白;dark: 深空蓝 → 暗夜),
- * 跟 hero 的全屏开场对偶 —— landing 起于 hero 终于 FinalCTA。
+ * 之前:整段铺满 viewport width 的 full-bleed 渐变(--ds-bg 不透明),
+ * 把 GradientWaves / Galaxy bg 全部遮住。现在:跟其他 section 一样透明 bg,
+ * WebGL 背景透出,跟 hero 开场"对偶" —— landing 起于 hero 终于 FinalCTA,
+ * 两端都是"bg 透出 + 中央内容"结构,中间 3 个 section 卡片 88% frosted。
  *
- * 删除之前版本的 .bar 容器样式(backdrop-blur / border / shadow / min-height)
- * —— 不再有 box 边,跟前面 4 个 section 的卡片形态完全反差。 */
+ * padding 仍保留大数值(72px / 88px)给 full-bleed 段的呼吸感。 */
 
 .root {
   width: 100%;
-  /* 不设 max-width —— 整段 section 背景填满 viewport width */
   margin: 0;
-  /* 上下 padding 大(给 full-bleed 段留呼吸),左右跟其他 section 一致 */
+  /* 上下 padding 大(给收尾段留呼吸),左右跟其他 section 一致 */
   padding: clamp(72px, 8vh, 112px) var(--space-5) clamp(88px, 10vh, 128px);
   box-sizing: border-box;
-
-  /* light 主题:浅薄荷 → 奶白渐变,跟 hero 的 aurora 视觉形成首尾呼应。
-     整段 section 背景填色,内容居中 —— "landing 终于此" 的视觉收尾 */
-  background: linear-gradient(
-    180deg,
-    var(--ds-bg) 0%,
-    color-mix(in srgb, var(--ds-action) 8%, var(--ds-bg)) 60%,
-    color-mix(in srgb, var(--ds-action) 6%, var(--ds-bg)) 100%
-  );
-}
-
-[data-theme="dark"] .root {
-  /* dark 主题:深空蓝 → 暗夜渐变,整段有"夜幕降临"感,
-     跟 hero 的 dark aurora 收尾呼应 */
-  background: linear-gradient(
-    180deg,
-    var(--ds-bg) 0%,
-    color-mix(in srgb, #0A1428 90%, var(--ds-bg)) 100%
-  );
+  /* bg 透明,GradientWaves / Galaxy 透出 */
+  background: transparent;
 }
 
 /* contentWrap:全宽 section 内的内容容器,max-width 跟其他 section 一致 */

@@ -47,6 +47,12 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--ds-bg);
   transition: background-color var(--dur-base) var(--ease-out);
+}
+/* Landing 路由(<html data-route="landing">):body bg 透明,让 SoftAurora /
+   Galaxy 的 transparent canvas 区域显示真正的"底"(browser 默认 white)。
+   其它路由(/dashboard /practice /me)保留 --ds-bg 不透明,视觉一致。 */
+[data-route="landing"] body {
+  background-color: transparent;
   /* Landing page section snap — proximity 只在用户接近 snap point 时吸附,
      短 section 不强制卡死。 */
   scroll-snap-type: y proximity;
@@ -503,6 +509,15 @@ a:focus-visible {
    显式高度,坍缩为 0 → 看不到。这里 override 为 fixed inset:0
    覆盖整个 landing viewport,pointer-events: none 不拦截点击,
    z-index: 0 在 .content(z-index: 1) 之下。 */
+/* Light + Dark 共用 WebGL 背景组件 —— full-viewport fixed。
+   reactbits 组件默认 position relative + 100% 高度,父 .root 没
+   显式高度,坍缩为 0 → 看不到。这里 override 为 fixed inset:0
+   覆盖整个 landing viewport,pointer-events: none 不拦截点击,
+   z-index 0 在 .content(z-index: 1) 之下。
+   Light → .gradient-waves-container (波浪,babyblue + coral 配色)
+   Dark  → .galaxy-container (星空 + 慢速旋转,navy + accent) */
+.gradient-waves-container,
+.soft-aurora-container,
 .galaxy-container {
   position: fixed !important;
   inset: 0 !important;

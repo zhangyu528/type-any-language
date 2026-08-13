@@ -14,7 +14,9 @@
 
 
 /* ---------- 背景层(性能优化)----------
-   - .landingBg      永远挂载:CSS 渐变 + inline SVG 星点,0 GPU 占用
+   - .landingBg      永远挂载,只装 .stars(twinkle 4s),0 GPU 占用
+   - (nebula drift 已移除 —— 之前 ::before/::after blob 跟 WebGL 在 z-0 同位置
+     叠加抢戏,改成 WebGL 挂时 CSS 整体退场模式后纯 CSS 层只剩星点 twinkle)
    - .landingBgGalaxy 只在 dark + reduced-motion=off + viewport 可见 +
      ≥ 720px 时挂载,IntersectionObserver 控制 mount/unmount。Galaxy
      (ogl WebGL) 在长 landing 页(5 个 section)滚出 hero 后会主动卸载,
@@ -27,25 +29,31 @@
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  /* Light:浅蓝 + 浅粉双色 nebula,叠 SVG 星点,色值用 mix 适配主题;
-     Dark:深空蓝单色 nebula 替 CSS gradient 上叠,避免和 Galaxy 重复。 */
-  background:
-    radial-gradient(circle at 18% 28%, color-mix(in srgb, var(--ds-action-deep) 18%, transparent), transparent 55%),
-    radial-gradient(circle at 82% 72%, color-mix(in srgb, var(--ds-action-tint) 8%, transparent), transparent 55%),
-    radial-gradient(1.4px 1.4px at 14% 18%, color-mix(in srgb, var(--ds-action-deep) 45%, transparent), transparent 70%),
-    radial-gradient(1px 1px at 78% 24%, color-mix(in srgb, var(--ds-action) 38%, transparent), transparent 70%),
-    radial-gradient(1.2px 1.2px at 42% 68%, color-mix(in srgb, var(--ds-action-deep) 32%, transparent), transparent 70%),
-    radial-gradient(1px 1px at 92% 80%, color-mix(in srgb, var(--ds-action) 42%, transparent), transparent 70%),
-    radial-gradient(0.8px 0.8px at 8% 92%, color-mix(in srgb, var(--ds-action-deep) 28%, transparent), transparent 70%);
   background-color: transparent;
 }
 
-[data-theme="dark"] .landingBg {
-  /* Dark:Galaxy 会叠在上面,CSS 退为深空底色 + 极弱蓝晕,
-     避免双重叠加后整页颜色过曝。 */
+/* 星点 twinkle —— 6 个 1px 星点用 inline radial-gradient 独立 layer。
+   不能跟 nebula 渐变合并在同一个 background 里(无法独立 keyframe 单一 layer),
+   拆到独立的 .stars div,4s 整体脉动。
+   视觉上跟"星空闪烁"一致 —— 真夜空也是整片星空缓慢明灭,不是单点闪烁。 */
+.landingBg .stars {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
   background:
-    radial-gradient(circle at 20% 30%, color-mix(in srgb, var(--ds-action-tint) 10%, transparent), transparent 60%),
-    radial-gradient(circle at 78% 70%, color-mix(in srgb, var(--ds-action-tint) 4%, transparent), transparent 60%);
+    radial-gradient(1.4px 1.4px at 14% 18%, color-mix(in srgb, var(--ds-action-deep) 55%, transparent), transparent 70%),
+    radial-gradient(1px 1px at 78% 24%, color-mix(in srgb, var(--ds-action) 48%, transparent), transparent 70%),
+    radial-gradient(1.2px 1.2px at 42% 68%, color-mix(in srgb, var(--ds-action-deep) 42%, transparent), transparent 70%),
+    radial-gradient(1px 1px at 92% 80%, color-mix(in srgb, var(--ds-action) 52%, transparent), transparent 70%),
+    radial-gradient(0.8px 0.8px at 8% 92%, color-mix(in srgb, var(--ds-action-deep) 38%, transparent), transparent 70%);
+  animation: landing-stars-twinkle 4s ease-in-out infinite;
+  will-change: opacity;
+}
+/* 星点 twinkle —— opacity 在 0.65-1 之间慢脉动。
+   整体星空 4s 一周期,纯 CSS 层唯一的动效。 */
+@keyframes landing-stars-twinkle {
+  0%, 100% { opacity: 0.65; }
+  50% { opacity: 1; }
 }
 
 .landingBgGalaxy {
@@ -53,14 +61,47 @@
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.85; /* Galaxy 稍微降透明,让 .landingBg 的 CSS 渐变仍可透出 */
+  opacity: 0.85; /* Galaxy 稍微降透明,跟 WebGL 星空叠加不抢 hero 焦点 */
+}
+
+/* GradientWaves wrapper —— 同 Galaxy 结构,position fixed inset 0 全屏铺满。
+   GradientWaves 自身 canvas 是透明叠加,颜色靠 horizonColor / waveColor /
+   crestColor 3 个 props 控制 —— wrapper 层不加 opacity 衰减,让波浪视觉
+   真实呈现(opacity 0.7 已经在 prop 里设过)。 */
+.landingBgGradientWaves {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+
+/* ---------- WebGL bg 挂载时:CSS nebula + 星点淡出 ----------
+   避免 SoftAurora / Galaxy 跟 .landingBg::before / ::after nebula blob
+   在 z-index 0 同位置叠加(35% / 30% opacity 跟 WebGL 抢戏)。
+   加 class .landingBgHasWebGL 时,所有 CSS bg 动效 transition 到 opacity:0,
+   让 ReactBits 全屏接管。
+   transition 800ms ease-out:WebGL 挂/卸都平滑,不会突然消失/出现。
+   prefers-reduced-motion 用户不走这条路径(reduced-motion 关 WebGL 挂载,
+   CSS 仍保留)—— 这里只 transition WebGL 接管时的淡出。 */
+/* ::before / ::after nebula 已移除,只 fade .stars */
+.landingBg.landingBgHasWebGL .stars {
+  transition: opacity 800ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* reduced-motion 用户 Galaxy 已被 hook 拦截不挂,但 CSS 渐变本身的
-     视差感如果将来要做再这里关掉。当前 CSS 静态,无需 transition。 */
-  .landingBg {
-    /* 不变,纯静态渐变 */
+  /* 关掉所有 drift / twinkle 动画,只留静态渐变底色。
+     Galaxy 已被 hook 拦截不挂(用户偏好 reduced-motion),所以这层动画
+     是用户唯一的"动效"来源 —— 尊重系统偏好关掉,只剩静态背景。
+     reduced-motion 下不走 .landingBgHasWebGL transition(无视觉过渡需求) */
+  /* nebula 已移除,只关 stars 动画 */
+  .landingBg .stars {
+    animation: none;
+    opacity: 0.85;
+  }
+  /* reduced-motion 下 WebGL bg 也不挂,不需要 fade-out transition */
+  .landingBg.landingBgHasWebGL .stars {
+    transition: none;
   }
 }
 .content {
