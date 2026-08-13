@@ -6,10 +6,13 @@
  * 设计语言:统一、克制,单点金属。
  *   - 磨砂半透 + backdrop blur,底部 1px 发丝边。
  *   - 左:静态点阵品牌 mark + 文字(无像素溶解等抢戏动效)。
- *   - 右:登录(ghost 文字) + 开始读
+ *   - 右:登录(ghost 文字,触发 AuthModal —— 0 navigation,modal 在当前页盖出)
+ *     + 开始读
  *     (唯一主按钮,金属 SpecularButton 作为"单点金属"强调)。
  *     登录后:头像圆点 + 登出(ghost 文字)。
  *     (主题切换从 nav 移到 /me/settings 偏好项 —— 2026-08 简化 nav)
+ *   - 2026-08:登录 / 注册按钮改用 useAuthModal().open()(不再 router.push),
+ *     modal 直接在当前页盖出;from 作为 state.from 传给 modal,modal 成功后跳回。
  *   - 中间不再放锚点(2026-08 优化):"怎么用 / 场景 / 词库"三个锚点
  *     删除 —— 场景对应的 section 已下线,#scenarios 锚点会 404;
  *     词库跳转价值低(LibStrip 卡直接可点);"怎么用"被同质化成"页内
@@ -19,22 +22,24 @@
  * 之前混用的 GlareHover / GradientText / SpotlightCard 包裹已从 chrome
  * 移除,控件收拢成一套语言;金属高光只在主 CTA 出现一次。
  *
- * Route-aware:在 /login、/signup 返回 null(那些页面自带品牌卡,
- * 全局 chrome 会与卡片的"返回首页"入口打架)。
+ * Route-aware:不再 hide /login / /signup(stub 页面,见对应 page.tsx 注释),
+ * 全局 chrome 始终显示。
  */
 import { useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import SpecularButton from '@/components/SpecularButton';
 import { useAuth } from '../lib/auth';
+import { useAuthModal } from '../lib/authModal';
 
-/** 登录 / 注册路由:全局 chrome 在这些页面隐藏。 */
-const HIDE_CHROME_PATHS = ['/login', '/signup'];
+/* /login / /signup 现在是 stub 页面(mount 时 open modal + replace('/')),
+   不再渲染 chrome —— 全局 HIDE_CHROME_PATHS 列表可以删。 */
 
 export default function AppHeader() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading, logout } = useAuth();
+  const { open: openAuthModal } = useAuthModal();
 
   // 登出后主动去 landing,避免 /me 守卫把 user=null 推回 /login 形成死循环。
   const handleLogout = useCallback(async () => {
@@ -42,17 +47,15 @@ export default function AppHeader() {
     router.push('/');
   }, [logout, router]);
 
-  if (HIDE_CHROME_PATHS.some((p) => pathname === p || pathname?.startsWith(p + '/'))) {
-    return null;
-  }
 
   const isLanding = pathname === '/';
 
-  // 当前路径作为回跳目标传入 /login / signup。
+  // 当前路径作为回跳目标传给 modal.open({from})。modal 成功后跳回。
+  // 首页('/')不传 —— 登录后默认落 /dashboard(在 AuthModal 里 hardcode)。
   const fromParam =
-    pathname && pathname !== '/' && !HIDE_CHROME_PATHS.includes(pathname)
-      ? `?from=${encodeURIComponent(pathname)}`
-      : '';
+    pathname && pathname !== '/'
+      ? encodeURIComponent(pathname)
+      : undefined;
 
   return (
     <header
@@ -104,7 +107,7 @@ export default function AppHeader() {
             <button
               type="button"
               className="app-header__loginBtn"
-              onClick={() => router.push(`/login${fromParam}`)}
+              onClick={() => openAuthModal('login', { from: fromParam })}
               aria-label="登录"
             >
               登录
@@ -114,7 +117,7 @@ export default function AppHeader() {
               /* 主 CTA 改 "注册":匿名访客看到的是转化漏斗最顶(创建账户),
                  而不是直接进 dashboard。带 fromParam 让注册完成后回到
                  用户原来想去的页面(/dashboard 或 ?lib=X 之类)。 */
-              onClick={() => router.push(`/signup${fromParam}`)}
+              onClick={() => openAuthModal('signup', { from: fromParam })}
               tint="var(--ds-action)"
               tintOpacity={0.5}
               baseColor="var(--ds-action-deep)"
