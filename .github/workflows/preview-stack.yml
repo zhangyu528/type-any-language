@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   # ============================================================
@@ -175,6 +176,8 @@ jobs:
           fi
 
       - name: Post preview URL
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           URL="${{ steps.tunnel.outputs.url }}"
           BRANCH="${{ inputs.branch || github.ref_name }}"
@@ -200,6 +203,29 @@ jobs:
             echo "### 怎么停"
             echo "Actions tab → 选本 run → Cancel workflow"
           } >> "$GITHUB_STEP_SUMMARY"
+
+          # 在复用的 preview issue 下评论 + @mention contributors
+          ISSUE_NUM=$(gh issue list --repo ${{ github.repository }} \
+            --label "preview" --state open \
+            --json number -q '.[0].number' 2>/dev/null || echo "")
+
+          if [ -n "$ISSUE_NUM" ]; then
+            # 查询 repo contributors,过滤掉 bot 账号
+            MENTIONS=$(gh api repos/${{ github.repository }}/contributors \
+              --paginate --jq '.[].login' 2>/dev/null | \
+              grep -viE 'claude|bot|github-actions|dependabot' | \
+              head -10 | \
+              sed 's/^/@/' | tr '\n' ' ')
+
+            gh issue comment "$ISSUE_NUM" --repo ${{ github.repository }} \
+              --body "🌐 **Preview ready** (run #${RUN_NUM}, \`${BRANCH}\`)
+
+          **URL**: [$URL]($URL)
+
+          有效期 ~40 分钟。
+
+          ${MENTIONS}"
+          fi
 
       - name: Keep tunnel alive
         run: |
