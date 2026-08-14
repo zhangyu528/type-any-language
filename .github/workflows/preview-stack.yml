@@ -7,7 +7,7 @@ name: preview-stack
 on:
   # Push 到指定分支自动触发预览。
   push:
-    branches: [feat/preview-stack-workflow]
+    branches: [feat/preview-stack-workflow, master]
   # 也保留手动触发,方便本地 CLI 测试或其他分支。
   # 在 Actions UI 选分支 → Run workflow,或 CLI:
   #   gh workflow run preview-stack.yml -r <branch>
