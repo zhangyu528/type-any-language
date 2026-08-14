@@ -211,21 +211,23 @@ cmd_preflight() {
         warn_port_in_use "$BACKEND_PORT"  "后端 dev 端口"
     fi
 
-    # Python
-    local py=""
-    if command -v python3 >/dev/null 2>&1; then
-        py="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo "")"
-    elif command -v python >/dev/null 2>&1; then
-        py="$(python -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo "")"
-    fi
-    if [ -z "$py" ]; then
-        err "找不到 python3 / python — native backend 需要"
+    # Python — prefer the project's .venv, fall back to a global python3/python.
+    local py_bin="" py=""
+    py_bin="$(_backend_python)"
+    if [ -z "$py_bin" ]; then
+        err "找不到 python3 / python,且 backend/.venv 也不存在 — native backend 需要"
         failed=1
     else
-        case "$py" in
-            3.11|3.12|3.13|3.14) ok "python $py" ;;
-            *)                      warn "python $py (推荐 ≥ 3.11)";;
-        esac
+        py="$($py_bin -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo "")"
+        if [ -z "$py" ]; then
+            err "python 无法执行 ($py_bin)"
+            failed=1
+        else
+            case "$py" in
+                3.11|3.12|3.13|3.14) ok "python $py ($py_bin)" ;;
+                *)                      warn "python $py ($py_bin,推荐 ≥ 3.11)";;
+            esac
+        fi
     fi
 
     # Node
@@ -248,15 +250,18 @@ cmd_preflight() {
     fi
 
     # venv + deps (delegated to backend's own preflight)
-    if [ -f "$BACKEND_DIR/scripts/preflight.py" ] && command -v python3 >/dev/null 2>&1; then
-        if (cd "$BACKEND_DIR" && python3 scripts/preflight.py 2>&1); then
+    if [ -n "$py_bin" ] && [ -f "$BACKEND_DIR/scripts/preflight.py" ]; then
+        if (cd "$BACKEND_DIR" && "$py_bin" scripts/preflight.py 2>&1); then
             : # preflight already prints ok/warn/err
         else
             err "backend preflight 返回非零 — 看上面"
             failed=1
         fi
+    elif [ ! -f "$BACKEND_DIR/scripts/preflight.py" ]; then
+        err "backend/scripts/preflight.py 缺失 — 重新跑 bash dev setup"
+        failed=1
     else
-        err "backend/scripts/preflight.py 或 python3 缺失 — 重新跑 bash dev setup"
+        err "找不到可执行的 python(含 backend/.venv)— 重新跑 bash dev setup"
         failed=1
     fi
 
@@ -531,7 +536,7 @@ cmd_start() {
     # the old "source venv activate then exec uvicorn" pattern that
     # needed per-host Scripts/activate vs bin/activate detection.
     _start_one "backend" "$BACKEND_PID_FILE" "$BACKEND_LOG" \
-        bash -c 'cd "$1" && exec python3 scripts/dev.py --port "$2"' _ "$BACKEND_DIR" "$BACKEND_PORT"
+        bash -c 'cd "$1" && exec "$3" scripts/dev.py --port "$2"' _ "$BACKEND_DIR" "$BACKEND_PORT" "$(_backend_python)"
     # Delegate to cmd_start_frontend so the frontend spawn path stays in one place.
     cmd_start_frontend
 
