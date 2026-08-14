@@ -1,5 +1,5 @@
 name: preview-stack
-# 任何人有 repo write 权限就能触发。运行 ~85 分钟后自动终止,
+# 任何人有 repo write 权限就能触发。运行 ~45 分钟后自动终止,
 # 公开 URL 跟 run 绑定,run 结束 URL 失效。
 # 单 job 架构:tunnel 进程和 keep-alive 在同一 runner,
 # 避免 job 结束后 GitHub kill 进程导致 URL 失效。
@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   # ============================================================
-  # preview: 单 job。build + 启动服务 + 拿 URL + hold tunnel ~80 分钟。
+  # preview: 单 job。build + 启动服务 + 拿 URL + hold tunnel ~40 分钟。
   # environment.url 让 "View deployment" 按钮在 tunnel step 完成后
   # 即刻出现在 run overview,无需等 job 结束。
   # ============================================================
@@ -31,7 +31,7 @@ jobs:
     environment:
       name: preview
       url: ${{ steps.tunnel.outputs.url }}
-    timeout-minutes: 90
+    timeout-minutes: 45
     services:
       postgres:
         image: postgres:15-alpine
@@ -207,10 +207,10 @@ jobs:
       - name: Keep tunnel alive
         run: |
           URL="${{ steps.tunnel.outputs.url }}"
-          echo "Holding tunnel alive for ~80 minutes: $URL"
-          END=$((SECONDS + 4800))
+          echo "Holding tunnel alive for ~40 minutes: $URL"
+          END=$((SECONDS + 2400))
           while [ $SECONDS -lt $END ]; do
             echo "[$(date +%H:%M:%S)] tunnel alive: $URL"
             sleep 60
           done
-          echo "Keep alive window ended (80 min)."
+          echo "Keep alive window ended (40 min)."
