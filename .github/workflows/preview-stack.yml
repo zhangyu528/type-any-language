@@ -1,6 +1,8 @@
 name: preview-stack
-# 任何人有 repo write 权限就能触发。运行 ~25 分钟后自动终止,
+# 任何人有 repo write 权限就能触发。运行 ~85 分钟后自动终止,
 # 公开 URL 跟 run 绑定,run 结束 URL 失效。
+# 单 job 架构:tunnel 进程和 keep-alive 在同一 runner,
+# 避免 job 结束后 GitHub kill 进程导致 URL 失效。
 
 on:
   # Push 到 feat/preview-stack-workflow 自动触发(不需要 API 调用,
@@ -20,17 +22,16 @@ permissions:
 
 jobs:
   # ============================================================
-  # preview-setup: ~5 分钟。build + 启动 cloudflared + 拿 URL
+  # preview: 单 job。build + 启动服务 + 拿 URL + hold tunnel ~80 分钟。
+  # environment.url 让 "View deployment" 按钮在 tunnel step 完成后
+  # 即刻出现在 run overview,无需等 job 结束。
   # ============================================================
-  preview-setup:
+  preview:
     runs-on: ubuntu-latest
     environment:
       name: preview
       url: ${{ steps.tunnel.outputs.url }}
-    timeout-minutes: 10
-    outputs:
-      url: ${{ steps.tunnel.outputs.url }}
-      branch: ${{ steps.branch.outputs.branch }}
+    timeout-minutes: 90
     services:
       postgres:
         image: postgres:15-alpine
@@ -43,7 +44,6 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s
-          --health-timeout 5s
           --health-retries 10
 
     env:
@@ -177,45 +177,22 @@ jobs:
             exit 1
           fi
 
-      - name: Get branch name
-        id: branch
+      - name: Post preview URL
         run: |
+          URL="${{ steps.tunnel.outputs.url }}"
           BRANCH="${{ inputs.branch || github.ref_name }}"
-          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
-
-  # ============================================================
-  # report: 5 秒内完成。读 preview-setup 的 URL,写 Summary。
-  # 完成后 run overview Summary tab 立刻渲染。
-  # ============================================================
-  report:
-    needs: preview-setup
-    if: needs.preview-setup.outputs.url != ''
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    steps:
-      - name: Display preview URL in run overview summary
-        run: |
-          URL="${{ needs.preview-setup.outputs.url }}"
-          BRANCH="${{ needs.preview-setup.outputs.branch }}"
           RUN_NUM="${{ github.run_number }}"
+          echo "::notice title=🌐 Preview URL::$URL"
           {
             echo "# 🌐 Preview URL"
             echo ""
             echo "## [🔗 $URL]($URL)"
-            echo ""
-            echo "\`$URL\`"
             echo ""
             echo "| 字段 | 值 |"
             echo "|---|---|"
             echo "| **URL** | [$URL]($URL) |"
             echo "| Branch | \`$BRANCH\` |"
             echo "| Run | #$RUN_NUM |"
-            echo "| Setup job | completed (URL 已生成) |"
-            echo "| Keep-alive job | in_progress (~90 min) |"
-            echo ""
-            echo "### 访问"
-            echo "1. 点击上面链接直接打开"
-            echo "2. 或复制 \`$URL\` 到浏览器"
             echo ""
             echo "### Stack"
             echo "- nginx :4000 — 静态 + /api/* 反代到 uvicorn"
@@ -224,33 +201,16 @@ jobs:
             echo "- cloudflared — 出站隧道"
             echo ""
             echo "### 怎么停"
-            echo "Actions tab → 选 preview-keep-alive job → Cancel workflow"
+            echo "Actions tab → 选本 run → Cancel workflow"
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "::notice title=🌐 Preview URL::$URL"
-          echo "URL: $URL"
 
-  # ============================================================
-  # preview-keep-alive: ~90 分钟。保持 tunnel 活着。
-  # ============================================================
-  preview-keep-alive:
-    needs: preview-setup
-    if: needs.preview-setup.outputs.url != ''
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    steps:
       - name: Keep tunnel alive
         run: |
-          URL="${{ needs.preview-setup.outputs.url }}"
-          echo "Holding tunnel alive for 90 minutes: $URL"
-          END=$((SECONDS + 5400))
-          while [ \$SECONDS -lt \$END ]; do
+          URL="${{ steps.tunnel.outputs.url }}"
+          echo "Holding tunnel alive for ~80 minutes: $URL"
+          END=$((SECONDS + 4800))
+          while [ $SECONDS -lt $END ]; do
             echo "[$(date +%H:%M:%S)] tunnel alive: $URL"
-            for i in 1 2 3 4 5 6 7 8 9 10; do
-              sleep 60
-              if [ -f /tmp/cancel_signal ]; then
-                echo "Cancel signal received, exiting."
-                exit 0
-              fi
-            done
+            sleep 60
           done
-          echo "Keep alive window ended (90 min)."
+          echo "Keep alive window ended (80 min)."
