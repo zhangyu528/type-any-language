@@ -24,6 +24,9 @@ jobs:
   # ============================================================
   preview-setup:
     runs-on: ubuntu-latest
+    environment:
+      name: preview
+      url: ${{ steps.tunnel.outputs.url }}
     timeout-minutes: 10
     outputs:
       url: ${{ steps.tunnel.outputs.url }}
