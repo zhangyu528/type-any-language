@@ -5,7 +5,10 @@ name: preview-stack
 # 避免 job 结束后 GitHub kill 进程导致 URL 失效。
 
 on:
-  # 只用手动触发,避免 push 时启动 45 分钟长任务阻塞 PR merge。
+  # Push 到指定分支自动触发预览。
+  push:
+    branches: [feat/preview-stack-workflow]
+  # 也保留手动触发,方便本地 CLI 测试或其他分支。
   # 在 Actions UI 选分支 → Run workflow,或 CLI:
   #   gh workflow run preview-stack.yml -r <branch>
   workflow_dispatch:
