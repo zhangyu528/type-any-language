@@ -6,6 +6,19 @@
   margin: 0;
 }
 
+/* Visually hidden but available to screen readers / autofill. */
+.curved-input .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .curved-input__svg {
   display: block;
   overflow: visible;
@@ -68,4 +81,38 @@
   font-size: 16px;
   pointer-events: none;
   outline: none;
+}
+
+/* --- Eye toggle (password show/hide) --- */
+.curved-input__eye {
+  position: absolute;
+  top: 50%;
+  right: calc(var(--curved-input-btn-w, 90px) + 8px);
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  color: var(--ci-eye-fg, #6b7280);
+  border-radius: 8px;
+  transition: color 0.18s ease, background-color 0.18s ease;
+  z-index: 2;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+}
+.curved-input__eye:hover {
+  color: var(--ci-eye-fg-hover, #111827);
+  background: var(--ci-eye-tint, rgba(0, 0, 0, 0.04));
+}
+.curved-input__eye:focus-visible {
+  outline: 2px solid var(--ci-eye-focus, #4763eb);
+  outline-offset: 1px;
+}
+.curved-input__eye svg {
+  display: block;
 }

@@ -163,3 +163,124 @@
   outline: 2px solid var(--ds-focus);
   outline-offset: 2px;
 }
+
+/* ============== Welcome banner (P1-E) ============== */
+
+.welcomeWrap {
+  position: relative;
+  z-index: 2;
+  max-width: var(--content-max);
+  width: 100%;
+  margin: 0 auto var(--space-4);
+  padding: 0 var(--space-4);
+  box-sizing: border-box;
+}
+
+.welcome {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 14px 18px 14px 22px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--ds-action) 14%, var(--ds-surface)) 0%, color-mix(in srgb, var(--ds-action) 8%, var(--ds-surface)) 100%);
+  border: 1px solid color-mix(in srgb, var(--ds-action) 35%, transparent);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 30px -12px color-mix(in srgb, var(--ds-action) 30%, transparent);
+  animation: welcomeSlide 0.5s var(--ease-out) both;
+}
+
+.welcomeEmoji {
+  font-size: 28px;
+  line-height: 1;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.welcomeText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.welcomeTitle {
+  margin: 0;
+  font-family: var(--font-display), var(--font-sans), serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ds-ink);
+}
+
+.welcomeSubtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ds-ink-soft);
+  letter-spacing: 0.01em;
+}
+
+.welcomeCta {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--ds-action-deep);
+  color: var(--ds-on-action);
+  border: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: filter 0.18s ease, transform 0.18s var(--ease-out);
+}
+
+.welcomeCta:hover {
+  filter: brightness(1.1);
+}
+.welcomeCta:active {
+  transform: scale(0.97);
+}
+
+.welcomeClose {
+  background: transparent;
+  border: 0;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--ds-ink-soft);
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+  flex-shrink: 0;
+}
+
+.welcomeClose:hover {
+  background: color-mix(in srgb, var(--ds-action) 16%, transparent);
+  color: var(--ds-ink);
+}
+
+@keyframes welcomeSlide {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome { animation: none; }
+  .welcomeCta:active { transform: none; }
+}
+
+@media (max-width: 540px) {
+  .welcome {
+    flex-wrap: wrap;
+    padding: 12px 14px;
+  }
+  .welcomeEmoji { font-size: 24px; }
+  .welcomeTitle { font-size: 14px; }
+  .welcomeSubtitle { font-size: 12px; }
+  .welcomeCta { margin-left: auto; }
+  .welcomeClose { order: -1; }
+}

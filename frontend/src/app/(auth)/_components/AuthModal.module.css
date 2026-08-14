@@ -16,6 +16,12 @@
 .dialog {
   position: relative;
   margin: auto;
+  /* P2: definite, responsive width. min(460px, 100%) keeps it 460px on
+     desktop (centered via margin:auto) and shrinks to the viewport on
+     small screens. Using `width:100%; max-width:460px` would first force
+     full width then cap from the right, which left-aligns the dialog
+     instead of centering it. */
+  width: min(460px, 100%);
 }
 
 @keyframes fadeIn {

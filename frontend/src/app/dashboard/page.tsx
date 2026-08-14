@@ -20,7 +20,7 @@
  * Data: GET /api/dashboard is the single hydration call.
  */
 import { Suspense, useCallback, useEffect, useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 
 import {
   DashboardSnapshot,
@@ -101,6 +101,28 @@ function DashboardInner() {
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // ---- Welcome banner (P1-E) ----
+  const searchParams = useSearchParams();
+  const [showWelcome, setShowWelcome] = useState(false);
+  useEffect(() => {
+    if (searchParams.get("welcome") !== "1") return;
+    let dismissed = false;
+    try {
+      dismissed = window.sessionStorage.getItem("tal.welcome.seen.v1") === "1";
+    } catch {
+      dismissed = false;
+    }
+    if (!dismissed) setShowWelcome(true);
+  }, [searchParams]);
+  const dismissWelcome = useCallback(() => {
+    setShowWelcome(false);
+    try {
+      window.sessionStorage.setItem("tal.welcome.seen.v1", "1");
+    } catch {}
+    const url = new URL(window.location.href);
+    url.searchParams.delete("welcome");
+    window.history.replaceState({}, "", url.toString());
+  }, []);
   // ---- Practice state: picker URL only ----
   const [practice, setPractice] = useState<PracticeUrlState>(readPracticeUrl);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
@@ -198,6 +220,12 @@ function DashboardInner() {
     go({ pickerOpen: true }, 'push');
   }, [go]);
 
+  // P1-E: welcome banner CTA wires straight into the lib picker.
+  const startFirstSentence = useCallback(() => {
+    dismissWelcome();
+    openLibPicker();
+  }, [dismissWelcome, openLibPicker]);
+
   // Closing goes through history.back() so the pushed '?picker=1'
   // entry is consumed rather than stacked — otherwise open/close
   // three times and the user needs three Back presses to leave.
@@ -273,6 +301,26 @@ function DashboardInner() {
     <main className={styles.root}>
       {/* Aurora background - full screen, behind all content */}
       <Aurora className="fixed inset-0 z-0" />
+
+      {/* Welcome banner (P1-E) */}
+      {showWelcome ? (
+        <div className={styles.welcomeWrap} role="status" aria-live="polite" data-testid="auth-welcome">
+          <div className={styles.welcome}>
+            <span className={styles.welcomeEmoji} aria-hidden>👋</span>
+            <div className={styles.welcomeText}>
+              <p className={styles.welcomeTitle}>{`欢迎加入，${user.display_name} ✨`}</p>
+              <p className={styles.welcomeSubtitle}>跳过介绍，直接挑个词库开始第一句</p>
+            </div>
+            <button type="button" className={styles.welcomeCta} onClick={startFirstSentence}>开始第一句 →</button>
+            <button type="button" className={styles.welcomeClose} onClick={dismissWelcome} aria-label="关闭欢迎横幅">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {/* Hero section - full width with aurora */}
       <section className={styles.hero}>

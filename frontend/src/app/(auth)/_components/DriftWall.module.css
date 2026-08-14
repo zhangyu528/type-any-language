@@ -1,31 +1,31 @@
-/* DriftWall — React Bits "Drift Wall" 风格漂浮场景卡墙
-   卡片只在中下部活动，顶部留给输入框与提示语，底部留给注册链接。 */
+/* DriftWall — 漂浮场景词卡墙(轻量版)。
+   卡片中下部活动,顶部留给输入框与提示语,底部留给注册链接。
+   精简版:最多 3 片、整体透明度更低,不抢表单注意力。 */
 
 .layer {
   position: absolute;
   inset: 0;
   z-index: 0;
-  opacity: 0.4;
+  opacity: 0.34;
   pointer-events: none;
   overflow: hidden;
-  /* 顶部 30% 完全透明（覆盖提示语区域），中部 30%-75% 显示卡片，
-     底部 82% 之后淡出到注册链接。 */
+  /* 词卡只停留在卡片上半部(0% ~ 约 44%):为中部表单与底部操作按钮
+     (上一步/忘记密码/切换登录注册)留出干净空间。
+     顶部 24% 满显,32% 起渐隐,44% 后完全淡出。 */
   mask-image: linear-gradient(
     to bottom,
-    rgba(0, 0, 0, 0) 0%,
-    rgba(0, 0, 0, 0) 30%,
-    rgba(0, 0, 0, 1) 38%,
-    rgba(0, 0, 0, 1) 75%,
-    rgba(0, 0, 0, 0) 82%,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 1) 24%,
+    rgba(0, 0, 0, 0.55) 32%,
+    rgba(0, 0, 0, 0) 44%,
     rgba(0, 0, 0, 0) 100%
   );
   -webkit-mask-image: linear-gradient(
     to bottom,
-    rgba(0, 0, 0, 0) 0%,
-    rgba(0, 0, 0, 0) 30%,
-    rgba(0, 0, 0, 1) 38%,
-    rgba(0, 0, 0, 1) 75%,
-    rgba(0, 0, 0, 0) 82%,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 1) 24%,
+    rgba(0, 0, 0, 0.55) 32%,
+    rgba(0, 0, 0, 0) 44%,
     rgba(0, 0, 0, 0) 100%
   );
 }
@@ -33,22 +33,23 @@
 .chip {
   position: absolute;
   background: color-mix(in srgb, var(--ds-surface) 88%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ds-action) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ds-action) 18%, transparent);
   border-radius: 12px;
-  padding: 10px 13px;
-  box-shadow: 0 8px 22px -8px color-mix(in srgb, var(--ds-ink) 16%, transparent);
+  padding: 9px 12px;
+  box-shadow: 0 8px 22px -8px color-mix(in srgb, var(--ds-ink) 14%, transparent);
   backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
   display: flex;
   flex-direction: column;
   gap: 3px;
-  max-width: 148px;
-  opacity: 0.8;
-  animation: drift 18s ease-in-out infinite;
+  max-width: 144px;
+  opacity: 0.85;
+  animation: drift 20s ease-in-out infinite;
 }
 
 .cat {
   font-family: var(--font-mono), monospace;
-  font-size: 8.5px;
+  font-size: 8px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -56,32 +57,28 @@
 }
 
 .en {
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--ds-ink);
   line-height: 1.35;
 }
 
-/* 4 张卡分布在中部空白区，避免互相重叠。 */
+/* 3 张卡集中在卡片上半部,错峰延迟,避免同步移动。
+   两片靠边、一片居中偏左,环绕标题但不压字。 */
 .chip:nth-child(1) {
-  left: 8%;
-  top: 40%;
+  left: 7%;
+  top: 9%;
   animation-delay: 0s;
 }
 .chip:nth-child(2) {
-  left: 38%;
-  top: 48%;
-  animation-delay: -4s;
+  right: 9%;
+  top: 15%;
+  animation-delay: -7s;
 }
 .chip:nth-child(3) {
-  left: 12%;
-  top: 60%;
-  animation-delay: -8s;
-}
-.chip:nth-child(4) {
-  left: 44%;
-  top: 68%;
-  animation-delay: -12s;
+  left: 22%;
+  top: 21%;
+  animation-delay: -13s;
 }
 
 @keyframes drift {
@@ -90,13 +87,13 @@
     transform: translate(0, 0) rotate(0deg);
   }
   25% {
-    transform: translate(14px, -10px) rotate(0.5deg);
+    transform: translate(12px, -9px) rotate(0.5deg);
   }
   50% {
-    transform: translate(-8px, 8px) rotate(-0.5deg);
+    transform: translate(-7px, 7px) rotate(-0.5deg);
   }
   75% {
-    transform: translate(10px, 6px) rotate(0.3deg);
+    transform: translate(9px, 5px) rotate(0.3deg);
   }
 }
 

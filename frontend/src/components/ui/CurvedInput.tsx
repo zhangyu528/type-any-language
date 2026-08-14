@@ -184,6 +184,11 @@ interface CurvedInputProps {
   type?: string;
   name?: string;
   ariaLabel?: string;
+  /** Visually-hidden <label> associated with the input via the
+   *  generated id. Use a real label (instead of relying on the
+   *  placeholder as the a11y name) so screen readers and form
+   *  autofill get a stable field name. Falls back to placeholder. */
+  label?: string;
   theme?: Theme;
   width?: number | string;
   bend?: number;
@@ -203,6 +208,15 @@ interface CurvedInputProps {
   showButton?: boolean;
   showIcon?: boolean;
   icon?: ReactNode;
+  /** 密码字段眼睛 toggle — 仅 type=password 时可见 */
+  showEye?: boolean;
+  /** 禁用整个输入:按钮不可点、输入框不可编辑。登录/注册提交中用它锁住表单,防止重复提交。 */
+  disabled?: boolean;
+  /** 提交中:在按钮上覆盖旋转 spinner(替代按钮文字)并禁用交互。与 disabled 同时传入时以 busy 为准。 */
+  loading?: boolean;
+  /** 挂载即聚焦隐藏 input。用于 auth modal 切换 登录/注册 时整块内容重挂,
+      让光标自动落回输入框(Props 透传原生 autoFocus)。 */
+  autoFocus?: boolean;
   className?: string;
   style?: CSSProperties;
 }
@@ -217,6 +231,7 @@ const CurvedInput = ({
   type = 'email',
   name,
   ariaLabel,
+  label,
   theme = 'dark',
   width = 450,
   bend = 28,
@@ -236,6 +251,10 @@ const CurvedInput = ({
   showButton = true,
   showIcon = true,
   icon,
+  showEye = false,
+  disabled = false,
+  loading = false,
+  autoFocus = false,
   className = '',
   style
 }: CurvedInputProps) => {
@@ -259,9 +278,14 @@ const CurvedInput = ({
   const [scrollLen, setScrollLen] = useState(0);
   const [btnTextW, setBtnTextW] = useState(0);
   const [, setFontTick] = useState(0);
+  const [eyeVisible, setEyeVisible] = useState(false);
 
   const val = value !== undefined ? value : innerValue;
-  const display = type === 'password' ? '•'.repeat(val.length) : val;
+  const isPassword = type === 'password';
+  const safeType = SELECTABLE_TYPES.includes(type) ? type : 'text';
+  const isBusy = disabled || loading;
+  const effectiveType = isPassword ? (eyeVisible ? 'text' : 'password') : safeType;
+  const display = isPassword && !eyeVisible ? '•'.repeat(val.length) : val;
 
   const palette = THEMES[theme] || THEMES.dark;
   const bgColor = backgroundColor ?? palette.backgroundColor;
@@ -409,7 +433,6 @@ const CurvedInput = ({
     setCaretIndex(idx);
   };
 
-  const safeType = SELECTABLE_TYPES.includes(type) ? type : 'text';
   const inputMode = type === 'email' ? 'email' : type === 'number' ? 'decimal' : undefined;
 
   const shadow = SHADOWS[shadowSize];
@@ -420,6 +443,7 @@ const CurvedInput = ({
   let content: ReactNode = null;
   if (geom && layout) {
     const T = height;
+    const [btnCx, btnCy] = geom.point((layout.btnU0 + layout.btnU1) / 2, 0);
     const vBase = fontSize * 0.34;
     const scrollU = scrollLen * geom.uPerLen;
     const bandPath = bentRectPath(geom, 0, geom.W, -T / 2, T / 2, cornerRadius);
@@ -481,7 +505,12 @@ const CurvedInput = ({
 
         {showIcon && (
           <g transform={`translate(${round2(ix)} ${round2(iy)}) rotate(${round2(iconAngle)})`} aria-hidden="true">
-            {icon || (
+            {icon ? (
+              /* 自定义图标(ImmersiveAuth 传的 mail/lock)以 22×22 视口渲染,
+                 其左上角默认落在 group 原点(即 chip 中心),导致整体偏右下 11px。
+                 回退半宽半高使其以中心对齐,与无 icon 时的默认 chip 居中逻辑一致。 */
+              <g transform="translate(-11 -11)">{icon}</g>
+            ) : (
               <>
                 <rect x={-chipW / 2} y={-chipH / 2} width={chipW} height={chipH} rx={chipH * 0.27} fill={chipFill} />
                 <rect
@@ -550,31 +579,57 @@ const CurvedInput = ({
           <g
             className="curved-input__button"
             role="button"
-            tabIndex={0}
+            tabIndex={isBusy ? -1 : 0}
             aria-label={buttonText}
+            aria-disabled={isBusy || undefined}
+            style={{ cursor: isBusy ? 'default' : 'pointer' }}
             onClick={e => {
               e.stopPropagation();
+              if (isBusy) return;
               handleSubmit();
             }}
             onPointerDown={(e: ReactPointerEvent<SVGGElement>) => e.stopPropagation()}
             onKeyDown={(e: KeyboardEvent<SVGGElement>) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
+                if (isBusy) return;
                 handleSubmit();
               }
             }}
           >
-            <path className="curved-input__button-bg" d={buttonPath} fill={accentColor} />
+            <path className="curved-input__button-bg" d={buttonPath} fill={accentColor} opacity={isBusy ? 0.6 : 1} />
             <path id={buttonPathId} d={buttonTextPath} fill="none" />
-            <text
-              fill={btnFgColor}
-              textAnchor="middle"
-              style={{ fontSize: `${fontSize}px`, fontWeight: 600, pointerEvents: 'none' }}
-            >
-              <textPath href={`#${buttonPathId}`} startOffset="50%">
-                {buttonText}
-              </textPath>
-            </text>
+            {loading ? (
+              <g transform={`translate(${round2(btnCx)} ${round2(btnCy)})`} aria-hidden="true">
+                <circle
+                  r="9"
+                  fill="none"
+                  stroke={btnFgColor}
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeDasharray="40 16"
+                >
+                  <animateTransform
+                    attributeName="transform"
+                    type="rotate"
+                    from="0 0 0"
+                    to="360 0 0"
+                    dur="0.75s"
+                    repeatCount="indefinite"
+                  />
+                </circle>
+              </g>
+            ) : (
+              <text
+                fill={btnFgColor}
+                textAnchor="middle"
+                style={{ fontSize: `${fontSize}px`, fontWeight: 600, pointerEvents: 'none' }}
+              >
+                <textPath href={`#${buttonPathId}`} startOffset="50%">
+                  {buttonText}
+                </textPath>
+              </text>
+            )}
           </g>
         )}
 
@@ -596,29 +651,65 @@ const CurvedInput = ({
     <form
       ref={rootRef}
       className={`curved-input ${focused ? 'curved-input--focused' : ''} ${className}`.trim()}
-      style={{ width: typeof width === 'number' ? `${width}px` : width, ...style }}
+      style={{ width: typeof width === 'number' ? `${width}px` : width, ...style, ['--curved-input-btn-w' as string]: (layout ? `${layout.btnU1 - layout.btnU0}px` : '0px') } as CSSProperties}
       onSubmit={handleSubmit}
       noValidate
     >
+      {label ? (
+        <label htmlFor={uid} className="curved-input__label sr-only">
+          {label}
+        </label>
+      ) : null}
       {content}
       <input
         ref={inputRef}
+        id={uid}
         className="curved-input__field"
-        type={safeType}
+        type={effectiveType}
         inputMode={inputMode}
         name={name}
+        autoFocus={autoFocus}
+        disabled={isBusy}
         value={val}
         onChange={handleInputChange}
         onSelect={handleSelect}
         onKeyUp={handleSelect}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        aria-label={ariaLabel || placeholder || 'Curved input'}
+        aria-label={ariaLabel || (label ? undefined : placeholder || 'Curved input')}
         autoComplete="off"
         autoCapitalize="none"
         autoCorrect="off"
         spellCheck={false}
       />
+      {showEye && isPassword ? (
+        <button
+          type="button"
+          className="curved-input__eye"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            setEyeVisible((v) => !v);
+            requestAnimationFrame(() => inputRef.current?.focus());
+          }}
+          aria-label={eyeVisible ? '隐藏密码' : '显示密码'}
+          aria-pressed={eyeVisible}
+          tabIndex={-1}
+        >
+          {eyeVisible ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 3l18 18" />
+              <path d="M10.6 6.1A9.7 9.7 0 0 1 12 6c5 0 9 4 10 6-0.5 1-1.7 2.6-3.4 4" />
+              <path d="M6.6 6.6C4.1 8.3 2.5 11 2 12c1 2 5 6 10 6 1.4 0 2.7-0.3 3.9-0.8" />
+              <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          )}
+        </button>
+      ) : null}
     </form>
   );
 };
