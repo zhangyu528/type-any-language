@@ -46,6 +46,25 @@ class Settings(BaseSettings):
         ),
     )
 
+    # --- App ----------------------------------------------------------------
+    # Public base URL used to build absolute links (password-reset emails,
+    # future verification emails, etc.). Override in prod with the real
+    # site origin.
+    APP_BASE_URL: str = Field(
+        default="http://localhost:3000",
+        description=(
+            "Public base URL for building absolute links (e.g. the "
+            "/reset-password?token=... link sent by /forgot-password)."
+        ),
+    )
+
+    # Dev mode. When true (or when ALLOWED_ORIGINS still contains localhost),
+    # auth endpoints like /forgot-password RETURN the reset link in the
+    # response body so a local dev loop works WITHOUT a configured email
+    # provider. NEVER enable in production — it leaks the single-use reset
+    # token to the caller.
+    DEBUG: bool = Field(default=False, description="Dev mode flag (leaks reset links).")
+
     # --- Database -----------------------------------------------------------
     # Canonical path: DATABASE_URL set by docker-compose environment.
     # Legacy fallback: DATABASE_URL_FILE — read the file, use its contents.
@@ -76,6 +95,12 @@ class Settings(BaseSettings):
         if not self.ALLOWED_ORIGINS:
             return []
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",") if o.strip()]
+
+    def is_dev(self) -> bool:
+        """True when it's safe to leak single-use reset links in API
+        responses (local dev). Detected via DEBUG flag OR a localhost
+        entry in ALLOWED_ORIGINS — both indicate a non-production setup."""
+        return self.DEBUG or "localhost" in self.ALLOWED_ORIGINS
 
     def resolved_database_url(self) -> str:
         """DATABASE_URL, with _FILE indirection resolved.

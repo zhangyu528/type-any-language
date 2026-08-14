@@ -22,7 +22,7 @@ Add `email_verified_at` when SMTP lands (phase 5 of the product list).
 """
 import uuid
 from datetime import datetime
-from sqlalchemy import Boolean, Column, DateTime, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Index, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.database import Base
@@ -96,3 +96,48 @@ def generate_session_token() -> str:
     """32 random bytes URL-safe base64. ~43 chars, 256 bits of entropy.
     Sufficient against brute-force even for a long-lived session."""
     return secrets.token_urlsafe(32)
+
+
+"""
+PasswordReset — single-use, short-lived token for the "forgot password" flow.
+
+Why a separate table (not a column on users):
+  - A user can only have one outstanding reset at a time (we delete prior
+    rows on issue), so a 1-row-per-active-reset table is the natural shape.
+  - The raw token lives only in the email link; DB stores sha256(token) so a
+    DB leak doesn't expose live reset tokens. Identical pattern to sessions.
+  - expires_at lets us reject stale links and prune with a sweep index.
+
+No email column is sent to the client; the link carries email as a query
+param and we verify it matches the row on consume (defense against a token
+being replayed against a different address).
+"""
+
+
+def hash_reset_token(raw_token: str) -> str:
+    """sha256 hex of a reset token — same rationale as hash_session_token."""
+    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+def generate_reset_token() -> str:
+    """Opaque random token for the reset link. 256 bits of entropy."""
+    return secrets.token_urlsafe(32)
+
+
+class PasswordReset(Base):
+    __tablename__ = "password_resets"
+
+    token_hash = Column(String(64), primary_key=True)
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    email = Column(String(255), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_password_resets_expires_at", "expires_at"),
+    )

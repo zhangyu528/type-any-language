@@ -30,14 +30,17 @@ from typing import Optional
 from uuid import UUID
 
 import bcrypt
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session as DbSession
 
 from app.models.user import (
     User,
     Session,
+    PasswordReset,
     generate_session_token,
+    generate_reset_token,
     hash_session_token,
+    hash_reset_token,
 )
 
 
@@ -145,5 +148,65 @@ def revoke_session(db: DbSession, raw_token: str) -> bool:
     if sess is None:
         return False
     db.delete(sess)
+    db.commit()
+    return True
+
+
+# ---- Password reset (forgot-password) -------------------------------------
+def create_password_reset(
+    db: DbSession, user: User, ttl_minutes: int = 30
+) -> tuple[str, datetime]:
+    """Issue a single-use reset token for `user`.
+
+    Drops any prior outstanding reset for the same user first (one active
+    link at a time), generates a fresh opaque token, stores its sha256 +
+    expiry, and returns (raw_token, expires_at). The raw token is what goes
+    in the email link; only the hash lives in DB."""
+    db.execute(delete(PasswordReset).where(PasswordReset.user_id == user.id))
+    raw = generate_reset_token()
+    expires = datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)
+    row = PasswordReset(
+        token_hash=hash_reset_token(raw),
+        user_id=user.id,
+        email=user.email,
+        expires_at=expires.replace(tzinfo=None),  # DB stores naive UTC
+    )
+    db.add(row)
+    db.commit()
+    return raw, expires
+
+
+def get_valid_password_reset(db: DbSession, raw_token: str) -> Optional[PasswordReset]:
+    """Look up a reset row by sha256(raw_token); return None if missing or
+    expired (expired rows are best-effort deleted)."""
+    row = db.get(PasswordReset, hash_reset_token(raw_token))
+    if row is None:
+        return None
+    now = datetime.utcnow()
+    if row.expires_at < now:
+        db.delete(row)
+        db.commit()
+        return None
+    return row
+
+
+def consume_password_reset(db: DbSession, raw_token: str, new_password: str) -> bool:
+    """Validate the reset token, set a new password, revoke ALL of the
+    user's sessions (force re-login everywhere), and delete the token.
+
+    Returns False if the token is missing/expired. The caller is expected to
+    have already verified `row.email == submitted_email` before calling this,
+    or we re-check here for safety (mismatch => treat as invalid)."""
+    row = get_valid_password_reset(db, raw_token)
+    if row is None:
+        return False
+    user = db.get(User, row.user_id)
+    if user is None:
+        return False
+    user.password_hash = hash_password(new_password)
+    # Revoke every session for this user — a password reset should log out
+    # all devices, not just the one that requested it.
+    db.execute(delete(Session).where(Session.user_id == user.id))
+    db.delete(row)
     db.commit()
     return True

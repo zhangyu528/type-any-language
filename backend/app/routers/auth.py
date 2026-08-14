@@ -32,7 +32,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
+from urllib.parse import quote
 
+from app.config import get_settings
 from app.database import get_db
 from app.deps.auth import (
     COOKIE_NAME,
@@ -41,7 +43,9 @@ from app.deps.auth import (
 )
 from app.models.user import User
 from app.schemas.auth import (
+    ForgotPasswordRequest,
     LoginRequest,
+    ResetPasswordRequest,
     SignupRequest,
     UpdateDisplayNameRequest,
     UserPublic,
@@ -189,3 +193,76 @@ def logout(
     response.delete_cookie(key=COOKIE_NAME, path="/")
     response.status_code = status.HTTP_204_NO_CONTENT
     return response
+
+
+# ---------------------------------------------------------------------------
+# Forgot / reset password
+# ---------------------------------------------------------------------------
+@router.post("/forgot-password")
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    db: DbSession = Depends(get_db),
+) -> dict:
+    """Request a password reset link.
+
+    Security: always returns the same 200 envelope regardless of whether the
+    email exists, so the endpoint can't be used to enumerate registered
+    accounts. We only generate + (log / return) a link when the user exists
+    and is active.
+
+    Delivery: there is no email provider wired up yet (phase 5). In dev we
+    (a) print the link to the server log and (b) — when settings.is_dev() —
+    return it in the response so a local loop works without SMTP. In prod,
+    replace the TODO with an SMTP send and stop returning dev_reset_url.
+    """
+    user = auth_service.find_user_by_email(db, payload.email)
+    dev_reset_url: str | None = None
+    if user is not None and user.is_active:
+        raw_token, _ = auth_service.create_password_reset(db, user)
+        settings = get_settings()
+        reset_url = (
+            f"{settings.APP_BASE_URL.rstrip('/')}/reset-password"
+            f"?token={raw_token}&email={quote(user.email)}"
+        )
+        # TODO(phase 5): send_email(user.email, "重置密码", reset_url)
+        print(f"[auth] password reset link for {user.email}: {reset_url}")
+        dev_reset_url = reset_url if settings.is_dev() else None
+    return {
+        "ok": True,
+        "message": "如果该邮箱已注册，我们已发送重置邮件",
+        "dev_reset_url": dev_reset_url,
+    }
+
+
+@router.get("/reset-password/validate")
+def validate_reset_password(
+    token: str,
+    email: str,
+    db: DbSession = Depends(get_db),
+) -> dict:
+    """Pre-check a reset link (used by the /reset-password page to show a
+    friendly "expired" state before the user types a new password)."""
+    row = auth_service.get_valid_password_reset(db, token)
+    valid = row is not None and row.email == email.lower()
+    return {"valid": valid}
+
+
+@router.post("/reset-password", status_code=status.HTTP_200_OK)
+def reset_password(
+    payload: ResetPasswordRequest,
+    db: DbSession = Depends(get_db),
+) -> dict:
+    """Consume a reset token and set a new password.
+
+    On success we also revoke all of the user's sessions (see
+    auth_service.consume_password_reset). Invalid/expired tokens return 400
+    with a generic message — never reveal whether the token or the email
+    was the problem.
+    """
+    ok = auth_service.consume_password_reset(db, payload.token, payload.password)
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="重置链接无效或已过期，请重新申请",
+        )
+    return {"ok": True, "message": "密码已重置"}
