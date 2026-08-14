@@ -56,6 +56,34 @@ setup_dev_host_env() {
     export DOCKER_COMPOSE_CMD
 }
 
+# _backend_python — echo the Python interpreter used to run the backend.
+#
+# Preference order:
+#   1. backend/.venv (the canonical backend runtime, created by
+#      `bash dev setup`) — works even when no global Python is on PATH.
+#   2. a global python3 / python on PATH (hosts that install Python globally).
+#
+# Echoes an empty string only if no Python can be found at all. Every
+# dev-tools script that shells out to the backend uses this instead of a
+# bare `python3`, so `bash dev start|migrate|doctor` keep working on hosts
+# whose PATH only has the project venv (Windows Store "python" alias,
+# missing global install, etc.).
+_backend_python() {
+    local venv_win="$PROJECT_DIR/backend/.venv/Scripts/python.exe"
+    local venv_nix="$PROJECT_DIR/backend/.venv/bin/python"
+    if [ -x "$venv_win" ]; then
+        echo "$venv_win"
+    elif [ -x "$venv_nix" ]; then
+        echo "$venv_nix"
+    elif command -v python3 >/dev/null 2>&1; then
+        echo "python3"
+    elif command -v python >/dev/null 2>&1; then
+        echo "python"
+    else
+        echo ""
+    fi
+}
+
 # ─── Globals ───────────────────────────────────────────────────────────────
 COMPOSE_FILE="docker-compose.dev.yml"
 

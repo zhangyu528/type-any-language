@@ -33,6 +33,20 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=72)
 
 
+# ---- Forgot / reset password ----------------------------------------------
+class ForgotPasswordRequest(BaseModel):
+    """POST /api/auth/forgot-password body. Same email validation as login."""
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    """POST /api/auth/reset-password body. Token is the raw value from the
+    email link's ?token= param; email must match the row (replay guard)."""
+    email: EmailStr
+    token: str = Field(min_length=1, max_length=256)
+    password: str = Field(min_length=8, max_length=72)
+
+
 # ---- Public user projection ----------------------------------------------
 class UserPublic(BaseModel):
     id: UUID

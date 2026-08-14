@@ -35,11 +35,12 @@ cmd_migrate() {
     info "=== dev db migrate (host-side) ==="
     echo ""
 
-    if ! command -v python3 &> /dev/null; then
-        err "python3 未安装 — migrations.runner 需要它"
-        info "  → Ubuntu/Debian:  sudo apt install python3"
-        info "  → macOS:          brew install python3"
-        info "  → Windows:        winget install Python.Python.3.11"
+    if [ -z "$(_backend_python)" ]; then
+        err "找不到可执行的 python(含 backend/.venv)— migrations.runner 需要它"
+        info "  → 优先用 backend/.venv;或全局装 python3:"
+        info "    Ubuntu/Debian: sudo apt install python3"
+        info "    macOS:         brew install python3"
+        info "    Windows:       winget install Python.Python.3.11"
         return 1
     fi
 

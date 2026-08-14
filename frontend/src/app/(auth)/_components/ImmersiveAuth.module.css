@@ -8,36 +8,32 @@
 }
 
 /* ============================================================
-   双栏布局(桌面端):
-   ┌──────────────────┬──────────────────┐
-   │ 左侧 黑色场景演示  │ 右侧 玻璃登录卡     │
-   │ "听一句,写一句"   │  email → password │
-   │ 4 场景 demo 卡    │                   │
-   └──────────────────┴──────────────────┘
-   窄屏(<920px) 自动退化为单栏垂直堆叠。
+   单栏聚焦布局(桌面+移动统一):
+   ┌──────────────────┐
+   │   玻璃登录卡         │
+   │   email → password │
+   └──────────────────┘
+   左侧场景演示面板已隐藏(见 .scenePanel)——登录/注册是
+   转化漏斗最窄的一环,只留表单最聚焦。max-width 500px 与
+   最初"480-560px 单栏"的改进方案一致。
    ============================================================ */
 .shellGrid {
 
   display: grid;
-  grid-template-columns: minmax(320px, 1fr) minmax(420px, 1.1fr);
-  gap: var(--space-5);
-  max-width: 1080px;
+  grid-template-columns: 1fr;
+  gap: 0;
+  max-width: 460px;
   width: 100%;
   margin: 0 auto;
-  /* v7.5: was `align-items: center` — both cards sized to their own
-     content height, leaving a 65px gap (left 444px vs right 379px).
-     Now `stretch` so both grid items expand to the taller one
-     (the scene panel on the left). The right card already uses
-     display:flex; flex-direction:column; justify-content:space-between
-     inside, so the extra height gets distributed by the existing
-     v5 layout — no further changes needed inside the right card. */
   align-items: stretch;
 }
 
-/* 左面板场景卡 — light 主题下走浅蓝玻璃 (与 ScenariosSection/FinalCTA
-   light 变体一致),dark 主题保留原 #0a1e33 → #050f1f 深空蓝渐变。
-   用 [data-theme="dark"] 选择器覆盖回原值。 */
+/* 左面板场景卡 — light 主题下走浅蓝玻璃 (与 ScenariosSection/FinalCTA light 变体一致)。
+   39a0a31 去除主题切换后 dark 选择器永不命中 — 剩下的 light 样式是全站唯一走向。
+   P2-12: 单栏聚焦布局下隐藏,只留右侧 glass 登录卡。SCENES 数据仍在 JSX 中保留,
+   如需恢复一个顶部价值主张条,把这里 display:none 去掉并在单栏里堆叠即可。 */
 .scenePanel {
+  display: none;
   position: relative;
   background:
     radial-gradient(ellipse at 20% 0%, color-mix(in srgb, var(--ds-action) 14%, transparent) 0%, transparent 50%),
@@ -52,16 +48,6 @@
   overflow: hidden;
 }
 
-[data-theme='dark'] .scenePanel {
-  background:
-    radial-gradient(ellipse at 20% 0%, color-mix(in srgb, var(--ds-action) 12%, transparent) 0%, transparent 50%),
-    linear-gradient(180deg, #0a1e33 0%, #050f1f 100%);
-  color: var(--ds-on-dark, #E8F4FC);
-  border-color: color-mix(in srgb, var(--ds-action) 20%, #1E3E5F);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 30px 60px -16px rgba(0, 0, 0, 0.5);
-}
 
 .sceneKicker {
   margin: 0 0 6px;
@@ -82,9 +68,6 @@
   line-height: 1.25;
 }
 
-[data-theme='dark'] .sceneTitle {
-  color: #ffffff;
-}
 
 .sceneSubtitle {
   margin: 0 0 var(--space-4);
@@ -133,11 +116,6 @@
   --scene-accent: var(--ds-action-deep);
 }
 
-[data-theme='dark'] .sceneItem {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(143, 203, 240, 0.28);
-  --scene-accent: var(--ds-action);
-}
 
 .sceneItem:hover {
   background: color-mix(in srgb, var(--ds-action) 22%, var(--ds-surface));
@@ -145,10 +123,6 @@
   transform: translateY(-2px);
 }
 
-[data-theme='dark'] .sceneItem:hover {
-  background: rgba(143, 203, 240, 0.10);
-  border-color: rgba(143, 203, 240, 0.45);
-}
 
 .sceneEmoji {
   font-size: 16px;
@@ -163,9 +137,6 @@
   color: var(--ds-action-deep);
 }
 
-[data-theme='dark'] .sceneName {
-  color: var(--ds-action, #8FCBF0);
-}
 
 .sceneEn {
   font-family: var(--font-display), var(--font-sans), serif;
@@ -175,18 +146,12 @@
   line-height: 1.4;
 }
 
-[data-theme='dark'] .sceneEn {
-  color: #ffffff;
-}
 
 .sceneZh {
   font-size: 11px;
   color: var(--ds-ink-faint);
 }
 
-[data-theme='dark'] .sceneZh {
-  color: color-mix(in srgb, #E8F4FC 60%, transparent);
-}
 
 /* 底部说明 */
 .sceneFooter {
@@ -200,10 +165,6 @@
   gap: 6px;
 }
 
-[data-theme='dark'] .sceneFooter {
-  border-top-color: rgba(255, 255, 255, 0.08);
-  color: color-mix(in srgb, #E8F4FC 55%, transparent);
-}
 
 /* 右面板 — 玻璃登录卡(原 .card 不变,只是加一层 wrapper) */
 .authCard {
@@ -212,12 +173,7 @@
 
 @media (max-width: 920px) {
   .shellGrid {
-    grid-template-columns: 1fr;
-    gap: var(--space-4);
-  }
-  .scenePanel {
-    order: -1;          /* 窄屏场景卡放上面 */
-    padding: var(--space-5) var(--space-4);
+    max-width: 420px;
   }
 }
 
@@ -250,7 +206,12 @@
 
 .card {
   position: relative;
-  background: var(--ds-surface);
+  /* P2-9 曾移除 28px 毛玻璃(当时卡片是不透明 --ds-surface,
+     backdrop-filter 透不出来,且手机端 jank)。用户怀念这个玻璃感,
+     现恢复:用半透明的 surface(color-mix 85%)让背后模糊页面透出来,
+     再叠 blur(28px) saturate(180%) —— 与 globals.css 的玻璃卡同款配方。
+     仍保留 border + 阴影,可读性靠 85% 不透明白底保证。 */
+  background: color-mix(in srgb, var(--ds-surface) 85%, transparent);
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
   border: 1px solid var(--ds-border);
@@ -279,8 +240,7 @@
 
 .content {
   /* v10: stack children from the top so input, feedback and
-     hint form one tight group. DriftWall (absolute, behind)
-     fills the remaining middle space; footer stays at the
+     hint form one tight group; footer stays at the
      bottom because .card uses justify-content: space-between. */
   flex: 1 1 auto;
   position: relative;
@@ -291,11 +251,28 @@
   padding: 8px 32px 12px;
 }
 
-[data-theme='dark'] .card {
-  box-shadow:
-    0 30px 60px -16px rgba(0, 0, 0, 0.55),
-    0 16px 32px -10px rgba(0, 0, 0, 0.35);
+/* 登录/注册整卡切换动画的包裹层(方案A):替代 .card 直接成为
+   header/content/footer/cardLegal 的弹性容器,镜像 .card 的
+   flex column + space-between 分布,使整块内容作为一体做淡入轻移,
+   而不破坏原先的上下排版。DriftWall 与关闭按钮留在 .card 直接子级,
+   不随切换重挂。 */
+/* 交叉淡入:由 TSX 的 AnimatePresence mode="popLayout" 实现 —— 退出的
+   那层被 Framer Motion 自动脱离文档流(绝对定位)淡出,进入的那层留在正常
+   流里撑起 .card 高度,因此旧层淡出时新层就从上方叠着淡入,中间无空档、
+   不"闪",也不会把 .card 塌成 0 高(早期直接 position:absolute 的版本就
+   因此让整张 modal 消失)。.modeShell 自身保持正常流的 flex 子元素。 */
+.modeShell {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
 }
+
+/* 方案① 模糊景深:模糊/缩放过渡由 .modeShell(motion.div) 的 variants
+   驱动,不依赖额外色块或语义色。下面 .wipe / data-mode 语义色规则
+   已移除。 */
 
 /* ============== Header ============== */
 
@@ -303,8 +280,9 @@
   position: relative;
   z-index: 1;
   text-align: center;
-  padding: 36px 32px 8px;
-  animation: fadeUp 0.45s var(--ease-out) both;
+  /* 顶部留白加大,给左上角返回箭头(.cornerBack)让位,
+     避免与 eyebrow / 标题撞在一起。 */
+  padding: 48px 32px 8px;
 }
 
 /* Close button — top-right corner of card */
@@ -410,37 +388,46 @@
 .navRow {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   margin-top: 10px;
   min-height: 36px;
-  animation: fadeUp 0.5s var(--ease-out) 0.15s both;
 }
 
-.backBtn {
+/* 左上角返回箭头 —— 与右上角关闭按钮对称。
+   多步可退时(auth 视图)或忘记密码子流程中显示,
+   把"上一步/返回"从底部操作区挪到角落,下方只留主操作。 */
+.cornerBack {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  height: 36px;
+  padding: 0 10px;
   background: transparent;
   border: none;
-  color: var(--ds-ink-soft);
-  font-size: 14px;
+  border-radius: 10px;
+  color: var(--ds-ink-faint);
+  font-size: 13px;
   font-weight: 500;
-  padding: 6px 10px;
-  border-radius: 8px;
   cursor: pointer;
-  transition: color 0.18s ease, background-color 0.18s ease, transform 0.18s var(--ease-out);
+  transition: color 0.18s ease, background-color 0.18s ease;
 }
 
-.backBtn:hover:not(:disabled) {
+.cornerBack:hover {
   color: var(--ds-ink);
   background: var(--ds-tint);
 }
 
-.backBtn:active:not(:disabled) {
-  transform: translateX(-1px);
+.cornerBack:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
 }
 
-.backBtn:disabled {
+.cornerBack:disabled {
+  opacity: 0.45;
   cursor: default;
 }
 
@@ -466,15 +453,40 @@
   text-decoration-color: var(--ds-action);
 }
 
-.backBtnHidden {
-  visibility: hidden;
-  pointer-events: none;
+.forgotBtn:disabled {
+  cursor: not-allowed;
+  text-decoration: none;
+  opacity: 0.55;
 }
 
-.backIcon {
-  width: 16px;
-  height: 16px;
+/* 忘记密码子流程容器:与 modeShell 内 auth 表单同高,撑满卡片可用空间 */
+.forgotWrap {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
 }
+
+/* 开发模式下后端回传的重置链接(无 SMTP 时的本地兜底) */
+.devResetLink {
+  display: inline-block;
+  margin-top: 6px;
+  color: var(--ds-action-deep);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, var(--ds-action) 35%, transparent);
+  transition: color 0.18s ease;
+}
+
+.devResetLink:hover {
+  color: var(--ds-action);
+}
+
+/* (backBtn / backIcon 已移除 —— "上一步"移至左上角 .cornerBack) */
 
 .hintRow {
   position: relative;
@@ -482,7 +494,6 @@
   text-align: right;
   padding-right: 22px;
   margin-top: 4px;
-  animation: fadeUp 0.5s var(--ease-out) 0.1s both;
 }
 
 .hint {
@@ -490,6 +501,56 @@
   font-size: 12px;
   color: var(--ds-ink-faint);
   letter-spacing: 0.01em;
+}
+
+/* ============== Password strength (P1-7) ============== */
+
+.strength {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 0;
+  padding: 0 4px;
+}
+
+.strengthBars {
+  display: flex;
+  gap: 5px;
+  flex: 1 1 auto;
+}
+
+.strengthBar {
+  height: 4px;
+  flex: 1 1 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ds-ink) 12%, transparent);
+  transition: background-color 0.2s ease;
+}
+
+.strengthBarOn[data-level="1"] {
+  background: var(--ds-error);
+}
+.strengthBarOn[data-level="2"] {
+  background: var(--ds-warning, #ef9f27);
+}
+.strengthBarOn[data-level="3"] {
+  background: var(--ds-success, #0f6e56);
+}
+
+.strengthLabel {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.strengthLabel[data-level="1"] {
+  color: var(--ds-error);
+}
+.strengthLabel[data-level="2"] {
+  color: var(--ds-warning, #ef9f27);
+}
+.strengthLabel[data-level="3"] {
+  color: var(--ds-success, #0f6e56);
 }
 
 /* ============== Footer (switch mode) ============== */
@@ -503,7 +564,6 @@
   border-top: none;
   position: relative;
   z-index: 1;
-  animation: fadeUp 0.5s var(--ease-out) 0.3s both;
 }
 
 /* 切换登录/注册 — 次要操作,降级为低调文字链接,
@@ -529,6 +589,32 @@
   text-decoration-color: var(--ds-action);
 }
 
+/* ============== Legal note (P3) ==============
+   放在白色卡片内、卡片底部。文字用卡片主题的低对比 ink,
+   链接用 action-deep,与整卡设计语言一致。 */
+.cardLegal {
+  margin: 0;
+  padding: 2px 24px 20px;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--ds-ink-faint);
+  letter-spacing: 0.01em;
+}
+
+.cardLegal a {
+  color: var(--ds-action-deep);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, var(--ds-action) 28%, transparent);
+  transition: color 0.18s ease, text-decoration-color 0.18s ease;
+}
+
+.cardLegal a:hover {
+  color: var(--ds-action);
+  text-decoration-color: var(--ds-action);
+}
+
 /* ============== Keyframes ============== */
 
 @keyframes fadeUp {
@@ -547,7 +633,8 @@
 
 @media (max-width: 540px) {
   .shell { max-width: 100%; }
-  .header { padding: 28px 20px 0; }
+  .header { padding: 44px 20px 0; }
+  .cornerBack { top: 8px; left: 8px; height: 32px; padding: 0 8px; }
   .content { padding: 14px 16px 8px; }
   .footer { padding: 0 20px 24px; }
   .title  { font-size: 28px; }
@@ -570,4 +657,138 @@
   .closeBtn {
     transition: none;
   }
+}
+
+/* ============== Success overlay (P1-D) ============== */
+
+.successOverlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-6) 0;
+  min-height: 156px;
+  text-align: center;
+}
+
+.successCircle {
+  width: 56px;
+  height: 56px;
+  overflow: visible;
+}
+
+.successCircleRing {
+  stroke: var(--ds-action);
+  stroke-width: 1.5;
+  fill: var(--ds-action-soft);
+  opacity: 0.4;
+  transform-origin: 28px 28px;
+  animation: successRingDraw 0.42s var(--ease-out) both;
+}
+
+.successCheck {
+  stroke: var(--ds-action-deep);
+  stroke-width: 2.5;
+  fill: none;
+  stroke-dasharray: 38;
+  stroke-dashoffset: 38;
+  animation: successCheckDraw 0.42s 0.18s var(--ease-out) forwards;
+}
+
+.successTitle {
+  margin: 0;
+  font-family: var(--font-display), var(--font-sans), serif;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ds-ink);
+}
+
+.successSubtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ds-ink-soft);
+  letter-spacing: 0.01em;
+}
+
+@keyframes successRingDraw {
+  from { transform: scale(0.6); opacity: 0; }
+  to   { transform: scale(1);   opacity: 0.4; }
+}
+
+@keyframes successCheckDraw {
+  to { stroke-dashoffset: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .successCircleRing,
+  .successCheck {
+    animation: none;
+  }
+  .successCheck { stroke-dashoffset: 0; }
+  .successCircleRing { opacity: 0.4; }
+}
+
+/* ============== Progress dots (P2-A) ============== */
+
+.eyebrowRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 var(--space-2);
+}
+
+/* Visually-hidden progress text for screen readers. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.progressDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--ds-action) 30%, transparent);
+  transition: width 0.22s var(--ease-out), background 0.22s ease, border-color 0.22s ease, transform 0.22s var(--ease-out);
+}
+
+.progressDotDone {
+  background: var(--ds-action);
+  border-color: var(--ds-action);
+}
+
+.progressDotActive {
+  background: var(--ds-action-deep);
+  border-color: var(--ds-action-deep);
+  width: 18px;
+  border-radius: 999px;
+  transform: scale(1.04);
+}
+
+.progressDotFuture {
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progressDot { transition: none; }
+  .progressDotActive { transform: none; }
 }

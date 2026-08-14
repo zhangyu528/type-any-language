@@ -17,11 +17,13 @@ const nextConfig = {
         output: 'standalone',
       }),
   // 跳过 build 时的 ESLint / TypeScript 检查。
-  //   `refactor/ux-redesign` 分支上有未修复的 lint 错误
+  //   `refactor/ux-redesign` 分支上仍有未修复的 lint 错误
   //   (典型如 ContinueCard.tsx 里未转义的撇号) 和类型错误
-  //   (ImmersiveAuth.tsx 用了 CurvedInput 不存在的 `loading` prop)。
+  //   (CounterProps / AuroraProps / Dither 等第三方组件类型缺失)。
+  //   CurvedInput 现已原生支持 disabled / loading 两个 prop
+  //   (ImmersiveAuth 用它们锁住"提交中"的表单),该报错已消除。
   //   `next dev` 不强制这两项所以本地能跑,但 `next build` 会拒绝编译。
-  //   tunnel preview 不需要这些 gate,临时关掉。等错误全部清掉再打开。
+  //   tunnel preview 不需要这些 gate,临时关掉。等剩余错误全部清掉再打开。
   eslint: {
     ignoreDuringBuilds: true,
   },

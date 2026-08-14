@@ -1091,3 +1091,69 @@ export async function fetchRandomSentences(
   }
   return response.json();
 }
+
+// ---------------------------------------------------------------------------
+// Forgot / reset password
+// ---------------------------------------------------------------------------
+export interface ForgotPasswordResult {
+  ok: boolean;
+  /** Dev-only: the reset link, returned by the backend when running in
+   *  dev mode (no SMTP configured). Undefined / null in production. */
+  dev_reset_url?: string | null;
+}
+
+/** POST /api/auth/forgot-password. Always resolves ok (backend returns a
+ *  uniform 200 to avoid email enumeration). */
+export async function apiForgotPassword(input: {
+  email: string;
+}): Promise<ForgotPasswordResult> {
+  if (DEMO_MODE) {
+    return { ok: true, dev_reset_url: null };
+  }
+  const res = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: input.email }),
+    credentials: 'include',
+  });
+  const body = (await parseOrThrow(res)) as ForgotPasswordResult;
+  return body;
+}
+
+/** GET /api/auth/reset-password/validate?token=&email=. Pre-check used by
+ *  the /reset-password page to show an "expired" state before the user
+ *  types a new password. Network failures are treated as invalid. */
+export async function apiValidateResetToken(input: {
+  token: string;
+  email: string;
+}): Promise<{ valid: boolean }> {
+  if (DEMO_MODE) {
+    return { valid: true };
+  }
+  const qs = new URLSearchParams({ token: input.token, email: input.email }).toString();
+  const res = await fetch(`${API_BASE_URL}/api/auth/reset-password/validate?${qs}`, {
+    credentials: 'include',
+  });
+  if (!res.ok) return { valid: false };
+  return (await res.json()) as { valid: boolean };
+}
+
+/** POST /api/auth/reset-password. Consumes the token and sets the new
+ *  password. Throws ApiError (400) on invalid/expired tokens. */
+export async function apiResetPassword(input: {
+  email: string;
+  token: string;
+  password: string;
+}): Promise<{ ok: boolean }> {
+  if (DEMO_MODE) {
+    return { ok: true };
+  }
+  const res = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+    credentials: 'include',
+  });
+  await parseOrThrow(res);
+  return { ok: true };
+}

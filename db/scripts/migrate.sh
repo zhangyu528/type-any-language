@@ -45,5 +45,17 @@ export PYTHONIOENCODING="${PYTHONIOENCODING:-utf-8}"
 # backend/migrations/. The runner needs backend/ on the path to find
 # both `migrations.versions` (its own package) and the
 # `db_url` defensive fallback (still at db/db_url.py).
+# Resolve the Python interpreter: prefer the backend .venv, fall back to a
+# global python3/python on PATH (mirrors dev-tools/_common.sh::_backend_python).
+PYTHON_BIN="$(command -v python3 || command -v python || true)"
+if [ -z "$PYTHON_BIN" ] && [ -x "$PROJECT_DIR/backend/.venv/Scripts/python.exe" ]; then
+    PYTHON_BIN="$PROJECT_DIR/backend/.venv/Scripts/python.exe"
+elif [ -z "$PYTHON_BIN" ] && [ -x "$PROJECT_DIR/backend/.venv/bin/python" ]; then
+    PYTHON_BIN="$PROJECT_DIR/backend/.venv/bin/python"
+fi
+if [ -z "$PYTHON_BIN" ]; then
+    echo "ERROR: 找不到 python3 / python,且 backend/.venv 不存在 — migrations.runner 需要它" >&2
+    exit 1
+fi
 PYTHONPATH="${PROJECT_DIR}/backend${PYTHONPATH:+:$PYTHONPATH}" \
-    python3 -c 'from migrations.runner import main; main()' "$@"
+    "$PYTHON_BIN" -c 'from migrations.runner import main; main()' "$@"
