@@ -1,0 +1,214 @@
+name: preview-stack
+# 任何人有 repo write 权限就能触发。运行 ~45 分钟后自动终止,
+# 公开 URL 跟 run 绑定,run 结束 URL 失效。
+# 单 job 架构:tunnel 进程和 keep-alive 在同一 runner,
+# 避免 job 结束后 GitHub kill 进程导致 URL 失效。
+
+on:
+  # 只用手动触发,避免 push 时启动 45 分钟长任务阻塞 PR merge。
+  # 在 Actions UI 选分支 → Run workflow,或 CLI:
+  #   gh workflow run preview-stack.yml -r <branch>
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: '要预览的分支(留空用触发时的分支)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  # ============================================================
+  # preview: 单 job。build + 启动服务 + 拿 URL + hold tunnel ~40 分钟。
+  # environment.url 让 "View deployment" 按钮在 tunnel step 完成后
+  # 即刻出现在 run overview,无需等 job 结束。
+  # ============================================================
+  preview:
+    runs-on: ubuntu-latest
+    environment:
+      name: preview
+      url: ${{ steps.tunnel.outputs.url }}
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: previewpw
+          POSTGRES_DB: english_learning
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:previewpw@localhost:5432/english_learning
+      ALLOWED_ORIGINS: '*'
+      PYTHONUNBUFFERED: '1'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend deps
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Wait for postgres
+        run: |
+          for i in $(seq 1 30); do
+            if pg_isready -h localhost -p 5432 -U postgres; then
+              echo "postgres ready after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Run DB migrations
+        run: bash ./db/scripts/migrate.sh
+
+      - name: Import CMS content
+        run: bash ./db/scripts/import_staging.sh all
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_DEMO_MODE: 'false'
+          NEXT_PUBLIC_API_URL: ''
+        run: npm run build:pages
+
+      - name: Install cloudflared
+        run: |
+          curl -fsSL -o /tmp/cloudflared \
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          chmod +x /tmp/cloudflared
+          /tmp/cloudflared --version
+
+      - name: Start backend
+        working-directory: backend
+        env:
+          ALLOWED_ORIGINS: '*'
+        run: |
+          nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 \
+            > /tmp/backend.log 2>&1 &
+          echo "backend PID: $!"
+          for i in $(seq 1 20); do
+            if curl -fsS -o /dev/null http://localhost:8000/api/content/catalog; then
+              echo "backend ready after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Install & start nginx
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq nginx > /dev/null
+          cat > /tmp/nginx.conf <<EOF
+          user runner;
+          events { worker_connections 1024; }
+          http {
+            include /etc/nginx/mime.types;
+            server {
+              listen 4000;
+              root $GITHUB_WORKSPACE/frontend/out;
+              index index.html;
+              location / {
+                try_files \$uri \$uri/ /index.html;
+              }
+              location /api/ {
+                proxy_pass http://localhost:8000;
+                proxy_set_header Host \$host;
+                proxy_set_header X-Real-IP \$remote_addr;
+                proxy_http_version 1.1;
+              }
+            }
+          }
+          EOF
+          sudo cp /tmp/nginx.conf /etc/nginx/nginx.conf
+          sudo nginx -t
+          sudo nginx
+          sleep 2
+          curl -fsS -o /dev/null -w "nginx status: %{http_code}\n" http://localhost:4000/
+
+      - name: Start cloudflared tunnel
+        id: tunnel
+        run: |
+          nohup /tmp/cloudflared tunnel --url http://localhost:4000 \
+            > /tmp/tunnel.log 2>&1 &
+          echo "tunnel PID: $!"
+          for i in $(seq 1 30); do
+            URL=$(grep -oE "https://[a-z0-9-]+\.trycloudflare\.com" /tmp/tunnel.log | head -1)
+            if [ -n "$URL" ]; then
+              echo "url=$URL" >> "$GITHUB_OUTPUT"
+              echo "URL ready after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+          if [ -z "$URL" ]; then
+            echo "::error::Tunnel URL not found"
+            cat /tmp/tunnel.log
+            exit 1
+          fi
+
+      - name: Post preview URL
+        run: |
+          URL="${{ steps.tunnel.outputs.url }}"
+          BRANCH="${{ inputs.branch || github.ref_name }}"
+          RUN_NUM="${{ github.run_number }}"
+          echo "::notice title=🌐 Preview URL::$URL"
+          {
+            echo "# 🌐 Preview URL"
+            echo ""
+            echo "## [🔗 $URL]($URL)"
+            echo ""
+            echo "| 字段 | 值 |"
+            echo "|---|---|"
+            echo "| **URL** | [$URL]($URL) |"
+            echo "| Branch | \`$BRANCH\` |"
+            echo "| Run | #$RUN_NUM |"
+            echo ""
+            echo "### Stack"
+            echo "- nginx :4000 — 静态 + /api/* 反代到 uvicorn"
+            echo "- uvicorn :8000 — FastAPI 真 backend"
+            echo "- postgres :5432 — service container"
+            echo "- cloudflared — 出站隧道"
+            echo ""
+            echo "### 怎么停"
+            echo "Actions tab → 选本 run → Cancel workflow"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep tunnel alive
+        run: |
+          URL="${{ steps.tunnel.outputs.url }}"
+          echo "Holding tunnel alive for ~40 minutes: $URL"
+          END=$((SECONDS + 2400))
+          while [ $SECONDS -lt $END ]; do
+            echo "[$(date +%H:%M:%S)] tunnel alive: $URL"
+            sleep 60
+          done
+          echo "Keep alive window ended (40 min)."
