@@ -58,6 +58,7 @@ def get_dashboard(
         monthly_goal=activity_service.compute_monthly_goal(db, current_user.id, today),
         progress=activity_service.compute_kpis(db, current_user.id, today),
         preferred_hour=activity_service.compute_preferred_hour(db, current_user.id),
+        has_any_activity=activity_service.has_any_activity(db, current_user.id),
         generated_at=datetime.utcnow(),
     )
 

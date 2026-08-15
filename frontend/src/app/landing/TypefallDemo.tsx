@@ -6,8 +6,8 @@ import styles from './TypefallDemo.module.css';
 
 interface TypefallDemoProps {
   /** 当前练习的词库 id。传了就从 /api/sentences/random 拉 3 句轮播;
-   *  不传或拉取失败时退回 FALLBACK_SENTENCE(保证 DEMO 模式 / 未登录态
-   *  / 网络故障下 demo 卡不空)。Hero.tsx 已经传 firstLib?.id 进来。 */
+   *  不传或拉取失败时退回 FALLBACK_SENTENCE(保证 未登录态 / 网络故障下
+   *  demo 卡不空)。Hero.tsx 已经传 firstLib?.id 进来。 */
   libId?: string;
 }
 
@@ -19,7 +19,7 @@ const DONE_HOLD = 1400; // 整句打完停留(总 cycle ≈ 5.5s,适配慢节奏
 const FETCH_OVERSHOOT = 10; // 多拉点,过滤 ≤80 字符后仍够 5 句轮播
 const SENTENCE_MAX_LEN = 80; // 单句字符上限:超长句节奏拖沓,过滤掉
 
-/* Fallback —— 无 libId / DEMO_MODE / fetch 失败 / 返回空数组时用。
+/* Fallback —— 无 libId / fetch 失败 / 返回空数组时用。
    跟旧版 hero demo 视觉一致,保证回归 0。 */
 const FALLBACK_SENTENCE: LessonSentence = {
   id: 'fallback',

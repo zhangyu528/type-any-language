@@ -154,6 +154,13 @@ class DashboardResponse(BaseModel):
     # Derived from practice_sessions.started_at (already persisted),
     # so no new table/endpoint is required.
     preferred_hour: Optional[int] = None
+    # Lifetime "has this user ever practiced" flag. COUNT(daily_activity) > 0
+    # for the user — independent of the 35-day calendar window and of the
+    # user_streaks rollup (legacy accounts created before streak tracking
+    # may lack a user_streaks row, which would otherwise make streak.longest
+    # read as 0 and falsely trigger the first-run welcome guide). The
+    # frontend gates the onboarding/welcome view on `not has_any_activity`.
+    has_any_activity: bool
 
 
 # ---- Day-detail drawer (clicked from calendar) ---------------------------

@@ -10,9 +10,7 @@
     "install": "node scripts/install.mjs",
     "dev:restart": "node scripts/restart.mjs",
     "preflight": "node scripts/preflight.mjs",
-    "test": "playwright test",
-    "build:pages": "GITHUB_PAGES=1 NEXT_PUBLIC_DEMO_MODE=true NEXT_PUBLIC_API_URL='' npx next build",
-    "serve:pages": "python3 -m http.server 3000 --directory out"
+    "test": "playwright test"
   },
   "dependencies": {
     "@chakra-ui/react": "^3.36.1",

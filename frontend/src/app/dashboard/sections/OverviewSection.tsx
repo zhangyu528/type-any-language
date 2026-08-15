@@ -85,7 +85,14 @@ export default function OverviewSection({
       .slice(0, 3);
   }, [catalog, recentId]);
 
-  const isFirstRun = snapshot.continue.session_id === null && weekGlance.sentences === 0;
+  // 首跑态：从未练习过。
+  // 用后端的终身信号 has_any_activity（按 user_id 统计 daily_activity 是否有
+  // 任何记录），它不依赖 35 天 calendar 窗口、也不依赖 user_streaks 回滚——
+  // 否则 streak 功能上线前的老账号（缺 user_streaks 行 → streak.longest 恒为 0）
+  // 会被错误切到欢迎引导。
+  // 叠加无进行中会话：避免"第一次练习进行途中"误判为首跑。
+  const isFirstRun =
+    snapshot.continue.session_id === null && !snapshot.has_any_activity;
 
   // 首跑 / 空状态：整页切换为引导态。
   if (isFirstRun) {

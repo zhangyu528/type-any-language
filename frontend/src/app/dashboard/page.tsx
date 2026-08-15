@@ -91,7 +91,7 @@ function DashboardLoading() {
 function DashboardInner() {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
 
   // Auth gate — mirror /me/page.tsx verbatim. The redirect target
   // uses the live pathname so back-nav after login lands the user
@@ -133,10 +133,21 @@ function DashboardInner() {
   // ---- Partition + picker state (URL = source of truth) ----
   const [uiState, setUiState] = useState<UiState>(readState);
   // 侧边栏默认折叠(76px rail)；hover/focus 临时展开，pin 锁定展开。
-  const [pinned, setPinned] = useState(false);
-  const [hovered, setHovered] = useState(false);
-  const expanded = pinned || hovered;
+  // pin 状态持久化到 localStorage，刷新后保持用户上次的锁定选择。
+  const [pinned, setPinned] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem('prefs.sidebarPinned') === '1';
+    } catch {
+      return false;
+    }
+  });
+  // 侧边栏展开态 = 用户点击固定(pin)；默认折叠为 76px rail。
+  // 不再用 hover 自动展开：hover 浮层会压住主显示区，hover 推内容又会造成
+  // 割裂，故改为「点击伸缩按钮切换 + pin 持久化」(VS Code / Notion 模型)。
+  const expanded = pinned;
   const collapsed = !expanded;
+  // 内容区 margin 随展开态切换：展开时让位(不压)，折叠时收为 rail。
+  const contentCollapsed = !expanded;
   const [mobileOpen, setMobileOpen] = useState(false);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -254,6 +265,25 @@ function DashboardInner() {
     openLibPicker();
   }, [dismissWelcome, openLibPicker]);
 
+  // Pin 锁定：切换时把状态持久化到 localStorage，刷新后保持。
+  const togglePin = useCallback(() => {
+    setPinned((p) => {
+      const np = !p;
+      try {
+        window.localStorage.setItem('prefs.sidebarPinned', np ? '1' : '0');
+      } catch {
+        /* 隐私模式静默 */
+      }
+      return np;
+    });
+  }, []);
+
+  // 登出（与 AppHeader 行为一致）：清会话后回 landing。
+  const handleLogout = useCallback(async () => {
+    await logout();
+    router.push('/');
+  }, [logout, router]);
+
   // Closing goes through history.back() so the pushed '?picker=1'
   // entry is consumed rather than stacked.
   const closeLibPicker = useCallback(() => {
@@ -358,7 +388,7 @@ function DashboardInner() {
   return (
     <main
       className={styles.root}
-      data-collapsed={collapsed ? 'true' : 'false'}
+      data-collapsed={contentCollapsed ? 'true' : 'false'}
       data-mobile-open={mobileOpen ? 'true' : 'false'}
     >
       {/* Aurora background - full screen, behind all content */}
@@ -386,8 +416,7 @@ function DashboardInner() {
         user={user}
         collapsed={collapsed}
         pinned={pinned}
-        onTogglePin={() => setPinned((p) => !p)}
-        onHoverChange={setHovered}
+        onTogglePin={togglePin}
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
       />

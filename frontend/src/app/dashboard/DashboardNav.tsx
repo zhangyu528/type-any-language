@@ -17,16 +17,16 @@
 import {
   BarChart3,
   Bookmark,
+  ChevronsLeft,
+  ChevronsRight,
   GraduationCap,
-  Languages,
   LayoutDashboard,
-  Pin,
-  PinOff,
   Settings,
   X,
   type LucideIcon,
 } from 'lucide-react';
 import styles from './DashboardNav.module.css';
+import { useEffect, useRef, useState } from 'react';
 
 export type DashboardSection =
   | 'overview'
@@ -71,14 +71,12 @@ interface DashboardNavProps {
   collectionCount?: number;
   /** Signed-in user, for the footer profile chip. */
   user?: DashboardUserLite;
-  /** Desktop effective collapse-to-rail state (collapsed unless pinned or hovered). */
+  /** Desktop effective collapse-to-rail state (collapsed unless pinned). */
   collapsed: boolean;
   /** When true the rail is locked open (pinned). */
   pinned: boolean;
   /** Toggle the pinned (locked-open) state. */
   onTogglePin: () => void;
-  /** Hover/focus changes the transient expanded state (only meaningful when not pinned). */
-  onHoverChange: (hovered: boolean) => void;
   /** Mobile off-canvas drawer open state. */
   mobileOpen: boolean;
   onCloseMobile: () => void;
@@ -92,11 +90,34 @@ export default function DashboardNav({
   collapsed,
   pinned,
   onTogglePin,
-  onHoverChange,
   mobileOpen,
   onCloseMobile,
 }: DashboardNavProps) {
   const initial = (user?.display_name || '?').trim().charAt(0).toUpperCase();
+
+  // 点击头像展开迷你名片（账号菜单）；点击名片外部或按 Esc 关闭。
+  const [cardOpen, setCardOpen] = useState(false);
+  const footerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!cardOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (footerRef.current && !footerRef.current.contains(e.target as Node)) {
+        setCardOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setCardOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [cardOpen]);
+
+  // 与 frontend/package.json 的 version 保持一致。
+  const APP_VERSION = '0.1.0';
 
   return (
     <aside
@@ -104,20 +125,34 @@ export default function DashboardNav({
       data-collapsed={collapsed ? 'true' : 'false'}
       data-mobile-open={mobileOpen ? 'true' : 'false'}
       aria-label="学习控制台导航"
-      onMouseEnter={() => onHoverChange(true)}
-      onMouseLeave={() => onHoverChange(false)}
-      onFocusCapture={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onHoverChange(true);
-      }}
-      onBlurCapture={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onHoverChange(false);
-      }}
     >
+      {/* 伸缩(pin)控件：悬浮在侧边栏右边缘中部的「标签」按钮，
+         桌面 / 折叠 rail 通用，不占 header/footer 空间，也不挡导航。 */}
+      <button
+        type="button"
+        className={styles.pinBtn}
+        onClick={onTogglePin}
+        aria-pressed={pinned}
+        aria-label={pinned ? '收起侧边栏' : '展开侧边栏'}
+        title={pinned ? '收起侧边栏' : '展开侧边栏'}
+      >
+        {pinned ? <ChevronsLeft size={18} /> : <ChevronsRight size={18} />}
+      </button>
+
       <div className={styles.brand}>
         <span className={styles.brandMark} aria-hidden>
-          <Languages size={20} />
+          <svg viewBox="0 0 24 24" width="100%" height="100%">
+            <rect x="2" y="2" width="20" height="20" rx="6" fill="var(--ds-action-deep)" />
+            <g fill="#fff">
+              {[8, 12, 16].flatMap((cy) =>
+                [8, 12, 16].map((cx) => (
+                  <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="1.5" />
+                )),
+              )}
+            </g>
+          </svg>
         </span>
-        <span className={styles.brandName}>学习控制台</span>
+        <span className={styles.brandName}>Type Any Language</span>
         <button
           type="button"
           className={styles.closeMobile}
@@ -127,6 +162,7 @@ export default function DashboardNav({
           <X size={18} />
         </button>
       </div>
+      <span className={styles.version}>v{APP_VERSION}</span>
 
       <nav className={styles.nav} aria-label="分区导航">
         {DASHBOARD_SECTIONS.map((s) => {
@@ -151,6 +187,10 @@ export default function DashboardNav({
                   {collectionCount}
                 </span>
               ) : null}
+              {/* 折叠 rail 态的自定义 tooltip（替原生 title，见 .tip） */}
+              <span className={styles.tip} aria-hidden>
+                {DASHBOARD_SECTION_LABEL[s]}
+              </span>
             </button>
           );
         })}
@@ -158,13 +198,16 @@ export default function DashboardNav({
 
       <div className={styles.spacer} />
 
-      <div className={styles.footer}>
+      <div className={styles.footer} ref={footerRef}>
+        {/* 头像按钮：折叠 / 展开态都显示；点击展开迷你名片（账号菜单）。 */}
         <button
           type="button"
           className={styles.profile}
-          onClick={() => onSelect('settings')}
-          title="账号设置"
-          aria-label={`${user?.display_name ?? '账号'} · 设置`}
+          onClick={() => setCardOpen((o) => !o)}
+          aria-haspopup="menu"
+          aria-expanded={cardOpen}
+          title="账号菜单"
+          aria-label={`${user?.display_name ?? '账号'} · 账号菜单`}
         >
           <span className={styles.avatar} aria-hidden>
             {user?.avatar_url ? (
@@ -176,16 +219,33 @@ export default function DashboardNav({
           </span>
           <span className={styles.profileName}>{user?.display_name}</span>
         </button>
-        <button
-          type="button"
-          className={styles.pinBtn}
-          onClick={onTogglePin}
-          aria-pressed={pinned}
-          aria-label={pinned ? '取消固定侧边栏' : '固定侧边栏（保持展开）'}
-          title={pinned ? '已固定：点击取消固定' : '固定侧边栏（保持展开）'}
+        {/* 点击头像展开迷你名片：账号信息 + 设置入口。登出已移出侧边栏。 */}
+        <div
+          className={styles.profileCard}
+          role="menu"
+          data-open={cardOpen ? 'true' : 'false'}
         >
-          {pinned ? <PinOff size={18} /> : <Pin size={18} />}
-        </button>
+          <span className={styles.cardAvatar} aria-hidden>
+            {user?.avatar_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={user.avatar_url} alt="" />
+            ) : (
+              initial
+            )}
+          </span>
+          <span className={styles.cardName}>{user?.display_name}</span>
+          <button
+            type="button"
+            className={styles.cardItem}
+            onClick={() => {
+              setCardOpen(false);
+              onSelect('settings');
+            }}
+            role="menuitem"
+          >
+            设置
+          </button>
+        </div>
       </div>
     </aside>
   );

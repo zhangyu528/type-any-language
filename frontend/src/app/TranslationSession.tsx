@@ -1,10 +1,13 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   getLib,
   loadTranslationProgress,
   saveTranslationProgress,
+  startPracticeSession,
+  endPracticeSession,
+  recordPracticeStep,
   TranslationProgress,
   TranslationSentenceProgress,
   LessonSentence,
@@ -157,6 +160,15 @@ export default function TranslationSession({
     null
   );
 
+  // --- backend practice session wiring (best-effort telemetry) ---
+  // We hold the live session id + running tally in refs so the
+  // start/end calls stay outside React's render cycle and never block
+  // or break the drill. The end call rolls the tally into daily_activity,
+  // which is what flips has_any_activity and brings the dashboard's
+  // streak / calendar / daily-goal to life.
+  const sessionIdRef = useRef<string | null>(null);
+  const tallyRef = useRef({ attempted: 0, correct: 0 });
+
   // Initial load: lesson + progress + first pick.
   //
   // Phase 3.1: if ?sentence=Y is present and matches a sentence in
@@ -240,6 +252,48 @@ export default function TranslationSession({
     // next mount needs to load the new account's progress.
   }, [libId, userId]);
 
+  // Start a backend practice session once the drill is actually running
+  // (lesson loaded) and the user is signed in. End it on unmount or
+  // when the lib / account changes — an unbounded drill has no other
+  // "finish" signal. We skip the end call when nothing was attempted
+  // (attempted === 0 would otherwise upsert a 0-row into daily_activity
+  // and falsely mark the user as "practiced").
+  useEffect(() => {
+    if (isGuest || sessionState !== 'running') return;
+    let active = true;
+    startPracticeSession({ lib_id: libId })
+      .then(({ session_id }) => {
+        if (!active) {
+          // Torn down before start resolved (fast lib switch / unmount).
+          // End the orphan so it doesn't dangle unfinished.
+          endPracticeSession(
+            session_id,
+            tallyRef.current.attempted,
+            tallyRef.current.correct,
+          ).catch(() => {});
+          return;
+        }
+        sessionIdRef.current = session_id;
+        tallyRef.current = { attempted: 0, correct: 0 };
+      })
+      .catch(() => {
+        // best-effort: if start fails we simply don't track this session
+        sessionIdRef.current = null;
+      });
+    return () => {
+      active = false;
+      const sid = sessionIdRef.current;
+      if (sid && tallyRef.current.attempted > 0) {
+        sessionIdRef.current = null;
+        endPracticeSession(
+          sid,
+          tallyRef.current.attempted,
+          tallyRef.current.correct,
+        ).catch(() => {});
+      }
+    };
+  }, [isGuest, sessionState, libId]);
+
   /**
    * Record the answer for the current step's sentence and draw the
    * next one. The new step is staged in `pendingStep` so React batches
@@ -289,6 +343,16 @@ export default function TranslationSession({
       };
       setProgress(nextProgress);
       saveTranslationProgress(nextProgress, userId);
+
+      // --- backend practice telemetry (signed-in users only) ---
+      // Tally the attempt and stream the per-step outcome. recordPracticeStep
+      // is fire-and-forget; it only matters that the /end call (on unmount /
+      // lib switch) carries the authoritative totals. Guests have no
+      // session_id, so this is a no-op for them.
+      tallyRef.current.attempted += 1;
+      if (correct) tallyRef.current.correct += 1;
+      const sid = sessionIdRef.current;
+      if (sid) recordPracticeStep(sid, correct);
 
       // Notify same-tab listeners that progress changed. The native
       // `storage` event only fires across tabs/windows — same-tab

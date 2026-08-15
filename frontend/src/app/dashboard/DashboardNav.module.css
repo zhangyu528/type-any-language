@@ -34,21 +34,40 @@
   gap: 12px;
   height: 48px;
   padding: 0 6px;
-  margin-bottom: 18px;
+  margin-bottom: 6px;
   flex-shrink: 0;
+}
+
+.version {
+  display: block;
+  padding: 0 6px;
+  margin-bottom: 18px;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--ds-ink-soft);
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .brandMark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
-  color: #fff;
-  background: linear-gradient(135deg, var(--ds-action) 0%, var(--ds-action-deep) 100%);
-  box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--ds-action) 70%, transparent);
+  border-radius: 9px;
+  overflow: hidden;
+  box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--ds-action-deep) 70%, transparent);
+}
+.brandMark svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .brandName {
@@ -122,6 +141,11 @@
   color: var(--ds-ink);
 }
 
+/* 展开态 hover 时图标微右移，增加回应感（折叠 rail 态不位移，保持居中）。 */
+.sidebar:not([data-collapsed='true']) .item:hover .itemIcon {
+  transform: translateX(2px);
+}
+
 .item[data-active='true'] {
   background: color-mix(in srgb, var(--ds-action) 14%, transparent);
   color: var(--ds-ink);
@@ -154,6 +178,7 @@
   height: 24px;
   flex-shrink: 0;
   color: inherit;
+  transition: transform var(--dur-fast) var(--ease-out);
 }
 
 .itemLabel {
@@ -192,13 +217,39 @@
 }
 
 .footer {
+  position: relative;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding-top: 12px;
   margin-top: 8px;
   border-top: 1px solid color-mix(in srgb, var(--ds-ink) 10%, transparent);
   flex-shrink: 0;
+}
+
+/* 浮层元素：默认隐藏，hover / 聚焦头像时浮出迷你名片（折叠 / 展开态通用）。 */
+.tip {
+  display: none;
+}
+.profileCard {
+  display: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #1f2433;
+  color: #f1efea;
+  box-shadow: 0 16px 40px -18px rgba(0, 0, 0, 0.7);
+  z-index: 60;
+}
+.profileCard[data-open='true'] {
+  display: flex;
 }
 
 .profile {
@@ -254,31 +305,50 @@
   text-align: left;
 }
 
+/* 伸缩(pin)控件：悬浮在侧边栏右边缘中部的圆形「标签」按钮，
+   桌面 / 折叠 rail 通用；不占 header/footer，也不挡导航。 */
 .pinBtn {
+  position: absolute;
+  top: 50%;
+  right: -14px;
+  transform: translateY(-50%);
+  z-index: 40;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  flex-shrink: 0;
-  border: 0;
-  background: transparent;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--ds-ink) 14%, transparent);
+  background: #fff;
   color: var(--ds-ink-soft);
-  border-radius: 10px;
+  border-radius: 50%;
   cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast);
+  box-shadow: 0 4px 12px -6px rgba(0, 0, 0, 0.4);
+  transition: background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast), transform var(--dur-fast) var(--ease-out);
 }
 .pinBtn:hover {
-  background: color-mix(in srgb, var(--ds-action) 10%, transparent);
   color: var(--ds-ink);
+  background: color-mix(in srgb, var(--ds-action) 12%, #fff);
+  transform: translateY(-50%) scale(1.08);
 }
 .pinBtn[aria-pressed='true'] {
   color: var(--ds-action-deep);
-  background: color-mix(in srgb, var(--ds-action) 16%, transparent);
+  background: color-mix(in srgb, var(--ds-action) 16%, #fff);
 }
 .pinBtn:focus-visible {
   outline: 2px solid var(--ds-focus);
   outline-offset: 2px;
+}
+[data-theme='dark'] .pinBtn {
+  background: #1f2433;
+  border-color: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.72);
+}
+[data-theme='dark'] .pinBtn:hover {
+  color: #fff;
+  background: color-mix(in srgb, var(--ds-action) 22%, #1f2433);
 }
 
 /* ============================================================
@@ -293,6 +363,9 @@
   justify-content: center;
   padding: 0;
 }
+.sidebar[data-collapsed='true'] .version {
+  display: none;
+}
 .sidebar[data-collapsed='true'] .brandName {
   display: none;
 }
@@ -305,15 +378,24 @@
 .sidebar[data-collapsed='true'] .itemLabel {
   display: none;
 }
+.sidebar[data-collapsed='true'] .item[data-active='true'] {
+  background: color-mix(in srgb, var(--ds-action) 16%, transparent);
+  color: var(--ds-action-deep);
+}
 .sidebar[data-collapsed='true'] .item[data-active='true']::before {
-  /* Centered dot indicator when the rail has no labels. */
-  left: 50%;
-  top: auto;
-  bottom: 6px;
-  transform: translateX(-50%);
-  width: 18px;
-  height: 3px;
-  border-radius: 3px;
+  /* 折叠 rail 态弃用底部小条，改左侧 accent（与展开态一致）。 */
+  display: none;
+}
+.sidebar[data-collapsed='true'] .item[data-active='true']::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 22px;
+  border-radius: 0 3px 3px 0;
+  background: var(--ds-action);
 }
 .sidebar[data-collapsed='true'] .item .badge {
   position: absolute;
@@ -321,15 +403,99 @@
   right: 8px;
 }
 .sidebar[data-collapsed='true'] .profile {
-  justify-content: center;
-  padding: 6px;
+  flex: 0 0 auto;
 }
 .sidebar[data-collapsed='true'] .profileName {
   display: none;
 }
-/* 折叠态(图标 rail)下不显示底部控制：由 hover 展开 + pin 锁定接管。 */
-.sidebar[data-collapsed='true'] .pinBtn {
-  display: none;
+/* 折叠 rail 态：头像居中，hover 头像浮出名片。pin 已移至右上角固定位。 */
+.sidebar[data-collapsed='true'] .footer {
+  justify-content: center;
+}
+
+/* 折叠 rail 态允许 tooltip / 迷你名片延伸到内容区（仅 5 项，不会触发滚动）。 */
+.sidebar[data-collapsed='true'] .nav {
+  overflow: visible;
+}
+
+/* 折叠 rail 态自定义 tooltip：替原生 title，受控延迟避免快速划过闪现。 */
+.sidebar[data-collapsed='true'] .tip {
+  display: inline-flex;
+  align-items: center;
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #1f2433;
+  color: #f1efea;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.16s ease;
+  transition-delay: 0.35s;
+  z-index: 5;
+  box-shadow: 0 6px 18px -10px rgba(0, 0, 0, 0.6);
+}
+.sidebar[data-collapsed='true'] .item:hover .tip,
+.sidebar[data-collapsed='true'] .item:focus-visible .tip {
+  opacity: 1;
+}
+
+/* 折叠 rail 态：名片浮到 rail 右侧（内容区上方），避免与窄栏重叠。 */
+.sidebar[data-collapsed='true'] .profileCard {
+  left: calc(100% + 12px);
+  right: auto;
+  bottom: -4px;
+  width: 184px;
+}
+
+.cardAvatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--ds-action) 0%, var(--ds-action-deep) 100%);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  align-self: flex-start;
+}
+.cardAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cardName {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f1efea;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cardItem {
+  appearance: none;
+  width: 100%;
+  height: 34px;
+  border: 0;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #f1efea;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.16s ease;
+}
+.cardItem:hover {
+  background: rgba(255, 255, 255, 0.18);
 }
 
 /* ============================================================
@@ -357,5 +523,13 @@
   /* Pin / collapse toggle is a desktop affordance; hide it in the drawer. */
   .pinBtn {
     display: none;
+  }
+  /* 移动端抽屉打开时(data-collapsed 仍为 true)需恢复头像与底部布局，
+     否则上面「折叠 rail 态隐藏 profile」的规则会误伤抽屉。 */
+  .sidebar[data-mobile-open='true'] .profile {
+    display: flex;
+  }
+  .sidebar[data-mobile-open='true'] .footer {
+    justify-content: flex-start;
   }
 }

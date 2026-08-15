@@ -557,3 +557,22 @@ def _get_monthly_goal(db: DbSession, user_id: UUID) -> int:
     if user is None or user[0] is None:
         return 600
     return int(user[0])
+
+
+def has_any_activity(db: DbSession, user_id: UUID) -> bool:
+    """True if the user has ever recorded a practice day (lifetime).
+
+    Counts daily_activity rows for the user — independent of the 35-day
+    calendar window and of the user_streaks rollup. Legacy accounts
+    created before streak tracking may have no user_streaks row, which
+    would make streak.longest read as 0; this is the authoritative
+    "has this user ever practiced" signal used to gate the first-run
+    welcome guide on the frontend.
+    """
+    count = (
+        db.query(func.count())
+        .select_from(DailyActivity)
+        .filter(DailyActivity.user_id == user_id)
+        .scalar()
+    )
+    return bool(count)

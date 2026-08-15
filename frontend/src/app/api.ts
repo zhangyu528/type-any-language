@@ -6,109 +6,6 @@
 // the dev backend (localhost:8000) when unset.
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/+$/, '');
 
-const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
-
-const DEMO_USER: AuthUser = {
-  id: 'demo-user',
-  email: 'demo@type-any-language.local',
-  display_name: 'Demo User',
-  created_at: '2026-01-01T00:00:00Z',
-};
-
-const DEMO_LIBS: VocabularyLib[] = [
-  {
-    id: 'cet4',
-    name: 'CET-4 核心词',
-    level: 'CET-4',
-    word_count: 2607,
-    sentence_count: 1840,
-    description: '大学英语四级高频词,日常会话够用',
-  },
-  {
-    id: 'cet6',
-    name: 'CET-6 进阶词',
-    level: 'CET-6',
-    word_count: 2345,
-    sentence_count: 1620,
-    description: '六级冲刺,学术阅读和职场沟通',
-  },
-  {
-    id: 'business',
-    name: '商务英语',
-    level: 'B2',
-    word_count: 1180,
-    sentence_count: 940,
-    description: '会议、邮件、谈判常用词汇与句式',
-  },
-];
-
-const DEMO_CATALOG: Catalog = {
-  libs: DEMO_LIBS,
-  difficulties_by_lib: {
-    cet4: ['A1', 'A2', 'B1'],
-    cet6: ['B1', 'B2'],
-    business: ['B2', 'C1'],
-  },
-  defaults: { difficulty: 'A2', bucket_target_size: 8 },
-};
-
-const DEMO_LESSON_DETAIL: LessonDetail = {
-  lib_id: 'cet4',
-  lesson_index: 0,
-  words: [
-    { id: 'w1', word: 'abandon', phonetic: '/əˈbændən/', translation: '放弃;抛弃' },
-    { id: 'w2', word: 'ability', phonetic: '/əˈbɪləti/', translation: '能力;才能' },
-    { id: 'w3', word: 'absolute', phonetic: '/ˈæbsəluːt/', translation: '绝对的;完全的' },
-    { id: 'w4', word: 'academic', phonetic: '/ˌækəˈdemɪk/', translation: '学术的;学院的' },
-    { id: 'w5', word: 'accept', phonetic: '/əkˈsept/', translation: '接受;同意' },
-  ],
-  sentences_by_word: {
-    w1: [{ id: 's1', text: 'He abandoned his car in the snow.', chinese_text: '他把车丢在雪地里走了。', difficulty: 'A2', audio_url: '/demo/silence.mp3' }],
-    w2: [{ id: 's2', text: 'She has the ability to solve hard problems.', chinese_text: '她有解决难题的能力。', difficulty: 'A2', audio_url: '/demo/silence.mp3' }],
-    w3: [{ id: 's3', text: 'There is no absolute truth.', chinese_text: '没有绝对的真理。', difficulty: 'B1', audio_url: '/demo/silence.mp3' }],
-    w4: [{ id: 's4', text: 'His academic record is excellent.', chinese_text: '他的学业成绩非常优秀。', difficulty: 'A2', audio_url: '/demo/silence.mp3' }],
-    w5: [{ id: 's5', text: 'Please accept my apology.', chinese_text: '请接受我的歉意。', difficulty: 'A2', audio_url: '/demo/silence.mp3' }],
-  },
-};
-
-const DEMO_DASHBOARD: DashboardSnapshot = {
-  user: DEMO_USER,
-  continue: {
-    session_id: null,
-    lib_id: null,
-    lesson_index: null,
-    current_sentence_position: 0,
-    sentences_attempted: 0,
-    preview: '',
-    is_unfinished: false,
-  },
-  daily_goal: { target: 20, today_count: 7, today_date: '2026-08-10', pct: 0.35, completed: false },
-  streak: { current: 3, longest: 12, today_done: false, active_days: ['2026-08-08', '2026-08-09'] },
-  calendar: Array.from({ length: 14 }).map((_, i) => {
-    const d = new Date(2026, 7, i - 3);
-    const iso = d.toISOString().slice(0, 10);
-    const count = [0, 0, 12, 18, 0, 9, 21, 16, 0, 4, 0, 0, 0, 0][i];
-    return {
-      date: iso,
-      sentences_count: count,
-      accuracy: count > 0 ? 0.78 : null,
-      goal_hit: count >= 20,
-      is_future: d.getTime() > Date.now(),
-      is_streak_node: count > 0,
-    };
-  }),
-  monthly_goal: { target: 500, current: 187, year_month: '2026-08', achieved: false, on_track: true },
-  progress: {
-    sentences_today: { value: 7, delta: 2, label: '今日句子' },
-    accuracy_7d: { value: 78, delta: 4, label: '近 7 天准确率' },
-    streak: { value: 3, delta: 0, label: '连续天数' },
-    new_words: { value: 24, delta: 6, label: '本周新词' },
-  },
-  preferred_hour: 21,
-  generated_at: '2026-08-10T00:00:00Z',
-};
-
-
 // ---------------------------------------------------------------------------
 // Library / catalog
 // ---------------------------------------------------------------------------
@@ -137,10 +34,6 @@ export interface Catalog {
 }
 
 export async function getContentCatalog(): Promise<Catalog> {
-  if (DEMO_MODE) {
-    return DEMO_CATALOG;
-  }
-
   const response = await fetch(`${API_BASE_URL}/api/content/catalog`);
   if (!response.ok) {
     throw new Error('获取内容目录失败');
@@ -187,10 +80,6 @@ export interface LessonDetail {
 }
 
 export async function listLessons(libId: string): Promise<LessonSummary[]> {
-  if (DEMO_MODE) {
-    return [{ lesson_index: 0, word_count: DEMO_LESSON_DETAIL.words.length }];
-  }
-
   const params = new URLSearchParams({ lib_id: libId });
   const response = await fetch(`${API_BASE_URL}/api/lessons?${params}`);
   if (!response.ok) {
@@ -211,10 +100,6 @@ export async function listLessons(libId: string): Promise<LessonSummary[]> {
  * (sentinel — see backend `routers/lessons.py::get_lib_full`).
  */
 export async function getLib(libId: string): Promise<LessonDetail> {
-  if (DEMO_MODE) {
-    return DEMO_LESSON_DETAIL;
-  }
-
   const response = await fetch(`${API_BASE_URL}/api/lessons/${libId}/all`);
   if (!response.ok) {
     throw new Error('获取词库内容失败');
@@ -226,17 +111,13 @@ export async function getLib(libId: string): Promise<LessonDetail> {
 // Audio + phonetics
 // ---------------------------------------------------------------------------
 export function getAudioUrl(audioUrl: string): string {
-  if (DEMO_MODE || audioUrl.startsWith('http')) {
+  if (audioUrl.startsWith('http')) {
     return audioUrl;
   }
   return `${API_BASE_URL}${audioUrl}`;
 }
 
 export async function getPhonetics(words: string[]): Promise<Record<string, string>> {
-  if (DEMO_MODE) {
-    return {};
-  }
-
   if (words.length === 0) return {};
   const params = new URLSearchParams({ words: words.join(',') });
   const response = await fetch(`${API_BASE_URL}/api/vocabulary/phonetics?${params}`);
@@ -681,10 +562,6 @@ export async function apiSignup(input: {
   password: string;
   display_name?: string;
 }): Promise<AuthUser> {
-  if (DEMO_MODE) {
-    return DEMO_USER;
-  }
-
   const res = await fetch(`${API_BASE_URL}/api/auth/signup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -701,10 +578,6 @@ export async function apiSignup(input: {
 
 /** POST /api/auth/login. Returns the user. Server sets the cookie. */
 export async function apiLogin(input: { email: string; password: string }): Promise<AuthUser> {
-  if (DEMO_MODE) {
-    return DEMO_USER;
-  }
-
   const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -717,10 +590,6 @@ export async function apiLogin(input: { email: string; password: string }): Prom
 
 /** POST /api/auth/logout. Throws on network failure; otherwise resolves void. */
 export async function apiLogout(): Promise<void> {
-  if (DEMO_MODE) {
-    return;
-  }
-
   const res = await fetch(`${API_BASE_URL}/api/auth/logout`, {
     method: 'POST',
     credentials: 'include',
@@ -738,10 +607,6 @@ export async function apiLogout(): Promise<void> {
  * not an ApiError, and can show a "no network" UI).
  */
 export async function apiMe(): Promise<AuthUser | null> {
-  if (DEMO_MODE) {
-    return DEMO_USER;
-  }
-
   const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
     credentials: 'include',
   });
@@ -766,10 +631,6 @@ export async function apiMe(): Promise<AuthUser | null> {
  * (login or refresh) wins, as it should.
  */
 export async function updateDisplayName(displayName: string): Promise<AuthUser> {
-  if (DEMO_MODE) {
-    return { ...DEMO_USER, display_name: displayName };
-  }
-
   const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -864,6 +725,11 @@ export interface DashboardSnapshot {
    *  if no sessions yet. Drives the GreetingBar's "通常 21:00 练习"
    *  contextual nudge. */
   preferred_hour?: number | null;
+  /** 终身「是否曾经练习过」标志（后端按 user_id 统计 daily_activity 是否有
+   *  记录）。与 35 天 calendar 窗口、user_streaks 回滚无关——streak 功能上线前
+   *  的老账号可能缺 user_streaks 行导致 streak.longest 恒为 0，故首跑欢迎页以
+   *  此为准门控。 */
+  has_any_activity?: boolean;
   generated_at: string;
 }
 
@@ -873,10 +739,6 @@ export interface DashboardSnapshot {
  * expected to redirect anonymous users to /login before invoking this.
  */
 export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
-  if (DEMO_MODE) {
-    return DEMO_DASHBOARD;
-  }
-
   const res = await fetch(`${API_BASE_URL}/api/dashboard`, {
     credentials: 'include',
   });
@@ -906,17 +768,6 @@ export interface DayDetail {
 
 /** GET /api/dashboard/day/{date} — drawer payload for a clicked cell. */
 export async function getDayDetail(date: string): Promise<DayDetail> {
-  if (DEMO_MODE) {
-    return {
-      date,
-      sentences_count: 7,
-      correct_count: 5,
-      accuracy: 0.71,
-      goal_hit: false,
-      sessions: [],
-    };
-  }
-
   const res = await fetch(`${API_BASE_URL}/api/dashboard/day/${date}`, {
     credentials: 'include',
   });
@@ -928,16 +779,6 @@ export async function getDayDetail(date: string): Promise<DayDetail> {
 
 /** POST /api/dashboard/monthly-goal — set the user's monthly target. */
 export async function updateMonthlyGoal(target: number): Promise<MonthlyGoalInfo> {
-  if (DEMO_MODE) {
-    return {
-      target,
-      current: 187,
-      year_month: new Date().toISOString().slice(0, 7),
-      achieved: false,
-      on_track: true,
-    };
-  }
-
   const res = await fetch(`${API_BASE_URL}/api/dashboard/monthly-goal`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -953,18 +794,6 @@ export async function updateMonthlyGoal(target: number): Promise<MonthlyGoalInfo
 /** POST /api/dashboard/daily-goal — set the user's per-day sentence target.
  *  Returns the refreshed DailyGoalState (pct / completed recomputed). */
 export async function updateDailyGoal(target: number): Promise<DailyGoalState> {
-  if (DEMO_MODE) {
-    const todayCount = 7;
-    const pct = Math.min(1, todayCount / target);
-    return {
-      target,
-      today_count: todayCount,
-      today_date: new Date().toISOString().slice(0, 10),
-      pct,
-      completed: todayCount >= target,
-    };
-  }
-
   const res = await fetch(`${API_BASE_URL}/api/dashboard/daily-goal`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1000,10 +829,6 @@ export async function startPracticeSession(input: {
   lib_id?: string;
   lesson_index?: number;
 }): Promise<{ session_id: string }> {
-  if (DEMO_MODE) {
-    return { session_id: 'demo-session' };
-  }
-
   const res = await fetch(`${API_BASE_URL}/api/practice/session/start`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1028,10 +853,6 @@ export async function recordPracticeStep(
   sessionId: string,
   correct: boolean,
 ): Promise<void> {
-  if (DEMO_MODE) {
-    return;
-  }
-
   try {
     await fetch(`${API_BASE_URL}/api/practice/session/${sessionId}/step`, {
       method: 'POST',
@@ -1066,17 +887,6 @@ export async function endPracticeSession(
   today_completed: boolean;
   current_streak: number;
 }> {
-  if (DEMO_MODE) {
-    return {
-      session_id: sessionId,
-      is_finished: true,
-      today_count: sentencesCorrect,
-      today_target: 20,
-      today_completed: sentencesCorrect >= 20,
-      current_streak: 3,
-    };
-  }
-
   const res = await fetch(`${API_BASE_URL}/api/practice/session/${sessionId}/end`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1092,7 +902,6 @@ export async function endPracticeSession(
   return res.json();
 }
 
-
 /**
  * Fetch N random sentences from a vocab lib (typically the first /
  * beginner lib). Used by TypefallDemo in the hero to populate the
@@ -1104,12 +913,6 @@ export async function fetchRandomSentences(
   count: number = 3,
   difficulty: string = 'beginner'
 ): Promise<LessonSentence[]> {
-  if (DEMO_MODE) {
-    // 复用 listLessons 里的 DEMO_LESSON_DETAIL.sentences_by_word 第一组,
-    // 截取前 count 条作为 demo 数据,确保 DEMO 模式跟真实模式视觉一致。
-    const all = Object.values(DEMO_LESSON_DETAIL.sentences_by_word).flat();
-    return all.slice(0, count);
-  }
   const params = new URLSearchParams({
     lib_id: libId,
     difficulty,
@@ -1139,9 +942,6 @@ export interface ForgotPasswordResult {
 export async function apiForgotPassword(input: {
   email: string;
 }): Promise<ForgotPasswordResult> {
-  if (DEMO_MODE) {
-    return { ok: true, dev_reset_url: null };
-  }
   const res = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1159,9 +959,6 @@ export async function apiValidateResetToken(input: {
   token: string;
   email: string;
 }): Promise<{ valid: boolean }> {
-  if (DEMO_MODE) {
-    return { valid: true };
-  }
   const qs = new URLSearchParams({ token: input.token, email: input.email }).toString();
   const res = await fetch(`${API_BASE_URL}/api/auth/reset-password/validate?${qs}`, {
     credentials: 'include',
@@ -1177,9 +974,6 @@ export async function apiResetPassword(input: {
   token: string;
   password: string;
 }): Promise<{ ok: boolean }> {
-  if (DEMO_MODE) {
-    return { ok: true };
-  }
   const res = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
