@@ -1,68 +1,74 @@
 'use client';
 
 /**
- * /dashboard — login-required workbench page.
+ * /dashboard — login-required learning console.
  *
- * Layout (Immersive Hero style):
- *   ┌──────────────────────────────────────────────────┐
- *   │ AuroraBackground (fixed, full-screen)           │
- *   ├──────────────────────────────────────────────────┤
- *   │ HeroSection (greeting + streak + monthly bar)   │
- *   ├──────────────────────────────────────────────────┤
- *   │ ContinueCard  │  DailyGoal                     │
- *   ├──────────────────────────────────────────────────┤
- *   │ WeekRhythm (7 dots + 本周 X/7)                  │
- *   ├──────────────────────────────────────────────────┤
- *   │ ProgressSnapshot  (Accuracy · Sentences · Words)│
- *   └──────────────────────────────────────────────────┘
+ * This page is the orchestrator for a 5-partition console
+ * (主页 / 练习 / 数据 / 收藏 / 设置). URL `?section=` is the single
+ * source of truth for the active partition (deep-linkable + browser
+ * back/forward); the picker modal uses `?picker=1` on the same URL.
  *
  * Auth: useAuth() + redirect to /login?from=/dashboard if anonymous.
- * Data: GET /api/dashboard is the single hydration call.
+ * Data: GET /api/dashboard is the single hydration call; the catalog is
+ * loaded eagerly (needed by the 练习 grid + the picker modal).
  */
+
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
+import { Menu } from 'lucide-react';
 
 import {
-  DashboardSnapshot,
   Catalog,
+  DashboardSnapshot,
   getContentCatalog,
   getDashboardSnapshot,
+  loadCollection,
 } from '../api';
+import {
+  DashboardSection,
+  DASHBOARD_SECTIONS,
+} from './DashboardNav';
 import { useAuth } from '../lib/auth';
 import Aurora from '@/components/Aurora';
-import BorderGlow from '@/components/BorderGlow';
 import AnimatedContent from '@/components/AnimatedContent';
 import LoadingMark from '../components/LoadingMark';
 import ModalShell from '../components/ModalShell';
-
-import GreetingBar from './GreetingBar';
-import ContinueCard from './ContinueCard';
-import DailyGoal from './DailyGoal';
-import WeekRhythm from './WeekRhythm';
-import ProgressSnapshot from './ProgressSnapshot';
-import LearnedLibProgress from './LearnedLibProgress';
+import DashboardNav from './DashboardNav';
+import OverviewSection from './sections/OverviewSection';
+import PracticeSection from './sections/PracticeSection';
+import CollectionSection from './sections/CollectionSection';
+import SettingsSection from './sections/SettingsSection';
 import LibPicker from './LibPicker';
 import styles from './Dashboard.module.css';
 
-/**
- * The URL-derived practice state. `libId` non-null means in-session;
- * otherwise `pickerOpen` decides overview vs overview+modal.
- */
-interface PracticeUrlState {
+// DataSection is the heaviest partition (SVG chart + animations) — lazy
+// load it so the overview/practice partitions paint without its bundle.
+const DataSection = dynamic(() => import('./sections/DataSection'), {
+  ssr: false,
+  loading: () => <LoadingMark />,
+});
+
+interface UiState {
+  section: DashboardSection;
   pickerOpen: boolean;
 }
 
-const OVERVIEW: PracticeUrlState = { pickerOpen: false };
-
-function readPracticeUrl(): PracticeUrlState {
-  if (typeof window === 'undefined') return OVERVIEW;
+function readState(): UiState {
+  if (typeof window === 'undefined') return { section: 'overview', pickerOpen: false };
   const params = new URLSearchParams(window.location.search);
-  return { pickerOpen: params.get('picker') === '1' };
+  const s = params.get('section');
+  const section: DashboardSection =
+    s && (DASHBOARD_SECTIONS as string[]).includes(s) ? (s as DashboardSection) : 'overview';
+  return { section, pickerOpen: params.get('picker') === '1' };
 }
 
-/** Build a /dashboard URL for the picker state. */
-function buildPracticeUrl(next: PracticeUrlState): string {
-  return next.pickerOpen ? '/dashboard?picker=1' : '/dashboard';
+function buildUrl(state: UiState): string {
+  const params = new URLSearchParams();
+  if (state.section !== 'overview') params.set('section', state.section);
+  if (state.pickerOpen) params.set('picker', '1');
+  const qs = params.toString();
+  return qs ? `/dashboard?${qs}` : '/dashboard';
 }
 
 export default function DashboardPage() {
@@ -77,7 +83,7 @@ function DashboardLoading() {
   return (
     <div className={styles.loading}>
       <LoadingMark />
-      <p className={styles.loadingText}>Loading…</p>
+      <p className={styles.loadingText}>加载中…</p>
     </div>
   );
 }
@@ -105,10 +111,10 @@ function DashboardInner() {
   const searchParams = useSearchParams();
   const [showWelcome, setShowWelcome] = useState(false);
   useEffect(() => {
-    if (searchParams.get("welcome") !== "1") return;
+    if (searchParams.get('welcome') !== '1') return;
     let dismissed = false;
     try {
-      dismissed = window.sessionStorage.getItem("tal.welcome.seen.v1") === "1";
+      dismissed = window.sessionStorage.getItem('tal.welcome.seen.v1') === '1';
     } catch {
       dismissed = false;
     }
@@ -117,31 +123,35 @@ function DashboardInner() {
   const dismissWelcome = useCallback(() => {
     setShowWelcome(false);
     try {
-      window.sessionStorage.setItem("tal.welcome.seen.v1", "1");
+      window.sessionStorage.setItem('tal.welcome.seen.v1', '1');
     } catch {}
     const url = new URL(window.location.href);
-    url.searchParams.delete("welcome");
-    window.history.replaceState({}, "", url.toString());
+    url.searchParams.delete('welcome');
+    window.history.replaceState({}, '', url.toString());
   }, []);
-  // ---- Practice state: picker URL only ----
-  const [practice, setPractice] = useState<PracticeUrlState>(readPracticeUrl);
+
+  // ---- Partition + picker state (URL = source of truth) ----
+  const [uiState, setUiState] = useState<UiState>(readState);
+  // 侧边栏默认折叠(76px rail)；hover/focus 临时展开，pin 锁定展开。
+  const [pinned, setPinned] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const expanded = pinned || hovered;
+  const collapsed = !expanded;
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [collectionCount, setCollectionCount] = useState(0);
 
-  // Keep state in sync with browser Back/Forward. Also runs once on
-  // mount, which is what makes the initial ?lib= / ?picker= read
-  // correct under SSR hydration (readPracticeUrl returns OVERVIEW on
-  // the server, so without this a refresh on ?lib=X would render
-  // overview).
+  // Keep state in sync with browser Back/Forward.
   useEffect(() => {
-    const sync = () => setPractice(readPracticeUrl());
+    const sync = () => setUiState(readState());
     sync();
     window.addEventListener('popstate', sync);
     return () => window.removeEventListener('popstate', sync);
   }, []);
 
-  // ---- Dashboard snapshot (overview data) ----
-  const loadSnapshot = useCallback(async () => {
+  // ---- Dashboard snapshot (overview + section data) ----
+  const reload = useCallback(async () => {
     try {
       const s = await getDashboardSnapshot();
       setSnapshot(s);
@@ -169,9 +179,9 @@ function DashboardInner() {
     };
   }, [authLoading, user]);
 
-  // Catalog is lazy: only the picker needs the full lib list.
+  // ---- Catalog (eager — 练习 grid + picker both need it) ----
   useEffect(() => {
-    if (!practice.pickerOpen) return;
+    if (!user) return;
     if (catalog || catalogError) return;
     let cancelled = false;
     (async () => {
@@ -187,12 +197,23 @@ function DashboardInner() {
     return () => {
       cancelled = true;
     };
-  }, [practice.pickerOpen, catalog, catalogError]);
+  }, [user, catalog, catalogError]);
+
+  // ---- Collection badge count for the nav ----
+  useEffect(() => {
+    if (!user) return;
+    const recompute = () => {
+      const c = loadCollection(user.id);
+      setCollectionCount(Object.keys(c.sentences).length);
+    };
+    recompute();
+    const onChanged = () => recompute();
+    window.addEventListener('collection-changed', onChanged);
+    return () => window.removeEventListener('collection-changed', onChanged);
+  }, [user]);
 
   // Persist the active lib so ContinueCard / LibPicker can offer
-  // "继续上次" on a later visit. This is the read counterpart to the
-  // same key page.tsx writes on the anonymous path.
-  // (The practice route also writes it when it loads.)
+  // "继续上次" on a later visit.
   const persistLib = useCallback((libId: string) => {
     try {
       window.localStorage.setItem('prefs.libId', libId);
@@ -202,23 +223,30 @@ function DashboardInner() {
   }, []);
 
   // ---- History-writing navigation helpers ----
-  // We drive history directly (pushState / replaceState) rather than
-  // router.push: these are same-page state transitions, and Next's
-  // router would remount the route subtree, throwing away the
-  // snapshot + catalog we already hold.
-  const go = useCallback(
-    (next: PracticeUrlState, mode: 'push' | 'replace') => {
-      const url = buildPracticeUrl(next);
-      if (mode === 'push') window.history.pushState({}, '', url);
-      else window.history.replaceState({}, '', url);
-      setPractice(next);
+  const openLibPicker = useCallback(() => {
+    const url = buildUrl({ section: uiState.section, pickerOpen: true });
+    window.history.pushState({}, '', url);
+    setUiState((s) => ({ ...s, pickerOpen: true }));
+  }, [uiState.section]);
+
+  const setSection = useCallback(
+    (next: DashboardSection) => {
+      const url = buildUrl({ section: next, pickerOpen: uiState.pickerOpen });
+      window.history.pushState({}, '', url);
+      setUiState((s) => ({ ...s, section: next }));
     },
-    []
+    [uiState.pickerOpen],
   );
 
-  const openLibPicker = useCallback(() => {
-    go({ pickerOpen: true }, 'push');
-  }, [go]);
+  // Wraps setSection so selecting a partition on mobile also closes
+  // the off-canvas drawer.
+  const handleSelect = useCallback(
+    (next: DashboardSection) => {
+      setSection(next);
+      setMobileOpen(false);
+    },
+    [setSection],
+  );
 
   // P1-E: welcome banner CTA wires straight into the lib picker.
   const startFirstSentence = useCallback(() => {
@@ -227,8 +255,7 @@ function DashboardInner() {
   }, [dismissWelcome, openLibPicker]);
 
   // Closing goes through history.back() so the pushed '?picker=1'
-  // entry is consumed rather than stacked — otherwise open/close
-  // three times and the user needs three Back presses to leave.
+  // entry is consumed rather than stacked.
   const closeLibPicker = useCallback(() => {
     window.history.back();
   }, []);
@@ -238,19 +265,9 @@ function DashboardInner() {
       persistLib(libId);
       router.push(`/practice?lib=${encodeURIComponent(libId)}&from=dashboard`);
     },
-    [persistLib, router]
+    [persistLib, router],
   );
 
-  /**
-   * Trusts `prefs.libId` directly instead of validating against the
-   * catalog. Validating would mean either blocking on a catalog fetch
-   * (a spinner between click and practice) or — as an earlier version
-   * did — bailing to the picker whenever the catalog hadn't loaded
-   * yet, which on a cold dashboard was *always*, making the
-   * "jump straight in" path dead code. If the stored lib has since
-   * been deleted, TranslationSession renders its own error state with
-   * a back button; that's a rare, recoverable miss.
-   */
   const handleStartPractice = useCallback(() => {
     let recent: string | null = null;
     try {
@@ -272,6 +289,14 @@ function DashboardInner() {
     } else openLibPicker();
   }, [openLibPicker, persistLib, router, snapshot]);
 
+  const handleDailySaved = useCallback((next: DashboardSnapshot['daily_goal']) => {
+    setSnapshot((prev) => (prev ? { ...prev, daily_goal: next } : prev));
+  }, []);
+
+  const handleMonthlySaved = useCallback((next: DashboardSnapshot['monthly_goal']) => {
+    setSnapshot((prev) => (prev ? { ...prev, monthly_goal: next } : prev));
+  }, []);
+
   if (authLoading || !user) return <DashboardLoading />;
 
   if (error) {
@@ -283,7 +308,7 @@ function DashboardInner() {
           className={styles.errorRetry}
           onClick={() => {
             setError(null);
-            void loadSnapshot();
+            void reload();
           }}
         >
           重试
@@ -294,90 +319,112 @@ function DashboardInner() {
 
   if (!snapshot) return <DashboardLoading />;
 
-  // -------- Overview, with the picker modal layered on top --------
-  // The modal is a portal (ModalShell), so the tiles below stay
-  // mounted and visible behind the scrim.
+  const renderSection = () => {
+    switch (uiState.section) {
+      case 'practice':
+        return catalog ? (
+          <PracticeSection
+            catalog={catalog}
+            onPickLib={handlePickLib}
+            onStartPractice={handleStartPractice}
+            dailyGoal={snapshot.daily_goal}
+            monthlyGoal={snapshot.monthly_goal}
+            onDailySaved={handleDailySaved}
+            onMonthlySaved={handleMonthlySaved}
+          />
+        ) : (
+          <DashboardLoading />
+        );
+      case 'data':
+        return <DataSection snapshot={snapshot} />;
+      case 'collection':
+        return <CollectionSection userId={user.id} />;
+      case 'settings':
+        return <SettingsSection />;
+      case 'overview':
+      default:
+        return (
+          <OverviewSection
+            snapshot={snapshot}
+            catalog={catalog}
+            onResume={handleResume}
+            onPickLib={openLibPicker}
+            onStartLib={handlePickLib}
+          />
+        );
+    }
+  };
+
   return (
-    <main className={styles.root}>
+    <main
+      className={styles.root}
+      data-collapsed={collapsed ? 'true' : 'false'}
+      data-mobile-open={mobileOpen ? 'true' : 'false'}
+    >
       {/* Aurora background - full screen, behind all content */}
       <Aurora className="fixed inset-0 z-0" />
 
-      {/* Welcome banner (P1-E) */}
-      {showWelcome ? (
-        <div className={styles.welcomeWrap} role="status" aria-live="polite" data-testid="auth-welcome">
-          <div className={styles.welcome}>
-            <span className={styles.welcomeEmoji} aria-hidden>👋</span>
-            <div className={styles.welcomeText}>
-              <p className={styles.welcomeTitle}>{`欢迎加入，${user.display_name} ✨`}</p>
-              <p className={styles.welcomeSubtitle}>跳过介绍，直接挑个词库开始第一句</p>
-            </div>
-            <button type="button" className={styles.welcomeCta} onClick={startFirstSentence}>开始第一句 →</button>
-            <button type="button" className={styles.welcomeClose} onClick={dismissWelcome} aria-label="关闭欢迎横幅">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          </div>
-        </div>
+      {/* Mobile top-left menu trigger */}
+      <button
+        type="button"
+        className={styles.menuBtn}
+        onClick={() => setMobileOpen(true)}
+        aria-label="打开菜单"
+      >
+        <Menu size={22} />
+      </button>
+
+      {/* Mobile drawer scrim */}
+      {mobileOpen ? (
+        <div className={styles.scrim} onClick={() => setMobileOpen(false)} aria-hidden="true" />
       ) : null}
 
-      {/* Hero section - full width with aurora */}
-      <section className={styles.hero}>
-        <GreetingBar
-          user={snapshot.user}
-          streak={snapshot.streak}
-          dailyGoal={snapshot.daily_goal}
-          monthlyGoal={snapshot.monthly_goal}
-        />
-      </section>
+      <DashboardNav
+        section={uiState.section}
+        onSelect={handleSelect}
+        collectionCount={collectionCount}
+        user={user}
+        collapsed={collapsed}
+        pinned={pinned}
+        onTogglePin={() => setPinned((p) => !p)}
+        onHoverChange={setHovered}
+        mobileOpen={mobileOpen}
+        onCloseMobile={() => setMobileOpen(false)}
+      />
 
-      {/* Cards grid - glassmorphism + glow.
-          AnimatedContent wraps each major section so when the user scrolls
-          down they fade up in sequence. cardsGrid is on-screen at load
-          (1440×980 viewport) — its IntersectionObserver fires
-          immediately; weekRhythmSection / progressSection are below the
-          fold and wait for scroll. */}
-      <AnimatedContent distance={20} direction="vertical" className={styles.cardsGrid}>
-        <div className={styles.cardGlass}>
-          {/* ContinueCard 包一层 GlowCard:鼠标在卡上移动时,光标位置
-             跟随一圈淡 slate 辉光,作为"主 CTA"卡的视觉重音。
-             DailyGoal 暂不加(它不强调 hover 反馈,hover 是 stack 装饰)。 */}
-          <BorderGlow
-            className={styles.continueGlow}
-            glowColor="143, 203, 240"
-            glowRadius={40}
-            glowIntensity={1.0}
-          >
-            <ContinueCard
-              state={snapshot.continue}
-              onResume={handleResume}
-              onPickLib={openLibPicker}
-            />
-          </BorderGlow>
-        </div>
-        <div className={styles.cardGlass}>
-          <DailyGoal
-            state={snapshot.daily_goal}
-            onStartPractice={handleStartPractice}
-          />
-        </div>
-      </AnimatedContent>
+      <div className={styles.content}>
+        {/* Welcome banner (P1-E) */}
+        {showWelcome ? (
+          <div className={styles.welcomeWrap} role="status" aria-live="polite" data-testid="auth-welcome">
+            <div className={styles.welcome}>
+              <span className={styles.welcomeEmoji} aria-hidden>👋</span>
+              <div className={styles.welcomeText}>
+                <p className={styles.welcomeTitle}>{`欢迎加入，${user.display_name} ✨`}</p>
+                <p className={styles.welcomeSubtitle}>跳过介绍，直接挑个词库开始第一句</p>
+              </div>
+              <button type="button" className={styles.welcomeCta} onClick={startFirstSentence}>开始第一句 →</button>
+              <button type="button" className={styles.welcomeClose} onClick={dismissWelcome} aria-label="关闭欢迎横幅">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        ) : null}
 
-      {/* Week rhythm - the current-week activity strip. Monthly
-          goal progress lives in GreetingBar now (one signal, one place). */}
-      <AnimatedContent distance={24} delay={120 / 1000} direction="vertical" className={styles.weekRhythmSection}>
-        <WeekRhythm days={snapshot.calendar} />
-      </AnimatedContent>
-
-      {/* Progress section */}
-      <AnimatedContent distance={24} delay={220 / 1000} direction="vertical" className={styles.progressSection}>
-        <ProgressSnapshot kpis={snapshot.progress} />
-        <LearnedLibProgress userId={snapshot.user.id} />
-      </AnimatedContent>
+        <AnimatedContent
+          key={uiState.section}
+          distance={12}
+          direction="vertical"
+          className={styles.sectionWrap}
+        >
+          {renderSection()}
+        </AnimatedContent>
+      </div>
 
       <ModalShell
-        open={practice.pickerOpen}
+        open={uiState.pickerOpen}
         onClose={closeLibPicker}
         title="选一个词库开始"
         subtitle="选好后立即进入练习,返回后进度会保留。"
@@ -399,7 +446,7 @@ function DashboardInner() {
         ) : !catalog ? (
           <div className={styles.modalState}>
             <LoadingMark />
-            <p className={styles.loadingText}>Loading…</p>
+            <p className={styles.loadingText}>加载中…</p>
           </div>
         ) : (
           <LibPicker libs={catalog.libs} onPick={handlePickLib} />

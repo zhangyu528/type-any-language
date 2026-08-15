@@ -9,16 +9,10 @@
   /* F1: lower background opacity from 0.65 → 0.5 so the aurora
      backdrop bleeds through more — the card reads as "glass on
      aurora" instead of "white panel". Border also softened. */
-  background: rgba(255, 255, 255, 0.5);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  background: color-mix(in srgb, var(--ds-surface) 80%, transparent);
+  border: 1px solid var(--ds-border);
   border-radius: var(--radius-xl);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-}
-
-[data-theme="dark"] .root {
-  background: rgba(20, 22, 30, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: var(--elev-1);
 }
 
 .head {

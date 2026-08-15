@@ -3,6 +3,8 @@
    ============================================================ */
 
 .root {
+  --sidebar-w: 248px;
+  --sidebar-w-collapsed: 76px;
   position: relative;
   min-height: 100vh;
   background: transparent;
@@ -283,4 +285,85 @@
   .welcomeSubtitle { font-size: 12px; }
   .welcomeCta { margin-left: auto; }
   .welcomeClose { order: -1; }
+}
+
+/* Wrapper around the active partition — full-bleed so the overview
+   hero keeps its edge-to-edge layout; other sections carry their own
+   max-width + padding. Just a positioning context + z-index above the
+   aurora. */
+.sectionWrap {
+  position: relative;
+  z-index: 1;
+}
+
+/* ============== Sidebar console layout ============== */
+
+/* Content area sits to the right of the fixed sidebar. Margin tracks
+   the sidebar width (expanded / collapsed); on mobile it goes edge to
+   edge and the sidebar becomes an off-canvas drawer. */
+.content {
+  position: relative;
+  z-index: 1;
+  margin-left: var(--sidebar-w);
+  min-height: 100vh;
+  transition: margin-left var(--dur-med, 0.28s) var(--ease-out, ease);
+}
+
+.root[data-collapsed='true'] .content {
+  margin-left: var(--sidebar-w-collapsed);
+}
+
+/* Mobile top-left hamburger — hidden on desktop. */
+.menuBtn {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 40;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 12px;
+  color: var(--ds-ink);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.menuBtn:hover {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.menuBtn:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+
+[data-theme='dark'] .menuBtn {
+  background: rgba(20, 22, 30, 0.72);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Dimmer behind the mobile drawer. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  background: rgba(8, 12, 20, 0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+@media (max-width: 960px) {
+  .content,
+  .root[data-collapsed='true'] .content {
+    margin-left: 0;
+  }
+  .menuBtn {
+    display: inline-flex;
+  }
 }

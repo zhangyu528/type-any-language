@@ -3,12 +3,13 @@
 /**
  * LearnedLibProgress — list of "you've practiced this lib" rows.
  *
- * Each card shows the level / name / completion % / accuracy.
+ * Each card shows the level / name / completion % / accuracy. Previously
+ * this component discarded the computed progress and rendered random
+ * pravatar avatars instead — the real data now drives the UI.
+ *
  * Animation:
- *   - cards bounce in via BounceCards (gsap elastic.out(1, 0.8)
- *     with stagger), more lively than the prior motion fadeUp
- *   - on hover, sibling cards slide outward along x (enableHover)
- *   - completion % rolls up via AnimatedCounter on mount
+ *   - cards stagger in via motion (riseIn) on mount
+ *   - completion % rolls up via AnimatedCounter
  *   - progress bar fill animates width from 0 → completion %
  */
 
@@ -20,7 +21,8 @@ import {
   loadTranslationProgress,
   TranslationProgress,
 } from '../api';
-import BounceCards from '@/components/BounceCards';
+import { riseIn, staggerParent } from '../ds/motion';
+import Counter from '@/components/Counter';
 import Particles from '@/components/Particles';
 import styles from './LearnedLibProgress.module.css';
 
@@ -72,7 +74,6 @@ export default function LearnedLibProgress({ userId }: LearnedLibProgressProps) 
     [catalog, progress],
   );
 
-
   return (
     <section className={styles.root} aria-label="学过的词库进度">
       <div className={styles.header}>
@@ -102,26 +103,53 @@ export default function LearnedLibProgress({ userId }: LearnedLibProgressProps) 
         </div>
       ) : null}
       {rows.length > 0 ? (
-        // BounceCards: gsap elastic.out(1, 0.8) entrance, 60ms
-        // stagger between cards. transformStyles all 'none' so the
-        // cards sit in their natural grid positions (instead of the
-        // upstream's scattered/rotated gallery look). enableHover
-        // pushes siblings sideways on hover (offset ±48px since
-        // we're in a 2-col grid, not a wide canvas).
-        // shadcn BounceCards 只接 images[] 渲染 <img> — 原 lib 卡
-        // 内容(中文 + 进度条 + 完成率)整段删,改用 pravatar 占位图。
-        // 弹性入场动画保留。
-        <BounceCards
-          images={rows.map((_, i) => `https://i.pravatar.cc/300?img=${10 + i}`)}
-          containerWidth="100%"
-          containerHeight="auto"
-          animationDelay={0.4}
-          animationStagger={0.06}
-          easeType="elastic.out(1, 0.8)"
-          transformStyles={rows.map(() => 'none')}
-          enableHover
+        <motion.div
           className={styles.list}
-        />
+          variants={staggerParent}
+          initial="hidden"
+          animate="show"
+        >
+          {rows.map((row) => (
+            <motion.div
+              key={row.id}
+              className={styles.card}
+              variants={riseIn}
+            >
+              <div className={styles.cardTop}>
+                <div className={styles.nameWrap}>
+                  <span className={styles.level}>{row.level}</span>
+                  <p className={styles.name} title={row.name}>{row.name}</p>
+                </div>
+                <span className={styles.percent}>
+                  <Counter
+                    value={row.completion}
+                    fontSize={14}
+                    className={styles.percentCounter}
+                  />
+                  <span aria-hidden>%</span>
+                </span>
+              </div>
+              <div
+                className={styles.track}
+                role="progressbar"
+                aria-valuenow={row.completion}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={`${row.name} 完成度 ${row.completion}%`}
+              >
+                <motion.span
+                  className={styles.fill}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${row.completion}%` }}
+                  transition={{ duration: 0.6, ease: 'easeOut' }}
+                />
+              </div>
+              <div className={styles.meta}>
+                已练 {row.answered} 句 · 正确率 {row.accuracy}%
+              </div>
+            </motion.div>
+          ))}
+        </motion.div>
       ) : null}
     </section>
   );

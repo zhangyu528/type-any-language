@@ -1,0 +1,203 @@
+/* AchievementWall — Tier C badge wall + next-badge progress.
+   Reuses the dashboard's glass token language (--ds-surface /
+   --ds-border / --radius-* / --elev-1) so it reads as one family with
+   GreetingBar / StreakMomentum / OverviewSection. */
+
+.root {
+  background: color-mix(in srgb, var(--ds-surface) 80%, transparent);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--elev-1);
+  padding: var(--space-5);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-h2);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink);
+}
+
+.count {
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+@media (max-width: 720px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.badge {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--ds-border);
+  min-height: 78px;
+  box-sizing: border-box;
+}
+
+.earned {
+  background: color-mix(in srgb, var(--ds-cta) 16%, var(--ds-surface) 84%);
+  border-color: color-mix(in srgb, var(--ds-cta) 42%, var(--ds-border) 58%);
+}
+
+.locked {
+  background: color-mix(in srgb, var(--ds-surface) 92%, var(--ds-border) 8%);
+  opacity: 0.92;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.earned .dot {
+  background: var(--ds-cta);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-cta) 22%, transparent);
+}
+
+.locked .dot {
+  background: var(--ds-ink-faint);
+}
+
+.label {
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink);
+  line-height: 1.3;
+}
+
+.locked .label {
+  color: var(--ds-ink-soft);
+}
+
+.sub {
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+  line-height: 1.3;
+}
+
+/* Next-badge progress — the single highest-leverage nudge. */
+.next {
+  margin-top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.nextHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.nextLabel {
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+}
+
+.nextText {
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--ds-cta-deep);
+}
+
+.nextTrack {
+  height: 8px;
+  background: var(--ds-tint-deep);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.nextFill {
+  height: 100%;
+  background: var(--ds-correct);
+  border-radius: var(--radius-pill);
+  transition: width var(--dur-base) var(--ease-out);
+}
+
+.allDone {
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--ds-cta-deep);
+  text-align: center;
+}
+
+/* 庆祝 toast：新解锁徽章时从顶部轻降。reduced-motion 下不位移。 */
+.toast {
+  position: fixed;
+  top: var(--space-4);
+  left: 50%;
+  transform: translateX(-50%) translateY(-12px);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - var(--space-6));
+  padding: 10px 18px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--ds-cta) 92%, #000 8%);
+  color: #fff;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  box-shadow: var(--elev-1);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.toastOn {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* 新解锁徽章的脉冲光环，仅动画期生效，不阻断交互。 */
+.pulse {
+  animation: badgePulse 1.6s ease-out 2;
+}
+
+@keyframes badgePulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--ds-cta) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 16px color-mix(in srgb, var(--ds-cta) 0%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse {
+    animation: none;
+  }
+  .toast {
+    transition: opacity 0.35s ease;
+  }
+}

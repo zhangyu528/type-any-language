@@ -148,6 +148,12 @@ class DashboardResponse(BaseModel):
     # Server time the snapshot was generated. Lets the frontend tell
     # the user "Updated 2 min ago" if it lingers.
     generated_at: datetime
+    # Most common hour-of-day (0–23) the user starts practice
+    # sessions, or None if they have no sessions yet. Drives the
+    # contextual "你通常 21:00 练习" nudge on the overview GreetingBar.
+    # Derived from practice_sessions.started_at (already persisted),
+    # so no new table/endpoint is required.
+    preferred_hour: Optional[int] = None
 
 
 # ---- Day-detail drawer (clicked from calendar) ---------------------------
@@ -175,6 +181,15 @@ class DayDetailResponse(BaseModel):
     accuracy: Optional[float] = None
     goal_hit: bool
     sessions: List[DaySessionSummary]
+
+
+# ---- Daily-goal mutation ------------------------------------------------
+class DailyGoalUpdate(BaseModel):
+    """Request body for POST /api/dashboard/daily-goal."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    target: int = Field(ge=1, le=100_000)
 
 
 # ---- Monthly-goal mutation ----------------------------------------------

@@ -1,26 +1,24 @@
 'use client';
 
 /**
- * ContinueCard — "where did I left off" surface + black scenario demo card.
+ * ContinueCard — the dashboard's single primary action: "where did I
+ * leave off / start now".
  *
  * Three states driven by ContinueState:
- *   - has-unfinished session → "Resume Practice" CTA
- *   - has-finished session (no unfinished) → "Practice again" CTA
- *   - no sessions yet → "Start your first lesson" (opens the
- *     dashboard's in-place lib picker)
+ *   - has-unfinished session → "继续练习"
+ *   - has-finished session (no unfinished) → "再练一次"
+ *   - no sessions yet → "开始练习" (opens the in-place lib picker)
  *
- * Layout (Option B style fusion):
- *   ┌──────────────────────────┬────────────────────────┐
- *   │ Left: caption + preview  │ Right: black demo card  │
- *   │ + position + amber CTA   │ (方案 B 视觉锚点)        │
- *   └──────────────────────────┴────────────────────────┘
- *   窄屏(<640px) 退化为单栏垂直堆叠
+ * The product's core loop is 听音 → 逐字敲写 → 反馈, so the card leads
+ * with that mechanic (kicker) and shows the real last-session context
+ * when available. We never fabricate an English sentence: the app is
+ * multilingual, a hardcoded English line would be wrong for
+ * non-English learners and misleading to screen readers.
  *
+ * Layout: single column, fills the left half of the "今日" glass panel.
  * The CTA is a SpecularButton (reactbits.dev port): solid amber
  * `--ds-cta` fill with a WebGL specular highlight that follows the
- * cursor. Right column borrows the "教学演示优先" black scenario
- * card from the landing page, giving dashboard a brand-coherent
- * visual anchor without losing the dashboard's Slate+Amber palette.
+ * cursor.
  */
 
 import { ContinueState } from '../api';
@@ -39,62 +37,60 @@ export default function ContinueCard({ state, onResume, onPickLib }: ContinueCar
   const hasSession = state.session_id !== null;
   const handleClick = hasSession ? onResume : onPickLib;
 
-  const cta = !hasSession
-    ? 'Start your first lesson'
+  const caption = !hasSession
+    ? '开始练习'
     : state.is_unfinished
-      ? 'Resume Practice'
-      : 'Practice again';
+      ? '继续练习'
+      : '再练一次';
 
-  const preview = state.preview || (hasSession ? 'Free practice' : 'No active session yet');
-  const positionLabel = hasSession && state.current_sentence_position > 0
-    ? `Word #${state.current_sentence_position}`
-    : null;
+  const cta = !hasSession
+    ? '开始第一句'
+    : state.is_unfinished
+      ? '继续练习'
+      : '再练一次';
 
-  // 黑色 demo 卡内容 —— 与 landing Onboarding 共享同一组场景句
-  // 未来可以接 sentenceProgress 抽一句真实待练句子
-  const demoZh = state.preview?.split(' / ')[0] || '我每天早上喝咖啡。';
-  const demoEn = state.preview?.split(' / ')[1] || 'I drink coffee every morning.';
+  // Real context only. Free practice sessions may not carry a preview
+  // sentence — fall back to a neutral, product-grounded prompt rather
+  // than inventing one (especially not in English).
+  const preview = state.preview
+    ? state.preview
+    : hasSession
+      ? '自由练习 · 听完音频后逐字敲写'
+      : '挑一个词库，开始你的第一句';
+
+  // Resume context: where the user left off. The lib/session context
+  // is already shown in `preview` above, so this line reads as
+  // "上次停在《XX》第 N 句" without re-stating the lib name.
+  const positionLabel =
+    hasSession && state.current_sentence_position > 0
+      ? `上次停在 第 ${state.current_sentence_position} 句`
+      : null;
 
   return (
-    <section className={styles.root} aria-label="continue practice">
-      {/* 左栏:文字 + CTA */}
-      <div className={styles.body}>
-        <p className={styles.caption}>Continue</p>
-        <p className={styles.preview}>{preview}</p>
-        {positionLabel ? <p className={styles.position}>{positionLabel}</p> : null}
-        {/* SpecularButton — solid amber (--ds-cta) fill with WebGL rim
-            that follows the cursor. */}
-        <SpecularButton
-          size="md"
-          onClick={handleClick}
-          radius={14}
-          tint="#BA7517"
-          tintOpacity={1}
-          textColor="#FFFFFF"
-          lineColor="#FFFFFF"
-          baseColor="#854F0B"
-          blur={8}
-          intensity={1.5}
-          shineSize={14}
-          shineFade={50}
-          followMouse
-          proximity={480}
-          className={styles.cta}
-        >
-          {cta} →
-        </SpecularButton>
-      </div>
-
-      {/* 右栏:黑色场景演示卡 —— 方案 B 标志性元素 */}
-      <aside className={styles.demoCard} aria-label="今日练习预览">
-        <p className={styles.demoKicker}>Today's sentence</p>
-        <p className={styles.demoZh}>{demoZh}</p>
-        <p className={styles.demoEn}>{demoEn}</p>
-        <p className={styles.demoHint}>
-          <span>听完逐字敲一遍</span>
-          <span className={styles.demoHintBadge}>▶ Auto</span>
-        </p>
-      </aside>
+    <section className={styles.root} aria-label="继续练习">
+      <p className={styles.kicker}>听音打字 · 一句话学会</p>
+      <p className={styles.caption}>{caption}</p>
+      <p className={styles.preview}>{preview}</p>
+      {positionLabel ? <p className={styles.position}>{positionLabel}</p> : null}
+      <SpecularButton
+        size="md"
+        onClick={handleClick}
+        radius={14}
+        tint="#BA7517"
+        tintOpacity={1}
+        textColor="#FFFFFF"
+        lineColor="#FFFFFF"
+        baseColor="#854F0B"
+        blur={8}
+        intensity={1.5}
+        shineSize={14}
+        shineFade={50}
+        followMouse
+        proximity={480}
+        className={styles.cta}
+      >
+        {cta} →
+      </SpecularButton>
     </section>
   );
 }

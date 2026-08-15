@@ -5,8 +5,8 @@
   align-items: center;
   gap: var(--space-4);
   padding: var(--space-4) var(--space-5);
-  background: var(--ds-surface);
-  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--ds-surface) 80%, transparent);
+  border-radius: var(--radius-xl);
   border: 1px solid var(--ds-border);
   box-shadow: var(--elev-1);
   flex-wrap: wrap;
@@ -18,32 +18,6 @@
      the empty middle reads as intentional breathing space, not a bug. */
   width: 100%;
   max-width: var(--content-max);
-}
-
-.avatar {
-  width: var(--avatar-md);
-  height: var(--avatar-md);
-  border-radius: var(--radius-pill);
-  background: var(--ds-action);
-  color: var(--ds-on-action);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display);
-  font-weight: var(--weight-medium);
-  font-size: var(--text-h1);
-  text-decoration: none;
-  flex-shrink: 0;
-  transition: transform var(--dur-fast) var(--ease-out);
-}
-
-.avatar:hover {
-  transform: translateY(-1px);
-}
-
-.avatar:focus-visible {
-  outline: 2px solid var(--ds-focus);
-  outline-offset: 2px;
 }
 
 .meta {
@@ -67,8 +41,28 @@
   color: var(--ds-action-deep);
 }
 
+/* Tenure chip — "学习第 N 天". A small, low-contrast pill that sits
+   right after the name to signal commitment without competing with
+   the streak badge for attention. */
+.tenure {
+  margin-left: var(--space-2);
+  padding: 1px 9px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--ds-surface) 80%, var(--ds-border) 20%);
+  border: 1px solid var(--ds-border);
+  color: var(--ds-ink-soft);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-regular);
+  white-space: nowrap;
+}
+
 .streak {
   margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
   font-size: var(--text-body);
   font-weight: var(--weight-medium);
   line-height: 1.4;
@@ -89,19 +83,33 @@
 
 .streak-rest {
   color: var(--ds-ink-soft);
+  background: color-mix(in srgb, var(--ds-surface) 86%, var(--ds-border) 14%);
 }
 
 .streak-reach {
   color: var(--ds-action-deep);
+  background: color-mix(in srgb, var(--ds-action) 14%, var(--ds-surface) 86%);
 }
 
 .streak-kept {
   color: var(--ds-cta-deep);
+  background: color-mix(in srgb, var(--ds-cta) 16%, var(--ds-surface) 84%);
 }
 
 .longest {
   color: var(--ds-ink-soft);
   font-weight: var(--weight-regular);
+}
+
+/* Contextual practice-time nudge — "通常 21:00 练习". A low-contrast
+   line under the streak that personalises the header without
+   competing with the streak badge for attention. Only renders when
+   the backend has a preferred_hour (i.e. the user has sessions). */
+.contextual {
+  margin: 2px 0 0;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-regular);
+  color: var(--ds-ink-soft);
 }
 
 /* -------- Monthly goal (absorbed from old CalendarHeader) -------- */
@@ -198,20 +206,19 @@
 .status-behind   { color: var(--ds-error-ink); }
 .status-achieved { color: var(--ds-cta-deep); }
 
-.srOnly {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+/* Pace projection line under the monthly bar. */
+.monthlyHint {
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink-soft);
 }
 
-/* Mobile: drop avatar / monthly onto their own rows. Avatar stays
-   inline with meta so the greeting line keeps its anchor. */
+.hint-achieved { color: var(--ds-cta-deep); }
+.hint-onTrack  { color: var(--ds-correct); }
+.hint-behind   { color: var(--ds-error-ink); }
+
+/* Mobile: monthly drops onto its own row; meta keeps its anchor. */
 @media (max-width: 639px) {
   .root {
     padding: var(--space-3) var(--space-4);
@@ -225,7 +232,7 @@
   .monthly {
     flex: 1 1 100%;
     max-width: none;
-    /* On mobile the bar stacks avatar/meta/monthly vertically.
+    /* On mobile the bar stacks meta/monthly vertically.
        Override the desktop margin-left:auto so monthly sits in
        normal flow under meta instead of being pushed right. */
     margin-left: 0;

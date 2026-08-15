@@ -1,0 +1,97 @@
+.root {
+  appearance: none;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  width: 100%;
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--ds-border);
+  background: color-mix(in srgb, var(--ds-surface) 80%, transparent);
+  box-shadow: var(--elev-1);
+  font: inherit;
+  color: inherit;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.root:hover {
+  transform: translateY(-2px);
+}
+
+.root:active {
+  transform: translateY(0);
+}
+
+.root:focus-visible {
+  outline: 2px solid var(--ds-action);
+  outline-offset: 2px;
+}
+
+.icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ds-action) 14%, transparent);
+  color: var(--ds-action-deep);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.kicker {
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-ink-soft);
+}
+
+.title {
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink);
+  line-height: 1.5;
+}
+
+.sub {
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+}
+
+.sub:hover {
+  color: var(--ds-action-deep);
+}
+
+/* 语义化色调：建议=静蓝 / 目标=薄荷 / 习惯=静蓝 / 护盾=琥珀警示 */
+.goal .icon {
+  background: color-mix(in srgb, var(--ds-correct) 16%, transparent);
+  color: var(--ds-correct);
+}
+
+.goal {
+  border-color: color-mix(in srgb, var(--ds-correct) 40%, var(--ds-border));
+}
+
+.habit .icon {
+  background: color-mix(in srgb, var(--ds-action) 14%, transparent);
+  color: var(--ds-action-deep);
+}
+
+.shield {
+  border-color: color-mix(in srgb, var(--ds-cta) 45%, var(--ds-border));
+}
+
+.shield .icon {
+  background: color-mix(in srgb, var(--ds-cta) 16%, transparent);
+  color: var(--ds-cta);
+}

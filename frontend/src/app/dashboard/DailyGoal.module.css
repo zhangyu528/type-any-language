@@ -58,31 +58,26 @@
   margin: 0;
   font-size: var(--text-body);
   /* Secondary copy, not a CTA — use ink-soft (gray) so the eye doesn't
-     confuse it with the blue Practice-now button below. */
+     confuse it with the amber primary action in ContinueCard. */
   color: var(--ds-ink-soft);
   font-weight: var(--weight-medium);
 }
 
-/* SpecularButton (reactbits.dev port) renders its own WebGL rim;
-   we add a static outer-glow shadow so the button reads as
-   "premium / elevated" even before the cursor lands on it.
-   The box-shadow layer amplifies on hover for a clear lift cue.
-   (No `transform` here — SpecularButton owns :active { scale(0.97) }
-   and any conflicting transform would override the press feedback.) */
-.cta {
-  align-self: flex-start;
-  margin-top: auto;
-  white-space: nowrap;
-  box-shadow:
-    0 0 0 1px rgba(55, 138, 221, 0.30),
-    0 8px 22px -8px rgba(55, 138, 221, 0.50),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
-  transition: box-shadow 200ms ease-out;
+/* Completed state — a calm mint emphasis + a gentle pulse so the user
+   gets a moment of celebration without a loud banner. The pulse is
+   wrapped in prefers-reduced-motion so it never fires for users who
+   opt out of motion. */
+.copyDone {
+  color: var(--ds-correct);
 }
 
-.cta:hover {
-  box-shadow:
-    0 0 0 1px rgba(55, 138, 221, 0.55),
-    0 14px 30px -10px rgba(55, 138, 221, 0.60),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+@media (prefers-reduced-motion: no-preference) {
+  .copyDone {
+    animation: goalPulse 1.8s ease-in-out infinite;
+  }
+}
+
+@keyframes goalPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.72; }
 }

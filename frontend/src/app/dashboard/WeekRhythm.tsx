@@ -175,7 +175,6 @@ export default function WeekRhythm({ days }: WeekRhythmProps) {
                 .filter(Boolean)
                 .join(', ')}
               variants={riseIn}
-              role="listitem"
             >
               <span className={styles.dotMark} aria-hidden>
                 {state === 'done' ? '✓' : ''}

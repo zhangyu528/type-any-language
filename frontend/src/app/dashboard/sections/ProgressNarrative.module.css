@@ -1,0 +1,71 @@
+.root {
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--ds-border);
+  background: color-mix(in srgb, var(--ds-surface) 80%, transparent);
+  box-shadow: var(--elev-1);
+}
+
+.title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-ink-soft);
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.row + .row {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--ds-border);
+}
+
+.rowHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.rowLabel {
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink);
+}
+
+.rowNum {
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.track {
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ds-ink) 10%, transparent);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--ds-action);
+  transition: width 0.6s ease;
+}
+
+.fillMint {
+  background: var(--ds-correct);
+}
+
+.rowSub {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+}

@@ -42,11 +42,19 @@ export default function AppHeader() {
   const { open: openAuthModal } = useAuthModal();
 
   // 登出后主动去 landing,避免 /me 守卫把 user=null 推回 /login 形成死循环。
+  // 必须在所有 early return 之前调用(否则 /dashboard 与 其他路由 的 hook
+  // 顺序不一致,触发 "change in the order of Hooks" 报错)。
   const handleLogout = useCallback(async () => {
     await logout();
     router.push('/');
   }, [logout, router]);
 
+  // Dashboard owns its own chrome (sidebar nav + identity + logout), so the
+  // global top header is hidden there to avoid a double nav. Landing / auth
+  // / other routes keep it.
+  if (pathname?.startsWith('/dashboard')) {
+    return null;
+  }
 
   const isLanding = pathname === '/';
 
@@ -86,7 +94,7 @@ export default function AppHeader() {
         {loading ? null : user ? (
           <>
             <Link
-              href="/me"
+              href="/dashboard/settings"
               className="app-header__avatar"
               aria-label={`${user.display_name} — 我的主页`}
               title={`${user.display_name} · 我的主页`}

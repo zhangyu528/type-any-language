@@ -1,0 +1,94 @@
+/* ============================================================
+   TrendChart — dependency-free SVG line chart
+   ============================================================ */
+
+.root {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5) var(--space-3);
+  background: color-mix(in srgb, var(--ds-surface) 80%, transparent);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--elev-1);
+}
+
+.legend {
+  display: flex;
+  gap: var(--space-4);
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatchSent,
+.swatchAcc {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.swatchSent {
+  background: var(--ds-action);
+}
+
+.swatchAcc {
+  background: var(--ds-action-mint);
+}
+
+.svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.axis {
+  stroke: var(--ds-border-strong);
+  stroke-width: 1;
+}
+
+.area {
+  fill: var(--ds-action);
+  opacity: 0.12;
+}
+
+.lineSent {
+  stroke: var(--ds-action);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.lineAcc {
+  stroke: var(--ds-action-mint);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  stroke-dasharray: 5 4;
+}
+
+.tick {
+  fill: var(--ds-ink-soft);
+  font-size: 11px;
+  font-family: var(--font-mono), monospace;
+}
+
+.caption {
+  margin: 0;
+  text-align: right;
+  color: var(--ds-ink-soft);
+  font-size: var(--text-caption);
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-4);
+  color: var(--ds-ink-soft);
+  font-size: var(--text-body);
+}

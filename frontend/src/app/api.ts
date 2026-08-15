@@ -104,6 +104,7 @@ const DEMO_DASHBOARD: DashboardSnapshot = {
     streak: { value: 3, delta: 0, label: '连续天数' },
     new_words: { value: 24, delta: 6, label: '本周新词' },
   },
+  preferred_hour: 21,
   generated_at: '2026-08-10T00:00:00Z',
 };
 
@@ -859,6 +860,10 @@ export interface DashboardSnapshot {
   calendar: CalendarDay[];
   monthly_goal: MonthlyGoalInfo;
   progress: Record<string, KpiStat>;
+  /** Most common hour-of-day (0–23) the user starts practice, or null
+   *  if no sessions yet. Drives the GreetingBar's "通常 21:00 练习"
+   *  contextual nudge. */
+  preferred_hour?: number | null;
   generated_at: string;
 }
 
@@ -941,6 +946,33 @@ export async function updateMonthlyGoal(target: number): Promise<MonthlyGoalInfo
   });
   if (!res.ok) {
     throw new Error(`更新月度目标失败 (HTTP ${res.status})`);
+  }
+  return res.json();
+}
+
+/** POST /api/dashboard/daily-goal — set the user's per-day sentence target.
+ *  Returns the refreshed DailyGoalState (pct / completed recomputed). */
+export async function updateDailyGoal(target: number): Promise<DailyGoalState> {
+  if (DEMO_MODE) {
+    const todayCount = 7;
+    const pct = Math.min(1, todayCount / target);
+    return {
+      target,
+      today_count: todayCount,
+      today_date: new Date().toISOString().slice(0, 10),
+      pct,
+      completed: todayCount >= target,
+    };
+  }
+
+  const res = await fetch(`${API_BASE_URL}/api/dashboard/daily-goal`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ target }),
+  });
+  if (!res.ok) {
+    throw new Error(`更新每日目标失败 (HTTP ${res.status})`);
   }
   return res.json();
 }

@@ -1,46 +1,60 @@
-/* ContinueCard — Resume CTA + black scenario demo card
- * 两栏布局(桌面):左文字 + CTA,右黑色 demo 卡(方案 B 标志性元素)
- * 窄屏(<640px)退化为单栏垂直堆叠 */
+/* ContinueCard — single-column primary action inside the "今日" panel.
+ * The earlier two-column layout (text + black scenario demo card) is
+ * gone: the demo card showed a hardcoded English sentence that was
+ * both fake and wrong for non-English learners. Now it's one clean
+ * column centered on the product's core loop. */
 
 .root {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  gap: var(--space-4);
-  align-items: stretch;
-  /* Fill the column so the left body and right demo card both stretch
-     to the row's full height (matched with DailyGoal). min-height
-     kept as a fallback for when the row has not been stretched yet
-     (e.g. when the page first renders without snapshot). */
-  height: 100%;
-  min-height: 180px;
-}
-
-/* 左栏:文字 + SpecularButton。
-   L1 简化: 去掉自身的 bg/border/shadow,让外层 .cardGlass 单独负责视觉;
-   这里只保留 flex 结构 + padding + 间距。*/
-.body {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
   padding: var(--space-5);
+  height: 100%;
+  /* Fill the glass half so the card stretches to match DailyGoal's
+     height on the right. */
+  box-sizing: border-box;
+}
+
+.kicker {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.04em;
+  color: var(--ds-action-deep);
+}
+
+.kicker::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ds-cta);
+  box-shadow: 0 0 6px var(--ds-cta);
+  animation: pulse 2.4s ease-in-out infinite;
 }
 
 .caption {
   margin: 0;
-  font-size: var(--text-caption);
+  font-family: var(--font-display), var(--font-sans), serif;
+  font-size: var(--text-h2);
   font-weight: var(--weight-medium);
-  color: var(--ds-ink-soft);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  color: var(--ds-ink);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
 }
 
 .preview {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--text-h1);
-  font-weight: var(--weight-medium);
-  color: var(--ds-ink);
-  line-height: 1.25;
+  font-size: var(--text-body);
+  color: var(--ds-ink-soft);
+  line-height: 1.5;
+  /* Cap width so long free-practice previews wrap comfortably inside
+     the left half instead of stretching the panel. */
+  max-width: 38ch;
 }
 
 .position {
@@ -56,9 +70,6 @@
 .cta {
   align-self: flex-start;
   margin-top: auto;
-  /* Keep "Start your first lesson →" on one line — without this
-     the long label wraps the arrow onto a second line inside
-     the SpecularButton. */
   white-space: nowrap;
   box-shadow:
     0 0 0 1px rgba(186, 117, 23, 0.32),
@@ -74,139 +85,7 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
-/* 右栏:场景演示卡
-   —— 方案 B 的标志性元素。
-   V3 light-theme 适配: 默认 (light/babyblue) 走 `var(--ds-*)` token 的浅玻璃,
-   `[data-theme="dark"]` 选区覆盖回原来的深空蓝。
-   S1 字号: demoEn 18→22,让右栏视觉重量跟左栏 preview 平衡。 */
-.demoCard {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  /* 6px wasn't a token (4px base grid). Use --space-2 (8px) which
-     keeps the demo card's tight reading rhythm but stays on-grid. */
-  gap: var(--space-2);
-  padding: var(--space-4);
-  background:
-    radial-gradient(ellipse at 80% 100%, color-mix(in srgb, var(--ds-action) 16%, transparent) 0%, transparent 55%),
-    linear-gradient(180deg, var(--ds-surface) 0%, var(--ds-action-soft) 100%);
-  color: var(--ds-ink);
-  border: 1px solid var(--ds-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--elev-1);
-  overflow: hidden;
-}
-
-[data-theme="dark"] .demoCard {
-  background:
-    radial-gradient(ellipse at 80% 100%, color-mix(in srgb, var(--ds-action) 14%, transparent) 0%, transparent 50%),
-    linear-gradient(180deg, #0a1e33 0%, #050f1f 100%);
-  color: #E8F4FC;
-  border-color: #1E3E5F;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 8px 24px -8px rgba(0, 0, 0, 0.4);
-}
-
-.demoKicker {
-  margin: 0;
-  /* Switched from --font-mono to --font-sans to match the other
-     captions on the dashboard (Continue / Daily Goal / 本周).
-     Kept the 10px + uppercase + letter-spacing for the editorial
-     micro-label feel. */
-  font-family: var(--font-sans);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ds-action-deep);
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-[data-theme="dark"] .demoKicker {
-  color: var(--ds-action, #8FCBF0);
-}
-
-.demoKicker::before {
-  content: '';
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--ds-action);
-  box-shadow: 0 0 6px var(--ds-action);
-  animation: pulse 2.4s ease-in-out infinite;
-}
-
-.demoZh {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--ds-ink-soft);
-}
-
-[data-theme="dark"] .demoZh {
-  color: color-mix(in srgb, #E8F4FC 80%, transparent);
-}
-
-.demoEn {
-  margin: 0;
-  font-family: var(--font-display), var(--font-sans), serif;
-  font-size: 22px;
-  font-weight: 500;
-  color: var(--ds-ink);
-  line-height: 1.3;
-  letter-spacing: -0.005em;
-}
-
-[data-theme="dark"] .demoEn {
-  color: #ffffff;
-}
-
-.demoHint {
-  margin: auto 0 0;
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--ds-border);
-  font-size: 11px;
-  color: var(--ds-ink-faint);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-[data-theme="dark"] .demoHint {
-  border-top-color: rgba(255, 255, 255, 0.08);
-  color: color-mix(in srgb, #E8F4FC 55%, transparent);
-}
-
-.demoHintBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--ds-action-soft);
-  color: var(--ds-action-deep);
-  font-family: var(--font-mono), monospace;
-  font-size: 10px;
-  letter-spacing: 0.06em;
-}
-
-[data-theme="dark"] .demoHintBadge {
-  background: rgba(143, 203, 240, 0.15);
-  color: var(--ds-action, #8FCBF0);
-}
-
 @keyframes pulse {
   0%, 100% { opacity: 0.6; transform: scale(0.9); }
   50%      { opacity: 1.0; transform: scale(1.0); }
-}
-
-/* 窄屏(<640px):单栏垂直堆叠,demo 卡在 body 之下 */
-@media (max-width: 640px) {
-  .root {
-    grid-template-columns: 1fr;
-  }
 }

@@ -1,0 +1,361 @@
+/* ============================================================
+   DashboardNav — fixed left sidebar for the learning console
+   ============================================================ */
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 30;
+  width: var(--sidebar-w, 248px);
+  display: flex;
+  flex-direction: column;
+  padding: 18px 14px;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border-right: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 1px 0 0 0 rgba(0, 0, 0, 0.03), 10px 0 36px -28px rgba(0, 0, 0, 0.55);
+  transition: width var(--dur-med, 0.28s) var(--ease-out, ease),
+    transform var(--dur-med, 0.28s) var(--ease-out, ease);
+}
+
+[data-theme='dark'] .sidebar {
+  background: rgba(15, 17, 25, 0.86);
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/* ---- Brand ---- */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 48px;
+  padding: 0 6px;
+  margin-bottom: 18px;
+  flex-shrink: 0;
+}
+
+.brandMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  color: #fff;
+  background: linear-gradient(135deg, var(--ds-action) 0%, var(--ds-action-deep) 100%);
+  box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--ds-action) 70%, transparent);
+}
+
+.brandName {
+  font-family: var(--font-display), var(--font-sans), serif;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ds-ink);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.closeMobile {
+  display: none;
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--ds-ink-soft);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast);
+}
+.closeMobile:hover {
+  background: color-mix(in srgb, var(--ds-action) 14%, transparent);
+  color: var(--ds-ink);
+}
+
+/* ---- Nav list ---- */
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* Hide scrollbar for a cleaner rail while keeping scroll. */
+  scrollbar-width: none;
+}
+.nav::-webkit-scrollbar {
+  width: 0;
+}
+
+.item {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--ds-ink-soft);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  position: relative;
+  transition: background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.item:hover {
+  background: color-mix(in srgb, var(--ds-action) 10%, transparent);
+  color: var(--ds-ink);
+}
+
+.item[data-active='true'] {
+  background: color-mix(in srgb, var(--ds-action) 14%, transparent);
+  color: var(--ds-ink);
+  font-weight: 600;
+}
+
+/* Left accent bar on the active item — mainstream SaaS cue. */
+.item[data-active='true']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 20px;
+  border-radius: 0 3px 3px 0;
+  background: var(--ds-action);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+
+.itemIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  color: inherit;
+}
+
+.itemLabel {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--ds-action-mint);
+  color: var(--ds-action-deep);
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-mono), monospace;
+  flex-shrink: 0;
+}
+
+.item[data-active='true'] .badge {
+  background: color-mix(in srgb, var(--ds-action) 24%, transparent);
+  color: var(--ds-ink);
+}
+
+/* ---- Footer (profile + collapse toggle) ---- */
+.spacer {
+  flex: 1 1 auto;
+  min-height: 12px;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+  margin-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--ds-ink) 10%, transparent);
+  flex-shrink: 0;
+}
+
+.profile {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.profile:hover {
+  background: color-mix(in srgb, var(--ds-action) 10%, transparent);
+}
+.profile:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--ds-action) 0%, var(--ds-action-deep) 100%);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+}
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profileName {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ds-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.pinBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ds-ink-soft);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast);
+}
+.pinBtn:hover {
+  background: color-mix(in srgb, var(--ds-action) 10%, transparent);
+  color: var(--ds-ink);
+}
+.pinBtn[aria-pressed='true'] {
+  color: var(--ds-action-deep);
+  background: color-mix(in srgb, var(--ds-action) 16%, transparent);
+}
+.pinBtn:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   Collapsed (desktop icon rail)
+   ============================================================ */
+.sidebar[data-collapsed='true'] {
+  width: var(--sidebar-w-collapsed, 76px);
+  padding-left: 10px;
+  padding-right: 10px;
+}
+.sidebar[data-collapsed='true'] .brand {
+  justify-content: center;
+  padding: 0;
+}
+.sidebar[data-collapsed='true'] .brandName {
+  display: none;
+}
+.sidebar[data-collapsed='true'] .item {
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  position: relative;
+}
+.sidebar[data-collapsed='true'] .itemLabel {
+  display: none;
+}
+.sidebar[data-collapsed='true'] .item[data-active='true']::before {
+  /* Centered dot indicator when the rail has no labels. */
+  left: 50%;
+  top: auto;
+  bottom: 6px;
+  transform: translateX(-50%);
+  width: 18px;
+  height: 3px;
+  border-radius: 3px;
+}
+.sidebar[data-collapsed='true'] .item .badge {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+}
+.sidebar[data-collapsed='true'] .profile {
+  justify-content: center;
+  padding: 6px;
+}
+.sidebar[data-collapsed='true'] .profileName {
+  display: none;
+}
+/* 折叠态(图标 rail)下不显示底部控制：由 hover 展开 + pin 锁定接管。 */
+.sidebar[data-collapsed='true'] .pinBtn {
+  display: none;
+}
+
+/* ============================================================
+   Mobile — off-canvas drawer
+   ============================================================ */
+@media (max-width: 960px) {
+  .sidebar {
+    width: var(--sidebar-w, 248px);
+    transform: translateX(-100%);
+    box-shadow: 0 0 60px -10px rgba(0, 0, 0, 0.5);
+  }
+  /* 默认折叠态下，移动端抽屉仍要保持 248 宽（不被 desktop rail 的 76px 覆盖）。 */
+  .sidebar[data-collapsed='true'] {
+    width: var(--sidebar-w, 248px);
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .sidebar[data-mobile-open='true'] {
+    transform: translateX(0);
+  }
+  /* The close (X) button only appears inside the drawer on mobile. */
+  .closeMobile {
+    display: inline-flex;
+  }
+  /* Pin / collapse toggle is a desktop affordance; hide it in the drawer. */
+  .pinBtn {
+    display: none;
+  }
+}

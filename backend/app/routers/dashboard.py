@@ -22,6 +22,8 @@ from app.deps.auth import get_current_user
 from app.models.user import User
 from app.schemas.auth import UserPublic
 from app.schemas.dashboard import (
+    DailyGoalState,
+    DailyGoalUpdate,
     DashboardResponse,
     DayDetailResponse,
     MonthlyGoalInfo,
@@ -55,6 +57,7 @@ def get_dashboard(
         calendar=activity_service.compute_calendar(db, current_user.id, today),
         monthly_goal=activity_service.compute_monthly_goal(db, current_user.id, today),
         progress=activity_service.compute_kpis(db, current_user.id, today),
+        preferred_hour=activity_service.compute_preferred_hour(db, current_user.id),
         generated_at=datetime.utcnow(),
     )
 
@@ -123,3 +126,24 @@ def update_monthly_goal(
         achieved=info.achieved,
         on_track=info.on_track,
     )
+
+
+@router.post("/daily-goal", response_model=DailyGoalState)
+def update_daily_goal(
+    payload: DailyGoalUpdate,
+    current_user: User = Depends(get_current_user),
+    db: DbSession = Depends(get_db),
+) -> DailyGoalState:
+    """Set users.daily_goal. Returns the post-update DailyGoalState.
+
+    The frontend's DailyGoal ring / OverviewSection goal editor calls
+    this so the user can tune their per-day sentence target without
+    leaving the console. Reuses activity_service.compute_daily_goal so
+    pct / completed reflect the new target immediately.
+    """
+    current_user.daily_goal = payload.target
+    db.commit()
+    db.refresh(current_user)
+
+    today = date_cls.today()
+    return activity_service.compute_daily_goal(db, current_user.id, today)

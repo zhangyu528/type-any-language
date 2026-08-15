@@ -4,11 +4,10 @@
   gap: var(--space-3);
   padding: var(--space-5);
   /* F1: same softening as WeekRhythm — aurora bleeds more. */
-  background: rgba(255, 255, 255, 0.5);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: color-mix(in srgb, var(--ds-surface) 80%, transparent);
+  border: 1px solid var(--ds-border);
   border-radius: var(--radius-xl);
+  box-shadow: var(--elev-1);
   /* Z-pattern: cap this section at the same width as weekRhythm
      (760px). The wider progressSection above wraps it, so this
      constraint keeps the bottom of the page from being a single
@@ -16,11 +15,6 @@
   max-width: 760px;
   margin-left: auto;
   margin-right: auto;
-}
-
-[data-theme="dark"] .root {
-  background: rgba(20, 22, 30, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .header {
@@ -187,6 +181,12 @@
   line-height: 1.5;
   max-width: none;
   margin: 0;
+}
+
+.emptyParticles {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
 }
 
 [data-theme="dark"] .emptyState {

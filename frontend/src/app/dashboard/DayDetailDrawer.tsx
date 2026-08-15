@@ -155,7 +155,7 @@ export default function DayDetailDrawer({ date, onClose }: DayDetailDrawerProps)
             </div>
 
             <motion.h3 className={styles.sessionsTitle} variants={riseIn}>
-              Sessions
+              练习时段
             </motion.h3>
             {detail.sessions.length === 0 ? (
               <motion.p className={styles.empty} variants={riseIn}>

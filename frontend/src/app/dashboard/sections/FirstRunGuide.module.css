@@ -1,0 +1,294 @@
+.root {
+  position: relative;
+  z-index: 1;
+  /* 铺满内容区(侧边栏右侧整列) —— 横向 width:100% 已无 1080 限制。
+     纵向直接撑满整屏(100vh)，消除首屏底部留白；内容在卡内居中。
+     若上方有欢迎横幅，卡会延伸到视口下方一点(轻微滚动)，但初始视口底部始终被卡盖住、无留白。
+     卡内文字/步骤仍各自 max-width 保持可读。 */
+  width: 100%;
+  margin: 0;
+  min-height: 100vh;
+  padding: var(--space-7, 48px) var(--space-6);
+  /* 全屏 hero：去掉圆角，让卡片直接铺到视口边（侧边栏右侧整列）。 */
+  border: 1px solid color-mix(in srgb, var(--ds-convert) 32%, var(--ds-border));
+  background: color-mix(in srgb, var(--ds-surface) 86%, transparent);
+  box-shadow: var(--elev-1);
+  text-align: center;
+  box-sizing: border-box;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  animation: guideIn 0.5s ease both;
+}
+
+@keyframes guideIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 70% at 50% -12%, color-mix(in srgb, var(--ds-convert) 22%, transparent), transparent 60%),
+    radial-gradient(90% 60% at 85% 0%, color-mix(in srgb, var(--ds-action-tint) 16%, transparent), transparent 55%);
+}
+
+.badge {
+  position: relative;
+  z-index: 1;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--ds-convert), var(--ds-action));
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--ds-convert) 35%, transparent);
+}
+
+.kicker {
+  position: relative;
+  z-index: 1;
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-mono), monospace;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ds-convert);
+}
+
+.title {
+  position: relative;
+  z-index: 1;
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-display), var(--font-sans), serif;
+  font-size: 28px;
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.01em;
+  color: var(--ds-ink);
+}
+
+.sub {
+  position: relative;
+  z-index: 1;
+  margin: 0 auto var(--space-6);
+  max-width: 46ch;
+  font-size: var(--text-body);
+  color: var(--ds-ink-soft);
+  line-height: 1.65;
+}
+
+.steps {
+  position: relative;
+  z-index: 1;
+  list-style: none;
+  margin: 0 0 var(--space-6);
+  padding: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 92px;
+  flex: 0 1 auto;
+}
+
+.stepIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  color: var(--ds-action-deep);
+  background: color-mix(in srgb, var(--ds-action-tint) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ds-action-tint) 40%, transparent);
+}
+
+.stepLabel {
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink);
+}
+
+.stepHint {
+  font-size: var(--text-caption);
+  color: var(--ds-ink-faint);
+  line-height: 1.4;
+}
+
+.arrow {
+  align-self: center;
+  margin-top: 4px;
+  color: var(--ds-ink-faint);
+  font-size: 18px;
+  flex: 0 0 auto;
+}
+
+.primary {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 32px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--ds-convert);
+  background: var(--ds-convert);
+  color: #fff;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: transform 0.18s ease, filter 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--ds-convert) 30%, transparent);
+}
+
+.primary:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.05);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--ds-convert) 40%, transparent);
+}
+
+.primary:active {
+  transform: translateY(0);
+}
+
+.altWrap {
+  position: relative;
+  z-index: 1;
+  margin-top: var(--space-6);
+}
+
+.altLabel {
+  display: block;
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-caption);
+  color: var(--ds-ink-faint);
+  letter-spacing: 0.04em;
+}
+
+.chips {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.chip {
+  appearance: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--ds-border);
+  background: color-mix(in srgb, var(--ds-surface) 72%, transparent);
+  color: var(--ds-ink);
+  font-size: var(--text-body);
+  transition: border-color 0.18s ease, transform 0.18s ease, background 0.18s ease;
+}
+
+.chip:hover {
+  border-color: var(--ds-action);
+  background: color-mix(in srgb, var(--ds-surface) 88%, transparent);
+  transform: translateY(-1px);
+}
+
+.chipLevel {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ds-action-deep);
+  background: color-mix(in srgb, var(--ds-action-tint) 18%, transparent);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.chipName {
+  font-weight: var(--weight-medium);
+}
+
+.chipMeta {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  color: var(--ds-ink-faint);
+}
+
+.browse {
+  position: relative;
+  z-index: 1;
+  display: block;
+  margin: var(--space-5) auto 0;
+  padding: 4px 8px;
+  border: none;
+  background: none;
+  color: var(--ds-action-deep);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, var(--ds-action-deep) 40%, transparent);
+}
+
+.browse:hover {
+  color: var(--ds-action);
+}
+
+.note {
+  position: relative;
+  z-index: 1;
+  margin: var(--space-5) auto 0;
+  max-width: 42ch;
+  font-size: var(--text-caption);
+  line-height: 1.6;
+  color: var(--ds-ink-faint);
+}
+
+@media (max-width: 560px) {
+  .arrow {
+    display: none;
+  }
+
+  .steps {
+    gap: var(--space-4);
+  }
+
+  .title {
+    font-size: 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root {
+    animation: none;
+  }
+
+  .primary,
+  .chip {
+    transition: none;
+  }
+}

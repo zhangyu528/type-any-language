@@ -376,6 +376,32 @@ def compute_kpis(
     }
 
 
+def compute_preferred_hour(
+    db: DbSession,
+    user_id: UUID,
+) -> Optional[int]:
+    """Return the hour-of-day (0–23) the user most often starts a
+    practice session, or None if they have no sessions yet.
+
+    Drives the contextual "你通常 21:00 练习" nudge on the overview
+    GreetingBar. Single GROUP BY over practice_sessions — cheap, and
+    the started_at column already exists, so no new table/endpoint.
+    """
+    row = (
+        db.query(
+            func.extract("hour", PracticeSession.started_at).label("h"),
+            func.count().label("n"),
+        )
+        .filter(PracticeSession.user_id == user_id)
+        .group_by(func.extract("hour", PracticeSession.started_at))
+        .order_by(func.count().desc())
+        .first()
+    )
+    if row is None or row[0] is None:
+        return None
+    return int(row[0])
+
+
 def compute_day_detail(
     db: DbSession,
     user_id: UUID,
