@@ -177,6 +177,30 @@ def update_me(
     return UserPublic.from_model(current_user)
 
 
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_me(
+    response: Response,
+    db: DbSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    tal_session: str | None = Cookie(default=None, alias=COOKIE_NAME),
+) -> Response:
+    """Permanently delete the account and all associated cloud data.
+
+    Every user-owned table (sessions, password_resets, user_favorites,
+    practice_attempts, practice_sessions, user_progress, daily_activity,
+    user_streak) declares ON DELETE CASCADE on its users.id FK, so a
+    single DELETE FROM users wipes the whole graph. We revoke the
+    current session explicitly first, then drop the cookie.
+    """
+    if tal_session:
+        auth_service.revoke_session(db, tal_session)
+    db.delete(current_user)
+    db.commit()
+    response.delete_cookie(key=COOKIE_NAME, path="/")
+    response.status_code = status.HTTP_204_NO_CONTENT
+    return response
+
+
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(
     response: Response,

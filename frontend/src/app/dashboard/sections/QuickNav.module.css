@@ -1,0 +1,246 @@
+/* QuickNav — 主页快速入口导航带（4 卡）。 */
+
+.wrap {
+  max-width: var(--content-max, 1080px);
+  width: 100%;
+  margin: 0 auto var(--space-4);
+  padding: 0 var(--space-4);
+  box-sizing: border-box;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ds-ink-soft, #6b7280);
+  margin: 0 0 10px 2px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+
+.card {
+  grid-column: span 3;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 16px 14px;
+  text-align: left;
+  border: 1px solid var(--ds-border, rgba(15, 23, 42, 0.08));
+  border-radius: 16px;
+  background: var(--ds-glass-surface, rgba(255, 255, 255, 0.72));
+  backdrop-filter: blur(8px);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.1);
+  border-color: var(--ds-action, rgba(139, 203, 240, 0.45));
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--ds-action, #5BA8F0);
+  outline-offset: 2px;
+}
+
+/* 每卡独立 accent：提升快速扫读时的可分辨度。 */
+.toneAction .icon {
+  color: var(--ds-action-deep, #2f80c0);
+  background: var(--ds-action-soft, rgba(139, 203, 240, 0.18));
+}
+
+.toneAction:hover {
+  border-color: var(--ds-action, #8FCBF0);
+}
+
+.toneConvert .icon {
+  color: var(--ds-convert-deep, #6d28d9);
+  background: var(--ds-convert-tint, rgba(139, 92, 246, 0.14));
+}
+
+.toneConvert:hover {
+  border-color: var(--ds-convert, #8b5cf6);
+}
+
+.toneCta .icon {
+  color: var(--ds-cta-deep, #e98a97);
+  background: var(--ds-cta-tint, rgba(244, 166, 176, 0.18));
+}
+
+.toneCta:hover {
+  border-color: var(--ds-cta, #f4a6b0);
+}
+
+.toneReview .icon {
+  color: #d97706;
+  background: rgba(245, 158, 11, 0.16);
+}
+
+.toneReview:hover {
+  border-color: rgba(245, 158, 11, 0.8);
+}
+
+/* 成就卡（珊瑚色调）的进度条跟随色调。 */
+.toneCta .tileBar {
+  background: color-mix(in srgb, var(--ds-cta, #f4a6b0) 18%, transparent);
+}
+
+.toneCta .tileFill {
+  background: var(--ds-cta, #f4a6b0);
+}
+
+.cardTop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  color: var(--ds-action, #5BA8F0);
+  background: var(--ds-action-soft, rgba(139, 203, 240, 0.18));
+}
+
+.cardLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ds-ink, #0f172a);
+}
+
+.cardBody {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.bigNum {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ds-ink, #0f172a);
+  font-variant-numeric: tabular-nums;
+}
+
+.bigNumWrap {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.bigDenom {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ds-ink-soft, #6b7280);
+  font-variant-numeric: tabular-nums;
+}
+
+.unit {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ds-ink-soft, #6b7280);
+  margin-left: 1px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* KPI 周环比趋势 chip（数据卡用）。紧跟单位后，baseline 对齐。 */
+.trend {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  margin-left: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.trendUp {
+  color: var(--ds-correct, #2f9e6f);
+}
+
+.trendDown {
+  color: var(--ds-error, #d14343);
+}
+
+.bigNumMuted {
+  color: var(--ds-ink-soft, #6b7280);
+}
+
+.sub {
+  font-size: 12px;
+  color: var(--ds-ink-soft, #6b7280);
+}
+
+/* 成就概览细进度条（已解锁占比）。钉到卡片底部，与等高网格对齐。 */
+.tileBar {
+  display: block;
+  margin-top: auto;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ds-action, #5ba8f0) 18%, transparent);
+  overflow: hidden;
+}
+
+.tileFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--ds-action, #5ba8f0);
+  transition: width 0.5s ease;
+}
+
+/* 复习卡：待复习 > 0 时用琥珀色吸引回访。 */
+.cardHot {
+  border-color: rgba(245, 158, 11, 0.5);
+  background: linear-gradient(
+    180deg,
+    rgba(245, 158, 11, 0.1),
+    rgba(255, 255, 255, 0.72)
+  );
+}
+
+.cardHot .icon {
+  color: #d97706;
+  background: rgba(245, 158, 11, 0.16);
+}
+
+.cardHot .bigNum {
+  color: #b45309;
+}
+
+.cardHot:hover {
+  border-color: rgba(245, 158, 11, 0.8);
+  box-shadow: 0 10px 26px rgba(245, 158, 11, 0.22);
+}
+
+/* 复习为 0：弱化，不抢注意力。 */
+.cardMuted {
+  opacity: 0.72;
+}
+
+.cardMuted:hover {
+  opacity: 1;
+}
+
+@media (max-width: 720px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .card {
+    grid-column: auto;
+  }
+}

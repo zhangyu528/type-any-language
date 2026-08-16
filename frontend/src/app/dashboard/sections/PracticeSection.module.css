@@ -63,6 +63,90 @@
   outline-offset: 2px;
 }
 
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/* 我的课程 / 发现 视图切换 */
+.tabs {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--ds-glass-surface);
+  border: 1px solid var(--ds-glass-border);
+  gap: 2px;
+}
+
+.tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--ds-ink-soft);
+  font: inherit;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  padding: 6px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+
+.tabActive {
+  background: var(--ds-action);
+  color: #fff;
+}
+
+/* 我的课程卡片上的移除按钮（绝对定位，不嵌套进 LibCard 的 button 内） */
+.cardCellWrap {
+  position: relative;
+}
+
+.removeCourse {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  appearance: none;
+  cursor: pointer;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--ds-glass-border);
+  background: var(--ds-glass-surface);
+  color: var(--ds-ink-soft);
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0;
+  /* 隐藏态不可点：避免桌面端透明 ✕ 落在卡片右上角被误触退课。 */
+  pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+
+.cardCellWrap:hover .removeCourse,
+.removeCourse:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 触屏无 hover，窄屏/触摸设备直接常显移除按钮，保证入口可达。 */
+@media (hover: none), (max-width: 639px) {
+  .removeCourse {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.removeCourse:hover {
+  color: var(--ds-error, #d6455b);
+  border-color: var(--ds-error, #d6455b);
+}
+
 /* ---------- 工具栏:搜索 + 排序 ---------- */
 
 .toolbar {
@@ -267,4 +351,31 @@
   text-align: center;
   font-size: var(--text-body);
   color: var(--ds-ink-soft);
+}
+
+/* 我的课程空状态：可点击的引导按钮（与主页空状态一致）。 */
+.emptyAction {
+  appearance: none;
+  cursor: pointer;
+  display: inline-block;
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--ds-glass-border);
+  background: transparent;
+  color: var(--ds-ink-soft);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  transition: border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+
+.emptyAction:hover {
+  border-color: var(--ds-action);
+  color: var(--ds-action);
+  transform: translateY(-1px);
+}
+
+.emptyAction:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
 }

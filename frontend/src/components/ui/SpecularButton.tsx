@@ -45,6 +45,16 @@ interface ShaderProps {
 
 const PAD = 20;
 
+// ogl 的 Color.set 只认 hex / 数字 / 少数颜色名。传入 `var(--x)`、`rgb()`、
+// `transparent` 等 CSS 令牌时，它会每帧 console.warn 并退回黑色。这类令牌
+// 在 rAF 里每秒触发上百次带完整 React 栈的 warn，刷屏且拖性能。用此守卫挡掉，
+// 颜色回落到黑色（与改动前行为一致）。
+const OGL_COLOR_NAMES = new Set([
+  'black', 'white', 'red', 'green', 'blue', 'fuchsia', 'cyan', 'yellow', 'orange',
+]);
+const isOglColor = (c: unknown): c is string =>
+  typeof c === 'string' && (c[0] === '#' || OGL_COLOR_NAMES.has(c.toLowerCase()));
+
 const VERT = `#version 300 es
 in vec2 position;
 void main() {
@@ -141,6 +151,12 @@ const SpecularButton = ({
     const fx = fxRef.current;
     if (!btn || !fx) return;
 
+    const prefersReduced =
+      typeof window !== 'undefined' &&
+      !!window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReduced) return;
+
     const dpr = window.devicePixelRatio || 1;
     const renderer = new Renderer({ alpha: true, premultipliedAlpha: true, antialias: true, dpr });
     const gl = renderer.gl;
@@ -233,7 +249,7 @@ const SpecularButton = ({
 
       idleAngle += p.speed * dt;
       const steer = p.followMouse && pointerAngle != null && (!p.autoAnimate || proximityT > 0);
-      const target = steer ? pointerAngle : idleAngle;
+      const target = steer && pointerAngle != null ? pointerAngle : idleAngle;
       const diff = ((target - angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
       angle += diff * (1 - Math.exp(-dt * 7));
 
@@ -241,8 +257,8 @@ const SpecularButton = ({
       const brightTarget = p.autoAnimate ? 1 : proximityT;
       bright += (brightTarget - bright) * (1 - Math.exp(-dt * 8));
 
-      lineC.set(p.lineColor);
-      baseC.set(p.baseColor);
+      if (isOglColor(p.lineColor)) lineC.set(p.lineColor);
+      if (isOglColor(p.baseColor)) baseC.set(p.baseColor);
       program.uniforms.uAngle.value = angle;
       program.uniforms.uRadius.value = Math.min(p.radius, Math.min(sizeRef.w, sizeRef.h) / 2) * dpr;
       program.uniforms.uLineColor.value = [lineC.r, lineC.g, lineC.b];

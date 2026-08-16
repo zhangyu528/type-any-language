@@ -352,7 +352,7 @@ export default function TranslationSession({
       tallyRef.current.attempted += 1;
       if (correct) tallyRef.current.correct += 1;
       const sid = sessionIdRef.current;
-      if (sid) recordPracticeStep(sid, correct);
+      if (sid) recordPracticeStep(sid, correct, sentenceId);
 
       // Notify same-tab listeners that progress changed. The native
       // `storage` event only fires across tabs/windows — same-tab

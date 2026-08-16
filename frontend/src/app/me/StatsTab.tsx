@@ -179,8 +179,8 @@ function KickerLabel({ children }: { children: string }) {
     <h2 className={styles['me-section-title']}>
       <VariableProximity
         label={children}
-        fromFontVariationSettings={{ wght: 400 }}
-        toFontVariationSettings={{ wght: 700 }}
+        fromFontVariationSettings="'wght' 400"
+        toFontVariationSettings="'wght' 700"
         radius={80}
         falloff="linear"
         className={styles['me-section-title__prox']}

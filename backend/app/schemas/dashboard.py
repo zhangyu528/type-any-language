@@ -126,6 +126,26 @@ class KpiStat(BaseModel):
     label: str
 
 
+# ---- Lifetime stats (achievements / weak points) -------------------------
+class LifetimeStats(BaseModel):
+    """Lifetime rollup across ALL of the user's practice (not the 35-day
+    calendar window). Powers the achievements page + corrects the
+    AchievementWall's previously-window-limited totals.
+
+    Derived from daily_activity (a pre-aggregated per-day rollup), so it
+    is O(days) not O(attempts) — cheap even for long-tenured users.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    total_sentences: int
+    total_correct: int
+    days_practiced: int
+    # 0.0–1.0 lifetime accuracy; None when the user has no attempts yet
+    # (so the UI can render "—" instead of a misleading 100%).
+    accuracy: Optional[float] = None
+
+
 # ---- Composed response ---------------------------------------------------
 class DashboardResponse(BaseModel):
     """The single GET /api/dashboard payload. One round-trip per page
@@ -161,6 +181,21 @@ class DashboardResponse(BaseModel):
     # read as 0 and falsely trigger the first-run welcome guide). The
     # frontend gates the onboarding/welcome view on `not has_any_activity`.
     has_any_activity: bool
+    # Distinct sentences due for review today: (wrong attempts in the last
+    # 14 days) UNION (cloud-favorited sentences). Surfaces a "N 句待复习"
+    # badge on the overview's quick-nav without a second round-trip.
+    review_due_count: int = 0
+    # The user's enrolled course set ("我的课程"): lib ids the user has
+    # added. Powers both the homepage "我的课程" block and the 课程
+    # center's "我的课程" tab. Empty for a brand-new user is impossible
+    # by contract (auth_service enrolls beginner courses on signup), but
+    # the field is still a list so the UI can render an "add courses"
+    # empty state without special-casing.
+    enrolled_lib_ids: List[str] = Field(default_factory=list)
+    # Lifetime rollup (all-time, not the 35-day calendar window). Powers the
+    # achievements page + the AchievementWall's accurate totals. None for a
+    # brand-new user with no daily_activity rows yet.
+    lifetime: Optional[LifetimeStats] = None
 
 
 # ---- Day-detail drawer (clicked from calendar) ---------------------------

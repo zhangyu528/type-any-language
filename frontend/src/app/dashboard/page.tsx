@@ -3,14 +3,14 @@
 /**
  * /dashboard — login-required learning console.
  *
- * This page is the orchestrator for a 5-partition console
- * (主页 / 课程 / 数据 / 收藏 / 设置). URL `?section=` is the single
+ * This page is the orchestrator for a 6-partition console
+ * (主页 / 发现 / 复习 / 数据 / 成就 / 设置). URL `?section=` is the single
  * source of truth for the active partition (deep-linkable + browser
  * back/forward); the picker modal uses `?picker=1` on the same URL.
  *
  * Auth: useAuth() + redirect to /login?from=/dashboard if anonymous.
  * Data: GET /api/dashboard is the single hydration call; the catalog is
- * loaded eagerly (needed by the 课程 grid + the picker modal).
+ * loaded eagerly (needed by the 发现 grid + the picker modal).
  */
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
@@ -21,9 +21,10 @@ import { Menu } from 'lucide-react';
 import {
   Catalog,
   DashboardSnapshot,
+  apiEnrollCourse,
+  apiUnenrollCourse,
   getContentCatalog,
   getDashboardSnapshot,
-  loadCollection,
 } from '../api';
 import {
   DashboardSection,
@@ -33,10 +34,12 @@ import { useAuth } from '../lib/auth';
 import AnimatedContent from '@/components/AnimatedContent';
 import LoadingMark from '../components/LoadingMark';
 import ModalShell from '../components/ModalShell';
+import { ToastProvider, useToast } from '../components/Toast';
 import DashboardNav from './DashboardNav';
 import OverviewSection from './sections/OverviewSection';
-import PracticeSection from './sections/PracticeSection';
-import CollectionSection from './sections/CollectionSection';
+import PracticeSection, { type CourseTab } from './sections/PracticeSection';
+import AchievementsSection from './sections/AchievementsSection';
+import ReviewSection from './sections/ReviewSection';
 import SettingsSection from './sections/SettingsSection';
 import LibPicker from './LibPicker';
 import styles from './Dashboard.module.css';
@@ -72,9 +75,11 @@ function buildUrl(state: UiState): string {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<DashboardLoading />}>
-      <DashboardInner />
-    </Suspense>
+    <ToastProvider>
+      <Suspense fallback={<DashboardLoading />}>
+        <DashboardInner />
+      </Suspense>
+    </ToastProvider>
   );
 }
 
@@ -91,6 +96,7 @@ function DashboardInner() {
   const router = useRouter();
   const pathname = usePathname();
   const { user, loading: authLoading, logout } = useAuth();
+  const toast = useToast();
 
   // Auth gate — mirror /me/page.tsx verbatim. The redirect target
   // uses the live pathname so back-nav after login lands the user
@@ -143,14 +149,18 @@ function DashboardInner() {
   // 侧边栏展开态 = 用户点击固定(pin)；默认折叠为 76px rail。
   // 不再用 hover 自动展开：hover 浮层会压住主显示区，hover 推内容又会造成
   // 割裂，故改为「点击伸缩按钮切换 + pin 持久化」(VS Code / Notion 模型)。
-  const expanded = pinned;
-  const collapsed = !expanded;
-  // 内容区 margin 随展开态切换：展开时让位(不压)，折叠时收为 rail。
-  const contentCollapsed = !expanded;
+  // 内容区 margin 与侧栏宽度共用同一个 collapsed 标志（展开时让位，
+  // 折叠时收为 rail），不再维护第二个同义变量。
+  const collapsed = !pinned;
   const [mobileOpen, setMobileOpen] = useState(false);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
-  const [collectionCount, setCollectionCount] = useState(0);
+  // 课程中心内部分页：「我的课程」/「课程库」。提到 page 级以便主页
+  // 「查看全部 N 门」能直接深链进「我的课程」tab。
+  const [courseTab, setCourseTab] = useState<CourseTab>('discover');
+  // 我的课程集合（enrolled lib ids）。服务端是唯一真相；本地做乐观更新，
+  // 选课/移除时立即反映到主页「我的课程」块与课程中心两个标签页。
+  const [enrolledLibIds, setEnrolledLibIds] = useState<string[]>([]);
 
   // Keep state in sync with browser Back/Forward.
   useEffect(() => {
@@ -165,6 +175,7 @@ function DashboardInner() {
     try {
       const s = await getDashboardSnapshot();
       setSnapshot(s);
+      setEnrolledLibIds(s.enrolled_lib_ids ?? []);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'dashboard 加载失败');
@@ -179,6 +190,7 @@ function DashboardInner() {
         const s = await getDashboardSnapshot();
         if (cancelled) return;
         setSnapshot(s);
+        setEnrolledLibIds(s.enrolled_lib_ids ?? []);
       } catch (e) {
         if (cancelled) return;
         setError(e instanceof Error ? e.message : 'dashboard 加载失败');
@@ -188,6 +200,20 @@ function DashboardInner() {
       cancelled = true;
     };
   }, [authLoading, user]);
+
+  // ---- 跨标签页练习后回 dashboard 也能拿到最新 server 派生字段 ----
+  // SPA 内 router.push 回 /dashboard 会重新挂载并走上面的 mount 拉取；
+  // 但若练习在另一个标签页进行、本 tab 一直挂着，focus/可见时不会自动刷新，
+  // 导致 streak.today_done / 本周 KPI / preferred_hour 停留在旧值。
+  // 这里在页面重新可见时补一次 reload（幂等、廉价）。
+  useEffect(() => {
+    if (authLoading || !user) return;
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void reload();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [authLoading, user, reload]);
 
   // ---- Catalog (eager — 练习 grid + picker both need it) ----
   useEffect(() => {
@@ -208,19 +234,6 @@ function DashboardInner() {
       cancelled = true;
     };
   }, [user, catalog, catalogError]);
-
-  // ---- Collection badge count for the nav ----
-  useEffect(() => {
-    if (!user) return;
-    const recompute = () => {
-      const c = loadCollection(user.id);
-      setCollectionCount(Object.keys(c.sentences).length);
-    };
-    recompute();
-    const onChanged = () => recompute();
-    window.addEventListener('collection-changed', onChanged);
-    return () => window.removeEventListener('collection-changed', onChanged);
-  }, [user]);
 
   // Persist the active lib so ContinueCard / LibPicker can offer
   // "继续上次" on a later visit.
@@ -310,13 +323,61 @@ function DashboardInner() {
     } else openLibPicker();
   }, [openLibPicker, persistLib, router]);
 
+  // 继续上次未完成的练习会话：路由到 /practice?session=<id>&lib=<id>&from=dashboard。
+  // 前端 practice 页按 lib 加载；session 参数保留以兼容后端续练意图（api.ts 注释约定）。
   const handleResume = useCallback(() => {
-    const libId = snapshot?.continue.lib_id;
-    if (libId) {
-      persistLib(libId);
-      router.push(`/practice?lib=${encodeURIComponent(libId)}&from=dashboard`);
-    } else openLibPicker();
-  }, [openLibPicker, persistLib, router, snapshot]);
+    const c = snapshot?.continue;
+    if (!c?.session_id || !c.lib_id) return;
+    const params = new URLSearchParams();
+    params.set('session', c.session_id);
+    params.set('lib', c.lib_id);
+    params.set('from', 'dashboard');
+    router.push(`/practice?${params.toString()}`);
+  }, [snapshot, router]);
+
+  // ---- 我的课程：选课 / 移除（服务端为真相，本地乐观更新） ----
+  // 乐观更新立即反映到主页「我的课程」块与课程中心两个标签页；
+  // 失败则回滚到服务端真相（重新拉取 snapshot）。成功有 toast 反馈，
+  // 退课额外给「撤销」入口（重新 enroll）。
+  const handleEnroll = useCallback(
+    async (libId: string) => {
+      const name = catalog?.libs.find((l) => l.id === libId)?.name ?? '课程';
+      setEnrolledLibIds((prev) => (prev.includes(libId) ? prev : [...prev, libId]));
+      try {
+        await apiEnrollCourse(libId);
+        toast.show({ message: `已加入《${name}》到我的课程` });
+      } catch (e) {
+        setEnrolledLibIds((prev) => prev.filter((id) => id !== libId));
+        console.error('[courses] enroll failed', e);
+      }
+    },
+    [toast, catalog],
+  );
+
+  const handleUnenroll = useCallback(
+    async (libId: string) => {
+      const name = catalog?.libs.find((l) => l.id === libId)?.name ?? '课程';
+      setEnrolledLibIds((prev) => prev.filter((id) => id !== libId));
+      try {
+        await apiUnenrollCourse(libId);
+        toast.show({
+          message: `已移除《${name}》`,
+          actionLabel: '撤销',
+          onAction: () => void handleEnroll(libId),
+        });
+      } catch (e) {
+        void reload();
+        console.error('[courses] unenroll failed', e);
+      }
+    },
+    [toast, catalog, reload, handleEnroll],
+  );
+
+  // 主页「查看全部 N 门课程」→ 跳到课程中心并定位「我的课程」tab。
+  const handleOpenMyCourses = useCallback(() => {
+    setCourseTab('mine');
+    setSection('practice');
+  }, [setSection]);
 
   const handleDailySaved = useCallback((next: DashboardSnapshot['daily_goal']) => {
     setSnapshot((prev) => (prev ? { ...prev, daily_goal: next } : prev));
@@ -374,14 +435,27 @@ function DashboardInner() {
             onPickLib={handlePickLib}
             onStartPractice={handleStartPractice}
             userId={user.id}
+            enrolledLibIds={enrolledLibIds}
+            onEnroll={handleEnroll}
+            onUnenroll={handleUnenroll}
+            courseTab={courseTab}
+            onCourseTabChange={setCourseTab}
           />
         ) : (
           <DashboardLoading />
         );
       case 'data':
-        return <DataSection snapshot={snapshot} />;
-      case 'collection':
-        return <CollectionSection userId={user.id} />;
+        return <DataSection snapshot={snapshot} onStartLib={handlePickLib} />;
+      case 'achievements':
+        return <AchievementsSection snapshot={snapshot} />;
+      case 'review':
+        return (
+          <ReviewSection
+            catalog={catalog}
+            catalogError={catalogError}
+            userId={user.id}
+          />
+        );
       case 'settings':
         return (
           <SettingsSection
@@ -397,9 +471,13 @@ function DashboardInner() {
           <OverviewSection
             snapshot={snapshot}
             catalog={catalog}
-            onResume={handleResume}
             onPickLib={openLibPicker}
             onStartLib={handlePickLib}
+            onResume={handleResume}
+            onSetCurrentLib={persistLib}
+            onNavigate={handleSelect}
+            enrolledLibIds={enrolledLibIds}
+            onOpenMyCourses={handleOpenMyCourses}
           />
         );
     }
@@ -408,7 +486,7 @@ function DashboardInner() {
   return (
     <main
       className={styles.root}
-      data-collapsed={contentCollapsed ? 'true' : 'false'}
+      data-collapsed={collapsed ? 'true' : 'false'}
       data-mobile-open={mobileOpen ? 'true' : 'false'}
     >
       {/* Static baby-blue mesh background (replaces the old WebGL Aurora).
@@ -433,8 +511,9 @@ function DashboardInner() {
       <DashboardNav
         section={uiState.section}
         onSelect={handleSelect}
-        collectionCount={collectionCount}
+        reviewDue={snapshot.review_due_count ?? 0}
         user={user}
+        onLogout={handleLogout}
         collapsed={collapsed}
         pinned={pinned}
         onTogglePin={togglePin}
@@ -499,7 +578,11 @@ function DashboardInner() {
             <p className={styles.loadingText}>加载中…</p>
           </div>
         ) : (
-          <LibPicker libs={catalog.libs} onPick={handlePickLib} />
+          // 门禁：选词库弹窗只展示已加入「我的课程」的词库（先添加才能练）。
+          <LibPicker
+            libs={catalog.libs.filter((l) => enrolledLibIds.includes(l.id))}
+            onPick={handlePickLib}
+          />
         )}
       </ModalShell>
     </main>

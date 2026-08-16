@@ -132,7 +132,7 @@ export default function GoalEditor({
           <label className={styles.label} htmlFor="monthly-goal-input">
             每月目标
             <span className={styles.hint}>
-              （本月已完成 {monthlyGoal.current} / {monthlyGoal.target} 天）
+              （本月已完成 {monthlyGoal.current} / {monthlyGoal.target} 句）
             </span>
           </label>
           <div className={styles.row}>
@@ -144,9 +144,9 @@ export default function GoalEditor({
               max={100000}
               value={Number.isFinite(monthlyDraft) ? monthlyDraft : ''}
               onChange={(e) => setMonthlyDraft(Number(e.target.value))}
-              aria-label="每月目标天数"
+              aria-label="每月目标句数"
             />
-            <span className={styles.unit}>天 / 月</span>
+            <span className={styles.unit}>句 / 月</span>
             <button
               type="button"
               className={styles.save}

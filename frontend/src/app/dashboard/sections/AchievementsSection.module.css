@@ -1,0 +1,90 @@
+/* ============================================================
+   AchievementsSection — 独立成就页
+   ============================================================ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: var(--content-max);
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--space-4);
+  box-sizing: border-box;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ds-action-deep);
+}
+
+.title {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-h2);
+  font-weight: var(--weight-bold);
+  color: var(--ds-ink);
+}
+
+.subtitle {
+  margin: var(--space-2) 0 0;
+  max-width: 52ch;
+  font-size: var(--text-body);
+  color: var(--ds-ink-soft);
+  line-height: 1.5;
+}
+
+/* 终身大头统计条 */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+@media (max-width: 720px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.statCard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--ds-glass-surface);
+  border: 1px solid var(--ds-glass-border);
+  box-shadow: var(--ds-glass-shadow);
+  box-sizing: border-box;
+}
+
+.statValue {
+  font-size: 26px;
+  font-weight: var(--weight-bold);
+  color: var(--ds-ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.statUnit {
+  margin-left: 4px;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink-soft);
+}
+
+.statLabel {
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+}

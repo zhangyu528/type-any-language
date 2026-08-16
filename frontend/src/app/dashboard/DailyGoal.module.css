@@ -13,13 +13,27 @@
   min-height: 160px;
 }
 
+/* 与主页「听音打字」「我的课程」kicker 同款：统一蓝文字 + 区域主色圆点。
+   每日目标的区域主色 = 进度环的 --ds-correct（薄荷绿）。 */
 .caption {
   margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: var(--text-caption);
   font-weight: var(--weight-medium);
-  color: var(--ds-ink-soft);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
+  color: var(--ds-action-deep);
+}
+.caption::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ds-correct);
+  box-shadow: 0 0 6px var(--ds-correct);
+  animation: pulse 2.4s ease-in-out infinite;
 }
 
 .row {
@@ -57,9 +71,9 @@
 .copy {
   margin: 0;
   font-size: var(--text-body);
-  /* Secondary copy, not a CTA — use ink-soft (gray) so the eye doesn't
-     confuse it with the amber primary action in ContinueCard. */
-  color: var(--ds-ink-soft);
+  /* 落后未达标态：用琥珀（--ds-cta）点出"还差 N 句"的提醒感，
+     与左侧 继续练习 的琥珀主色呼应；达标态由 .copyDone 接管为薄荷绿。 */
+  color: var(--ds-cta);
   font-weight: var(--weight-medium);
 }
 
@@ -80,4 +94,10 @@
 @keyframes goalPulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.72; }
+}
+
+/* kicker 圆点脉冲（CSS Modules 作用域：本地定义，与 ProgressRing 的 goalPulse 分开）。 */
+@keyframes pulse {
+  0%, 100% { opacity: 0.6; transform: scale(0.9); }
+  50%      { opacity: 1.0; transform: scale(1.0); }
 }

@@ -167,6 +167,17 @@ export default function DecryptedText({
   useEffect(() => {
     if (!isAnimating) return;
 
+    if (
+      typeof window !== 'undefined' &&
+      !!window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+      setDisplayText(text);
+      setIsDecrypted(true);
+      setIsAnimating(false);
+      return;
+    }
+
     let currentIteration = 0;
 
     const getNextIndex = (revealedSet: Set<number>): number => {

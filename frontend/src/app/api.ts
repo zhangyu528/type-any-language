@@ -44,7 +44,7 @@ export interface Catalog {
 }
 
 export async function getContentCatalog(): Promise<Catalog> {
-  const response = await fetch(`${API_BASE_URL}/api/content/catalog`);
+  const response = await fetchWithTimeout(`${API_BASE_URL}/api/content/catalog`);
   if (!response.ok) {
     throw new Error(`获取内容目录失败 (HTTP ${response.status})`);
   }
@@ -496,6 +496,11 @@ export function addToCollection(
     c.words[wordKey] = { addedAt: now };
   }
   saveCollection(c, userId);
+  // 登录态后台同步云端(云端为真相,跨设备不丢)。fire-and-forget,
+  // 本地写入仍是即时 UI 路径。
+  if (userId !== ANONYMOUS_USER_ID) {
+    void syncAddFavorite(sentenceId, word, libId);
+  }
   return c;
 }
 
@@ -518,6 +523,9 @@ export function removeFromCollection(
   // and keeps the 1:1 invariant honest.
   c.words = {};
   saveCollection(c, userId);
+  if (userId !== ANONYMOUS_USER_ID) {
+    void syncRemoveFavoriteSentence(sentenceId);
+  }
   return c;
 }
 
@@ -555,6 +563,245 @@ export interface AuthUser {
  * - network failures (fetch rejects): re-thrown as-is so callers
  *   can show a "no network" toast without instanceof checks
  */
+// ---------------------------------------------------------------------------
+// Favorites — cloud sync (logged-in users)
+//
+// Phase: favorites moved from localStorage-only to a server resource
+// (backend user_favorites, migration 0015). Strategy: localStorage stays
+// the instant-UI cache; when a user is signed in, every add/remove also
+// mirrors to the cloud (fire-and-forget), and on mount
+// `ensureFavoritesSynced` pushes any pre-existing local items to the cloud
+// once, then pulls the cloud set back over localStorage so the cache
+// converges to server truth. Anonymous users keep the old pure-local
+// behavior.
+// ---------------------------------------------------------------------------
+
+export interface FavoriteSentenceOut {
+  sentence_id: string;
+  lib_id: string | null;
+  added_at: string;
+}
+export interface FavoriteWordOut {
+  word: string;
+  added_at: string;
+}
+export interface FavoritesPayload {
+  sentences: FavoriteSentenceOut[];
+  words: FavoriteWordOut[];
+}
+
+async function syncAddFavorite(
+  sentenceId: string,
+  word: string,
+  libId?: string,
+): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/api/favorites`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        item_type: 'sentence',
+        sentence_id: sentenceId,
+        word_text: word || undefined,
+        lib_id: libId || undefined,
+      }),
+    });
+  } catch {
+    /* 静默 */
+  }
+}
+
+async function syncAddFavoriteWord(word: string): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/api/favorites`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ item_type: 'word', word_text: word }),
+    });
+  } catch {
+    /* 静默 */
+  }
+}
+
+async function syncRemoveFavoriteSentence(sentenceId: string): Promise<void> {
+  try {
+    await fetch(
+      `${API_BASE_URL}/api/favorites/sentence/${encodeURIComponent(sentenceId)}`,
+      { method: 'DELETE', credentials: 'include' },
+    );
+  } catch {
+    /* 静默 */
+  }
+}
+
+/** DELETE a single word from the cloud collection (logged-in only). */
+export async function removeFavoriteWordCloud(word: string): Promise<void> {
+  try {
+    await fetch(
+      `${API_BASE_URL}/api/favorites/word/${encodeURIComponent(word)}`,
+      { method: 'DELETE', credentials: 'include' },
+    );
+  } catch {
+    /* 静默 */
+  }
+}
+
+/** GET /api/favorites — the user's server-side collection. */
+export async function getFavorites(): Promise<FavoritesPayload> {
+  const res = await fetch(`${API_BASE_URL}/api/favorites`, { credentials: 'include' });
+  if (!res.ok) throw new Error(`获取收藏失败 (HTTP ${res.status})`);
+  return res.json();
+}
+
+/**
+ * One-time + on-mount convergence for signed-in users.
+ *  1. First ever sync for this account: push local items to the cloud.
+ *  2. Always: pull the cloud set back over localStorage (cloud wins), so
+ *     the cache reflects server truth across devices.
+ * Cross-tab listeners are notified so the collection UI re-renders.
+ */
+export async function ensureFavoritesSynced(userId: string): Promise<void> {
+  if (userId === ANONYMOUS_USER_ID) return;
+  if (typeof window === 'undefined') return;
+  try {
+    const migratedKey = `me.collection.migrated:${userId}`;
+    const alreadyMigrated = window.localStorage.getItem(migratedKey) === '1';
+    if (!alreadyMigrated) {
+      const local = loadCollection(userId);
+      for (const sid in local.sentences) {
+        await syncAddFavorite(sid, '', local.sentences[sid]?.libId);
+      }
+      for (const w in local.words) {
+        await syncAddFavoriteWord(w);
+      }
+      window.localStorage.setItem(migratedKey, '1');
+    }
+    const cloud = await getFavorites();
+    const merged: Collection = { sentences: {}, words: {} };
+    for (const s of cloud.sentences) {
+      merged.sentences[s.sentence_id] = {
+        addedAt: Date.parse(s.added_at) || Date.now(),
+        libId: s.lib_id ?? undefined,
+      };
+    }
+    for (const w of cloud.words) {
+      merged.words[w.word] = { addedAt: Date.parse(w.added_at) || Date.now() };
+    }
+    saveCollection(merged, userId);
+    window.dispatchEvent(
+      new CustomEvent('collection-changed', { detail: { synced: true } }),
+    );
+  } catch {
+    /* network error — keep local cache as-is */
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Review — spaced-review candidates (logged-in users)
+// ---------------------------------------------------------------------------
+
+export interface ReviewCandidate {
+  sentence_id: string;
+  lib_id: string | null;
+  text: string;
+  chinese_text: string;
+  audio_url: string;
+  /** 'wrong' = answered incorrectly recently; 'favorite' = in collection. */
+  reason: 'wrong' | 'favorite';
+}
+
+/** GET /api/review/candidates — sentences to practice today.
+ *  @param windowDays 回看天数（服务端默认 14，用户在设置页可调）。 */
+export async function apiReviewCandidates(
+  windowDays?: number,
+): Promise<{ candidates: ReviewCandidate[] }> {
+  const url = new URL(`${API_BASE_URL}/api/review/candidates`);
+  if (windowDays && windowDays > 0) url.searchParams.set('windowDays', String(windowDays));
+  const res = await fetch(url.toString(), { credentials: 'include' });
+  if (!res.ok) throw new Error(`获取复习候选失败 (HTTP ${res.status})`);
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Weakness — data-driven weak points (replaces the retired manual 收藏)
+//
+// Aggregated from practice_attempts (per-sentence correct/incorrect log):
+// the app now records weakness automatically from error rate. The 复习
+// queue + 数据 tab both read this instead of a hand-curated collection.
+// ---------------------------------------------------------------------------
+
+/** 常错句：带原文/译文/目标词，UI 可直接渲染并跳转练习。 */
+export interface WeakSentence {
+  sentence_id: string;
+  lib_id: string | null;
+  text: string;
+  chinese_text: string;
+  target_words: string[];
+  wrong_count: number;
+  attempts: number;
+  /** 0–1：错误次数 / 总尝试次数。 */
+  error_rate: number;
+}
+
+export interface WeaknessPayload {
+  weak_sentences: WeakSentence[];
+  weak_words: { word: string; wrong: number }[];
+  weak_topics: { topic: string; wrong: number }[];
+  weak_cefr: { cefr: string; wrong: number }[];
+  totals: {
+    wrong: number;
+    attempts: number;
+    /** 0–1 终身准确率（只算错误句分母）；无尝试时为 null。 */
+    accuracy: number | null;
+  };
+}
+
+/** GET /api/weakness — 用户的薄弱点聚合。 */
+export async function apiGetWeakness(limit = 15): Promise<WeaknessPayload> {
+  const res = await fetch(`${API_BASE_URL}/api/weakness?limit=${limit}`, {
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error(`获取薄弱点失败 (HTTP ${res.status})`);
+  return res.json();
+}
+
+// ----- Course enrollment (我的课程) -----
+/** POST /api/courses/{libId}/enroll — 把课程加入我的课程（幂等）。 */
+export async function apiEnrollCourse(libId: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/courses/${encodeURIComponent(libId)}/enroll`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error(`添加课程失败 (HTTP ${res.status})`);
+}
+
+/** DELETE /api/courses/{libId}/enroll — 把课程移出我的课程。 */
+export async function apiUnenrollCourse(libId: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/courses/${encodeURIComponent(libId)}/enroll`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error(`移除课程失败 (HTTP ${res.status})`);
+}
+
+// ----- Review window preference (localStorage) -----
+export const STORAGE_REVIEW_WINDOW_DAYS = 'review.windowDays';
+
+export function readReviewWindowDays(): number {
+  if (typeof window === 'undefined') return 14;
+  const raw = window.localStorage.getItem(STORAGE_REVIEW_WINDOW_DAYS);
+  if (!raw) return 14;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 90) : 14;
+}
+
+export function writeReviewWindowDays(days: number): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(STORAGE_REVIEW_WINDOW_DAYS, String(days));
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly fieldErrors?: Record<string, string>;
@@ -634,7 +881,7 @@ export async function apiLogout(): Promise<void> {
  * not an ApiError, and can show a "no network" UI).
  */
 export async function apiMe(): Promise<AuthUser | null> {
-  const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
+  const res = await fetchWithTimeout(`${API_BASE_URL}/api/auth/me`, {
     credentials: 'include',
   });
   if (res.status === 401) return null;
@@ -666,6 +913,15 @@ export async function updateDisplayName(displayName: string): Promise<AuthUser> 
   });
   const body = (await parseOrThrow(res)) as AuthUser;
   return body;
+}
+
+/** DELETE /api/auth/me — permanently delete the account + all cloud data. */
+export async function deleteAccount(): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error(`注销账号失败 (HTTP ${res.status})`);
 }
 
 // ---------------------------------------------------------------------------
@@ -757,7 +1013,43 @@ export interface DashboardSnapshot {
    *  的老账号可能缺 user_streaks 行导致 streak.longest 恒为 0，故首跑欢迎页以
    *  此为准门控。 */
   has_any_activity?: boolean;
+  /** 待复习句数（近 14 天答错 ∪ 云端收藏，DISTINCT 计数）。
+   *  驱动主页快速入口的「复习」卡徽标。 */
+  review_due_count?: number;
+  /** 用户已选课程（我的课程）的 lib id 列表。驱动主页「我的课程」
+   *  块与课程中心的「我的课程」标签页。 */
+  enrolled_lib_ids?: string[];
+  /** 终身汇总（全量，不限 35 天窗口）。驱动成就页与 AchievementWall 的
+   *  准确累计。新用户尚无 daily_activity 记录时为 undefined。 */
+  lifetime?: {
+    total_sentences: number;
+    total_correct: number;
+    days_practiced: number;
+    /** 0–1 终身准确率；无练习记录时为 null（UI 显示「—」）。 */
+    accuracy: number | null;
+  } | null;
   generated_at: string;
+}
+
+/**
+ * fetch with a hard timeout. Without this, a backend that accepts the TCP
+ * connection but never responds (e.g. a stalled DB connection) leaves the
+ * browser `fetch` pending forever and the dashboard spins indefinitely.
+ * Aborting after `timeoutMs` turns the stall into a thrown error the
+ * caller's catch can surface as "加载失败 + 重试".
+ */
+async function fetchWithTimeout(
+  url: string,
+  opts: RequestInit = {},
+  timeoutMs = 15000,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...opts, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
@@ -766,7 +1058,7 @@ export interface DashboardSnapshot {
  * expected to redirect anonymous users to /login before invoking this.
  */
 export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
-  const res = await fetch(`${API_BASE_URL}/api/dashboard`, {
+  const res = await fetchWithTimeout(`${API_BASE_URL}/api/dashboard`, {
     credentials: 'include',
   });
   if (!res.ok) {
@@ -879,13 +1171,16 @@ export async function startPracticeSession(input: {
 export async function recordPracticeStep(
   sessionId: string,
   correct: boolean,
+  sentenceId?: string,
 ): Promise<void> {
   try {
     await fetch(`${API_BASE_URL}/api/practice/session/${sessionId}/step`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ correct }),
+      body: JSON.stringify(
+        sentenceId ? { correct, sentence_id: sentenceId } : { correct },
+      ),
     });
   } catch {
     // best-effort; the /end call is authoritative

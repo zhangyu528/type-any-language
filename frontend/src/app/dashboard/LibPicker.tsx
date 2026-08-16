@@ -146,16 +146,23 @@ export function LibCard({
   onClick,
   recent = false,
   progressPct,
+  ctaLabel,
+  /** 在「课程库」视图里标记该课已加入我的课程（仅展示，不可再点添加）。 */
+  enrolled = false,
 }: {
   lib: VocabularyLib;
   onClick: () => void;
   recent?: boolean;
   progressPct?: number | null;
+  /** Override the status-derived CTA text (e.g. "添加" in 发现 view). */
+  ctaLabel?: string;
+  /** 在「课程库」视图里标记该课已加入我的课程（仅展示，不可再点添加）。 */
+  enrolled?: boolean;
 }) {
   const color = courseAccentColor(lib);
   const typeLabel = courseTypeLabel(lib);
   const pct = progressPct ?? 0;
-  const ctaLabel = pct >= 100 ? '复习' : pct > 0 ? '继续' : '开始';
+  const cta = ctaLabel ?? (pct >= 100 ? '复习' : pct > 0 ? '继续' : '开始');
   const progressLabel =
     pct >= 100 ? '已完成' : pct > 0 ? `进行中 ${pct}%` : '未开始';
   return (
@@ -165,8 +172,15 @@ export function LibCard({
       onClick={onClick}
     >
       <span className={styles.accentBar} style={{ background: color }} aria-hidden />
-      <span className={styles.typeChip} style={{ color }}>
-        {typeLabel}
+      <span className={styles.typeRow}>
+        <span className={styles.typeChip} style={{ color }}>
+          {typeLabel}
+        </span>
+        {enrolled ? (
+          <span className={styles.addedBadge} aria-hidden>
+            ✓ 已添加
+          </span>
+        ) : null}
       </span>
       <h3 className={styles.libName}>{lib.name}</h3>
       <p className={styles.libStat}>{courseStatLine(lib)}</p>
@@ -190,7 +204,7 @@ export function LibCard({
         <span className={styles.progressLabel}>{progressLabel}</span>
       </div>
       <span className={styles.cta}>
-        <span className={styles.ctaLabel}>{ctaLabel}</span>
+        <span className={styles.ctaLabel}>{cta}</span>
         <span className={styles.ctaArrow} aria-hidden>→</span>
       </span>
     </button>

@@ -108,7 +108,10 @@ export default function PracticePage() {
         }
         // else: leave selectedLibId null → LandingPage renders.
       } catch {
-        // session / landing will surface their own errors
+        // getContentCatalog rejected (network / 5xx / timeout) — without
+        // surfacing an error here `catalog` stays null and the page loops
+        // the `!catalog → Loading` branch forever. Show a message instead.
+        setError('内容加载失败，请检查后端服务是否在运行后刷新重试。');
       }
     })();
     return () => {

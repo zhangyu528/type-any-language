@@ -31,6 +31,9 @@ from app.schemas.dashboard import (
     MonthlyGoalUpdate,
 )
 from app.services import activity_service
+from app.routers.review import count_review_due
+from app.models.user_course import UserCourse
+from sqlalchemy import select
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -49,6 +52,17 @@ def get_dashboard(
 
     today = date_cls.today()
 
+    # The user's enrolled course set ("我的课程") — powers both the
+    # homepage "我的课程" block and the 课程 center's "我的课程" tab.
+    enrolled_rows = (
+        db.execute(
+            select(UserCourse.lib_id).where(UserCourse.user_id == current_user.id)
+        )
+        .scalars()
+        .all()
+    )
+    enrolled_lib_ids = [str(lid) for lid in enrolled_rows]
+
     return DashboardResponse(
         user=UserPublic.from_model(current_user),
         continue_session=activity_service.compute_continue_state(db, current_user.id),
@@ -59,6 +73,9 @@ def get_dashboard(
         progress=activity_service.compute_kpis(db, current_user.id, today),
         preferred_hour=activity_service.compute_preferred_hour(db, current_user.id),
         has_any_activity=activity_service.has_any_activity(db, current_user.id),
+        review_due_count=count_review_due(db, current_user.id, window_days=14),
+        enrolled_lib_ids=enrolled_lib_ids,
+        lifetime=activity_service.compute_lifetime(db, current_user.id),
         generated_at=datetime.utcnow(),
     )
 

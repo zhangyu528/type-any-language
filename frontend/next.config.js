@@ -1,4 +1,7 @@
 const PAGES_MODE = process.env.GITHUB_PAGES === '1';
+// 版本号从 package.json 读，注入客户端（侧边栏账号名片展示）。
+// 手抄一份到组件里会随发版漂移，这里让它只有一个真相源。
+const { version: APP_VERSION } = require('./package.json');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -38,6 +41,7 @@ const nextConfig = {
     NEXT_PUBLIC_API_URL:
       process.env.NEXT_PUBLIC_API_URL
       || `http://localhost:${process.env.BACKEND_PORT || 8000}`,
+    NEXT_PUBLIC_APP_VERSION: APP_VERSION,
   },
   // 允许 build 写到独立目录,避免污染正在跑的 `next dev` 用的 `.next`。
   // 用法:NEXT_DIST_DIR=.next-build npx next build
