@@ -69,11 +69,33 @@ def main() -> None:
         install_cmd = [sys.executable, str(BACKEND_DIR / "scripts" / "install.py")]
     subprocess.check_call(install_cmd, cwd=str(BACKEND_DIR))
 
-    # ─── 2. execvp uvicorn (replaces this process; SIGINT inherited) ──────
+    # ─── 1.5 apply pending migrations (mirrors backend image entrypoint) ──
+    # The containerized backend runs `python3 -m migrations.runner` before
+    # uvicorn (see backend/image-entrypoint.sh). Dev runs host-native and
+    # skipped that step, so a freshly-added migration (e.g. 0013_course_fields)
+    # left the DB behind the code and the catalog API 500'd → course page
+    # hung on loading. Run the same idempotent runner here so `bash dev start`
+    # self-heals the schema before uvicorn serves it.
     py = venv_python()
     if not py.exists():
         print(f"[dev] [ERR] venv python missing at {py} — run: make install", file=sys.stderr)
         sys.exit(1)
+    print("[dev] applying pending migrations (python -m migrations.runner)...")
+    try:
+        subprocess.check_call(
+            [str(py), "-m", "migrations.runner"],
+            cwd=str(BACKEND_DIR),
+        )
+    except subprocess.CalledProcessError as exc:
+        print(
+            "[dev] [ERR] migrations failed (exit "
+            f"{exc.returncode}). Fix the DB / schema, then retry:\n"
+            "        bash dev migrate",
+            file=sys.stderr,
+        )
+        sys.exit(exc.returncode)
+
+    # ─── 2. execvp uvicorn (replaces this process; SIGINT inherited) ──────
     port = os.environ.get("PORT", "8000")
     # argv pass-through: operator args after dev.py go to uvicorn.
     # `make dev -- --port 9001` → make strips the first --, leaving
