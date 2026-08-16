@@ -1,18 +1,28 @@
 .root {
   padding: var(--space-5);
   border-radius: var(--radius-lg);
-  border: 1px solid var(--ds-border);
-  background: color-mix(in srgb, var(--ds-surface) 80%, transparent);
-  box-shadow: var(--elev-1);
+  border: 1px solid var(--ds-glass-border);
+  background: var(--ds-glass-surface);
+  box-shadow: var(--ds-glass-shadow);
 }
 
 .title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   margin: 0 0 var(--space-3);
-  font-size: var(--text-caption);
-  font-weight: var(--weight-medium);
-  letter-spacing: 0.08em;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--ds-ink-soft);
+  color: var(--ds-action-deep);
+}
+
+.title::before {
+  content: '·';
+  color: var(--ds-action);
+  font-size: 16px;
+  line-height: 1;
 }
 
 .line {

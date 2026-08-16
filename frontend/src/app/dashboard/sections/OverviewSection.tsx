@@ -6,8 +6,9 @@
  * 信息架构：顶部 Hero（问候 + 连击胶囊「唯一连击源」+ 本月目标迷你条）
  * → 双栏主体（左=行动+动量，右=洞察+进度）→ 成就墙（通栏）。
  *
- * 去重：连击只在 Hero 胶囊 + 连击动量出现；月目标只在 Hero 迷你条 +
- * 进度叙事出现；准确率只在薄弱洞察 / 本周一眼出现，成就墙不再重复数字。
+ * 去重：连击只在 Hero 胶囊 + 连击动量出现；月目标只在 Hero 迷你条出现；
+ * 习惯时刻只在 TodaySuggestion 出现；准确率只在薄弱洞察 / 本周一眼出现，
+ * 成就墙不再重复数字。
  * 「本周一眼」已移除重复的"连续天数"。
  *
  * 首跑态：无任何练习记录时整页切换为 FirstRunGuide。
@@ -18,7 +19,6 @@
 import { useMemo } from 'react';
 import { Catalog, DashboardSnapshot } from '../../api';
 import AnimatedContent from '@/components/AnimatedContent';
-import BorderGlow from '@/components/BorderGlow';
 import GreetingBar from '../GreetingBar';
 import ContinueCard from '../ContinueCard';
 import DailyGoal from '../DailyGoal';
@@ -114,42 +114,36 @@ export default function OverviewSection({
           user={snapshot.user}
           streak={snapshot.streak}
           monthlyGoal={snapshot.monthly_goal}
-          preferredHour={snapshot.preferred_hour}
         />
       </header>
 
-      <div className={styles.layout}>
-        {/* 左列：行动 + 动量 */}
-        <div className={styles.colMain}>
-          <section className={styles.today} aria-label="今日练习">
-            <p className={styles.todayLabel}>今日</p>
-            <div className={styles.panel}>
-              <div className={`${styles.glass} ${styles.continue}`}>
-                <BorderGlow
-                  className={styles.continueGlow}
-                  glowColor="143, 203, 240"
-                  glowRadius={40}
-                  glowIntensity={1.0}
-                >
-                  <ContinueCard state={snapshot.continue} onResume={onResume} onPickLib={onPickLib} />
-                </BorderGlow>
-              </div>
-              <div className={`${styles.glass} ${styles.goal}`}>
-                <DailyGoal state={snapshot.daily_goal} />
-              </div>
-            </div>
-          </section>
+      <div className={styles.bento}>
+        {/* 行动区：继续 / 今日目标 / 连击动量 + 常用词库快启 */}
+        <p className={styles.zoneLabel}>行动</p>
 
-          <AnimatedContent distance={20} direction="vertical" delay={0} className={styles.block}>
-            <StreakMomentum
-              streak={snapshot.streak}
-              calendar={snapshot.calendar}
-              yearMonth={snapshot.monthly_goal.year_month}
-            />
-          </AnimatedContent>
+        <AnimatedContent distance={20} direction="vertical" delay={0} className={`${styles.bentoCell} ${styles.span6}`}>
+          <div className={styles.cardGlass}>
+            <ContinueCard state={snapshot.continue} onResume={onResume} onPickLib={onPickLib} />
+          </div>
+        </AnimatedContent>
 
-          {chips.length > 0 ? (
-            <AnimatedContent distance={20} direction="vertical" delay={80 / 1000} className={styles.block}>
+        <AnimatedContent distance={20} direction="vertical" delay={60 / 1000} className={`${styles.bentoCell} ${styles.span3}`}>
+          <div className={styles.cardGlass}>
+            <DailyGoal state={snapshot.daily_goal} />
+          </div>
+        </AnimatedContent>
+
+        <AnimatedContent distance={20} direction="vertical" delay={120 / 1000} className={`${styles.bentoCell} ${styles.span3}`}>
+          <StreakMomentum
+            streak={snapshot.streak}
+            calendar={snapshot.calendar}
+            yearMonth={snapshot.monthly_goal.year_month}
+          />
+        </AnimatedContent>
+
+        {chips.length > 0 ? (
+          <AnimatedContent distance={20} direction="vertical" delay={160 / 1000} className={`${styles.bentoCell} ${styles.span12}`}>
+            <div className={styles.quickLaunchBlock}>
               <p className={styles.quickLaunchLabel}>常用词库</p>
               <div className={styles.chips}>
                 {chips.map((lib) => {
@@ -167,68 +161,65 @@ export default function OverviewSection({
                   );
                 })}
               </div>
-            </AnimatedContent>
-          ) : null}
-        </div>
-
-        {/* 右列：洞察 + 进度 */}
-        <div className={styles.colSide}>
-          <AnimatedContent distance={20} direction="vertical" delay={40 / 1000} className={styles.block}>
-            <TodaySuggestion
-              preferredHour={snapshot.preferred_hour}
-              streak={snapshot.streak}
-              dailyGoal={snapshot.daily_goal}
-              recentLibId={recentId}
-              recentLibName={recentLib?.name ?? null}
-              onStartLib={onStartLib}
-              onPickLib={onPickLib}
-            />
+            </div>
           </AnimatedContent>
+        ) : null}
 
-          <AnimatedContent distance={20} direction="vertical" delay={80 / 1000} className={styles.block}>
-            <ProgressNarrative
-              userId={snapshot.user.id}
-              catalog={catalog}
-              monthlyGoal={snapshot.monthly_goal}
-            />
-          </AnimatedContent>
+        {/* 洞察区：今日建议 / 进度叙事 / 薄弱洞察 */}
+        <p className={styles.zoneLabel}>洞察</p>
 
-          <AnimatedContent distance={20} direction="vertical" delay={120 / 1000} className={styles.block}>
-            <WeaknessInsight userId={snapshot.user.id} catalog={catalog} onStartLib={onStartLib} />
-          </AnimatedContent>
+        <AnimatedContent distance={20} direction="vertical" delay={40 / 1000} className={`${styles.bentoCell} ${styles.span4}`}>
+          <TodaySuggestion
+            preferredHour={snapshot.preferred_hour}
+            streak={snapshot.streak}
+            dailyGoal={snapshot.daily_goal}
+            recentLibId={recentId}
+            recentLibName={recentLib?.name ?? null}
+            onStartLib={onStartLib}
+            onPickLib={onPickLib}
+          />
+        </AnimatedContent>
 
-          <AnimatedContent distance={20} direction="vertical" delay={160 / 1000} className={styles.block}>
-            <div className={styles.weekGlanceText}>
-              <span className={styles.glanceItem}>
-                本周 <b className={styles.glanceNum}>{weekGlance.sentences}</b> 句
-              </span>
-              <span className={styles.glanceItem}>
-                命中{' '}
-                <b className={`${styles.glanceNum} ${styles.glanceHit}`}>
-                  {weekGlance.accuracy != null ? `${weekGlance.accuracy}%` : '—'}
+        <AnimatedContent distance={20} direction="vertical" delay={80 / 1000} className={`${styles.bentoCell} ${styles.span4}`}>
+          <ProgressNarrative userId={snapshot.user.id} catalog={catalog} />
+        </AnimatedContent>
+
+        <AnimatedContent distance={20} direction="vertical" delay={120 / 1000} className={`${styles.bentoCell} ${styles.span4}`}>
+          <WeaknessInsight userId={snapshot.user.id} catalog={catalog} onStartLib={onStartLib} />
+        </AnimatedContent>
+
+        {/* 本周 KPI 条 */}
+        <AnimatedContent distance={20} direction="vertical" delay={160 / 1000} className={`${styles.bentoCell} ${styles.span12}`}>
+          <div className={styles.weekGlanceText}>
+            <span className={styles.glanceItem}>
+              本周 <b className={styles.glanceNum}>{weekGlance.sentences}</b> 句
+            </span>
+            <span className={styles.glanceItem}>
+              命中{' '}
+              <b className={`${styles.glanceNum} ${styles.glanceHit}`}>
+                {weekGlance.accuracy != null ? `${weekGlance.accuracy}%` : '—'}
+              </b>
+              {weekGlance.acc7 && weekGlance.acc7.delta !== 0 ? (
+                <b className={styles.glanceDelta}>
+                  {weekGlance.acc7.delta > 0 ? '▲' : '▼'}
+                  {Math.abs(weekGlance.acc7.delta)}
                 </b>
-                {weekGlance.acc7 && weekGlance.acc7.delta !== 0 ? (
+              ) : null}
+            </span>
+            {weekGlance.newWords ? (
+              <span className={styles.glanceItem}>
+                本周新词{' '}
+                <b className={styles.glanceNum}>+{weekGlance.newWords.value}</b>
+                {weekGlance.newWords.delta !== 0 ? (
                   <b className={styles.glanceDelta}>
-                    {weekGlance.acc7.delta > 0 ? '▲' : '▼'}
-                    {Math.abs(weekGlance.acc7.delta)}
+                    {weekGlance.newWords.delta > 0 ? '▲' : '▼'}
+                    {Math.abs(weekGlance.newWords.delta)}
                   </b>
                 ) : null}
               </span>
-              {weekGlance.newWords ? (
-                <span className={styles.glanceItem}>
-                  本周新词{' '}
-                  <b className={styles.glanceNum}>+{weekGlance.newWords.value}</b>
-                  {weekGlance.newWords.delta !== 0 ? (
-                    <b className={styles.glanceDelta}>
-                      {weekGlance.newWords.delta > 0 ? '▲' : '▼'}
-                      {Math.abs(weekGlance.newWords.delta)}
-                    </b>
-                  ) : null}
-                </span>
-              ) : null}
-            </div>
-          </AnimatedContent>
-        </div>
+            ) : null}
+          </div>
+        </AnimatedContent>
       </div>
 
       <AnimatedContent distance={20} delay={200 / 1000} direction="vertical" className={styles.achievement}>

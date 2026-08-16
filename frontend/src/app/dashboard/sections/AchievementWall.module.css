@@ -4,10 +4,10 @@
    GreetingBar / StreakMomentum / OverviewSection. */
 
 .root {
-  background: color-mix(in srgb, var(--ds-surface) 80%, transparent);
-  border: 1px solid var(--ds-border);
+  background: var(--ds-glass-surface);
+  border: 1px solid var(--ds-glass-border);
   border-radius: var(--radius-xl);
-  box-shadow: var(--elev-1);
+  box-shadow: var(--ds-glass-shadow);
   padding: var(--space-5);
   width: 100%;
   box-sizing: border-box;
@@ -23,10 +23,21 @@
 
 .title {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--text-h2);
-  font-weight: var(--weight-medium);
-  color: var(--ds-ink);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ds-action-deep);
+}
+
+.title::before {
+  content: '·';
+  color: var(--ds-action);
+  font-size: 16px;
+  line-height: 1;
 }
 
 .count {

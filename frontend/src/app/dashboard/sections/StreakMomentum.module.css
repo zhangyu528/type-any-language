@@ -14,8 +14,9 @@
   flex-direction: column;
   gap: var(--space-3);
   border-radius: var(--radius-lg);
-  border: 1px solid var(--ds-border);
-  background: color-mix(in srgb, var(--ds-surface) 72%, transparent);
+  border: 1px solid var(--ds-glass-border);
+  background: var(--ds-glass-surface);
+  box-shadow: var(--ds-glass-shadow);
 }
 
 /* Warm nudge when a live streak is one missed day from breaking. */

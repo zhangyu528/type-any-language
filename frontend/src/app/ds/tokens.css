@@ -83,6 +83,17 @@
   --elev-1: 0 1px 0 rgba(12, 68, 124, 0.06), 0 8px 24px rgba(12, 68, 124, 0.10);
   --elev-focus: 0 0 0 2px var(--slate-50), 0 0 0 4px var(--slate-300);
 
+  /* ----- glass/ · 对齐 Landing 的磨砂玻璃(88% surface + 柔边 + 4 层浮起) -----
+     所有 dashboard 主页面板统一引用,消除各模块 72–80% 透明度 / 纯色边框 /
+     2 层阴影的不一致。landing 的 Hero mock 与 app-header 用同套浮起语义。 */
+  --ds-glass-surface: color-mix(in srgb, var(--ds-surface) 88%, transparent);
+  --ds-glass-border: color-mix(in srgb, var(--ds-border) 70%, transparent);
+  --ds-glass-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 1px 2px rgba(12, 68, 124, 0.05),
+    0 6px 14px -2px rgba(12, 68, 124, 0.10),
+    0 18px 36px -6px rgba(12, 68, 124, 0.18);
+
   /* ----- size/ · 控件(触控目标 ≥44) ----- */
   --control-sm: 32px;
   --control-md: 40px;

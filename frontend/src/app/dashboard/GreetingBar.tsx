@@ -63,21 +63,12 @@ export interface GreetingBarProps {
   user: DashboardUser;
   streak: StreakInfo;
   monthlyGoal: MonthlyGoalInfo;
-  /** Most common practice hour (0–23) from the snapshot, or null.
-   *  Drives the "通常 21:00 练习" contextual nudge. */
-  preferredHour?: number | null;
-}
-
-/** Format a 0–23 hour into the contextual practice hint. */
-function describePreferred(hour: number): string {
-  return `通常 ${String(hour).padStart(2, '0')}:00 练习`;
 }
 
 export default function GreetingBar({
   user,
   streak,
   monthlyGoal,
-  preferredHour,
 }: GreetingBarProps) {
   const greeting = pickGreeting(new Date().getHours());
   const display = (user.display_name || user.email || '').trim() || '朋友';
@@ -145,9 +136,6 @@ export default function GreetingBar({
             <span className={styles.longest}> · 最长 {streak.longest} 天</span>
           ) : null}
         </p>
-        {preferredHour != null ? (
-          <p className={styles.contextual}>{describePreferred(preferredHour)}</p>
-        ) : null}
       </div>
 
       {/* Monthly goal: thin bar + count + status pill, pinned right. */}

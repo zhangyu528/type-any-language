@@ -30,7 +30,6 @@ import {
   DASHBOARD_SECTIONS,
 } from './DashboardNav';
 import { useAuth } from '../lib/auth';
-import Aurora from '@/components/Aurora';
 import AnimatedContent from '@/components/AnimatedContent';
 import LoadingMark from '../components/LoadingMark';
 import ModalShell from '../components/ModalShell';
@@ -391,8 +390,9 @@ function DashboardInner() {
       data-collapsed={contentCollapsed ? 'true' : 'false'}
       data-mobile-open={mobileOpen ? 'true' : 'false'}
     >
-      {/* Aurora background - full screen, behind all content */}
-      <Aurora className="fixed inset-0 z-0" />
+      {/* Static baby-blue mesh background (replaces the old WebGL Aurora).
+          Fixed, behind all content, non-interactive. */}
+      <div className={styles.bgMesh} aria-hidden="true" />
 
       {/* Mobile top-left menu trigger */}
       <button

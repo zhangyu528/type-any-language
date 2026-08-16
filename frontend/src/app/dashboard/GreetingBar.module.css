@@ -5,10 +5,10 @@
   align-items: center;
   gap: var(--space-4);
   padding: var(--space-4) var(--space-5);
-  background: color-mix(in srgb, var(--ds-surface) 80%, transparent);
+  background: var(--ds-glass-surface);
   border-radius: var(--radius-xl);
-  border: 1px solid var(--ds-border);
-  box-shadow: var(--elev-1);
+  border: 1px solid var(--ds-glass-border);
+  box-shadow: var(--ds-glass-shadow);
   flex-wrap: wrap;
   /* Match the cardsGrid horizontal extent so the greeting bar sits
      in the same column as the cards below, instead of looking like a
@@ -99,17 +99,6 @@
 .longest {
   color: var(--ds-ink-soft);
   font-weight: var(--weight-regular);
-}
-
-/* Contextual practice-time nudge — "通常 21:00 练习". A low-contrast
-   line under the streak that personalises the header without
-   competing with the streak badge for attention. Only renders when
-   the backend has a preferred_hour (i.e. the user has sessions). */
-.contextual {
-  margin: 2px 0 0;
-  font-size: var(--text-caption);
-  font-weight: var(--weight-regular);
-  color: var(--ds-ink-soft);
 }
 
 /* -------- Monthly goal (absorbed from old CalendarHeader) -------- */

@@ -3,12 +3,12 @@
 /**
  * ProgressNarrative — 进度叙事（方向 B 新模块）。
  *
- * 把"我离目标还有多远"做成两条叙事化进度，而非图表（不与「数据」
+ * 把"我离目标还有多远"做成叙事化进度，而非图表（不与「数据」
  * 分区冲突）：
- *   1. 词库通关：聚焦"最接近通关"的那本词库，显示《X》还差 N 句通关
+ *   词库通关：聚焦"最接近通关"的那本词库，显示《X》还差 N 句通关
  *      （完成度 = 已练句数 / lib.word_count，复用 LearnedLibProgress 的
  *       localStorage 进度源，零后端改动）。
- *   2. 本月目标：X/Y 天 · 还差 D 天达标（或已达成）。
+ *   月目标已统一收口到 Hero 迷你条，这里不再重复。
  *
  * 进度源为 localStorage，监听 translation-progress-changed 即时刷新。
  */
@@ -17,7 +17,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Catalog,
   loadTranslationProgress,
-  MonthlyGoalInfo,
   TranslationProgress,
 } from '../../api';
 import styles from './ProgressNarrative.module.css';
@@ -25,7 +24,6 @@ import styles from './ProgressNarrative.module.css';
 interface ProgressNarrativeProps {
   userId: string;
   catalog?: Catalog | null;
-  monthlyGoal: MonthlyGoalInfo;
 }
 
 interface LibRow {
@@ -39,7 +37,6 @@ interface LibRow {
 export default function ProgressNarrative({
   userId,
   catalog,
-  monthlyGoal,
 }: ProgressNarrativeProps) {
   const [progress, setProgress] = useState<TranslationProgress>({});
 
@@ -71,13 +68,6 @@ export default function ProgressNarrative({
     return inProgress[0] ?? [...rows].sort((a, b) => b.completion - a.completion)[0] ?? null;
   }, [rows]);
 
-  const mRemain = monthlyGoal.achieved
-    ? 0
-    : Math.max(0, monthlyGoal.target - monthlyGoal.current);
-  const mPct =
-    monthlyGoal.target > 0
-      ? Math.min(100, Math.round((monthlyGoal.current / monthlyGoal.target) * 100))
-      : 0;
   const libRemain = focus ? Math.max(0, focus.total - focus.answered) : 0;
 
   return (
@@ -101,20 +91,6 @@ export default function ProgressNarrative({
         </p>
       </div>
 
-      <div className={styles.row}>
-        <div className={styles.rowHead}>
-          <span className={styles.rowLabel}>本月目标</span>
-          <span className={styles.rowNum}>
-            {monthlyGoal.current}/{monthlyGoal.target} 天
-          </span>
-        </div>
-        <div className={styles.track}>
-          <div className={`${styles.fill} ${styles.fillMint}`} style={{ width: `${mPct}%` }} />
-        </div>
-        <p className={styles.rowSub}>
-          {monthlyGoal.achieved ? '本月已达成' : `还差 ${mRemain} 天达标`}
-        </p>
-      </div>
     </section>
   );
 }

@@ -12,108 +12,29 @@
   font-family: var(--font-sans);
 }
 
-/* Hero section - full width, behind aurora */
-.hero {
-  position: relative;
-  z-index: 1;
-  padding: calc(52px + var(--space-6)) var(--space-5) var(--space-6);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
+/* Static baby-blue mesh — replaces the old WebGL Aurora. Fixed, behind
+   all content (z-0); content sits at z-1+. Uses the same action/cta
+   token palette as globals' .aurora-mesh so it stays on-brand with the
+   glass system (no more clashing purple/green). */
+.bgMesh {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 600px 400px at 20% 10%, color-mix(in srgb, var(--ds-action) 12%, transparent), transparent 70%),
+    radial-gradient(ellipse 500px 350px at 80% 60%, color-mix(in srgb, var(--ds-cta) 8%, transparent), transparent 70%),
+    radial-gradient(ellipse 700px 500px at 50% 100%, color-mix(in srgb, var(--ds-action) 10%, transparent), transparent 70%),
+    var(--ds-bg);
+  transition: background 0.6s ease;
 }
 
-/* Cards grid - horizontal layout on desktop.
-   G1: 加 margin-bottom 让 section 之间有统一节奏,否则 hero 底 padding
-   + 下一个 section 自身 padding 容易混淆。 */
-.cardsGrid {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-4);
-  max-width: var(--content-max);
-  width: 100%;
-  margin: 0 auto var(--space-6);
-  padding: 0 var(--space-4);
-  box-sizing: border-box;
-}
-
-/* Glassmorphism card wrapper */
-.cardGlass {
-  /* flex column so GlowCard (left) and DailyGoal (right) both stretch
-     to the row height — without this, ContinueCard sits at top with
-     empty space below the CTA while DailyGoal fills the full row. */
-  display: flex;
-  flex-direction: column;
-  background: rgba(255, 255, 255, 0.65);
-  backdrop-filter: blur(16px) saturate(135%);
-  -webkit-backdrop-filter: blur(16px) saturate(135%);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: var(--radius-xl);
-  overflow: hidden;
-}
-
-[data-theme="dark"] .cardGlass {
-  background: rgba(20, 22, 30, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-/* GlowCard wrapper for ContinueCard — fills the rounded cardGlass interior
-   and keeps the cursor-following glow clipped to the rounded corners. */
-.continueGlow {
-  position: relative;
-  border-radius: var(--radius-xl);
-  /* Fill the cardGlass column so the inner ContinueCard grid can
-     stretch to row height (matches DailyGoal's full-height fill). */
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  /* GlowCard is a div; it inherits overflow-hidden from its own base class,
-     so the radial gradient stays inside the rounded glass. */
-}
-
-/* Tablet (<=1023): stack cards */
-@media (max-width: 1023px) {
-  .cardsGrid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Section wrappers - transparent for aurora visibility.
-   G1: 加 margin-bottom 让三段 section 之间节奏统一。 */
-.weekRhythmSection,
-.progressSection {
-  position: relative;
-  z-index: 1;
-  max-width: var(--content-max);
-  width: 100%;
-  margin: 0 auto;
-  padding: var(--space-4);
-  box-sizing: border-box;
-}
-
-/* WeekRhythm is narrower than the old calendar (no 7×5 grid any
-   more), so cap the section width so the strip doesn't sprawl edge
-   to edge. ~720px fits 7 × 56px dots + gaps with comfortable margins. */
-.weekRhythmSection {
-  max-width: 760px;
-  margin-bottom: var(--space-6);
-}
-
-/* ProgressSnapshot panel — Z-pattern step: widens back to the
-   cardsGrid max-width so the section rhythm goes wide→wide→mid
-   →wide→mid (Z) instead of monotonically narrowing (funnel).
-   The 3-col internal layout uses the extra horizontal room so
-   the three KPI tiles each get a proper column. */
-.progressSection {
-  max-width: var(--content-max);
-  margin-bottom: var(--space-6);
-}
-
-/* Last section doesn't need trailing gap */
-.progressSection:last-child {
-  margin-bottom: 0;
+[data-theme='dark'] .bgMesh {
+  background:
+    radial-gradient(ellipse 600px 400px at 20% 10%, color-mix(in srgb, var(--ds-action) 8%, transparent), transparent 70%),
+    radial-gradient(ellipse 500px 350px at 80% 60%, color-mix(in srgb, var(--ds-cta) 5%, transparent), transparent 70%),
+    radial-gradient(ellipse 700px 500px at 50% 100%, color-mix(in srgb, var(--ds-action) 7%, transparent), transparent 70%),
+    var(--ds-bg);
 }
 
 .modalState {
@@ -128,12 +49,19 @@
 
 .loading,
 .errorWrap {
+  /* Full-viewport centering — these are the page root during the
+     auth/snapshot load and the error state, so there is no sidebar
+     or parent flex context to rely on. Center both axes explicitly. */
+  min-height: 100vh;
+  width: 100%;
+  box-sizing: border-box;
   max-width: var(--content-max);
   margin: 0 auto;
   padding: var(--space-7) var(--space-4);
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: var(--space-3);
   font-family: var(--font-sans);
 }

@@ -136,6 +136,14 @@
   --elev-0: 0 1px 0 rgba(0, 0, 0, 0.3);
   --elev-1: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.4);
   --elev-focus: 0 0 0 2px #0A1428, 0 0 0 4px var(--ds-focus);
+
+  /* 玻璃阴影在暗底下调暗:inset 高光转极淡,投影转纯黑软影,
+     与 landing Hero mock 暗主题一致(卡片浮于深空蓝)。 */
+  --ds-glass-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 1px 2px rgba(0, 0, 0, 0.3),
+    0 6px 14px -2px rgba(0, 0, 0, 0.35),
+    0 18px 36px -6px rgba(0, 0, 0, 0.4);
 }
 
 /* 用户未手动选择时跟随系统(与 layout.tsx 的 bootstrap 脚本一致) */
@@ -178,6 +186,11 @@
     --elev-0: 0 1px 0 rgba(0, 0, 0, 0.3);
     --elev-1: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.4);
     --elev-focus: 0 0 0 2px #0A1428, 0 0 0 4px var(--ds-focus);
+    --ds-glass-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.08) inset,
+      0 1px 2px rgba(0, 0, 0, 0.3),
+      0 6px 14px -2px rgba(0, 0, 0, 0.35),
+      0 18px 36px -6px rgba(0, 0, 0, 0.4);
   }
 }
 

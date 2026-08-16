@@ -1,6 +1,11 @@
 /* ============================================================
-   OverviewSection — 方向 B 个人学习日报
-   结构：Hero（通栏）→ 双栏主体（左行动+动量 / 右洞察+进度）→ 成就墙（通栏）
+   OverviewSection — Bento 规整网格
+   结构：Hero(通栏) → .bento 12 列网格
+     · 行动区：继续(6) / 今日目标(3) / 连击动量(3) + 常用词库快启(12)
+     · 洞察区：今日建议(4) / 进度叙事(4) / 薄弱洞察(4)
+     · 本周 KPI 条(12) · 成就墙(通栏，在 .bento 之外)
+   等高策略：grid 行内 align-items:stretch + .bentoCell(flex) 让卡片
+   填满单元宽高，消除原先左右两栏参差的混乱感。
    ============================================================ */
 
 .header {
@@ -13,8 +18,8 @@
   box-sizing: border-box;
 }
 
-/* 双栏主体：桌面左 60% / 右 40%；≤1023px 退化为单栏。 */
-.layout {
+/* ---- 12 列 Bento 网格 ---- */
+.bento {
   position: relative;
   z-index: 1;
   max-width: var(--content-max);
@@ -23,99 +28,87 @@
   padding: 0 var(--space-4);
   box-sizing: border-box;
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
-  gap: var(--space-6) var(--space-5);
-  align-items: start;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--space-5);
+  align-items: stretch;
 }
 
-.colMain,
-.colSide {
+.span12 { grid-column: span 12; }
+.span6  { grid-column: span 6; }
+.span4  { grid-column: span 4; }
+.span3  { grid-column: span 3; }
+
+/* AnimatedContent 作为网格单元：flex 让内部卡片填满单元的宽与高 */
+.bentoCell {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
+  min-width: 0;
+}
+.bentoCell > * {
+  flex: 1 1 auto;
+  width: 100%;
   min-width: 0;
 }
 
-.block {
-  min-width: 0;
-}
-
-/* ---- 今日 module：单块玻璃面板，左行动右目标 ---- */
-.today {
-  position: relative;
-  z-index: 1;
-}
-
-.todayLabel {
+/* 分区 kicker（行动 / 洞察） */
+.zoneLabel {
+  grid-column: span 12;
+  margin: 0;
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin: 0 0 var(--space-3);
-  font-size: var(--text-caption);
-  font-weight: var(--weight-medium);
-  letter-spacing: 0.08em;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--ds-ink-soft);
+  color: var(--ds-action-deep);
 }
-
-.todayLabel::after {
+.zoneLabel::before {
+  content: '·';
+  color: var(--ds-action);
+  font-size: 16px;
+  line-height: 1;
+}
+.zoneLabel::after {
   content: '';
   flex: 1;
   height: 1px;
   background: var(--ds-border);
 }
 
-.panel {
-  display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
-  background: color-mix(in srgb, var(--ds-surface) 80%, transparent);
-  border: 1px solid var(--ds-border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--elev-1);
+/* 玻璃卡片外壳：用于自身无 surface 的组件（继续 / 目标） */
+.cardGlass {
+  display: flex;
+  flex-direction: column;
+  background: var(--ds-glass-surface);
+  border: 1px solid var(--ds-glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--ds-glass-shadow);
   overflow: hidden;
 }
 
-.glass {
-  min-width: 0;
-}
-
-.continue {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid var(--ds-border);
-}
-
-.continueGlow {
-  position: relative;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.goal {
-  display: flex;
-  flex-direction: column;
-}
-
 /* ---- 常用词库快启 ---- */
+.quickLaunchBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
 .quickLaunchLabel {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin: 0 0 var(--space-3);
-  font-size: var(--text-caption);
-  font-weight: var(--weight-medium);
-  letter-spacing: 0.08em;
+  margin: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--ds-ink-soft);
+  color: var(--ds-action-deep);
 }
-
-.quickLaunchLabel::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--ds-border);
+.quickLaunchLabel::before {
+  content: '·';
+  color: var(--ds-action);
+  font-size: 16px;
+  line-height: 1;
 }
 
 .chips {
@@ -132,8 +125,8 @@
   gap: 6px;
   padding: var(--space-3) var(--space-5);
   border-radius: var(--radius-lg);
-  border: 1px solid var(--ds-border);
-  background: color-mix(in srgb, var(--ds-surface) 80%, transparent);
+  border: 1px solid var(--ds-glass-border);
+  background: var(--ds-glass-surface);
   color: var(--ds-ink);
   font-size: var(--text-body);
   font-weight: var(--weight-medium);
@@ -168,13 +161,13 @@
   letter-spacing: 0.02em;
 }
 
-/* ---- 本周一眼（精简：句数·命中·新词，无连续天数） ---- */
+/* ---- 本周 KPI 条（精简：句数·命中·新词，无连续天数） ---- */
 .weekGlanceText {
   margin: 0;
   padding: var(--space-4) var(--space-5);
   border-radius: var(--radius-lg);
-  border: 1px solid var(--ds-border);
-  background: color-mix(in srgb, var(--ds-surface) 70%, transparent);
+  border: 1px solid var(--ds-glass-border);
+  background: var(--ds-glass-surface);
   color: var(--ds-ink-soft);
   font-size: var(--text-body);
   line-height: 1.6;
@@ -191,8 +184,9 @@
 }
 
 .glanceNum {
+  font-family: var(--font-display), serif;
   font-weight: var(--weight-medium);
-  color: var(--ds-ink);
+  color: var(--ds-action-deep);
   font-variant-numeric: tabular-nums;
 }
 
@@ -202,26 +196,29 @@
 
 .glanceDelta {
   margin-left: 4px;
+  font-family: var(--font-display), serif;
   font-weight: var(--weight-medium);
   color: var(--ds-correct);
   font-variant-numeric: tabular-nums;
 }
 
-/* ---- 成就墙（通栏，置于双栏之下） ---- */
+/* ---- 成就墙（通栏，置于 Bento 之下） ---- */
 .achievement {
   position: relative;
   z-index: 1;
   max-width: var(--content-max);
   width: 100%;
-  margin: 0 auto var(--space-6);
+  margin: var(--space-4) auto var(--space-6);
   padding: 0 var(--space-4);
   box-sizing: border-box;
 }
 
-/* ---- 响应式 ---- */
+/* ---- 响应式：≤1023px 退化为单栏 ---- */
 @media (max-width: 1023px) {
-  .layout {
-    grid-template-columns: 1fr;
+  .span6,
+  .span4,
+  .span3 {
+    grid-column: span 12;
   }
 }
 
@@ -229,17 +226,11 @@
   .header {
     padding-top: var(--space-3);
   }
-  .layout {
+  .bento {
     padding: 0 var(--space-3);
+    gap: var(--space-4);
   }
   .achievement {
     padding: 0 var(--space-3);
-  }
-  .panel {
-    grid-template-columns: 1fr;
-  }
-  .continue {
-    border-right: none;
-    border-bottom: 1px solid var(--ds-border);
   }
 }
