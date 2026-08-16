@@ -84,12 +84,15 @@ export interface GreetingBarProps {
   user: DashboardUser;
   streak: StreakInfo;
   monthlyGoal: MonthlyGoalInfo;
+  /** 今日状态：未达标(落后)=true → 左轨琥珀；达标=done → 左轨薄荷绿。 */
+  behind: boolean;
 }
 
 export default function GreetingBar({
   user,
   streak,
   monthlyGoal,
+  behind,
 }: GreetingBarProps) {
   const now = new Date();
   const timeBand = pickTimeBand(now.getHours());
@@ -116,9 +119,10 @@ export default function GreetingBar({
       ? Math.min(100, Math.round((monthlyGoal.current / monthlyGoal.target) * 100))
       : 0;
 
-  // Pace projection: how many sentences/day are still needed to hit the
-  // monthly target by month-end. Surfaces as a one-line hint under the
-  // bar — "预计可达成" when on track, "还差 N 句/天" when behind.
+  // Pace projection: how many sentences/day are still needed (on average
+  // over the remaining days) to hit the monthly target by month-end.
+  // Surfaces as a one-line hint under the bar — "预计可达成" when on
+  // track, "日均还需 N 句" when behind (N = daily pace still required).
   const monthlyHint = (() => {
     if (monthlyGoal.achieved) return { text: '已完成', tone: 'achieved' as const };
     const [y, m] = monthlyGoal.year_month.split('-').map(Number);
@@ -127,13 +131,18 @@ export default function GreetingBar({
     const daysLeft = Math.max(1, daysInMonth - now.getDate());
     const needed = Math.max(0, monthlyGoal.target - monthlyGoal.current);
     const perDay = Math.ceil(needed / daysLeft);
-    return monthlyGoal.on_track
-      ? { text: '预计可达成', tone: 'onTrack' as const }
-      : { text: `还差 ${perDay} 句/天`, tone: 'behind' as const };
+  return monthlyGoal.on_track
+    ? { text: '预计可达成', tone: 'onTrack' as const }
+    : { text: `日均还需 ${perDay} 句`, tone: 'behind' as const };
   })();
 
   return (
-    <header className={styles.root} data-time={timeBand} aria-label="page header">
+    <header
+      className={styles.root}
+      data-time={timeBand}
+      data-status={behind ? 'behind' : 'done'}
+      aria-label="page header"
+    >
       <div className={styles.lead}>
         <p className={styles.greeting}>
           {greeting}, <span className={styles.name}>{display}</span>

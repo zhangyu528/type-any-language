@@ -57,23 +57,20 @@ export default function StreakMomentum({
 
   return (
     <section className={styles.root} aria-label="连续打卡">
+      <p className={styles.kicker}>连续打卡</p>
+
+      <p className={styles.headline}>
+        <span className={styles.headlineNum}>{streak.current}</span>
+        <span className={styles.headlineUnit}>天连续</span>
+      </p>
+
       <div className={styles.row}>
         <div className={styles.dots} aria-hidden="true">
           {Array.from({ length: dotCount }).map((_, i) => (
             <span key={i} className={styles.dot} />
           ))}
           {streak.current > MAX_DOTS ? (
-            <span
-              key="more"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                marginLeft: 4,
-                fontSize: 12,
-                fontWeight: 500,
-                color: 'var(--ds-ink-soft)',
-              }}
-            >
+            <span key="more" className={styles.more}>
               +{streak.current - MAX_DOTS}
             </span>
           ) : null}
@@ -82,7 +79,10 @@ export default function StreakMomentum({
         <span className={styles.milestone}>{milestone}</span>
       </div>
 
-      <p className={styles.monthHit}>本月已达标 {monthHit} 天</p>
+      <div className={styles.stats}>
+        <p className={styles.monthHit}>本月已达标 {monthHit} 天</p>
+        <p className={styles.longest}>最长纪录 {streak.longest} 天</p>
+      </div>
     </section>
   );
 }

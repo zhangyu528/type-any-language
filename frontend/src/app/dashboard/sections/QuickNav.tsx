@@ -127,7 +127,6 @@ export default function QuickNav({
 
   return (
     <AnimatedContent distance={16} direction="vertical" className={styles.wrap}>
-      <p className={styles.label}>快速入口</p>
       <div className={styles.grid}>
         {tiles.map((t) => {
           const Icon = t.icon;

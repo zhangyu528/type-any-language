@@ -1,14 +1,13 @@
 /* StreakMomentum — the overview's "streak / momentum" cluster.
-   Same frosted-glass treatment as the 本周一眼 footnote so the two
-   read as siblings, not competing cards. */
+   Reuses the same frosted-glass treatment as the other bento cards
+   (continue / daily-goal) so the three read as one system. */
 
 .root {
   position: relative;
   z-index: 1;
-  max-width: var(--content-max);
   width: 100%;
-  margin: 0 auto var(--space-6);
-  padding: var(--space-4) var(--space-5);
+  margin: 0;
+  padding: var(--space-5);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -19,16 +18,47 @@
   box-shadow: var(--ds-glass-shadow);
 }
 
-/* Warm nudge when a live streak is one missed day from breaking. */
-.atRisk {
+/* kicker：与主页「听音打字 / 我的课程 / 每日目标」同款。
+   区域主色 = 卡内圆点同款紫 --ds-convert。 */
+.kicker {
   margin: 0;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--ds-error) 12%, var(--ds-surface) 88%);
-  border: 1px solid color-mix(in srgb, var(--ds-error) 42%, transparent);
-  color: var(--ds-error-ink);
-  font-size: var(--text-body);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-caption);
   font-weight: var(--weight-medium);
+  letter-spacing: 0.04em;
+  color: var(--ds-action-deep);
+}
+.kicker::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ds-convert);
+  box-shadow: 0 0 6px var(--ds-convert);
+  animation: pulse 2.4s ease-in-out infinite;
+}
+
+/* 连续天数 headline：圆点行只是可视化且上限 14，这里给出准确数字。 */
+.headline {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.headlineNum {
+  font-family: var(--font-display);
+  font-size: var(--text-h2);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.headlineUnit {
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
 }
 
 .row {
@@ -48,7 +78,7 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: var(--ds-cta);
+  background: var(--ds-convert);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
@@ -69,4 +99,27 @@
   margin: 0;
   font-size: var(--text-caption);
   color: var(--ds-ink-soft);
+}
+
+/* 最长纪录：来自 StreakInfo.longest，原本未在任何 UI 露出。 */
+.longest {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+}
+
+/* 圆点行超过上限时的 "+N" 溢出标记（原内联样式收敛为 class）。 */
+.more {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ds-ink-soft);
+}
+
+/* kicker 圆点脉冲（CSS Modules 作用域：本地定义）。 */
+@keyframes pulse {
+  0%, 100% { opacity: 0.6; transform: scale(0.9); }
+  50%      { opacity: 1.0; transform: scale(1.0); }
 }

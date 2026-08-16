@@ -1,7 +1,7 @@
 /* GreetingBar — the dashboard "hero" header.
-   Time-of-day theming: root carries data-time (night/morning/afternoon/
-   evening); the band sets --glow (corner wash) + --accent-edge (left rail)
-   so the hero feels alive without being noisy. */
+   Status theming: root carries data-status (behind / done) which drives
+   the left accent rail (--accent-edge) + corner glow (--glow), so the
+   hero reflects today's goal state: amber = behind, green = done. */
 
 .root {
   position: relative;
@@ -17,9 +17,17 @@
   width: 100%;
   max-width: var(--content-max);
   flex-wrap: wrap;
-  /* defaults before the data-time band overrides them */
-  --glow: rgba(99, 179, 237, 0.26);
-  --accent-edge: var(--ds-action);
+  /* 角光 --glow 与左轨 --accent-edge 均随「今日状态」联动：
+     落后(未达标)→琥珀(--ds-cta)，达标(done)→薄荷绿(--ds-correct)。
+     默认给落后值，done 时由下方覆盖。已不再随时段变化。 */
+  --glow: rgba(239, 165, 53, 0.30);
+  --accent-edge: var(--ds-cta);
+}
+
+/* 今日达标：左轨线框 + 角光转薄荷绿，与「还差 N 句」达标态同一语义色。 */
+.root[data-status='done'] {
+  --accent-edge: var(--ds-correct);
+  --glow: rgba(93, 232, 154, 0.30);
 }
 
 /* soft time-of-day glow, top-left corner */
@@ -53,28 +61,6 @@
 .root > * {
   position: relative;
   z-index: 1;
-}
-
-/* ---- time bands ---- */
-.root[data-time='morning'] {
-  --glow: rgba(255, 178, 102, 0.32);
-  --accent-edge: var(--ds-cta);
-}
-.root[data-time='afternoon'] {
-  --glow: rgba(99, 179, 237, 0.26);
-  --accent-edge: var(--ds-action);
-}
-.root[data-time='evening'] {
-  --glow: rgba(151, 120, 255, 0.32);
-  --accent-edge: var(--ds-convert);
-}
-.root[data-time='night'] {
-  --glow: rgba(96, 124, 224, 0.34);
-  --accent-edge: var(--ds-action-deep);
-}
-
-[data-theme='dark'] .root[data-time='night'] {
-  --glow: rgba(120, 150, 255, 0.30);
 }
 
 /* ---- lead (greeting + streak) ---- */

@@ -147,6 +147,8 @@ export function LibCard({
   recent = false,
   progressPct,
   ctaLabel,
+  /** 在「课程库」视图里标记该课已加入我的课程（仅展示，不可再点添加）。 */
+  enrolled = false,
 }: {
   lib: VocabularyLib;
   onClick: () => void;
@@ -154,6 +156,8 @@ export function LibCard({
   progressPct?: number | null;
   /** Override the status-derived CTA text (e.g. "添加" in 发现 view). */
   ctaLabel?: string;
+  /** 在「课程库」视图里标记该课已加入我的课程（仅展示，不可再点添加）。 */
+  enrolled?: boolean;
 }) {
   const color = courseAccentColor(lib);
   const typeLabel = courseTypeLabel(lib);
@@ -168,8 +172,15 @@ export function LibCard({
       onClick={onClick}
     >
       <span className={styles.accentBar} style={{ background: color }} aria-hidden />
-      <span className={styles.typeChip} style={{ color }}>
-        {typeLabel}
+      <span className={styles.typeRow}>
+        <span className={styles.typeChip} style={{ color }}>
+          {typeLabel}
+        </span>
+        {enrolled ? (
+          <span className={styles.addedBadge} aria-hidden>
+            ✓ 已添加
+          </span>
+        ) : null}
       </span>
       <h3 className={styles.libName}>{lib.name}</h3>
       <p className={styles.libStat}>{courseStatLine(lib)}</p>

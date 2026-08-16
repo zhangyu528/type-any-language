@@ -25,8 +25,6 @@ interface TodaySuggestionProps {
   dailyGoal: DailyGoalState;
   recentLibId?: string | null;
   recentLibName?: string | null;
-  onStartLib: (libId: string) => void;
-  onPickLib: () => void;
 }
 
 type Tone = 'shield' | 'goal' | 'habit' | 'neutral';
@@ -38,8 +36,6 @@ export default function TodaySuggestion({
   dailyGoal,
   recentLibId,
   recentLibName,
-  onStartLib,
-  onPickLib,
 }: TodaySuggestionProps) {
   const suggestion = useMemo(() => {
     const atRisk = streak.current > 0 && !streak.today_done;
@@ -51,7 +47,7 @@ export default function TodaySuggestion({
         tone: 'shield' as Tone,
         kicker: '护住连击',
         title: `连续 ${streak.current} 天就断了，今天来一句保住`,
-        sub: hasTarget ? `继续《${recentLibName}》` : '挑个词库练一句',
+        sub: hasTarget ? `最近在练《${recentLibName}》` : '挑个词库练一句',
         icon: ShieldAlert as IconType,
       };
     }
@@ -60,41 +56,48 @@ export default function TodaySuggestion({
         tone: 'goal' as Tone,
         kicker: '今日目标',
         title: `还差 ${remaining} 句达标，顺手清掉`,
-        sub: hasTarget ? `继续《${recentLibName}》` : '挑个词库练一句',
+        sub: hasTarget ? `最近在练《${recentLibName}》` : '挑个词库练一句',
         icon: Sparkles as IconType,
       };
     }
     if (preferredHour != null) {
+      const period =
+        preferredHour < 6
+          ? '凌晨'
+          : preferredHour < 12
+            ? '上午'
+            : preferredHour < 18
+              ? '下午'
+              : '晚上';
       return {
         tone: 'habit' as Tone,
         kicker: '习惯时刻',
-        title: `通常 ${String(preferredHour).padStart(2, '0')}:00 是你练习时间`,
+        title: `你常在${period}练习`,
         sub: '现在来一句，趁手感正好',
         icon: Clock as IconType,
       };
     }
     return {
       tone: 'neutral' as Tone,
-      kicker: '今日建议',
+      kicker: '守住火花',
       title: '今天也来一句，保持手感',
-      sub: hasTarget ? `继续《${recentLibName}》` : '挑个词库开始',
+      sub: hasTarget ? `最近在练《${recentLibName}》` : '挑个词库开始',
       icon: Lightbulb as IconType,
     };
   }, [streak, dailyGoal, preferredHour, recentLibId, recentLibName]);
 
   const Icon = suggestion.icon;
-  const handle = () => (recentLibId ? onStartLib(recentLibId) : onPickLib());
 
   return (
-    <button type="button" className={`${styles.root} ${styles[suggestion.tone]}`} onClick={handle}>
+    <section className={`${styles.root} ${styles[suggestion.tone]}`}>
       <span className={styles.icon} aria-hidden="true">
         <Icon size={18} />
       </span>
       <span className={styles.body}>
         <span className={styles.kicker}>{suggestion.kicker}</span>
         <span className={styles.title}>{suggestion.title}</span>
-        <span className={styles.sub}>{suggestion.sub} →</span>
+        <span className={styles.sub}>{suggestion.sub}</span>
       </span>
-    </button>
+    </section>
   );
 }

@@ -48,32 +48,6 @@
   min-width: 0;
 }
 
-/* 分区 kicker（行动 / 洞察） */
-.zoneLabel {
-  grid-column: span 12;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-family: var(--font-mono), monospace;
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ds-action-deep);
-}
-.zoneLabel::before {
-  content: '·';
-  color: var(--ds-action);
-  font-size: 16px;
-  line-height: 1;
-}
-.zoneLabel::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--ds-border);
-}
-
 /* 玻璃卡片外壳：用于自身无 surface 的组件（继续 / 目标） */
 .cardGlass {
   display: flex;
@@ -98,22 +72,27 @@
   box-sizing: border-box;
 }
 
+/* 与主页「继续练习」的「听音打字 · 一句话学会」kicker 同款：
+   medium 字重 caption + 发光小圆点，非 mono 大写 · 标签。 */
 .quickLaunchLabel {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 6px;
   margin: 0;
-  font-family: var(--font-mono), monospace;
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.04em;
   color: var(--ds-action-deep);
 }
 .quickLaunchLabel::before {
-  content: '·';
-  color: var(--ds-action);
-  font-size: 16px;
-  line-height: 1;
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ds-action);
+  box-shadow: 0 0 6px var(--ds-action);
+  animation: pulse 2.4s ease-in-out infinite;
 }
 
 .courseGrid {
@@ -229,53 +208,33 @@
   transform: translateY(-1px);
 }
 
-/* ---- 本周 KPI 条（精简：句数·命中·新词，无连续天数） ---- */
-.weekGlanceText {
-  margin: 0;
-  padding: var(--space-4) var(--space-5);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--ds-glass-border);
-  background: var(--ds-glass-surface);
-  color: var(--ds-ink-soft);
-  font-size: var(--text-body);
-  line-height: 1.6;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-5);
-}
-
-.glanceItem {
+/* 课程数超过展示上限时的「查看全部」入口。 */
+.viewAll {
+  appearance: none;
+  cursor: pointer;
+  margin-top: var(--space-3);
+  margin-left: auto;
   display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.glanceNum {
-  font-family: var(--font-display), serif;
-  font-weight: var(--weight-medium);
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--ds-glass-border);
+  background: transparent;
   color: var(--ds-action-deep);
-  font-variant-numeric: tabular-nums;
-}
-
-.glanceHit {
-  color: var(--ds-correct);
-}
-
-.glanceDelta {
-  margin-left: 4px;
-  font-family: var(--font-display), serif;
+  font-size: var(--text-caption);
   font-weight: var(--weight-medium);
-  color: var(--ds-correct);
-  font-variant-numeric: tabular-nums;
+  transition: border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
 }
 
-.glanceDeltaDown {
-  margin-left: 4px;
-  font-family: var(--font-display), serif;
-  font-weight: var(--weight-medium);
-  color: #d14343;
-  font-variant-numeric: tabular-nums;
+.viewAll:hover {
+  border-color: var(--ds-action);
+  color: var(--ds-action);
+  background: var(--ds-action-soft);
+}
+
+.viewAll:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
 }
 
 /* ---- 响应式：≤1023px 退化为单栏 ---- */
@@ -295,7 +254,10 @@
     padding: 0 var(--space-3);
     gap: var(--space-4);
   }
-  .achievement {
-    padding: 0 var(--space-3);
-  }
+}
+
+/* 与 ContinueCard kicker 同款脉冲圆点（CSS Modules 作用域：本地定义）。 */
+@keyframes pulse {
+  0%, 100% { opacity: 0.6; transform: scale(0.9); }
+  50%      { opacity: 1.0; transform: scale(1.0); }
 }

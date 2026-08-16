@@ -13,6 +13,25 @@
   /* Fill the glass half so the card stretches to match DailyGoal's
      height on the right. */
   box-sizing: border-box;
+  /* 与「今日目标」(cardGlass) / 「连击动量」(StreakMomentum) 同一套玻璃壳：
+     圆角 / 边框 / 背景 / 阴影完全一致，三张行动区卡才对齐成一套系统。
+     （不再套 cardGlass，避免与自身 padding 叠加成双重内边距。） */
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--ds-glass-border);
+  background: var(--ds-glass-surface);
+  box-shadow: var(--ds-glass-shadow);
+  /* 区域主色随「今日状态」联动：落后(未达标)→琥珀(--ds-cta)，
+     达标(done)→薄荷绿(--ds-correct)。默认给落后值，done 时由下方覆盖。
+     卡片内所有强调色（圆点/药丸/进度条/切换链接）统一走这两个语义变量，
+     与「每日目标·还差N句」共用同一套 落后→琥珀/达标→绿 语义。 */
+  --cc-accent: var(--ds-cta);
+  --cc-accent-deep: var(--ds-cta-deep);
+}
+
+/* 今日达标：整卡强调色转薄荷绿（CTA 按钮自身 WebGL 填充为不变主行动色，保留琥珀）。 */
+.root[data-status='done'] {
+  --cc-accent: var(--ds-correct);
+  --cc-accent-deep: var(--ds-correct);
 }
 
 .kicker {
@@ -32,8 +51,8 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--ds-cta);
-  box-shadow: 0 0 6px var(--ds-cta);
+  background: var(--cc-accent);
+  box-shadow: 0 0 6px var(--cc-accent);
   animation: pulse 2.4s ease-in-out infinite;
 }
 
@@ -60,8 +79,104 @@
 .position {
   margin: 0;
   font-size: var(--text-body);
-  color: var(--ds-action-deep);
+  color: var(--cc-accent-deep);
   font-weight: var(--weight-medium);
+}
+
+/* 当前所见课程（联动 currentLib / continue.lib_id）——
+   圆点 + 课程名做成轻量 pill，明确卡片锚定到哪门课。 */
+.course {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px 12px 5px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--cc-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cc-accent) 26%, transparent);
+  font-size: var(--text-body);
+  font-weight: var(--weight-semibold);
+  color: var(--ds-ink);
+  overflow: hidden;
+}
+.courseDot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cc-accent);
+  box-shadow: 0 0 6px var(--cc-accent);
+}
+.courseName {
+  color: var(--cc-accent-deep);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 上次练的课 ≠ 当前所选课时，给出一键切换提示。 */
+.switchHint {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+  line-height: 1.4;
+}
+.switchBtn {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
+  color: var(--cc-accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.switchBtn:hover {
+  color: var(--cc-accent-deep);
+}
+.switchBtn:focus-visible {
+  outline: 2px solid var(--cc-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* 锚定课程完成度进度条：填补卡片空白、替代冗余的 "Lib practice" 文案。
+   填充用区域主色（--cc-accent，随今日状态联动），与 kicker 圆点同色系。 */
+.progressRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.progressTrack {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ds-ink) 10%, transparent);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--cc-accent);
+  transition: width 0.5s ease;
+}
+
+.progressMeta {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+  font-variant-numeric: tabular-nums;
 }
 
 /* SpecularButton (reactbits.dev port) renders its own WebGL rim;
@@ -72,16 +187,16 @@
   margin-top: auto;
   white-space: nowrap;
   box-shadow:
-    0 0 0 1px rgba(186, 117, 23, 0.32),
-    0 8px 22px -8px rgba(186, 117, 23, 0.55),
+    0 0 0 1px color-mix(in srgb, var(--ds-cta) 32%, transparent),
+    0 8px 22px -8px color-mix(in srgb, var(--ds-cta) 55%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.18);
   transition: box-shadow 200ms ease-out;
 }
 
 .cta:hover {
   box-shadow:
-    0 0 0 1px rgba(186, 117, 23, 0.55),
-    0 14px 30px -10px rgba(186, 117, 23, 0.65),
+    0 0 0 1px color-mix(in srgb, var(--ds-cta) 55%, transparent),
+    0 14px 30px -10px color-mix(in srgb, var(--ds-cta) 65%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 

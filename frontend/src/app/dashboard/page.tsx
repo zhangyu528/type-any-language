@@ -34,9 +34,10 @@ import { useAuth } from '../lib/auth';
 import AnimatedContent from '@/components/AnimatedContent';
 import LoadingMark from '../components/LoadingMark';
 import ModalShell from '../components/ModalShell';
+import { ToastProvider, useToast } from '../components/Toast';
 import DashboardNav from './DashboardNav';
 import OverviewSection from './sections/OverviewSection';
-import PracticeSection from './sections/PracticeSection';
+import PracticeSection, { type CourseTab } from './sections/PracticeSection';
 import AchievementsSection from './sections/AchievementsSection';
 import ReviewSection from './sections/ReviewSection';
 import SettingsSection from './sections/SettingsSection';
@@ -74,9 +75,11 @@ function buildUrl(state: UiState): string {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<DashboardLoading />}>
-      <DashboardInner />
-    </Suspense>
+    <ToastProvider>
+      <Suspense fallback={<DashboardLoading />}>
+        <DashboardInner />
+      </Suspense>
+    </ToastProvider>
   );
 }
 
@@ -93,6 +96,7 @@ function DashboardInner() {
   const router = useRouter();
   const pathname = usePathname();
   const { user, loading: authLoading, logout } = useAuth();
+  const toast = useToast();
 
   // Auth gate — mirror /me/page.tsx verbatim. The redirect target
   // uses the live pathname so back-nav after login lands the user
@@ -151,6 +155,9 @@ function DashboardInner() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  // 课程中心内部分页：「我的课程」/「课程库」。提到 page 级以便主页
+  // 「查看全部 N 门」能直接深链进「我的课程」tab。
+  const [courseTab, setCourseTab] = useState<CourseTab>('discover');
   // 我的课程集合（enrolled lib ids）。服务端是唯一真相；本地做乐观更新，
   // 选课/移除时立即反映到主页「我的课程」块与课程中心两个标签页。
   const [enrolledLibIds, setEnrolledLibIds] = useState<string[]>([]);
@@ -193,6 +200,20 @@ function DashboardInner() {
       cancelled = true;
     };
   }, [authLoading, user]);
+
+  // ---- 跨标签页练习后回 dashboard 也能拿到最新 server 派生字段 ----
+  // SPA 内 router.push 回 /dashboard 会重新挂载并走上面的 mount 拉取；
+  // 但若练习在另一个标签页进行、本 tab 一直挂着，focus/可见时不会自动刷新，
+  // 导致 streak.today_done / 本周 KPI / preferred_hour 停留在旧值。
+  // 这里在页面重新可见时补一次 reload（幂等、廉价）。
+  useEffect(() => {
+    if (authLoading || !user) return;
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void reload();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [authLoading, user, reload]);
 
   // ---- Catalog (eager — 练习 grid + picker both need it) ----
   useEffect(() => {
@@ -302,39 +323,61 @@ function DashboardInner() {
     } else openLibPicker();
   }, [openLibPicker, persistLib, router]);
 
+  // 继续上次未完成的练习会话：路由到 /practice?session=<id>&lib=<id>&from=dashboard。
+  // 前端 practice 页按 lib 加载；session 参数保留以兼容后端续练意图（api.ts 注释约定）。
   const handleResume = useCallback(() => {
-    const libId = snapshot?.continue.lib_id;
-    if (libId) {
-      persistLib(libId);
-      router.push(`/practice?lib=${encodeURIComponent(libId)}&from=dashboard`);
-    } else openLibPicker();
-  }, [openLibPicker, persistLib, router, snapshot]);
+    const c = snapshot?.continue;
+    if (!c?.session_id || !c.lib_id) return;
+    const params = new URLSearchParams();
+    params.set('session', c.session_id);
+    params.set('lib', c.lib_id);
+    params.set('from', 'dashboard');
+    router.push(`/practice?${params.toString()}`);
+  }, [snapshot, router]);
 
   // ---- 我的课程：选课 / 移除（服务端为真相，本地乐观更新） ----
   // 乐观更新立即反映到主页「我的课程」块与课程中心两个标签页；
-  // 失败则回滚到服务端真相（重新拉取 snapshot）。
-  const handleEnroll = useCallback(async (libId: string) => {
-    setEnrolledLibIds((prev) => (prev.includes(libId) ? prev : [...prev, libId]));
-    try {
-      await apiEnrollCourse(libId);
-    } catch (e) {
-      setEnrolledLibIds((prev) => prev.filter((id) => id !== libId));
-      console.error('[courses] enroll failed', e);
-    }
-  }, []);
+  // 失败则回滚到服务端真相（重新拉取 snapshot）。成功有 toast 反馈，
+  // 退课额外给「撤销」入口（重新 enroll）。
+  const handleEnroll = useCallback(
+    async (libId: string) => {
+      const name = catalog?.libs.find((l) => l.id === libId)?.name ?? '课程';
+      setEnrolledLibIds((prev) => (prev.includes(libId) ? prev : [...prev, libId]));
+      try {
+        await apiEnrollCourse(libId);
+        toast.show({ message: `已加入《${name}》到我的课程` });
+      } catch (e) {
+        setEnrolledLibIds((prev) => prev.filter((id) => id !== libId));
+        console.error('[courses] enroll failed', e);
+      }
+    },
+    [toast, catalog],
+  );
 
   const handleUnenroll = useCallback(
     async (libId: string) => {
+      const name = catalog?.libs.find((l) => l.id === libId)?.name ?? '课程';
       setEnrolledLibIds((prev) => prev.filter((id) => id !== libId));
       try {
         await apiUnenrollCourse(libId);
+        toast.show({
+          message: `已移除《${name}》`,
+          actionLabel: '撤销',
+          onAction: () => void handleEnroll(libId),
+        });
       } catch (e) {
         void reload();
         console.error('[courses] unenroll failed', e);
       }
     },
-    [reload],
+    [toast, catalog, reload, handleEnroll],
   );
+
+  // 主页「查看全部 N 门课程」→ 跳到课程中心并定位「我的课程」tab。
+  const handleOpenMyCourses = useCallback(() => {
+    setCourseTab('mine');
+    setSection('practice');
+  }, [setSection]);
 
   const handleDailySaved = useCallback((next: DashboardSnapshot['daily_goal']) => {
     setSnapshot((prev) => (prev ? { ...prev, daily_goal: next } : prev));
@@ -395,6 +438,8 @@ function DashboardInner() {
             enrolledLibIds={enrolledLibIds}
             onEnroll={handleEnroll}
             onUnenroll={handleUnenroll}
+            courseTab={courseTab}
+            onCourseTabChange={setCourseTab}
           />
         ) : (
           <DashboardLoading />
@@ -426,11 +471,13 @@ function DashboardInner() {
           <OverviewSection
             snapshot={snapshot}
             catalog={catalog}
-            onResume={handleResume}
             onPickLib={openLibPicker}
             onStartLib={handlePickLib}
+            onResume={handleResume}
+            onSetCurrentLib={persistLib}
             onNavigate={handleSelect}
             enrolledLibIds={enrolledLibIds}
+            onOpenMyCourses={handleOpenMyCourses}
           />
         );
     }
