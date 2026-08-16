@@ -12,6 +12,16 @@ class CatalogLib(BaseModel):
     # 0 for libs that don't have any — UI should hide the stat then.
     sentence_count: int = 0
     description: Optional[str] = None  # nullable; from manifest on bake
+    # Course-catalog metadata (the "练习" partition became a browsable
+    # course catalog). A vocabulary lib is course_type="vocab"; future
+    # grammar / listening / exam courses use the same surface.
+    course_type: str = "vocab"
+    category: Optional[str] = None
+    accent: Optional[str] = None  # color token: blue/green/amber/purple
+    lesson_count: Optional[int] = None
+    est_minutes: Optional[int] = None
+    order_index: int = 0
+    is_published: bool = True
 
     class Config:
         from_attributes = True

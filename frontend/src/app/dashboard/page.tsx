@@ -4,13 +4,13 @@
  * /dashboard — login-required learning console.
  *
  * This page is the orchestrator for a 5-partition console
- * (主页 / 练习 / 数据 / 收藏 / 设置). URL `?section=` is the single
+ * (主页 / 课程 / 数据 / 收藏 / 设置). URL `?section=` is the single
  * source of truth for the active partition (deep-linkable + browser
  * back/forward); the picker modal uses `?picker=1` on the same URL.
  *
  * Auth: useAuth() + redirect to /login?from=/dashboard if anonymous.
  * Data: GET /api/dashboard is the single hydration call; the catalog is
- * loaded eagerly (needed by the 练习 grid + the picker modal).
+ * loaded eagerly (needed by the 课程 grid + the picker modal).
  */
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
@@ -351,15 +351,29 @@ function DashboardInner() {
   const renderSection = () => {
     switch (uiState.section) {
       case 'practice':
+        if (catalogError) {
+          return (
+            <div className={styles.errorWrap}>
+              <p className={styles.errorText}>{catalogError}</p>
+              <button
+                type="button"
+                className={styles.errorRetry}
+                onClick={() => {
+                  setCatalogError(null);
+                  setCatalog(null);
+                }}
+              >
+                重试
+              </button>
+            </div>
+          );
+        }
         return catalog ? (
           <PracticeSection
             catalog={catalog}
             onPickLib={handlePickLib}
             onStartPractice={handleStartPractice}
-            dailyGoal={snapshot.daily_goal}
-            monthlyGoal={snapshot.monthly_goal}
-            onDailySaved={handleDailySaved}
-            onMonthlySaved={handleMonthlySaved}
+            userId={user.id}
           />
         ) : (
           <DashboardLoading />
@@ -369,7 +383,14 @@ function DashboardInner() {
       case 'collection':
         return <CollectionSection userId={user.id} />;
       case 'settings':
-        return <SettingsSection />;
+        return (
+          <SettingsSection
+            dailyGoal={snapshot.daily_goal}
+            monthlyGoal={snapshot.monthly_goal}
+            onDailySaved={handleDailySaved}
+            onMonthlySaved={handleMonthlySaved}
+          />
+        );
       case 'overview':
       default:
         return (

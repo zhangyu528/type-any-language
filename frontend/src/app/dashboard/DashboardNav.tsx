@@ -3,7 +3,7 @@
 /**
  * DashboardNav — fixed left sidebar for the learning console.
  *
- * Five sections (主页 / 练习 / 数据 / 收藏 / 设置). The URL `?section=`
+ * Five sections (主页 / 课程 / 数据 / 收藏 / 设置). The URL `?section=`
  * is the single source of truth (deep-linkable + browser back/forward),
  * matching /me's `?tab=` pattern. This component is presentational: it
  * receives the active `section` and an `onSelect` handler from page.tsx,
@@ -45,7 +45,7 @@ export const DASHBOARD_SECTIONS: DashboardSection[] = [
 
 export const DASHBOARD_SECTION_LABEL: Record<DashboardSection, string> = {
   overview: '主页',
-  practice: '练习',
+  practice: '课程',
   data: '数据',
   collection: '收藏',
   settings: '设置',

@@ -1,0 +1,14 @@
+/* ============================================================
+   SettingsSection — 设置分区容器(目标编辑 + 偏好)
+   ============================================================ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: var(--content-max);
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--space-4);
+  box-sizing: border-box;
+}

@@ -37,7 +37,16 @@ def get_catalog(db: Session = Depends(get_db)):
     table — keeps the catalog response O(libs) instead of N+1 round trips
     when the landing page wants to surface a per-lib sentence total.
     """
-    libs = db.query(VocabularyLib).order_by(VocabularyLib.level).all()
+    libs = (
+        db.query(VocabularyLib)
+        .filter(VocabularyLib.is_published == True)  # noqa: E712
+        .order_by(
+            VocabularyLib.order_index,
+            VocabularyLib.level,
+            VocabularyLib.name,
+        )
+        .all()
+    )
 
     # One query for all lib_id -> count mappings, then attach to each lib.
     # Using func.count on the FK index avoids loading every sentence row.

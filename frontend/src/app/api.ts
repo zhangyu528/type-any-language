@@ -20,6 +20,16 @@ export interface VocabularyLib {
   /** Optional tagline shown on the home card. Null/undefined for libs baked
    *  before migration 0009. UI hides the line when missing. */
   description?: string | null;
+  /** Course-catalog metadata. The old "练习" partition is now a browsable
+   *  course catalog; a vocabulary lib is the first course_type ("vocab").
+   *  All optional so catalogs from before migration 0013 still type-check. */
+  course_type?: string; // vocab/grammar/listening/exam
+  category?: string | null;
+  accent?: string | null; // color token: blue/green/amber/purple
+  lesson_count?: number | null;
+  est_minutes?: number | null;
+  order_index?: number;
+  is_published?: boolean;
 }
 
 export interface CatalogDefaults {
@@ -36,7 +46,7 @@ export interface Catalog {
 export async function getContentCatalog(): Promise<Catalog> {
   const response = await fetch(`${API_BASE_URL}/api/content/catalog`);
   if (!response.ok) {
-    throw new Error('获取内容目录失败');
+    throw new Error(`获取内容目录失败 (HTTP ${response.status})`);
   }
   return response.json();
 }
@@ -365,6 +375,23 @@ export function loadTranslationProgress(userId: string = ANONYMOUS_USER_ID): Tra
   } catch {
     return {};
   }
+}
+
+/**
+ * Completion % for a single lib, derived from its answered sentence count
+ * against the catalog's `sentence_count` total. Capped at 100. Returns 0 when
+ * there's no progress or no known total. Shared by the course grid and the
+ * lib picker so both render the same progress state.
+ */
+export function libProgressPct(
+  lib: VocabularyLib,
+  progress: TranslationProgress,
+): number {
+  const sentences = progress[lib.id]?.sentences ?? {};
+  const answered = Object.keys(sentences).length;
+  const total = lib.sentence_count || 0;
+  if (total === 0) return 0;
+  return Math.min(100, Math.round((answered / total) * 100));
 }
 
 export function saveTranslationProgress(

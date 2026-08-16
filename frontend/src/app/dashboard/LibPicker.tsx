@@ -24,10 +24,53 @@
 
 import { useMemo } from 'react';
 import { motion } from 'motion/react';
-import { VocabularyLib } from '../api';
+import {
+  VocabularyLib,
+  loadTranslationProgress,
+  libProgressPct,
+  ANONYMOUS_USER_ID,
+} from '../api';
 import { readRecentLibId } from '../landing/data';
+import { useAuth } from '../lib/auth';
 import { riseIn, staggerParent } from '../ds/motion';
 import styles from './LibPicker.module.css';
+
+/** Course-type → display label + accent color. A vocabulary lib is the
+ *  first course_type ("vocab"); grammar / listening / exam reuse the same
+ *  surface with their own color. `accent` on the lib overrides by token. */
+export const COURSE_TYPE_META: Record<string, { label: string; color: string }> = {
+  vocab: { label: '词汇', color: '#378ADD' },
+  grammar: { label: '语法', color: '#1D9E75' },
+  listening: { label: '听力', color: '#BA7517' },
+  exam: { label: '考试', color: '#7F77DD' },
+};
+
+const ACCENT_COLORS: Record<string, string> = {
+  blue: '#378ADD',
+  green: '#1D9E75',
+  amber: '#BA7517',
+  purple: '#7F77DD',
+};
+
+export function courseAccentColor(lib: VocabularyLib): string {
+  if (lib.accent && ACCENT_COLORS[lib.accent]) return ACCENT_COLORS[lib.accent];
+  const t = lib.course_type ?? 'vocab';
+  return (COURSE_TYPE_META[t] ?? COURSE_TYPE_META.vocab).color;
+}
+
+export function courseTypeLabel(lib: VocabularyLib): string {
+  const t = lib.course_type ?? 'vocab';
+  const meta = COURSE_TYPE_META[t] ?? COURSE_TYPE_META.vocab;
+  return `${meta.label} · ${lib.level.toUpperCase()}`;
+}
+
+function courseStatLine(lib: VocabularyLib): string {
+  const parts: string[] = [];
+  if (lib.lesson_count) parts.push(`约 ${lib.lesson_count} 课`);
+  if (lib.est_minutes) parts.push(`约 ${lib.est_minutes} 分钟`);
+  if (parts.length === 0) parts.push(`${lib.word_count.toLocaleString()} 词`);
+  return parts.join(' · ');
+}
 
 export interface LibPickerProps {
   libs: VocabularyLib[];
@@ -43,6 +86,10 @@ export default function LibPicker({ libs, onPick }: LibPickerProps) {
     ? libs.filter((l) => l.id !== recentLib.id)
     : libs;
 
+  const { user } = useAuth();
+  const userId = user?.id ?? ANONYMOUS_USER_ID;
+  const progress = useMemo(() => loadTranslationProgress(userId), [userId]);
+
   return (
     <div className={styles.root}>
       {recentLib ? (
@@ -54,7 +101,12 @@ export default function LibPicker({ libs, onPick }: LibPickerProps) {
           transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         >
           <p className={styles.sectionLabel}>继续上次</p>
-          <LibCard lib={recentLib} onClick={() => onPick(recentLib.id)} recent />
+          <LibCard
+            lib={recentLib}
+            onClick={() => onPick(recentLib.id)}
+            recent
+            progressPct={libProgressPct(recentLib, progress)}
+          />
         </motion.div>
       ) : null}
 
@@ -75,7 +127,11 @@ export default function LibPicker({ libs, onPick }: LibPickerProps) {
           <motion.ul className={styles.grid} variants={staggerParent}>
             {otherLibs.map((lib) => (
               <motion.li key={lib.id} variants={riseIn}>
-                <LibCard lib={lib} onClick={() => onPick(lib.id)} />
+                <LibCard
+                  lib={lib}
+                  onClick={() => onPick(lib.id)}
+                  progressPct={libProgressPct(lib, progress)}
+                />
               </motion.li>
             ))}
           </motion.ul>
@@ -85,36 +141,56 @@ export default function LibPicker({ libs, onPick }: LibPickerProps) {
   );
 }
 
-function LibCard({
+export function LibCard({
   lib,
   onClick,
   recent = false,
+  progressPct,
 }: {
   lib: VocabularyLib;
   onClick: () => void;
   recent?: boolean;
+  progressPct?: number | null;
 }) {
+  const color = courseAccentColor(lib);
+  const typeLabel = courseTypeLabel(lib);
+  const pct = progressPct ?? 0;
+  const ctaLabel = pct >= 100 ? '复习' : pct > 0 ? '继续' : '开始';
+  const progressLabel =
+    pct >= 100 ? '已完成' : pct > 0 ? `进行中 ${pct}%` : '未开始';
   return (
     <button
       type="button"
       className={`${styles.card} ${recent ? styles.cardRecent : ''}`}
       onClick={onClick}
     >
-      <span className={styles.badge} aria-hidden>
-        {lib.level.toUpperCase()}
+      <span className={styles.accentBar} style={{ background: color }} aria-hidden />
+      <span className={styles.typeChip} style={{ color }}>
+        {typeLabel}
       </span>
       <h3 className={styles.libName}>{lib.name}</h3>
-      <p className={styles.libMeta}>
-        <span className={styles.metaNum} aria-hidden>
-          {lib.word_count.toLocaleString()}
-        </span>{' '}
-        词
-      </p>
+      <p className={styles.libStat}>{courseStatLine(lib)}</p>
       <p className={styles.libDesc}>
         {lib.description ?? '从这一份开始,逐字练。'}
       </p>
+      <div className={styles.progress}>
+        <div
+          className={styles.track}
+          role="progressbar"
+          aria-valuenow={pct}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`${lib.name} 进度 ${pct}%`}
+        >
+          <span
+            className={styles.fill}
+            style={{ width: `${pct}%`, background: color }}
+          />
+        </div>
+        <span className={styles.progressLabel}>{progressLabel}</span>
+      </div>
       <span className={styles.cta}>
-        <span className={styles.ctaLabel}>开始这个词库</span>
+        <span className={styles.ctaLabel}>{ctaLabel}</span>
         <span className={styles.ctaArrow} aria-hidden>→</span>
       </span>
     </button>

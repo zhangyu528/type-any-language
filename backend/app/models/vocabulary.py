@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text, Boolean
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -16,6 +16,17 @@ class VocabularyLib(Base):
     # Optional user-facing description (one-line tagline shown on the home card).
     # Nullable for libs baked before migration 0009 — UI hides the line when empty.
     description = Column(Text, nullable=True)
+    # Course-layer metadata — the old "练习" partition became a browsable
+    # course catalog; a vocabulary lib is the first course_type. All new
+    # columns are nullable / defaulted so existing baked rows stay compatible
+    # (the 0013 migration backfills the NOT NULL ones with defaults).
+    course_type = Column(String(20), nullable=False, default="vocab")  # vocab/grammar/listening/exam
+    category = Column(String(30), nullable=True)  # exam/daily/business
+    accent = Column(String(20), nullable=True)  # color token: blue/green/amber/purple
+    lesson_count = Column(Integer, nullable=True)
+    est_minutes = Column(Integer, nullable=True)
+    order_index = Column(Integer, nullable=False, default=0)
+    is_published = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     words = relationship("VocabularyWord", back_populates="lib")
