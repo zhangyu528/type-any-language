@@ -43,6 +43,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from app.database import get_db
 from app.deps.auth import get_current_user
+from app.models.practice_attempt import PracticeAttempt
 from app.models.practice_session import PracticeSession
 from app.models.user import User
 from app.models.user_progress import UserProgress
@@ -67,6 +68,11 @@ class StartResponse(BaseModel):
 class StepRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     correct: bool
+    # Optional sentence id for this step. When present we also write a
+    # practice_attempts row so the review surface knows *which* sentences
+    # the user got wrong. The frontend passes the current drill sentence
+    # id; older clients that omit it simply skip the per-sentence log.
+    sentence_id: Optional[UUID] = None
 
 
 class EndRequest(BaseModel):
@@ -185,6 +191,22 @@ def record_step(
     if progress is not None:
         progress.current_sentence_position = int(progress.current_sentence_position) + 1
         progress.updated_at = datetime.utcnow()
+
+    # Per-sentence attempt log (review data source). Insert-only; the
+    # /end call stays authoritative for session totals + daily rollup,
+    # so a dropped /step batch never undercounts the streak. Skip when
+    # the client didn't send a sentence id.
+    if payload.sentence_id is not None:
+        db.add(
+            PracticeAttempt(
+                user_id=current_user.id,
+                session_id=session_id,
+                sentence_id=payload.sentence_id,
+                lib_id=sess.lib_id,
+                correct=payload.correct,
+                attempted_at=datetime.utcnow(),
+            )
+        )
 
     db.commit()
     return Response(status_code=204)

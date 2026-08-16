@@ -17,7 +17,7 @@ function useAnimationFrame(callback: Callback) {
   }, [callback]);
 }
 
-function useMousePositionRef(containerRef: RefObject<HTMLElement>) {
+function useMousePositionRef(containerRef: RefObject<HTMLElement> | undefined) {
   const positionRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
@@ -51,7 +51,10 @@ interface VariableProximityProps extends HTMLAttributes<HTMLSpanElement> {
   label: string;
   fromFontVariationSettings: string;
   toFontVariationSettings: string;
-  containerRef: RefObject<HTMLElement>;
+  /** Optional bounding container used to compute letter proximity.
+   *  When omitted, proximity falls back to viewport coordinates so the
+   *  effect still works for standalone kickers (e.g. section headings). */
+  containerRef?: RefObject<HTMLElement>;
   radius?: number;
   falloff?: 'linear' | 'exponential' | 'gaussian';
   className?: string;
@@ -117,13 +120,14 @@ const VariableProximity = forwardRef<HTMLSpanElement, VariableProximityProps>((p
   };
 
   useAnimationFrame(() => {
-    if (!containerRef?.current) return;
     const { x, y } = mousePositionRef.current;
     if (lastPositionRef.current.x === x && lastPositionRef.current.y === y) {
       return;
     }
     lastPositionRef.current = { x, y };
-    const containerRect = containerRef.current.getBoundingClientRect();
+    const containerRect = containerRef?.current
+      ? containerRef.current.getBoundingClientRect()
+      : { left: 0, top: 0, width: 0, height: 0 };
 
     letterRefs.current.forEach((letterRef, index) => {
       if (!letterRef) return;

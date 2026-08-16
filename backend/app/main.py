@@ -23,9 +23,12 @@ from app.database import engine, Base
 from app.routers import (
     auth,
     content,
+    courses,
     dashboard,
+    favorites,
     lessons,
     practice_session,
+    review,
     sentences,
     vocabulary,
 )
@@ -106,6 +109,9 @@ app.include_router(lessons.router)
 app.include_router(auth.router)
 app.include_router(dashboard.router)
 app.include_router(practice_session.router)
+app.include_router(favorites.router)
+app.include_router(review.router)
+app.include_router(courses.router)
 
 
 @app.get("/")

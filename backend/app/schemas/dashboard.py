@@ -161,6 +161,17 @@ class DashboardResponse(BaseModel):
     # read as 0 and falsely trigger the first-run welcome guide). The
     # frontend gates the onboarding/welcome view on `not has_any_activity`.
     has_any_activity: bool
+    # Distinct sentences due for review today: (wrong attempts in the last
+    # 14 days) UNION (cloud-favorited sentences). Surfaces a "N 句待复习"
+    # badge on the overview's quick-nav without a second round-trip.
+    review_due_count: int = 0
+    # The user's enrolled course set ("我的课程"): lib ids the user has
+    # added. Powers both the homepage "我的课程" block and the 课程
+    # center's "我的课程" tab. Empty for a brand-new user is impossible
+    # by contract (auth_service enrolls beginner courses on signup), but
+    # the field is still a list so the UI can render an "add courses"
+    # empty state without special-casing.
+    enrolled_lib_ids: List[str] = Field(default_factory=list)
 
 
 # ---- Day-detail drawer (clicked from calendar) ---------------------------

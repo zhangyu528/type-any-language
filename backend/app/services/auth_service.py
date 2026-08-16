@@ -42,6 +42,8 @@ from app.models.user import (
     hash_session_token,
     hash_reset_token,
 )
+from app.models.user_course import UserCourse
+from app.models.vocabulary import VocabularyLib
 
 
 # ---- Password hashing -----------------------------------------------------
@@ -100,6 +102,27 @@ def create_user(
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    # Default-starter enrollment: every beginner-level, published course
+    # lands in the user's 我的课程 set on signup. This is the product
+    # contract — a fresh account opens to a curated beginner set instead
+    # of an empty "add a course" void (see migration 0017 / courses router).
+    starter_libs = (
+        db.execute(
+            select(VocabularyLib).where(
+                VocabularyLib.level == "beginner",
+                VocabularyLib.is_published.is_(True),
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if starter_libs:
+        db.add_all(
+            [UserCourse(user_id=user.id, lib_id=lib.id) for lib in starter_libs]
+        )
+        db.commit()
+
     return user
 
 

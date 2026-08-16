@@ -26,13 +26,17 @@ import {
   STORAGE_DEFAULT_DIFFICULTY,
   STORAGE_SHOW_PHONETIC,
   clearAllLocalUserData,
+  deleteAccount,
   readPrefAudioRate,
   readPrefBool,
   readPrefString,
+  readReviewWindowDays,
   removePref,
+  updateDisplayName,
   writePrefAudioRate,
   writePrefBool,
   writePrefString,
+  writeReviewWindowDays,
 } from '../api';
 import ShinyText from '@/components/ShinyText';
 import VariableProximity from '@/components/VariableProximity';
@@ -40,9 +44,11 @@ import styles from '../me/me-page.module.css';
 
 const AUDIO_RATE_OPTIONS: AudioRate[] = [0.75, 1, 1.25];
 
+const REVIEW_WINDOW_OPTIONS: number[] = [7, 14, 30];
+
 export default function SettingsTab() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, refresh } = useAuth();
   const { theme, setTheme } = useTheme();
   // The SettingsTab is signed-in by definition (me-page gates on
   // useAuth). user.id is the real per-user key.
@@ -53,11 +59,27 @@ export default function SettingsTab() {
   const [audioRate, setAudioRate] = useState<AudioRate>(1);
   const [defaultDifficulty, setDefaultDifficulty] = useState<string>('');
   const [showPhonetic, setShowPhonetic] = useState<boolean>(true);
+  const [reviewWindow, setReviewWindow] = useState<number>(14);
+
+  // 显示名内联编辑
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const [nameBusy, setNameBusy] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+
+  // ---- Destructive confirm popovers ----
+  const [confirmingLogout, setConfirmingLogout] = useState(false);
+  const [confirmingCache, setConfirmingCache] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [busyAction, setBusyAction] = useState<
+    'logout' | 'cache' | 'delete' | null
+  >(null);
 
   useEffect(() => {
     setAudioRate(readPrefAudioRate());
     setDefaultDifficulty(readPrefString(STORAGE_DEFAULT_DIFFICULTY, ''));
     setShowPhonetic(readPrefBool(STORAGE_SHOW_PHONETIC, true));
+    setReviewWindow(readReviewWindowDays());
   }, []);
 
   // Persist on change. Guard SSR — the very first render might fire
@@ -78,13 +100,37 @@ export default function SettingsTab() {
     writePrefBool(STORAGE_SHOW_PHONETIC, showPhonetic);
   }, [showPhonetic]);
 
-  // ---- Destructive confirm popovers ----
-  // We use small inline confirm cards instead of window.confirm()
-  // because window.confirm() is unstyled on every browser, and the
-  // me-page visual language warrants a coherent confirm surface.
-  const [confirmingLogout, setConfirmingLogout] = useState(false);
-  const [confirmingReset, setConfirmingReset] = useState(false);
-  const [busyAction, setBusyAction] = useState<'logout' | 'reset' | null>(null);
+  useEffect(() => {
+    writeReviewWindowDays(reviewWindow);
+  }, [reviewWindow]);
+
+  const startEditName = () => {
+    setNameDraft((user?.display_name ?? '').trim());
+    setNameError(null);
+    setEditingName(true);
+  };
+  const cancelEditName = () => {
+    setEditingName(false);
+    setNameError(null);
+  };
+  const saveName = async () => {
+    const trimmed = nameDraft.trim();
+    if (!trimmed) {
+      setNameError('昵称不能为空');
+      return;
+    }
+    setNameBusy(true);
+    setNameError(null);
+    try {
+      await updateDisplayName(trimmed);
+      await refresh(); // 同步头部 / 导航显示名
+      setEditingName(false);
+    } catch {
+      setNameError('保存失败，请重试');
+    } finally {
+      setNameBusy(false);
+    }
+  };
 
   const onLogout = async () => {
     setBusyAction('logout');
@@ -97,14 +143,27 @@ export default function SettingsTab() {
     }
   };
 
-  const onReset = async () => {
+  const onClearCache = async () => {
     if (!userId) return;
-    setBusyAction('reset');
+    setBusyAction('cache');
     try {
       clearAllLocalUserData(userId);
     } finally {
       setBusyAction(null);
-      setConfirmingReset(false);
+      setConfirmingCache(false);
+    }
+  };
+
+  const onDeleteAccount = async () => {
+    setBusyAction('delete');
+    try {
+      await deleteAccount();
+      await logout(); // 会话已被后端吊销, 失败也清本地状态
+      router.replace('/');
+    } catch {
+      // 网络/服务端错误 — 留在页面, 让用户重试
+      setBusyAction(null);
+      setConfirmingDelete(false);
     }
   };
 
@@ -136,9 +195,6 @@ export default function SettingsTab() {
         </SettingRow>
 
         <SettingRow label="默认难度">
-          {/* ME-7: replaced native <select> with the same SegmentedControl
-             used by the audio-rate row above. Consistent control
-             surface across all settings + theme-aware styling. */}
           <SegmentedControl
             value={defaultDifficulty || 'auto'}
             options={[
@@ -159,10 +215,75 @@ export default function SettingsTab() {
             labelOff="隐藏"
           />
         </SettingRow>
+
+        <SettingRow label="复习窗口">
+          <SegmentedControl
+            value={String(reviewWindow)}
+            options={REVIEW_WINDOW_OPTIONS.map((d) => ({
+              value: String(d),
+              label: `${d}天`,
+            }))}
+            onChange={(v) => setReviewWindow(Number(v))}
+          />
+        </SettingRow>
       </section>
 
       <section className={styles['me-settings__group']} aria-label="账号">
         <SettingsKicker>账号</SettingsKicker>
+        <SettingRow label="显示名">
+          <div>
+            {editingName ? (
+              <>
+                <span className={styles['me-inline-edit']}>
+                  <input
+                    className={styles['me-inline-edit__input']}
+                    value={nameDraft}
+                    maxLength={100}
+                    autoFocus
+                    disabled={nameBusy}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void saveName();
+                      if (e.key === 'Escape') cancelEditName();
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className={styles['me-inline-edit__action']}
+                    data-primary="true"
+                    disabled={nameBusy}
+                    onClick={() => void saveName()}
+                  >
+                    保存
+                  </button>
+                  <button
+                    type="button"
+                    className={styles['me-inline-edit__action']}
+                    disabled={nameBusy}
+                    onClick={cancelEditName}
+                  >
+                    取消
+                  </button>
+                </span>
+                {nameError && (
+                  <p className={styles['me-inline-edit__error']}>{nameError}</p>
+                )}
+              </>
+            ) : (
+              <span className={styles['me-inline-edit']}>
+                <span>{user?.display_name || '未设置'}</span>
+                <button
+                  type="button"
+                  className={styles['me-inline-edit__action']}
+                  data-primary="true"
+                  onClick={startEditName}
+                >
+                  编辑
+                </button>
+              </span>
+            )}
+          </div>
+        </SettingRow>
         <div className={styles['me-settings__actions']}>
           {confirmingLogout ? (
             <ConfirmCard
@@ -186,27 +307,44 @@ export default function SettingsTab() {
       </section>
 
       <section className={styles['me-settings__group']} aria-label="危险区">
-        {/* ME-10: tone='destructive' triggers ShinyText in
-           --ds-error color so the 危险区 heading visually warns
-           the user. */}
         <SettingsKicker tone="destructive">危险区</SettingsKicker>
         <div className={styles['me-settings__actions']}>
-          {confirmingReset ? (
+          {confirmingCache ? (
             <ConfirmCard
-              title="清空本机数据"
-              hint="会立即清空本设备的练习进度与收藏夹 — 不会影响你已登录的账号。建议先确认是否还在别处登录。"
-              confirmText="清空"
-              busy={busyAction === 'reset'}
-              onConfirm={() => void onReset()}
-              onCancel={() => setConfirmingReset(false)}
+              title="清空本机缓存"
+              hint="仅清除本设备的本地缓存（进度与收藏的本地副本），不会影响云端数据。重新登录后会从云端同步回来。"
+              confirmText="清空缓存"
+              busy={busyAction === 'cache'}
+              onConfirm={() => void onClearCache()}
+              onCancel={() => setConfirmingCache(false)}
             />
           ) : (
             <button
               type="button"
               className={`${styles['me-btn']} ${styles['me-btn--destructive']}`}
-              onClick={() => setConfirmingReset(true)}
+              onClick={() => setConfirmingCache(true)}
             >
-              清空本机数据
+              清空本机缓存
+            </button>
+          )}
+        </div>
+        <div className={styles['me-settings__actions']}>
+          {confirmingDelete ? (
+            <ConfirmCard
+              title="注销账号"
+              hint="将永久删除你的账号，以及所有云端数据：收藏、练习记录、进度、连续打卡。此操作不可恢复。"
+              confirmText="确认注销"
+              busy={busyAction === 'delete'}
+              onConfirm={() => void onDeleteAccount()}
+              onCancel={() => setConfirmingDelete(false)}
+            />
+          ) : (
+            <button
+              type="button"
+              className={`${styles['me-btn']} ${styles['me-btn--destructive']}`}
+              onClick={() => setConfirmingDelete(true)}
+            >
+              注销账号
             </button>
           )}
         </div>
@@ -246,8 +384,8 @@ function SettingsKicker({
       ) : (
         <VariableProximity
           label={children}
-          fromFontVariationSettings={{ wght: 400 }}
-          toFontVariationSettings={{ wght: 700 }}
+          fromFontVariationSettings="'wght' 400"
+          toFontVariationSettings="'wght' 700"
           radius={80}
           falloff="linear"
           className={styles['me-section-title__prox']}

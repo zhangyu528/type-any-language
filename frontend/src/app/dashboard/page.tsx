@@ -21,6 +21,9 @@ import { Menu } from 'lucide-react';
 import {
   Catalog,
   DashboardSnapshot,
+  apiEnrollCourse,
+  apiUnenrollCourse,
+  ensureFavoritesSynced,
   getContentCatalog,
   getDashboardSnapshot,
   loadCollection,
@@ -37,6 +40,7 @@ import DashboardNav from './DashboardNav';
 import OverviewSection from './sections/OverviewSection';
 import PracticeSection from './sections/PracticeSection';
 import CollectionSection from './sections/CollectionSection';
+import ReviewSection from './sections/ReviewSection';
 import SettingsSection from './sections/SettingsSection';
 import LibPicker from './LibPicker';
 import styles from './Dashboard.module.css';
@@ -151,6 +155,9 @@ function DashboardInner() {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [collectionCount, setCollectionCount] = useState(0);
+  // 我的课程集合（enrolled lib ids）。服务端是唯一真相；本地做乐观更新，
+  // 选课/移除时立即反映到主页「我的课程」块与课程中心两个标签页。
+  const [enrolledLibIds, setEnrolledLibIds] = useState<string[]>([]);
 
   // Keep state in sync with browser Back/Forward.
   useEffect(() => {
@@ -165,6 +172,7 @@ function DashboardInner() {
     try {
       const s = await getDashboardSnapshot();
       setSnapshot(s);
+      setEnrolledLibIds(s.enrolled_lib_ids ?? []);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'dashboard 加载失败');
@@ -179,6 +187,7 @@ function DashboardInner() {
         const s = await getDashboardSnapshot();
         if (cancelled) return;
         setSnapshot(s);
+        setEnrolledLibIds(s.enrolled_lib_ids ?? []);
       } catch (e) {
         if (cancelled) return;
         setError(e instanceof Error ? e.message : 'dashboard 加载失败');
@@ -187,6 +196,15 @@ function DashboardInner() {
     return () => {
       cancelled = true;
     };
+  }, [authLoading, user]);
+
+  // ---- Favorites cloud sync (logged-in) ----
+  // Converge localStorage cache with the server collection on mount:
+  // push any pre-existing local items once, then pull the cloud set back
+  // so the 收藏 tab + nav badge reflect server truth across devices.
+  useEffect(() => {
+    if (authLoading || !user) return;
+    void ensureFavoritesSynced(user.id);
   }, [authLoading, user]);
 
   // ---- Catalog (eager — 练习 grid + picker both need it) ----
@@ -318,6 +336,32 @@ function DashboardInner() {
     } else openLibPicker();
   }, [openLibPicker, persistLib, router, snapshot]);
 
+  // ---- 我的课程：选课 / 移除（服务端为真相，本地乐观更新） ----
+  // 乐观更新立即反映到主页「我的课程」块与课程中心两个标签页；
+  // 失败则回滚到服务端真相（重新拉取 snapshot）。
+  const handleEnroll = useCallback(async (libId: string) => {
+    setEnrolledLibIds((prev) => (prev.includes(libId) ? prev : [...prev, libId]));
+    try {
+      await apiEnrollCourse(libId);
+    } catch (e) {
+      setEnrolledLibIds((prev) => prev.filter((id) => id !== libId));
+      console.error('[courses] enroll failed', e);
+    }
+  }, []);
+
+  const handleUnenroll = useCallback(
+    async (libId: string) => {
+      setEnrolledLibIds((prev) => prev.filter((id) => id !== libId));
+      try {
+        await apiUnenrollCourse(libId);
+      } catch (e) {
+        void reload();
+        console.error('[courses] unenroll failed', e);
+      }
+    },
+    [reload],
+  );
+
   const handleDailySaved = useCallback((next: DashboardSnapshot['daily_goal']) => {
     setSnapshot((prev) => (prev ? { ...prev, daily_goal: next } : prev));
   }, []);
@@ -374,6 +418,9 @@ function DashboardInner() {
             onPickLib={handlePickLib}
             onStartPractice={handleStartPractice}
             userId={user.id}
+            enrolledLibIds={enrolledLibIds}
+            onEnroll={handleEnroll}
+            onUnenroll={handleUnenroll}
           />
         ) : (
           <DashboardLoading />
@@ -382,6 +429,14 @@ function DashboardInner() {
         return <DataSection snapshot={snapshot} />;
       case 'collection':
         return <CollectionSection userId={user.id} />;
+      case 'review':
+        return (
+          <ReviewSection
+            catalog={catalog}
+            catalogError={catalogError}
+            userId={user.id}
+          />
+        );
       case 'settings':
         return (
           <SettingsSection
@@ -400,6 +455,9 @@ function DashboardInner() {
             onResume={handleResume}
             onPickLib={openLibPicker}
             onStartLib={handlePickLib}
+            onNavigate={handleSelect}
+            collectionCount={collectionCount}
+            enrolledLibIds={enrolledLibIds}
           />
         );
     }
@@ -499,7 +557,11 @@ function DashboardInner() {
             <p className={styles.loadingText}>加载中…</p>
           </div>
         ) : (
-          <LibPicker libs={catalog.libs} onPick={handlePickLib} />
+          // 门禁：选词库弹窗只展示已加入「我的课程」的词库（先添加才能练）。
+          <LibPicker
+            libs={catalog.libs.filter((l) => enrolledLibIds.includes(l.id))}
+            onPick={handlePickLib}
+          />
         )}
       </ModalShell>
     </main>

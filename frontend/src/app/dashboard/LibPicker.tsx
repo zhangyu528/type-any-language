@@ -146,16 +146,19 @@ export function LibCard({
   onClick,
   recent = false,
   progressPct,
+  ctaLabel,
 }: {
   lib: VocabularyLib;
   onClick: () => void;
   recent?: boolean;
   progressPct?: number | null;
+  /** Override the status-derived CTA text (e.g. "添加" in 发现 view). */
+  ctaLabel?: string;
 }) {
   const color = courseAccentColor(lib);
   const typeLabel = courseTypeLabel(lib);
   const pct = progressPct ?? 0;
-  const ctaLabel = pct >= 100 ? '复习' : pct > 0 ? '继续' : '开始';
+  const cta = ctaLabel ?? (pct >= 100 ? '复习' : pct > 0 ? '继续' : '开始');
   const progressLabel =
     pct >= 100 ? '已完成' : pct > 0 ? `进行中 ${pct}%` : '未开始';
   return (
@@ -190,7 +193,7 @@ export function LibCard({
         <span className={styles.progressLabel}>{progressLabel}</span>
       </div>
       <span className={styles.cta}>
-        <span className={styles.ctaLabel}>{ctaLabel}</span>
+        <span className={styles.ctaLabel}>{cta}</span>
         <span className={styles.ctaArrow} aria-hidden>→</span>
       </span>
     </button>

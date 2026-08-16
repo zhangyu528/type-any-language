@@ -28,6 +28,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'motion/react';
 import {
+  ANONYMOUS_USER_ID,
   Catalog,
   Collection,
   getAudioUrl,
@@ -35,6 +36,7 @@ import {
   LessonSentence,
   loadCollection,
   readPrefAudioRate,
+  removeFavoriteWordCloud,
   removeFromCollection,
 } from '../api';
 import Particles from '@/components/Particles';
@@ -279,6 +281,8 @@ export default function CollectionTab({
       window.dispatchEvent(
         new CustomEvent('collection-changed', { detail: { word } }),
       );
+      // 登录态同步云端(云端真相)。
+      if (userId !== ANONYMOUS_USER_ID) void removeFavoriteWordCloud(word);
     } catch {
       /* 静默 */
     }
@@ -348,8 +352,8 @@ export default function CollectionTab({
         <h2 className={styles['me-section-title']}>
           <VariableProximity
             label="收藏夹"
-            fromFontVariationSettings={{ wght: 400 }}
-            toFontVariationSettings={{ wght: 700 }}
+            fromFontVariationSettings="'wght' 400"
+            toFontVariationSettings="'wght' 700"
             radius={80}
             falloff="linear"
             className={styles['me-section-title__prox']}

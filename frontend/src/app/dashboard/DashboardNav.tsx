@@ -21,6 +21,7 @@ import {
   ChevronsRight,
   GraduationCap,
   LayoutDashboard,
+  RefreshCw,
   Settings,
   X,
   type LucideIcon,
@@ -33,6 +34,7 @@ export type DashboardSection =
   | 'practice'
   | 'data'
   | 'collection'
+  | 'review'
   | 'settings';
 
 export const DASHBOARD_SECTIONS: DashboardSection[] = [
@@ -40,6 +42,7 @@ export const DASHBOARD_SECTIONS: DashboardSection[] = [
   'practice',
   'data',
   'collection',
+  'review',
   'settings',
 ];
 
@@ -48,6 +51,7 @@ export const DASHBOARD_SECTION_LABEL: Record<DashboardSection, string> = {
   practice: '课程',
   data: '数据',
   collection: '收藏',
+  review: '复习',
   settings: '设置',
 };
 
@@ -56,6 +60,7 @@ const ICONS: Record<DashboardSection, LucideIcon> = {
   practice: GraduationCap,
   data: BarChart3,
   collection: Bookmark,
+  review: RefreshCw,
   settings: Settings,
 };
 

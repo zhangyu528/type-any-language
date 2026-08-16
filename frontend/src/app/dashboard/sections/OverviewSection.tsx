@@ -28,7 +28,9 @@ import TodaySuggestion from './TodaySuggestion';
 import ProgressNarrative from './ProgressNarrative';
 import WeaknessInsight from './WeaknessInsight';
 import FirstRunGuide from './FirstRunGuide';
+import QuickNav from './QuickNav';
 import styles from './OverviewSection.module.css';
+import { DashboardSection } from '../DashboardNav';
 
 interface OverviewSectionProps {
   snapshot: DashboardSnapshot;
@@ -38,6 +40,12 @@ interface OverviewSectionProps {
   onPickLib: () => void;
   /** Jump straight into a lib's drill (used by the quick-launch chips). */
   onStartLib: (libId: string) => void;
+  /** 快速入口导航（课程/数据/收藏/复习 → 对应分区）。 */
+  onNavigate: (section: DashboardSection) => void;
+  /** 收藏句数（驱动快速入口的收藏卡）。 */
+  collectionCount: number;
+  /** 用户已选课程（我的课程）的 lib id 列表，驱动主页「我的课程」块。 */
+  enrolledLibIds?: string[];
 }
 
 export default function OverviewSection({
@@ -46,6 +54,9 @@ export default function OverviewSection({
   onResume,
   onPickLib,
   onStartLib,
+  onNavigate,
+  collectionCount,
+  enrolledLibIds,
 }: OverviewSectionProps) {
   // 最近词库（persisted in prefs.libId），供建议/快启/首跑态读取。
   const recentId =
@@ -72,18 +83,15 @@ export default function OverviewSection({
     };
   }, [snapshot.calendar, snapshot.progress]);
 
-  // 常用词库快启：最近词库置顶，其余补足，最多 3 个。
-  const chips = useMemo(() => {
-    if (!catalog) return [];
-    const ids = recentId
-      ? [recentId, ...catalog.libs.map((l) => l.id).filter((id) => id !== recentId)]
-      : catalog.libs.map((l) => l.id);
+  // 我的课程：从已选课程集合过滤出 lib，最多 4 张。
+  const myCourseLibs = useMemo(() => {
+    if (!catalog || !enrolledLibIds || enrolledLibIds.length === 0) return [];
     const byId = new Map(catalog.libs.map((l) => [l.id, l]));
-    return ids
+    return enrolledLibIds
       .map((id) => byId.get(id))
       .filter((l): l is NonNullable<typeof l> => Boolean(l))
-      .slice(0, 3);
-  }, [catalog, recentId]);
+      .slice(0, 4);
+  }, [catalog, enrolledLibIds]);
 
   // 首跑态：从未练习过。
   // 用后端的终身信号 has_any_activity（按 user_id 统计 daily_activity 是否有
@@ -117,6 +125,13 @@ export default function OverviewSection({
         />
       </header>
 
+      <QuickNav
+        snapshot={snapshot}
+        collectionCount={collectionCount}
+        reviewDue={snapshot.review_due_count ?? 0}
+        onNavigate={onNavigate}
+      />
+
       <div className={styles.bento}>
         {/* 行动区：继续 / 今日目标 / 连击动量 + 常用词库快启 */}
         <p className={styles.zoneLabel}>行动</p>
@@ -141,29 +156,38 @@ export default function OverviewSection({
           />
         </AnimatedContent>
 
-        {chips.length > 0 ? (
+        {myCourseLibs.length > 0 ? (
           <AnimatedContent distance={20} direction="vertical" delay={160 / 1000} className={`${styles.bentoCell} ${styles.span12}`}>
             <div className={styles.quickLaunchBlock}>
-              <p className={styles.quickLaunchLabel}>常用词库</p>
+              <p className={styles.quickLaunchLabel}>我的课程</p>
               <div className={styles.chips}>
-                {chips.map((lib) => {
-                  const isCurrent = lib.id === recentId;
-                  return (
-                    <button
-                      key={lib.id}
-                      type="button"
-                      className={`${styles.chip} ${isCurrent ? styles.chipCurrent : ''}`}
-                      onClick={() => onStartLib(lib.id)}
-                    >
-                      {lib.name}
-                      {isCurrent ? <span className={styles.chipBadge}>当前</span> : null}
-                    </button>
-                  );
-                })}
+                {myCourseLibs.map((lib) => (
+                  <button
+                    key={lib.id}
+                    type="button"
+                    className={styles.chip}
+                    onClick={() => onStartLib(lib.id)}
+                  >
+                    {lib.name}
+                  </button>
+                ))}
               </div>
             </div>
           </AnimatedContent>
-        ) : null}
+        ) : (
+          <AnimatedContent distance={20} direction="vertical" delay={160 / 1000} className={`${styles.bentoCell} ${styles.span12}`}>
+            <div className={styles.quickLaunchBlock}>
+              <p className={styles.quickLaunchLabel}>我的课程</p>
+              <button
+                type="button"
+                className={styles.quickLaunchEmpty}
+                onClick={() => onNavigate('practice')}
+              >
+                还没有课程，去添加 →
+              </button>
+            </div>
+          </AnimatedContent>
+        )}
 
         {/* 洞察区：今日建议 / 进度叙事 / 薄弱洞察 */}
         <p className={styles.zoneLabel}>洞察</p>

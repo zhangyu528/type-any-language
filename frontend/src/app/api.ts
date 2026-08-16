@@ -496,6 +496,11 @@ export function addToCollection(
     c.words[wordKey] = { addedAt: now };
   }
   saveCollection(c, userId);
+  // 登录态后台同步云端(云端为真相,跨设备不丢)。fire-and-forget,
+  // 本地写入仍是即时 UI 路径。
+  if (userId !== ANONYMOUS_USER_ID) {
+    void syncAddFavorite(sentenceId, word, libId);
+  }
   return c;
 }
 
@@ -518,6 +523,9 @@ export function removeFromCollection(
   // and keeps the 1:1 invariant honest.
   c.words = {};
   saveCollection(c, userId);
+  if (userId !== ANONYMOUS_USER_ID) {
+    void syncRemoveFavoriteSentence(sentenceId);
+  }
   return c;
 }
 
@@ -555,6 +563,202 @@ export interface AuthUser {
  * - network failures (fetch rejects): re-thrown as-is so callers
  *   can show a "no network" toast without instanceof checks
  */
+// ---------------------------------------------------------------------------
+// Favorites — cloud sync (logged-in users)
+//
+// Phase: favorites moved from localStorage-only to a server resource
+// (backend user_favorites, migration 0015). Strategy: localStorage stays
+// the instant-UI cache; when a user is signed in, every add/remove also
+// mirrors to the cloud (fire-and-forget), and on mount
+// `ensureFavoritesSynced` pushes any pre-existing local items to the cloud
+// once, then pulls the cloud set back over localStorage so the cache
+// converges to server truth. Anonymous users keep the old pure-local
+// behavior.
+// ---------------------------------------------------------------------------
+
+export interface FavoriteSentenceOut {
+  sentence_id: string;
+  lib_id: string | null;
+  added_at: string;
+}
+export interface FavoriteWordOut {
+  word: string;
+  added_at: string;
+}
+export interface FavoritesPayload {
+  sentences: FavoriteSentenceOut[];
+  words: FavoriteWordOut[];
+}
+
+async function syncAddFavorite(
+  sentenceId: string,
+  word: string,
+  libId?: string,
+): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/api/favorites`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        item_type: 'sentence',
+        sentence_id: sentenceId,
+        word_text: word || undefined,
+        lib_id: libId || undefined,
+      }),
+    });
+  } catch {
+    /* 静默 */
+  }
+}
+
+async function syncAddFavoriteWord(word: string): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/api/favorites`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ item_type: 'word', word_text: word }),
+    });
+  } catch {
+    /* 静默 */
+  }
+}
+
+async function syncRemoveFavoriteSentence(sentenceId: string): Promise<void> {
+  try {
+    await fetch(
+      `${API_BASE_URL}/api/favorites/sentence/${encodeURIComponent(sentenceId)}`,
+      { method: 'DELETE', credentials: 'include' },
+    );
+  } catch {
+    /* 静默 */
+  }
+}
+
+/** DELETE a single word from the cloud collection (logged-in only). */
+export async function removeFavoriteWordCloud(word: string): Promise<void> {
+  try {
+    await fetch(
+      `${API_BASE_URL}/api/favorites/word/${encodeURIComponent(word)}`,
+      { method: 'DELETE', credentials: 'include' },
+    );
+  } catch {
+    /* 静默 */
+  }
+}
+
+/** GET /api/favorites — the user's server-side collection. */
+export async function getFavorites(): Promise<FavoritesPayload> {
+  const res = await fetch(`${API_BASE_URL}/api/favorites`, { credentials: 'include' });
+  if (!res.ok) throw new Error(`获取收藏失败 (HTTP ${res.status})`);
+  return res.json();
+}
+
+/**
+ * One-time + on-mount convergence for signed-in users.
+ *  1. First ever sync for this account: push local items to the cloud.
+ *  2. Always: pull the cloud set back over localStorage (cloud wins), so
+ *     the cache reflects server truth across devices.
+ * Cross-tab listeners are notified so the collection UI re-renders.
+ */
+export async function ensureFavoritesSynced(userId: string): Promise<void> {
+  if (userId === ANONYMOUS_USER_ID) return;
+  if (typeof window === 'undefined') return;
+  try {
+    const migratedKey = `me.collection.migrated:${userId}`;
+    const alreadyMigrated = window.localStorage.getItem(migratedKey) === '1';
+    if (!alreadyMigrated) {
+      const local = loadCollection(userId);
+      for (const sid in local.sentences) {
+        await syncAddFavorite(sid, '', local.sentences[sid]?.libId);
+      }
+      for (const w in local.words) {
+        await syncAddFavoriteWord(w);
+      }
+      window.localStorage.setItem(migratedKey, '1');
+    }
+    const cloud = await getFavorites();
+    const merged: Collection = { sentences: {}, words: {} };
+    for (const s of cloud.sentences) {
+      merged.sentences[s.sentence_id] = {
+        addedAt: Date.parse(s.added_at) || Date.now(),
+        libId: s.lib_id ?? undefined,
+      };
+    }
+    for (const w of cloud.words) {
+      merged.words[w.word] = { addedAt: Date.parse(w.added_at) || Date.now() };
+    }
+    saveCollection(merged, userId);
+    window.dispatchEvent(
+      new CustomEvent('collection-changed', { detail: { synced: true } }),
+    );
+  } catch {
+    /* network error — keep local cache as-is */
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Review — spaced-review candidates (logged-in users)
+// ---------------------------------------------------------------------------
+
+export interface ReviewCandidate {
+  sentence_id: string;
+  lib_id: string | null;
+  text: string;
+  chinese_text: string;
+  audio_url: string;
+  /** 'wrong' = answered incorrectly recently; 'favorite' = in collection. */
+  reason: 'wrong' | 'favorite';
+}
+
+/** GET /api/review/candidates — sentences to practice today.
+ *  @param windowDays 回看天数（服务端默认 14，用户在设置页可调）。 */
+export async function apiReviewCandidates(
+  windowDays?: number,
+): Promise<{ candidates: ReviewCandidate[] }> {
+  const url = new URL(`${API_BASE_URL}/api/review/candidates`);
+  if (windowDays && windowDays > 0) url.searchParams.set('windowDays', String(windowDays));
+  const res = await fetch(url.toString(), { credentials: 'include' });
+  if (!res.ok) throw new Error(`获取复习候选失败 (HTTP ${res.status})`);
+  return res.json();
+}
+
+// ----- Course enrollment (我的课程) -----
+/** POST /api/courses/{libId}/enroll — 把课程加入我的课程（幂等）。 */
+export async function apiEnrollCourse(libId: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/courses/${encodeURIComponent(libId)}/enroll`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error(`添加课程失败 (HTTP ${res.status})`);
+}
+
+/** DELETE /api/courses/{libId}/enroll — 把课程移出我的课程。 */
+export async function apiUnenrollCourse(libId: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/courses/${encodeURIComponent(libId)}/enroll`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error(`移除课程失败 (HTTP ${res.status})`);
+}
+
+// ----- Review window preference (localStorage) -----
+export const STORAGE_REVIEW_WINDOW_DAYS = 'review.windowDays';
+
+export function readReviewWindowDays(): number {
+  if (typeof window === 'undefined') return 14;
+  const raw = window.localStorage.getItem(STORAGE_REVIEW_WINDOW_DAYS);
+  if (!raw) return 14;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 90) : 14;
+}
+
+export function writeReviewWindowDays(days: number): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(STORAGE_REVIEW_WINDOW_DAYS, String(days));
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly fieldErrors?: Record<string, string>;
@@ -668,6 +872,15 @@ export async function updateDisplayName(displayName: string): Promise<AuthUser> 
   return body;
 }
 
+/** DELETE /api/auth/me — permanently delete the account + all cloud data. */
+export async function deleteAccount(): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error(`注销账号失败 (HTTP ${res.status})`);
+}
+
 // ---------------------------------------------------------------------------
 // Dashboard — login-required activity surface
 //
@@ -757,6 +970,12 @@ export interface DashboardSnapshot {
    *  的老账号可能缺 user_streaks 行导致 streak.longest 恒为 0，故首跑欢迎页以
    *  此为准门控。 */
   has_any_activity?: boolean;
+  /** 待复习句数（近 14 天答错 ∪ 云端收藏，DISTINCT 计数）。
+   *  驱动主页快速入口的「复习」卡徽标。 */
+  review_due_count?: number;
+  /** 用户已选课程（我的课程）的 lib id 列表。驱动主页「我的课程」
+   *  块与课程中心的「我的课程」标签页。 */
+  enrolled_lib_ids?: string[];
   generated_at: string;
 }
 
@@ -879,13 +1098,16 @@ export async function startPracticeSession(input: {
 export async function recordPracticeStep(
   sessionId: string,
   correct: boolean,
+  sentenceId?: string,
 ): Promise<void> {
   try {
     await fetch(`${API_BASE_URL}/api/practice/session/${sessionId}/step`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ correct }),
+      body: JSON.stringify(
+        sentenceId ? { correct, sentence_id: sentenceId } : { correct },
+      ),
     });
   } catch {
     // best-effort; the /end call is authoritative

@@ -161,6 +161,27 @@
   letter-spacing: 0.02em;
 }
 
+.quickLaunchEmpty {
+  appearance: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--ds-glass-border);
+  background: transparent;
+  color: var(--ds-ink-soft);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  transition: border-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+
+.quickLaunchEmpty:hover {
+  border-color: var(--ds-cta);
+  color: var(--ds-cta);
+  transform: translateY(-1px);
+}
+
 /* ---- 本周 KPI 条（精简：句数·命中·新词，无连续天数） ---- */
 .weekGlanceText {
   margin: 0;
