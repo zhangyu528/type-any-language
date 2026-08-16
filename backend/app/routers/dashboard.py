@@ -75,6 +75,7 @@ def get_dashboard(
         has_any_activity=activity_service.has_any_activity(db, current_user.id),
         review_due_count=count_review_due(db, current_user.id, window_days=14),
         enrolled_lib_ids=enrolled_lib_ids,
+        lifetime=activity_service.compute_lifetime(db, current_user.id),
         generated_at=datetime.utcnow(),
     )
 

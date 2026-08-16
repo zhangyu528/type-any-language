@@ -1,23 +1,33 @@
 'use client';
 
 /**
- * GreetingBar — compact top header on the dashboard overview.
+ * GreetingBar — compact top header (the page "hero") on the dashboard
+ * overview.
  *
  * Three pieces of state (identity now lives in the sidebar, so no
  * avatar here):
- *   1. Greeting line (早上好/下午好/晚上好, <name>)
+ *   1. Greeting line (早上好/下午好/晚上好, <name>) + soft tenure tag
+ *      ("学习第 N 天") + a centered date block (M月D日 · 周X) that fills
+ *      the otherwise-empty middle of the bar on wide screens.
  *   2. Streak badge — a pill that reads as the page's lead momentum
  *      signal: "keep going" (today done) vs "practice today to reach
- *      N+1" (today not done, streak > 0).
+ *      N+1" (today not done, streak > 0). Carries a Flame icon and a
+ *      DecryptedText sweep.
  *   3. Monthly goal progress — "本月 X / Y 天" + thin bar + status
  *      pill (achieved / on track / behind). The count is a static
  *      number (no count-up) so it doesn't fight the streak's sweep
  *      animation for attention.
  *
+ * Time-of-day theming: the root gets a `data-time` attribute
+ * (night / morning / afternoon / evening) that drives a soft corner
+ * glow + left accent edge, so the hero feels alive and tied to the
+ * moment without being noisy.
+ *
  * The greeting time-of-day is computed once on mount from the
  * browser's local hour; we don't refresh it.
  */
 
+import { Flame } from 'lucide-react';
 import DecryptedText from '@/components/DecryptedText';
 import { DashboardUser, MonthlyGoalInfo, StreakInfo } from '../api';
 import styles from './GreetingBar.module.css';
@@ -29,6 +39,15 @@ function pickGreeting(hour: number): string {
   return '晚上好';
 }
 
+type TimeBand = 'night' | 'morning' | 'afternoon' | 'evening';
+
+function pickTimeBand(hour: number): TimeBand {
+  if (hour < 5) return 'night';
+  if (hour < 12) return 'morning';
+  if (hour < 18) return 'afternoon';
+  return 'evening';
+}
+
 function pickStreakCopy(streak: StreakInfo): {
   copy: string;
   tone: 'rest' | 'reach' | 'kept';
@@ -37,7 +56,7 @@ function pickStreakCopy(streak: StreakInfo): {
     return { copy: '今天开始新的连击吧', tone: 'reach' };
   }
   if (streak.today_done) {
-    return { copy: `🔥 连续 ${streak.current} 天 · 继续保持`, tone: 'kept' };
+    return { copy: `连续 ${streak.current} 天 · 继续保持`, tone: 'kept' };
   }
   return {
     copy: `今天再练一下,冲到 ${streak.current + 1} 天`,
@@ -54,10 +73,12 @@ function pickMonthlyTone(goal: MonthlyGoalInfo): MonthlyTone {
 }
 
 function pickMonthlyStatusCopy(tone: MonthlyTone): string {
-  if (tone === 'achieved') return '🎉 已完成';
-  if (tone === 'onTrack') return '🟢 进度良好';
-  return '🟡 落后';
+  if (tone === 'achieved') return '已完成';
+  if (tone === 'onTrack') return '进度良好';
+  return '落后';
 }
+
+const WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
 export interface GreetingBarProps {
   user: DashboardUser;
@@ -70,8 +91,13 @@ export default function GreetingBar({
   streak,
   monthlyGoal,
 }: GreetingBarProps) {
-  const greeting = pickGreeting(new Date().getHours());
+  const now = new Date();
+  const timeBand = pickTimeBand(now.getHours());
+  const greeting = pickGreeting(now.getHours());
   const display = (user.display_name || user.email || '').trim() || '朋友';
+
+  const dateDay = `${now.getMonth() + 1}月${now.getDate()}日`;
+  const dateWeek = WEEK[now.getDay()];
 
   // Tenure: days since the account was created — a soft commitment
   // signal ("学习第 N 天"). SSR-safe: created_at is always present
@@ -98,7 +124,7 @@ export default function GreetingBar({
     const [y, m] = monthlyGoal.year_month.split('-').map(Number);
     if (!y || !m) return { text: '', tone: 'onTrack' as const };
     const daysInMonth = new Date(y, m, 0).getDate();
-    const daysLeft = Math.max(1, daysInMonth - new Date().getDate());
+    const daysLeft = Math.max(1, daysInMonth - now.getDate());
     const needed = Math.max(0, monthlyGoal.target - monthlyGoal.current);
     const perDay = Math.ceil(needed / daysLeft);
     return monthlyGoal.on_track
@@ -107,21 +133,23 @@ export default function GreetingBar({
   })();
 
   return (
-    <header className={styles.root} aria-label="page header">
-      <div className={styles.meta}>
+    <header className={styles.root} data-time={timeBand} aria-label="page header">
+      <div className={styles.lead}>
         <p className={styles.greeting}>
           {greeting}, <span className={styles.name}>{display}</span>
           {tenureDays != null && tenureDays > 0 ? (
-            <span className={styles.tenure}>第 {tenureDays} 天</span>
+            <span className={styles.tenure}>学习第 {tenureDays} 天</span>
           ) : null}
         </p>
         <p
           className={`${styles.streak} ${styles[`streak-${streakCopy.tone}`]}`}
-          aria-live="polite"
+          aria-label={streakCopy.copy}
         >
-          {/* DecryptedText sweeps through `·` characters (no flicker)
-             to reveal the streak copy. See tuning notes in
-             components/effects/decrypted-text.tsx. */}
+          {/* Flame icon + decrypted streak copy. The icon is static;
+             DecryptedText sweeps "·" characters (no flicker) to reveal
+             the copy. Decorative only — the stable copy lives in the
+             parent's aria-label so screen readers announce it once. */}
+          <Flame className={styles.streakIcon} aria-hidden="true" size={16} strokeWidth={2.4} />
           <DecryptedText
             text={streakCopy.copy}
             animateOn="view"
@@ -131,6 +159,7 @@ export default function GreetingBar({
             characters="·"
             className={styles.streakDecoded}
             encryptedClassName={styles.streakEncrypted}
+            aria-hidden
           />
           {streak.longest > 0 && streak.current > 0 ? (
             <span className={styles.longest}> · 最长 {streak.longest} 天</span>
@@ -138,11 +167,30 @@ export default function GreetingBar({
         </p>
       </div>
 
-      {/* Monthly goal: thin bar + count + status pill, pinned right. */}
+      {/* Centered date block — fills the empty middle of the bar on wide
+         screens, giving the hero a grounded, premium feel. Hidden on
+         narrow viewports where it would crowd the layout. */}
+      <div className={styles.date} aria-hidden="true">
+        <span className={styles.dateDay}>{dateDay}</span>
+        <span className={styles.dateWeek}>{dateWeek}</span>
+      </div>
+
+      {/* Monthly goal: small header (label + status) → thin bar →
+         count → hint, pinned right. The number is the hero of this
+         block; "本月目标" sits as a quiet caption above it. */}
       <div
         className={styles.monthly}
-        aria-label={`本月目标 ${monthlyGoal.current} / ${monthlyGoal.target} 天`}
+        aria-label={`本月目标 ${monthlyGoal.current} / ${monthlyGoal.target} 句`}
       >
+        <div className={styles.monthlyHead}>
+          <span className={styles.monthlyLabel}>本月目标</span>
+          <span
+            className={`${styles.monthlyStatus} ${styles[`status-${monthlyTone}`]}`}
+            aria-label={monthlyStatusCopy}
+          >
+            {monthlyStatusCopy}
+          </span>
+        </div>
         <div className={styles.monthlyTrack}>
           <div
             className={`${styles.monthlyFill} ${styles[`monthlyFill-${monthlyTone}`]}`}
@@ -150,17 +198,10 @@ export default function GreetingBar({
           />
         </div>
         <p className={styles.monthlyText}>
-          <span className={styles.monthlyLabel}>本月</span>
           <span className={styles.monthlyNum}>{monthlyGoal.current}</span>
           <span className={styles.monthlySep}>/</span>
           <span className={styles.monthlyTotal}>{monthlyGoal.target}</span>
-          <span className={styles.monthlyUnit}>天</span>
-          <span
-            className={`${styles.monthlyStatus} ${styles[`status-${monthlyTone}`]}`}
-            aria-label={monthlyStatusCopy}
-          >
-            {monthlyStatusCopy}
-          </span>
+          <span className={styles.monthlyUnit}>句</span>
         </p>
         {monthlyHint.text ? (
           <p className={`${styles.monthlyHint} ${styles[`hint-${monthlyHint.tone}`]}`}>

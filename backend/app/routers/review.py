@@ -8,13 +8,11 @@ today, as a single ready-to-render payload (text + chinese + audio):
     `window_days` days (from practice_attempts, default 14, configurable
     on the settings page). These are the highest-priority review
     items — the ones they've been getting wrong.
-  - favorite: the user's cloud-favorited sentences (from user_favorites).
-    Surfacing favorites here keeps "starred to remember" items in the
-    practice loop without a separate SRS schedule.
 
-The two sets are merged and de-duplicated by sentence_id; a sentence
-that is both wrong AND favorited is labelled 'favorite' (so the review
-queue reads as "things you care about" rather than "your mistakes").
+The manual "收藏" (favorites) concept was retired: weakness is now
+recorded automatically from error rate (see /api/weakness), so the
+review queue is purely the user's recent mistakes — no hand-curated
+favorites to keep in sync.
 
 This is an MVP review source: a true spaced-repetition scheduler
 (per-sentence ease / interval) can layer on top of practice_attempts
@@ -49,8 +47,8 @@ def count_review_due(
     COUNT (no text/audio JOIN), so the dashboard can show a "N 句待复习"
     badge in its single-shot payload without re-pulling the full list.
 
-    Set = (wrong attempts in the last `window_days`) UNION (cloud-favorited
-    sentences), de-duplicated by sentence_id.
+    Set = wrong attempts in the last `window_days` days, de-duplicated by
+    sentence_id.
     """
     uid = str(user_id)
     row = db.execute(
@@ -59,10 +57,6 @@ def count_review_due(
             "  SELECT DISTINCT sentence_id FROM practice_attempts "
             "  WHERE user_id = :uid AND correct = false "
             "    AND attempted_at > now() - make_interval(days => :days) "
-            "    AND sentence_id IS NOT NULL "
-            "  UNION "
-            "  SELECT DISTINCT sentence_id FROM user_favorites "
-            "  WHERE user_id = :uid AND item_type = 'sentence' "
             "    AND sentence_id IS NOT NULL"
             ") sub"
         ),
@@ -89,27 +83,12 @@ def review_candidates(
         {"uid": uid, "days": window_days},
     ).fetchall()
 
-    fav_rows = db.execute(
-        text(
-            "SELECT sentence_id, lib_id FROM user_favorites "
-            "WHERE user_id = :uid AND item_type = 'sentence' "
-            "AND sentence_id IS NOT NULL"
-        ),
-        {"uid": uid},
-    ).fetchall()
-
     reasons: dict[str, str] = {}
     ordered_ids: list[UUID] = []
     for sid, _lib in wrong_rows:
         key = str(sid)
         reasons[key] = "wrong"
         ordered_ids.append(sid)
-    for sid, _lib in fav_rows:
-        key = str(sid)
-        if key not in reasons:
-            reasons[key] = "favorite"
-        if sid not in ordered_ids:
-            ordered_ids.append(sid)
 
     if not ordered_ids:
         return {"candidates": []}
@@ -132,7 +111,7 @@ def review_candidates(
                 "text": r[2],
                 "chinese_text": r[3],
                 "audio_url": r[4],
-                "reason": reasons.get(sid, "favorite"),
+                "reason": reasons.get(sid, "wrong"),
             }
         )
         if len(candidates) >= limit:

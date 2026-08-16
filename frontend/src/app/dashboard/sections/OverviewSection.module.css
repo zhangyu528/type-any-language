@@ -1,9 +1,8 @@
 /* ============================================================
    OverviewSection — Bento 规整网格
    结构：Hero(通栏) → .bento 12 列网格
-     · 行动区：继续(6) / 今日目标(3) / 连击动量(3) + 常用词库快启(12)
-     · 洞察区：今日建议(4) / 进度叙事(4) / 薄弱洞察(4)
-     · 本周 KPI 条(12) · 成就墙(通栏，在 .bento 之外)
+     · 行动区：继续(6) / 今日目标(3) / 连击动量(3) + 我的课程(12)
+     · 洞察区：今日建议(4) / 进度叙事(4) / 本周 KPI 条(12)
    等高策略：grid 行内 align-items:stretch + .bentoCell(flex) 让卡片
    填满单元宽高，消除原先左右两栏参差的混乱感。
    ============================================================ */
@@ -90,7 +89,13 @@
 .quickLaunchBlock {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--ds-glass-surface);
+  border: 1px solid var(--ds-glass-border);
+  box-shadow: var(--ds-glass-shadow);
+  box-sizing: border-box;
 }
 
 .quickLaunchLabel {
@@ -111,54 +116,96 @@
   line-height: 1;
 }
 
-.chips {
-  display: flex;
-  flex-wrap: wrap;
+.courseGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: var(--space-3);
 }
 
-.chip {
+.courseCard {
   appearance: none;
   cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: var(--space-3) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-4);
+  text-align: left;
   border-radius: var(--radius-lg);
   border: 1px solid var(--ds-glass-border);
   background: var(--ds-glass-surface);
-  color: var(--ds-ink);
-  font-size: var(--text-body);
-  font-weight: var(--weight-medium);
-  transition: border-color 0.18s ease, transform 0.18s ease, background 0.18s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
 }
 
-.chip:hover {
-  border-color: var(--ds-cta);
-  transform: translateY(-1px);
+.courseCard:hover {
+  transform: translateY(-2px);
+  border-color: var(--ds-action);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.1);
 }
 
-.chip:active {
+.courseCard:active {
   transform: translateY(0);
 }
 
-.chipCurrent {
-  border-color: var(--ds-action);
-  background: color-mix(in srgb, var(--ds-action) 12%, var(--ds-surface) 80%);
-  color: var(--ds-action-deep);
+.courseCard:focus-visible {
+  outline: 2px solid var(--ds-action);
+  outline-offset: 2px;
 }
 
-.chipBadge {
-  display: inline-flex;
+.courseTop {
+  display: flex;
   align-items: center;
-  margin-left: 2px;
-  padding: 1px 8px;
-  border-radius: var(--radius-pill);
-  background: var(--ds-action);
-  color: #fff;
+  gap: 8px;
+}
+
+.courseDot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.courseName {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink);
+}
+
+.courseNow {
+  flex: 0 0 auto;
   font-size: var(--text-caption);
   font-weight: var(--weight-medium);
-  letter-spacing: 0.02em;
+}
+
+.courseTrack {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ds-ink) 10%, transparent);
+  overflow: hidden;
+}
+
+.courseFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.5s ease;
+}
+
+.courseMeta {
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.courseCurrent {
+  border-color: var(--ds-action);
+  background: color-mix(in srgb, var(--ds-action) 12%, var(--ds-surface) 80%);
 }
 
 .quickLaunchEmpty {
@@ -223,15 +270,12 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ---- 成就墙（通栏，置于 Bento 之下） ---- */
-.achievement {
-  position: relative;
-  z-index: 1;
-  max-width: var(--content-max);
-  width: 100%;
-  margin: var(--space-4) auto var(--space-6);
-  padding: 0 var(--space-4);
-  box-sizing: border-box;
+.glanceDeltaDown {
+  margin-left: 4px;
+  font-family: var(--font-display), serif;
+  font-weight: var(--weight-medium);
+  color: #d14343;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---- 响应式：≤1023px 退化为单栏 ---- */

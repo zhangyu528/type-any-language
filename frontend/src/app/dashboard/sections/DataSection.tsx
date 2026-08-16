@@ -19,19 +19,23 @@ import ProgressSnapshot from '../ProgressSnapshot';
 import TrendChart from '../TrendChart';
 import LearnedLibProgress from '../LearnedLibProgress';
 import WeekRhythm from '../WeekRhythm';
+import WeakPointsSection from './WeakPointsSection';
 import styles from './DataSection.module.css';
 
 interface DataSectionProps {
   snapshot: DashboardSnapshot;
+  /** 跳转到某词库练习（薄弱点「去练习」CTA 用）。 */
+  onStartLib: (libId: string) => void;
 }
 
-export default function DataSection({ snapshot }: DataSectionProps) {
+export default function DataSection({ snapshot, onStartLib }: DataSectionProps) {
   return (
     <div className={styles.root}>
       <ProgressSnapshot kpis={snapshot.progress} />
       <TrendChart days={snapshot.calendar} />
       <LearnedLibProgress userId={snapshot.user.id} />
       <WeekRhythm days={snapshot.calendar} />
+      <WeakPointsSection onStartLib={onStartLib} />
     </div>
   );
 }

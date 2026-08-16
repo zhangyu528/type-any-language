@@ -44,7 +44,7 @@ export interface Catalog {
 }
 
 export async function getContentCatalog(): Promise<Catalog> {
-  const response = await fetch(`${API_BASE_URL}/api/content/catalog`);
+  const response = await fetchWithTimeout(`${API_BASE_URL}/api/content/catalog`);
   if (!response.ok) {
     throw new Error(`获取内容目录失败 (HTTP ${response.status})`);
   }
@@ -724,6 +724,49 @@ export async function apiReviewCandidates(
   return res.json();
 }
 
+// ---------------------------------------------------------------------------
+// Weakness — data-driven weak points (replaces the retired manual 收藏)
+//
+// Aggregated from practice_attempts (per-sentence correct/incorrect log):
+// the app now records weakness automatically from error rate. The 复习
+// queue + 数据 tab both read this instead of a hand-curated collection.
+// ---------------------------------------------------------------------------
+
+/** 常错句：带原文/译文/目标词，UI 可直接渲染并跳转练习。 */
+export interface WeakSentence {
+  sentence_id: string;
+  lib_id: string | null;
+  text: string;
+  chinese_text: string;
+  target_words: string[];
+  wrong_count: number;
+  attempts: number;
+  /** 0–1：错误次数 / 总尝试次数。 */
+  error_rate: number;
+}
+
+export interface WeaknessPayload {
+  weak_sentences: WeakSentence[];
+  weak_words: { word: string; wrong: number }[];
+  weak_topics: { topic: string; wrong: number }[];
+  weak_cefr: { cefr: string; wrong: number }[];
+  totals: {
+    wrong: number;
+    attempts: number;
+    /** 0–1 终身准确率（只算错误句分母）；无尝试时为 null。 */
+    accuracy: number | null;
+  };
+}
+
+/** GET /api/weakness — 用户的薄弱点聚合。 */
+export async function apiGetWeakness(limit = 15): Promise<WeaknessPayload> {
+  const res = await fetch(`${API_BASE_URL}/api/weakness?limit=${limit}`, {
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error(`获取薄弱点失败 (HTTP ${res.status})`);
+  return res.json();
+}
+
 // ----- Course enrollment (我的课程) -----
 /** POST /api/courses/{libId}/enroll — 把课程加入我的课程（幂等）。 */
 export async function apiEnrollCourse(libId: string): Promise<void> {
@@ -838,7 +881,7 @@ export async function apiLogout(): Promise<void> {
  * not an ApiError, and can show a "no network" UI).
  */
 export async function apiMe(): Promise<AuthUser | null> {
-  const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
+  const res = await fetchWithTimeout(`${API_BASE_URL}/api/auth/me`, {
     credentials: 'include',
   });
   if (res.status === 401) return null;
@@ -976,7 +1019,37 @@ export interface DashboardSnapshot {
   /** 用户已选课程（我的课程）的 lib id 列表。驱动主页「我的课程」
    *  块与课程中心的「我的课程」标签页。 */
   enrolled_lib_ids?: string[];
+  /** 终身汇总（全量，不限 35 天窗口）。驱动成就页与 AchievementWall 的
+   *  准确累计。新用户尚无 daily_activity 记录时为 undefined。 */
+  lifetime?: {
+    total_sentences: number;
+    total_correct: number;
+    days_practiced: number;
+    /** 0–1 终身准确率；无练习记录时为 null（UI 显示「—」）。 */
+    accuracy: number | null;
+  } | null;
   generated_at: string;
+}
+
+/**
+ * fetch with a hard timeout. Without this, a backend that accepts the TCP
+ * connection but never responds (e.g. a stalled DB connection) leaves the
+ * browser `fetch` pending forever and the dashboard spins indefinitely.
+ * Aborting after `timeoutMs` turns the stall into a thrown error the
+ * caller's catch can surface as "加载失败 + 重试".
+ */
+async function fetchWithTimeout(
+  url: string,
+  opts: RequestInit = {},
+  timeoutMs = 15000,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...opts, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
@@ -985,7 +1058,7 @@ export interface DashboardSnapshot {
  * expected to redirect anonymous users to /login before invoking this.
  */
 export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
-  const res = await fetch(`${API_BASE_URL}/api/dashboard`, {
+  const res = await fetchWithTimeout(`${API_BASE_URL}/api/dashboard`, {
     credentials: 'include',
   });
   if (!res.ok) {

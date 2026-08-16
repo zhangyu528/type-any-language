@@ -8,9 +8,9 @@
  *   1. 连续打卡链 — one filled dot per day in the current streak, plus a
  *      ghost "today" dot when today's session hasn't happened yet. Makes
  *      "连续 N 天" tangible (Duolingo-style) instead of a bare number.
- *   2. 断卡风险提醒 — when today isn't done yet but a streak is live, a
- *      warm banner nudges the user to protect it. This is the single
- *      highest-leverage motivation signal and was completely absent.
+ *   2. 断卡风险提醒 — when today isn't done yet but a streak is live, the
+ *      nudge lives in TodaySuggestion (which carries a direct "keep going"
+ *      CTA). Kept out of this cluster to avoid a second duplicate banner.
  *   3. 下个里程碑 — distance to the next streak badge (7/14/30/60/100).
  *   4. 本月达标天数 — count of goal-hit days in the current month.
  *
@@ -57,17 +57,26 @@ export default function StreakMomentum({
 
   return (
     <section className={styles.root} aria-label="连续打卡">
-      {atRisk ? (
-        <p className={styles.atRisk}>
-          今天还没练，连续 {streak.current} 天就断了 — 来一句保住
-        </p>
-      ) : null}
-
       <div className={styles.row}>
         <div className={styles.dots} aria-hidden="true">
           {Array.from({ length: dotCount }).map((_, i) => (
             <span key={i} className={styles.dot} />
           ))}
+          {streak.current > MAX_DOTS ? (
+            <span
+              key="more"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                marginLeft: 4,
+                fontSize: 12,
+                fontWeight: 500,
+                color: 'var(--ds-ink-soft)',
+              }}
+            >
+              +{streak.current - MAX_DOTS}
+            </span>
+          ) : null}
           {atRisk ? <span className={`${styles.dot} ${styles.dotGhost}`} /> : null}
         </div>
         <span className={styles.milestone}>{milestone}</span>

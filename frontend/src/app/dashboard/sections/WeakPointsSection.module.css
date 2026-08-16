@@ -1,0 +1,219 @@
+/* ============================================================
+   WeakPointsSection — 数据分区里的薄弱点诊断
+   ============================================================ */
+
+.root {
+  background: var(--ds-glass-surface);
+  border: 1px solid var(--ds-glass-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--ds-glass-shadow);
+  padding: var(--space-5);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.title {
+  margin: 0 0 var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ds-action-deep);
+}
+
+.title::before {
+  content: '·';
+  color: var(--ds-action);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px dashed var(--ds-border);
+}
+
+.sumItem {
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+}
+
+.sumNum {
+  font-size: var(--text-body);
+  font-weight: var(--weight-bold);
+  color: var(--ds-ink);
+  font-variant-numeric: tabular-nums;
+  margin-left: 2px;
+}
+
+.good,
+.error {
+  font-size: var(--text-body);
+  color: var(--ds-ink-soft);
+  line-height: 1.5;
+}
+
+.error {
+  color: var(--ds-warn-deep);
+}
+
+/* 常错句列表 */
+.sentList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sentCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--ds-border);
+  background: var(--ds-surface);
+}
+
+.sentTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.sentText {
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink);
+  line-height: 1.4;
+}
+
+.rate {
+  flex: 0 0 auto;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-bold);
+  font-variant-numeric: tabular-nums;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--ds-warn) 18%, var(--ds-surface) 82%);
+  color: var(--ds-warn-deep);
+  border: 1px solid color-mix(in srgb, var(--ds-warn) 40%, var(--ds-border) 60%);
+}
+
+.rate[data-high='true'] {
+  background: color-mix(in srgb, var(--ds-incorrect) 20%, var(--ds-surface) 80%);
+  color: var(--ds-incorrect-deep);
+  border-color: color-mix(in srgb, var(--ds-incorrect) 45%, var(--ds-border) 55%);
+}
+
+.sentZh {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+  line-height: 1.4;
+}
+
+.words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sentFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: 2px;
+}
+
+.meta {
+  font-size: var(--text-caption);
+  color: var(--ds-ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--ds-cta-deep);
+  background: color-mix(in srgb, var(--ds-cta) 14%, var(--ds-surface) 86%);
+  border: 1px solid color-mix(in srgb, var(--ds-cta) 38%, var(--ds-border) 62%);
+  border-radius: var(--radius-pill);
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: background var(--dur-base) var(--ease-out);
+}
+
+.cta:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ds-cta) 22%, var(--ds-surface) 78%);
+}
+
+.cta:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 聚合区块 */
+.block {
+  margin-top: var(--space-4);
+}
+
+.blockTitle {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink-soft);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wordChip,
+.topicChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-caption);
+  color: var(--ds-ink);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--ds-tint-deep);
+  border: 1px solid var(--ds-border);
+}
+
+.topicChip {
+  background: color-mix(in srgb, var(--ds-action) 12%, var(--ds-surface) 88%);
+  border-color: color-mix(in srgb, var(--ds-action) 34%, var(--ds-border) 66%);
+}
+
+.chipCount {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-bold);
+  color: var(--ds-warn-deep);
+}
+
+.cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+  .cols {
+    grid-template-columns: 1fr;
+  }
+}

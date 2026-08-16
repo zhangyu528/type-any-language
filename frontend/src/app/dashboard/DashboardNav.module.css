@@ -20,37 +20,55 @@
   box-shadow: 1px 0 0 0 rgba(0, 0, 0, 0.03), 10px 0 36px -28px rgba(0, 0, 0, 0.55);
   transition: width var(--dur-med, 0.28s) var(--ease-out, ease),
     transform var(--dur-med, 0.28s) var(--ease-out, ease);
+  /* 浮层（rail tooltip / 账号名片）配色：浅色主题下刻意用深底浅字，
+     暗色主题换成深空蓝，避免与 sidebar 自身底色糊在一起。 */
+  --nav-pop-bg: #1f2433;
+  --nav-pop-ink: #f1efea;
+  --nav-pop-hover: rgba(255, 255, 255, 0.18);
+  --nav-pop-item: rgba(255, 255, 255, 0.1);
 }
 
 [data-theme='dark'] .sidebar {
   background: rgba(15, 17, 25, 0.86);
   border-right: 1px solid rgba(255, 255, 255, 0.07);
+  --nav-pop-bg: #1e3e5f;
+  --nav-pop-ink: var(--ds-ink);
+  --nav-pop-hover: rgba(255, 255, 255, 0.16);
+  --nav-pop-item: rgba(255, 255, 255, 0.08);
 }
 
 /* ---- Brand ---- */
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
   height: 48px;
-  padding: 0 6px;
-  margin-bottom: 6px;
+  margin-bottom: 16px;
   flex-shrink: 0;
 }
 
-.version {
-  display: block;
+/* 品牌区可点击 → 回主页分区（主流控制台的 logo 行为）。 */
+.brandBtn {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+  height: 40px;
   padding: 0 6px;
-  margin-bottom: 18px;
-  font-family: var(--font-mono), monospace;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  color: var(--ds-ink-soft);
-  opacity: 0.7;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  border: 0;
+  background: transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.brandBtn:hover {
+  background: color-mix(in srgb, var(--ds-action) 10%, transparent);
+}
+.brandBtn:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
 }
 
 .brandMark {
@@ -78,6 +96,7 @@
   color: var(--ds-ink);
   white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .closeMobile {
@@ -99,11 +118,13 @@
   color: var(--ds-ink);
 }
 
-/* ---- Nav list ---- */
+/* ---- Nav list ----
+   .nav 是唯一的伸展元素（flex:1），把 footer 顶到底部。切勿再加第二个
+   flex:1 的兄弟节点 —— 两者会平分剩余高度，导致分区列表在矮窗口被截断
+   （且滚动条按设计隐藏，用户看不到任何提示）。 */
 .nav {
   display: flex;
   flex-direction: column;
-  gap: 4px;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -112,6 +133,28 @@
 }
 .nav::-webkit-scrollbar {
   width: 0;
+}
+
+/* ---- Groups（主页 / 学习 / 回顾 / 设置） ---- */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.group + .group {
+  margin-top: 10px;
+}
+
+.groupLabel {
+  padding: 0 12px;
+  margin-bottom: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--ds-ink-faint);
+  text-transform: none;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .item {
@@ -189,6 +232,7 @@
   text-overflow: ellipsis;
 }
 
+/* 待办数角标（当前只用于「复习」：snapshot.review_due_count）。 */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -197,8 +241,8 @@
   height: 20px;
   padding: 0 6px;
   border-radius: 999px;
-  background: var(--ds-action-mint);
-  color: var(--ds-action-deep);
+  background: var(--ds-action-soft);
+  color: var(--ds-action-ink);
   font-size: 11px;
   font-weight: 700;
   font-family: var(--font-mono), monospace;
@@ -210,12 +254,7 @@
   color: var(--ds-ink);
 }
 
-/* ---- Footer (profile + collapse toggle) ---- */
-.spacer {
-  flex: 1 1 auto;
-  min-height: 12px;
-}
-
+/* ---- Footer (profile chip + account card) ---- */
 .footer {
   position: relative;
   display: flex;
@@ -223,12 +262,12 @@
   align-items: center;
   gap: 8px;
   padding-top: 12px;
-  margin-top: 8px;
+  margin-top: 12px;
   border-top: 1px solid color-mix(in srgb, var(--ds-ink) 10%, transparent);
   flex-shrink: 0;
 }
 
-/* 浮层元素：默认隐藏，hover / 聚焦头像时浮出迷你名片（折叠 / 展开态通用）。 */
+/* 浮层元素：默认隐藏。.tip 仅折叠 rail 态出现；名片点击头像后出现。 */
 .tip {
   display: none;
 }
@@ -243,8 +282,8 @@
   gap: 8px;
   padding: 12px;
   border-radius: 12px;
-  background: #1f2433;
-  color: #f1efea;
+  background: var(--nav-pop-bg);
+  color: var(--nav-pop-ink);
   box-shadow: 0 16px 40px -18px rgba(0, 0, 0, 0.7);
   z-index: 60;
 }
@@ -305,11 +344,11 @@
   text-align: left;
 }
 
-/* 伸缩(pin)控件：悬浮在侧边栏右边缘中部的圆形「标签」按钮，
-   桌面 / 折叠 rail 通用；不占 header/footer，也不挡导航。 */
+/* 伸缩(pin)控件：悬浮在侧边栏右边缘、与品牌区同高的圆形按钮。
+   刻意不放在列表中部 —— 那会与第 3/4 个分区同高并盖住内容区中线。 */
 .pinBtn {
   position: absolute;
-  top: 50%;
+  top: 42px;
   right: -14px;
   transform: translateY(-50%);
   z-index: 40;
@@ -361,13 +400,25 @@
 }
 .sidebar[data-collapsed='true'] .brand {
   justify-content: center;
-  padding: 0;
 }
-.sidebar[data-collapsed='true'] .version {
-  display: none;
+.sidebar[data-collapsed='true'] .brandBtn {
+  flex: 0 0 auto;
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  width: 40px;
 }
 .sidebar[data-collapsed='true'] .brandName {
   display: none;
+}
+/* 折叠 rail 态没有组标题的位置 —— 用组间细分隔线维持同样的语义分组。 */
+.sidebar[data-collapsed='true'] .groupLabel {
+  display: none;
+}
+.sidebar[data-collapsed='true'] .group + .group {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--ds-ink) 9%, transparent);
 }
 .sidebar[data-collapsed='true'] .item {
   justify-content: center;
@@ -397,10 +448,17 @@
   border-radius: 0 3px 3px 0;
   background: var(--ds-action);
 }
+/* rail 态待办数缩成右上角小圆点标（数字仍可读）。 */
 .sidebar[data-collapsed='true'] .item .badge {
   position: absolute;
-  top: 4px;
-  right: 8px;
+  top: 3px;
+  right: 6px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  font-size: 10px;
+  background: var(--ds-action-deep);
+  color: #fff;
 }
 .sidebar[data-collapsed='true'] .profile {
   flex: 0 0 auto;
@@ -408,17 +466,20 @@
 .sidebar[data-collapsed='true'] .profileName {
   display: none;
 }
-/* 折叠 rail 态：头像居中，hover 头像浮出名片。pin 已移至右上角固定位。 */
+/* 折叠 rail 态：头像居中，点击浮出名片。pin 固定在品牌区同高处。 */
 .sidebar[data-collapsed='true'] .footer {
   justify-content: center;
 }
 
-/* 折叠 rail 态允许 tooltip / 迷你名片延伸到内容区（仅 5 项，不会触发滚动）。 */
+/* 折叠 rail 态允许 tooltip / 迷你名片延伸到内容区。分区共 6 项，
+   常规窗口高度不触发滚动；矮窗口下 .nav 会滚动而 tooltip 被裁剪，
+   属可接受降级（此时展开态是主路径）。 */
 .sidebar[data-collapsed='true'] .nav {
   overflow: visible;
 }
 
-/* 折叠 rail 态自定义 tooltip：替原生 title，受控延迟避免快速划过闪现。 */
+/* 折叠 rail 态自定义 tooltip：受控延迟避免快速划过闪现。
+   注意组件上刻意不设 title 属性 —— 否则会与这里叠成两层浮层。 */
 .sidebar[data-collapsed='true'] .tip {
   display: inline-flex;
   align-items: center;
@@ -428,8 +489,8 @@
   transform: translateY(-50%);
   padding: 6px 10px;
   border-radius: 8px;
-  background: #1f2433;
-  color: #f1efea;
+  background: var(--nav-pop-bg);
+  color: var(--nav-pop-ink);
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
@@ -475,27 +536,50 @@
 .cardName {
   font-size: 13px;
   font-weight: 600;
-  color: #f1efea;
+  color: var(--nav-pop-ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .cardItem {
   appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
-  height: 34px;
+  min-height: 34px;
+  padding: 0 10px;
+  box-sizing: border-box;
   border: 0;
   border-radius: 9px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #f1efea;
+  background: var(--nav-pop-item);
+  color: var(--nav-pop-ink);
   font: inherit;
   font-size: 13px;
   font-weight: 500;
+  text-align: left;
+  text-decoration: none;
   cursor: pointer;
   transition: background 0.16s ease;
 }
 .cardItem:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--nav-pop-hover);
+}
+.cardItem:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 1px;
+}
+.cardItem[data-danger='true']:hover {
+  background: color-mix(in srgb, #e24b4a 34%, transparent);
+}
+
+/* 版本号从品牌区下方移到名片里 —— 低频信息不该占常驻垂直空间。 */
+.cardVersion {
+  padding: 2px 10px 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--nav-pop-ink) 62%, transparent);
 }
 
 /* ============================================================
@@ -524,12 +608,86 @@
   .pinBtn {
     display: none;
   }
-  /* 移动端抽屉打开时(data-collapsed 仍为 true)需恢复头像与底部布局，
-     否则上面「折叠 rail 态隐藏 profile」的规则会误伤抽屉。 */
+  /* 移动端抽屉打开时(data-collapsed 仍为 true)需恢复展开态布局，
+     否则上面「折叠 rail 态」的规则会误伤抽屉。 */
   .sidebar[data-mobile-open='true'] .profile {
     display: flex;
   }
   .sidebar[data-mobile-open='true'] .footer {
     justify-content: flex-start;
+  }
+  .sidebar[data-collapsed='true'] .brandBtn {
+    flex: 1;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 0 6px;
+    width: auto;
+  }
+  .sidebar[data-collapsed='true'] .brandName,
+  .sidebar[data-collapsed='true'] .itemLabel,
+  .sidebar[data-collapsed='true'] .profileName,
+  .sidebar[data-collapsed='true'] .groupLabel {
+    display: block;
+  }
+  .sidebar[data-collapsed='true'] .brand {
+    justify-content: flex-start;
+  }
+  .sidebar[data-collapsed='true'] .item {
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 0 12px;
+  }
+  .sidebar[data-collapsed='true'] .item .badge {
+    position: static;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    font-size: 11px;
+    background: var(--ds-action-soft);
+    color: var(--ds-action-ink);
+  }
+  .sidebar[data-collapsed='true'] .group + .group {
+    margin-top: 10px;
+    padding-top: 0;
+    border-top: 0;
+  }
+  /* 抽屉里不需要 rail tooltip（label 已可见）。 */
+  .sidebar[data-collapsed='true'] .tip {
+    display: none;
+  }
+  .sidebar[data-collapsed='true'] .profileCard {
+    left: 0;
+    right: 0;
+    bottom: calc(100% + 8px);
+    width: auto;
+  }
+  .sidebar[data-collapsed='true'] .nav {
+    overflow-y: auto;
+  }
+}
+
+/* ============================================================
+   Reduced motion — 关掉宽度/位移/延迟类动效，保留状态色变化
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .brandBtn,
+  .closeMobile,
+  .item,
+  .itemIcon,
+  .profile,
+  .cardItem,
+  .pinBtn {
+    transition: none;
+  }
+  .sidebar:not([data-collapsed='true']) .item:hover .itemIcon {
+    transform: none;
+  }
+  .pinBtn:hover {
+    transform: translateY(-50%);
+  }
+  .sidebar[data-collapsed='true'] .tip {
+    transition: none;
+    transition-delay: 0s;
   }
 }

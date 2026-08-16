@@ -27,6 +27,7 @@ from app.routers import (
     dashboard,
     favorites,
     lessons,
+    weakness,
     practice_session,
     review,
     sentences,
@@ -112,6 +113,7 @@ app.include_router(practice_session.router)
 app.include_router(favorites.router)
 app.include_router(review.router)
 app.include_router(courses.router)
+app.include_router(weakness.router)
 
 
 @app.get("/")

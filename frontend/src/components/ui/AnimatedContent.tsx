@@ -61,6 +61,16 @@ const AnimatedContent: React.FC<AnimatedContentProps> = ({
 
     const axis = direction === 'horizontal' ? 'x' : 'y';
     const offset = reverse ? -distance : distance;
+
+    const prefersReduced =
+      typeof window !== 'undefined' &&
+      !!window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReduced) {
+      gsap.set(el, { [axis]: 0, scale: 1, opacity: 1, visibility: 'visible' });
+      return;
+    }
+
     const startPct = (1 - threshold) * 100;
 
     gsap.set(el, {

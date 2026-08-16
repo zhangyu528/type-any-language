@@ -3,14 +3,14 @@
 /**
  * /dashboard — login-required learning console.
  *
- * This page is the orchestrator for a 5-partition console
- * (主页 / 课程 / 数据 / 收藏 / 设置). URL `?section=` is the single
+ * This page is the orchestrator for a 6-partition console
+ * (主页 / 发现 / 复习 / 数据 / 成就 / 设置). URL `?section=` is the single
  * source of truth for the active partition (deep-linkable + browser
  * back/forward); the picker modal uses `?picker=1` on the same URL.
  *
  * Auth: useAuth() + redirect to /login?from=/dashboard if anonymous.
  * Data: GET /api/dashboard is the single hydration call; the catalog is
- * loaded eagerly (needed by the 课程 grid + the picker modal).
+ * loaded eagerly (needed by the 发现 grid + the picker modal).
  */
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
@@ -23,10 +23,8 @@ import {
   DashboardSnapshot,
   apiEnrollCourse,
   apiUnenrollCourse,
-  ensureFavoritesSynced,
   getContentCatalog,
   getDashboardSnapshot,
-  loadCollection,
 } from '../api';
 import {
   DashboardSection,
@@ -39,7 +37,7 @@ import ModalShell from '../components/ModalShell';
 import DashboardNav from './DashboardNav';
 import OverviewSection from './sections/OverviewSection';
 import PracticeSection from './sections/PracticeSection';
-import CollectionSection from './sections/CollectionSection';
+import AchievementsSection from './sections/AchievementsSection';
 import ReviewSection from './sections/ReviewSection';
 import SettingsSection from './sections/SettingsSection';
 import LibPicker from './LibPicker';
@@ -147,14 +145,12 @@ function DashboardInner() {
   // 侧边栏展开态 = 用户点击固定(pin)；默认折叠为 76px rail。
   // 不再用 hover 自动展开：hover 浮层会压住主显示区，hover 推内容又会造成
   // 割裂，故改为「点击伸缩按钮切换 + pin 持久化」(VS Code / Notion 模型)。
-  const expanded = pinned;
-  const collapsed = !expanded;
-  // 内容区 margin 随展开态切换：展开时让位(不压)，折叠时收为 rail。
-  const contentCollapsed = !expanded;
+  // 内容区 margin 与侧栏宽度共用同一个 collapsed 标志（展开时让位，
+  // 折叠时收为 rail），不再维护第二个同义变量。
+  const collapsed = !pinned;
   const [mobileOpen, setMobileOpen] = useState(false);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
-  const [collectionCount, setCollectionCount] = useState(0);
   // 我的课程集合（enrolled lib ids）。服务端是唯一真相；本地做乐观更新，
   // 选课/移除时立即反映到主页「我的课程」块与课程中心两个标签页。
   const [enrolledLibIds, setEnrolledLibIds] = useState<string[]>([]);
@@ -198,15 +194,6 @@ function DashboardInner() {
     };
   }, [authLoading, user]);
 
-  // ---- Favorites cloud sync (logged-in) ----
-  // Converge localStorage cache with the server collection on mount:
-  // push any pre-existing local items once, then pull the cloud set back
-  // so the 收藏 tab + nav badge reflect server truth across devices.
-  useEffect(() => {
-    if (authLoading || !user) return;
-    void ensureFavoritesSynced(user.id);
-  }, [authLoading, user]);
-
   // ---- Catalog (eager — 练习 grid + picker both need it) ----
   useEffect(() => {
     if (!user) return;
@@ -226,19 +213,6 @@ function DashboardInner() {
       cancelled = true;
     };
   }, [user, catalog, catalogError]);
-
-  // ---- Collection badge count for the nav ----
-  useEffect(() => {
-    if (!user) return;
-    const recompute = () => {
-      const c = loadCollection(user.id);
-      setCollectionCount(Object.keys(c.sentences).length);
-    };
-    recompute();
-    const onChanged = () => recompute();
-    window.addEventListener('collection-changed', onChanged);
-    return () => window.removeEventListener('collection-changed', onChanged);
-  }, [user]);
 
   // Persist the active lib so ContinueCard / LibPicker can offer
   // "继续上次" on a later visit.
@@ -426,9 +400,9 @@ function DashboardInner() {
           <DashboardLoading />
         );
       case 'data':
-        return <DataSection snapshot={snapshot} />;
-      case 'collection':
-        return <CollectionSection userId={user.id} />;
+        return <DataSection snapshot={snapshot} onStartLib={handlePickLib} />;
+      case 'achievements':
+        return <AchievementsSection snapshot={snapshot} />;
       case 'review':
         return (
           <ReviewSection
@@ -456,7 +430,6 @@ function DashboardInner() {
             onPickLib={openLibPicker}
             onStartLib={handlePickLib}
             onNavigate={handleSelect}
-            collectionCount={collectionCount}
             enrolledLibIds={enrolledLibIds}
           />
         );
@@ -466,7 +439,7 @@ function DashboardInner() {
   return (
     <main
       className={styles.root}
-      data-collapsed={contentCollapsed ? 'true' : 'false'}
+      data-collapsed={collapsed ? 'true' : 'false'}
       data-mobile-open={mobileOpen ? 'true' : 'false'}
     >
       {/* Static baby-blue mesh background (replaces the old WebGL Aurora).
@@ -491,8 +464,9 @@ function DashboardInner() {
       <DashboardNav
         section={uiState.section}
         onSelect={handleSelect}
-        collectionCount={collectionCount}
+        reviewDue={snapshot.review_due_count ?? 0}
         user={user}
+        onLogout={handleLogout}
         collapsed={collapsed}
         pinned={pinned}
         onTogglePin={togglePin}

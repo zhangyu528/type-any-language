@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * PracticeSection — the "课程" partition of the console (was "练习").
+ * PracticeSection — the "发现" partition of the console (was "练习" / "课程").
  *
  * A browsable course catalog. A vocabulary lib is the first course_type
  * ("vocab"); future grammar / listening / exam courses attach to the same
@@ -61,7 +61,7 @@ export default function PracticeSection({
   const [activeType, setActiveType] = useState<string>('all');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('recommended');
-  const [courseTab, setCourseTab] = useState<CourseTab>('mine');
+  const [courseTab, setCourseTab] = useState<CourseTab>('discover');
 
   const progress = useMemo(
     () => loadTranslationProgress(userId),
@@ -127,8 +127,8 @@ export default function PracticeSection({
     <div className={styles.root}>
       <div className={styles.header}>
         <div className={styles.headText}>
-          <h2 className={styles.heading}>课程</h2>
-          <p className={styles.sub}>从「我的课程」继续,或到「发现」添加新课程。</p>
+          <h2 className={styles.heading}>发现</h2>
+          <p className={styles.sub}>浏览并添加课程到「我的课程」,或在「我的课程」继续学习。</p>
         </div>
         <div className={styles.headerRight}>
           <div className={styles.tabs} role="tablist" aria-label="课程视图">

@@ -89,6 +89,17 @@ export default function ProgressNarrative({
               : '已通关，挑下一本吧'
             : '开始练习后，这里显示通关进度'}
         </p>
+        {rows.length > 1 ? (
+          <p
+            style={{
+              margin: '6px 0 0',
+              fontSize: 12,
+              color: 'var(--ds-ink-soft)',
+            }}
+          >
+            还有 {rows.length - 1} 本进行中
+          </p>
+        ) : null}
       </div>
 
     </section>

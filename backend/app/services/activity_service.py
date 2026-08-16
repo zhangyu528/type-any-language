@@ -39,6 +39,7 @@ from app.schemas.dashboard import (
     DayDetailResponse,
     DaySessionSummary,
     KpiStat,
+    LifetimeStats,
     MonthlyGoalInfo,
     StreakInfo,
 )
@@ -557,6 +558,46 @@ def _get_monthly_goal(db: DbSession, user_id: UUID) -> int:
     if user is None or user[0] is None:
         return 600
     return int(user[0])
+
+
+def compute_lifetime(
+    db: DbSession,
+    user_id: UUID,
+) -> Optional[LifetimeStats]:
+    """Lifetime rollup across all of the user's practice, derived from
+    the daily_activity pre-aggregation (O(days), not O(attempts)).
+
+    Returns None when the user has no daily_activity rows yet — the
+    dashboard renders an empty-state instead of a misleading 100%.
+    """
+    agg = (
+        db.query(
+            func.coalesce(func.sum(DailyActivity.sentences_count), 0),
+            func.coalesce(func.sum(DailyActivity.correct_count), 0),
+        )
+        .filter(DailyActivity.user_id == user_id)
+        .one()
+    )
+    total = int(agg[0])
+    correct = int(agg[1])
+    if total == 0:
+        return None
+
+    days_row = (
+        db.query(func.count(func.distinct(DailyActivity.activity_date)))
+        .filter(DailyActivity.user_id == user_id)
+        .filter(DailyActivity.sentences_count > 0)
+        .scalar()
+    )
+    days_practiced = int(days_row or 0)
+    accuracy = (correct / total) if total > 0 else None
+
+    return LifetimeStats(
+        total_sentences=total,
+        total_correct=correct,
+        days_practiced=days_practiced,
+        accuracy=accuracy,
+    )
 
 
 def has_any_activity(db: DbSession, user_id: UUID) -> bool:

@@ -1,31 +1,89 @@
-/* GreetingBar — sticky-ish top header */
+/* GreetingBar — the dashboard "hero" header.
+   Time-of-day theming: root carries data-time (night/morning/afternoon/
+   evening); the band sets --glow (corner wash) + --accent-edge (left rail)
+   so the hero feels alive without being noisy. */
 
 .root {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-5);
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-6);
   background: var(--ds-glass-surface);
   border-radius: var(--radius-xl);
   border: 1px solid var(--ds-glass-border);
   box-shadow: var(--ds-glass-shadow);
-  flex-wrap: wrap;
-  /* Match the cardsGrid horizontal extent so the greeting bar sits
-     in the same column as the cards below, instead of looking like a
-     small floating element above the wider cards. The cardsGrid uses
-     var(--content-max) (1080) — we share the same width via the same
-     max-width. Monthly is pushed to the right with margin-left:auto so
-     the empty middle reads as intentional breathing space, not a bug. */
   width: 100%;
   max-width: var(--content-max);
+  flex-wrap: wrap;
+  /* defaults before the data-time band overrides them */
+  --glow: rgba(99, 179, 237, 0.26);
+  --accent-edge: var(--ds-action);
 }
 
-.meta {
+/* soft time-of-day glow, top-left corner */
+.root::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -8%;
+  width: 55%;
+  height: 200%;
+  background: radial-gradient(closest-side, var(--glow), transparent 72%);
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* thin accent rail on the left edge */
+.root::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14%;
+  bottom: 14%;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: var(--accent-edge);
+  opacity: 0.9;
+  z-index: 0;
+}
+
+.root > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---- time bands ---- */
+.root[data-time='morning'] {
+  --glow: rgba(255, 178, 102, 0.32);
+  --accent-edge: var(--ds-cta);
+}
+.root[data-time='afternoon'] {
+  --glow: rgba(99, 179, 237, 0.26);
+  --accent-edge: var(--ds-action);
+}
+.root[data-time='evening'] {
+  --glow: rgba(151, 120, 255, 0.32);
+  --accent-edge: var(--ds-convert);
+}
+.root[data-time='night'] {
+  --glow: rgba(96, 124, 224, 0.34);
+  --accent-edge: var(--ds-action-deep);
+}
+
+[data-theme='dark'] .root[data-time='night'] {
+  --glow: rgba(120, 150, 255, 0.30);
+}
+
+/* ---- lead (greeting + streak) ---- */
+.lead {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-2);
   min-width: 0;
-  flex: 1 1 280px;
+  flex: 1 1 260px;
 }
 
 .greeting {
@@ -33,8 +91,9 @@
   font-family: var(--font-display);
   font-size: var(--text-h1);
   font-weight: var(--weight-medium);
+  letter-spacing: -0.01em;
   color: var(--ds-ink);
-  line-height: 1.2;
+  line-height: 1.18;
 }
 
 .name {
@@ -46,7 +105,7 @@
    the streak badge for attention. */
 .tenure {
   margin-left: var(--space-2);
-  padding: 1px 9px;
+  padding: 2px 10px;
   border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--ds-surface) 80%, var(--ds-border) 20%);
   border: 1px solid var(--ds-border);
@@ -54,6 +113,7 @@
   font-size: var(--text-caption);
   font-weight: var(--weight-regular);
   white-space: nowrap;
+  vertical-align: middle;
 }
 
 .streak {
@@ -61,11 +121,17 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 12px;
+  padding: 5px 13px;
   border-radius: var(--radius-pill);
   font-size: var(--text-body);
   font-weight: var(--weight-medium);
   line-height: 1.4;
+  width: fit-content;
+}
+
+.streakIcon {
+  flex: none;
+  margin-right: 1px;
 }
 
 /* DecryptedText — decrypted chars inherit streak color (don't override);
@@ -101,11 +167,35 @@
   font-weight: var(--weight-regular);
 }
 
+/* ---- centered date block (fills the empty middle on wide screens) ---- */
+.date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0 var(--space-5);
+  margin-left: auto;
+  flex: 0 0 auto;
+  text-align: center;
+}
+
+.dateDay {
+  font-family: var(--font-display);
+  font-size: var(--text-h2);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink);
+  line-height: 1;
+}
+
+.dateWeek {
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+  letter-spacing: 0.06em;
+}
+
 /* -------- Monthly goal (absorbed from old CalendarHeader) -------- */
 /* The right-side block. flex 0 1 auto so it shrinks under narrow
-   viewports before the meta column does. margin-left:auto keeps the
-   block pinned to the right edge when the bar is wider than its
-   content (after the 1.3 alignment fix). */
+   viewports before the lead column does. */
 .monthly {
   display: flex;
   flex-direction: column;
@@ -113,11 +203,19 @@
   min-width: 200px;
   max-width: 320px;
   flex: 0 1 auto;
-  margin-left: auto;
+  margin-left: var(--space-5);
+}
+
+/* Small header row: "本月目标" caption + status pill, pushed apart. */
+.monthlyHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
 }
 
 .monthlyTrack {
-  height: 6px;
+  height: 8px;
   /* Use tint-deep (not tint) so the track contrasts against the
      white card surface in light mode and the navy card in dark
      mode. tint was so close to surface that the track disappeared
@@ -128,11 +226,11 @@
   box-shadow: inset 0 1px 2px rgba(12, 68, 124, 0.08);
 }
 
-[data-theme="dark"] .monthlyTrack {
+[data-theme='dark'] .monthlyTrack {
   /* Dark mode: tint-deep (#1E3E5F) on surface (#102A45) is still
      too close in luminance. Step up to a slightly lighter track so
      the unfilled portion reads clearly against the dark card. */
-  background: #2A4868;
+  background: #2a4868;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
@@ -142,9 +240,15 @@
   transition: width var(--dur-base) var(--ease-out);
 }
 
-.monthlyFill-onTrack  { background: var(--ds-correct-fill); }
-.monthlyFill-behind   { background: var(--ds-error); }
-.monthlyFill-achieved { background: var(--ds-cta); }
+.monthlyFill-onTrack {
+  background: var(--ds-correct-fill);
+}
+.monthlyFill-behind {
+  background: var(--ds-error);
+}
+.monthlyFill-achieved {
+  background: var(--ds-cta);
+}
 
 .monthlyText {
   margin: 0;
@@ -158,8 +262,10 @@
 }
 
 .monthlyLabel {
-  margin-right: var(--space-1);
-  color: var(--ds-ink-soft);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.02em;
+  color: var(--ds-ink);
 }
 
 .monthlyNum {
@@ -178,22 +284,24 @@
 }
 
 .monthlyUnit {
-  margin-right: var(--space-3);
   color: var(--ds-ink-soft);
 }
 
 .monthlyStatus {
   font-size: var(--text-caption);
   font-weight: var(--weight-medium);
-  /* G2: 用 margin-left: auto 把状态徽章推到 inline 行的右端,
-     避免跟 "20 天" 黏一起;窄屏自然 wrap 到下一行,
-     不再需要手动控制断行逻辑。 */
-  margin-left: auto;
+  /* 状态药丸现位于 .monthlyHead 标题行右端，由 space-between 推开。 */
 }
 
-.status-onTrack  { color: var(--ds-correct); }
-.status-behind   { color: var(--ds-error-ink); }
-.status-achieved { color: var(--ds-cta-deep); }
+.status-onTrack {
+  color: var(--ds-correct);
+}
+.status-behind {
+  color: var(--ds-error-ink);
+}
+.status-achieved {
+  color: var(--ds-cta-deep);
+}
 
 /* Pace projection line under the monthly bar. */
 .monthlyHint {
@@ -203,14 +311,27 @@
   color: var(--ds-ink-soft);
 }
 
-.hint-achieved { color: var(--ds-cta-deep); }
-.hint-onTrack  { color: var(--ds-correct); }
-.hint-behind   { color: var(--ds-error-ink); }
+.hint-achieved {
+  color: var(--ds-cta-deep);
+}
+.hint-onTrack {
+  color: var(--ds-correct);
+}
+.hint-behind {
+  color: var(--ds-error-ink);
+}
 
-/* Mobile: monthly drops onto its own row; meta keeps its anchor. */
+/* ---- responsive ---- */
+/* Hide the centered date block where it would crowd the layout. */
+@media (max-width: 860px) {
+  .date {
+    display: none;
+  }
+}
+
 @media (max-width: 639px) {
   .root {
-    padding: var(--space-3) var(--space-4);
+    padding: var(--space-4) var(--space-5);
     gap: var(--space-3);
   }
 
@@ -221,9 +342,9 @@
   .monthly {
     flex: 1 1 100%;
     max-width: none;
-    /* On mobile the bar stacks meta/monthly vertically.
-       Override the desktop margin-left:auto so monthly sits in
-       normal flow under meta instead of being pushed right. */
+    /* On mobile the bar stacks lead/monthly vertically.
+       Override the desktop margin-left so monthly sits in
+       normal flow under lead instead of being pushed right. */
     margin-left: 0;
   }
 }

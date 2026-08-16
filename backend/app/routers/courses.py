@@ -39,7 +39,11 @@ def _parse_lib_id(lib_id: str) -> UUID:
         )
 
 
-@router.post("/{lib_id}/enroll", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/{lib_id}/enroll",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
 def enroll_course(
     lib_id: str,
     current_user: User = Depends(get_current_user),
@@ -65,7 +69,11 @@ def enroll_course(
         db.commit()
 
 
-@router.delete("/{lib_id}/enroll", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{lib_id}/enroll",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
 def unenroll_course(
     lib_id: str,
     current_user: User = Depends(get_current_user),

@@ -4,11 +4,10 @@
  * OverviewSection — 概览（方向 B：个人学习日报）。
  *
  * 信息架构：顶部 Hero（问候 + 连击胶囊「唯一连击源」+ 本月目标迷你条）
- * → 双栏主体（左=行动+动量，右=洞察+进度）→ 成就墙（通栏）。
+ * → 双栏主体（左=行动+动量，右=洞察+进度）。
  *
  * 去重：连击只在 Hero 胶囊 + 连击动量出现；月目标只在 Hero 迷你条出现；
- * 习惯时刻只在 TodaySuggestion 出现；准确率只在薄弱洞察 / 本周一眼出现，
- * 成就墙不再重复数字。
+ * 习惯时刻只在 TodaySuggestion 出现；准确率只在薄弱洞察 / 本周一眼出现。
  * 「本周一眼」已移除重复的"连续天数"。
  *
  * 首跑态：无任何练习记录时整页切换为 FirstRunGuide。
@@ -16,17 +15,32 @@
  * 本组件只做展示拼装，数据来自 page.tsx 传入的 snapshot + catalog。
  */
 
-import { useMemo } from 'react';
-import { Catalog, DashboardSnapshot } from '../../api';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Catalog,
+  DashboardSnapshot,
+  loadTranslationProgress,
+  libProgressPct,
+  TranslationProgress,
+} from '../../api';
+
+const ACCENT_VARS: Record<string, string> = {
+  blue: 'var(--ds-action)',
+  green: 'var(--ds-correct)',
+  amber: 'var(--ds-cta)',
+  purple: 'var(--ds-convert)',
+};
+
+function accentVar(accent?: string | null): string {
+  return (accent && ACCENT_VARS[accent]) || 'var(--ds-action)';
+}
 import AnimatedContent from '@/components/AnimatedContent';
 import GreetingBar from '../GreetingBar';
 import ContinueCard from '../ContinueCard';
 import DailyGoal from '../DailyGoal';
 import StreakMomentum from './StreakMomentum';
-import AchievementWall from './AchievementWall';
 import TodaySuggestion from './TodaySuggestion';
 import ProgressNarrative from './ProgressNarrative';
-import WeaknessInsight from './WeaknessInsight';
 import FirstRunGuide from './FirstRunGuide';
 import QuickNav from './QuickNav';
 import styles from './OverviewSection.module.css';
@@ -40,10 +54,8 @@ interface OverviewSectionProps {
   onPickLib: () => void;
   /** Jump straight into a lib's drill (used by the quick-launch chips). */
   onStartLib: (libId: string) => void;
-  /** 快速入口导航（课程/数据/收藏/复习 → 对应分区）。 */
+  /** 快速入口导航（课程/数据/成就/复习 → 对应分区）。 */
   onNavigate: (section: DashboardSection) => void;
-  /** 收藏句数（驱动快速入口的收藏卡）。 */
-  collectionCount: number;
   /** 用户已选课程（我的课程）的 lib id 列表，驱动主页「我的课程」块。 */
   enrolledLibIds?: string[];
 }
@@ -55,7 +67,6 @@ export default function OverviewSection({
   onPickLib,
   onStartLib,
   onNavigate,
-  collectionCount,
   enrolledLibIds,
 }: OverviewSectionProps) {
   // 最近词库（persisted in prefs.libId），供建议/快启/首跑态读取。
@@ -93,6 +104,15 @@ export default function OverviewSection({
       .slice(0, 4);
   }, [catalog, enrolledLibIds]);
 
+  // 我的课程进度源：浏览器 localStorage（逐句进度），监听变更即时刷新。
+  const [progress, setProgress] = useState<TranslationProgress>({});
+  useEffect(() => {
+    const refresh = () => setProgress(loadTranslationProgress(snapshot.user.id));
+    refresh();
+    window.addEventListener('translation-progress-changed', refresh);
+    return () => window.removeEventListener('translation-progress-changed', refresh);
+  }, [snapshot.user.id]);
+
   // 首跑态：从未练习过。
   // 用后端的终身信号 has_any_activity（按 user_id 统计 daily_activity 是否有
   // 任何记录），它不依赖 35 天 calendar 窗口、也不依赖 user_streaks 回滚——
@@ -127,8 +147,8 @@ export default function OverviewSection({
 
       <QuickNav
         snapshot={snapshot}
-        collectionCount={collectionCount}
         reviewDue={snapshot.review_due_count ?? 0}
+        catalog={catalog}
         onNavigate={onNavigate}
       />
 
@@ -160,17 +180,39 @@ export default function OverviewSection({
           <AnimatedContent distance={20} direction="vertical" delay={160 / 1000} className={`${styles.bentoCell} ${styles.span12}`}>
             <div className={styles.quickLaunchBlock}>
               <p className={styles.quickLaunchLabel}>我的课程</p>
-              <div className={styles.chips}>
-                {myCourseLibs.map((lib) => (
-                  <button
-                    key={lib.id}
-                    type="button"
-                    className={styles.chip}
-                    onClick={() => onStartLib(lib.id)}
-                  >
-                    {lib.name}
-                  </button>
-                ))}
+              <div className={styles.courseGrid}>
+                {myCourseLibs.map((lib) => {
+                  const pct = libProgressPct(lib, progress);
+                  const answered = Object.keys(progress[lib.id]?.sentences ?? {}).length;
+                  const remain = Math.max(0, (lib.sentence_count || 0) - answered);
+                  const accent = accentVar(lib.accent);
+                  const current = lib.id === recentId;
+                  return (
+                    <button
+                      key={lib.id}
+                      type="button"
+                      className={`${styles.courseCard}${current ? ` ${styles.courseCurrent}` : ''}`}
+                      onClick={() => onStartLib(lib.id)}
+                      aria-label={`继续《${lib.name}》${pct >= 100 ? '（已通关）' : `，进度 ${pct}%`}`}
+                    >
+                      <span className={styles.courseTop}>
+                        <span className={styles.courseDot} style={{ background: accent }} aria-hidden="true" />
+                        <span className={styles.courseName}>{lib.name}</span>
+                        {current ? (
+                          <span className={styles.courseNow} style={{ color: accent }}>
+                            进行中
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className={styles.courseTrack} aria-hidden="true">
+                        <span className={styles.courseFill} style={{ width: `${pct}%`, background: accent }} />
+                      </span>
+                      <span className={styles.courseMeta}>
+                        {pct >= 100 ? '已通关' : `还差 ${remain} 句`} · {pct}%
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </AnimatedContent>
@@ -208,10 +250,6 @@ export default function OverviewSection({
           <ProgressNarrative userId={snapshot.user.id} catalog={catalog} />
         </AnimatedContent>
 
-        <AnimatedContent distance={20} direction="vertical" delay={120 / 1000} className={`${styles.bentoCell} ${styles.span4}`}>
-          <WeaknessInsight userId={snapshot.user.id} catalog={catalog} onStartLib={onStartLib} />
-        </AnimatedContent>
-
         {/* 本周 KPI 条 */}
         <AnimatedContent distance={20} direction="vertical" delay={160 / 1000} className={`${styles.bentoCell} ${styles.span12}`}>
           <div className={styles.weekGlanceText}>
@@ -224,7 +262,7 @@ export default function OverviewSection({
                 {weekGlance.accuracy != null ? `${weekGlance.accuracy}%` : '—'}
               </b>
               {weekGlance.acc7 && weekGlance.acc7.delta !== 0 ? (
-                <b className={styles.glanceDelta}>
+                <b className={weekGlance.acc7.delta > 0 ? styles.glanceDelta : styles.glanceDeltaDown}>
                   {weekGlance.acc7.delta > 0 ? '▲' : '▼'}
                   {Math.abs(weekGlance.acc7.delta)}
                 </b>
@@ -235,8 +273,8 @@ export default function OverviewSection({
                 本周新词{' '}
                 <b className={styles.glanceNum}>+{weekGlance.newWords.value}</b>
                 {weekGlance.newWords.delta !== 0 ? (
-                  <b className={styles.glanceDelta}>
-                    {weekGlance.newWords.delta > 0 ? '▲' : '▼'}
+                <b className={weekGlance.newWords.delta > 0 ? styles.glanceDelta : styles.glanceDeltaDown}>
+                  {weekGlance.newWords.delta > 0 ? '▲' : '▼'}
                     {Math.abs(weekGlance.newWords.delta)}
                   </b>
                 ) : null}
@@ -245,10 +283,6 @@ export default function OverviewSection({
           </div>
         </AnimatedContent>
       </div>
-
-      <AnimatedContent distance={20} delay={200 / 1000} direction="vertical" className={styles.achievement}>
-        <AchievementWall snapshot={snapshot} />
-      </AnimatedContent>
     </>
   );
 }

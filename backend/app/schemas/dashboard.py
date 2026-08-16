@@ -126,6 +126,26 @@ class KpiStat(BaseModel):
     label: str
 
 
+# ---- Lifetime stats (achievements / weak points) -------------------------
+class LifetimeStats(BaseModel):
+    """Lifetime rollup across ALL of the user's practice (not the 35-day
+    calendar window). Powers the achievements page + corrects the
+    AchievementWall's previously-window-limited totals.
+
+    Derived from daily_activity (a pre-aggregated per-day rollup), so it
+    is O(days) not O(attempts) — cheap even for long-tenured users.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    total_sentences: int
+    total_correct: int
+    days_practiced: int
+    # 0.0–1.0 lifetime accuracy; None when the user has no attempts yet
+    # (so the UI can render "—" instead of a misleading 100%).
+    accuracy: Optional[float] = None
+
+
 # ---- Composed response ---------------------------------------------------
 class DashboardResponse(BaseModel):
     """The single GET /api/dashboard payload. One round-trip per page
@@ -172,6 +192,10 @@ class DashboardResponse(BaseModel):
     # the field is still a list so the UI can render an "add courses"
     # empty state without special-casing.
     enrolled_lib_ids: List[str] = Field(default_factory=list)
+    # Lifetime rollup (all-time, not the 35-day calendar window). Powers the
+    # achievements page + the AchievementWall's accurate totals. None for a
+    # brand-new user with no daily_activity rows yet.
+    lifetime: Optional[LifetimeStats] = None
 
 
 # ---- Day-detail drawer (clicked from calendar) ---------------------------
