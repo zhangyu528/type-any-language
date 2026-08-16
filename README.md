@@ -9,7 +9,7 @@
 | 角色 | 根目录入口 | 详细脚本 | 数据库 |
 |---|---|---|---|
 | CMS 主机（生产内容） | — | `cms/scripts/*.sh` | 把 staging 内容 UPSERT 到 **docker postgres**（外部云 db） |
-| 开发目标机 | `bash dev` | `dev-tools/*.sh` | 读 **docker postgres**（`DATABASE_URL`） |
+| 开发目标机 | `bash dev` | `devcli/*.sh` | 读 **docker postgres**（`DATABASE_URL`） |
 | 生产目标机 | `bash ops/cvm/lifecycle.sh` | `ops/cvm/*.sh` | 读 **docker postgres**（`DATABASE_URL`） |
 
 dev / prod 目标机只跑 backend + frontend（dev 走 host-native：uvicorn + `next dev` 直接在宿主机上跑，db 走 docker 容器），**没有 db 容器、没有 .env 文件**。运行时数据库（docker postgres）是外部依赖 —— backend 容器通过 compose `secrets:` block 把 host 侧的 `DATABASE_URL` 挂进来，DSN 进 `DATABASE_URL_FILE=/run/secrets/database_url`。Backend 不需要知道 db 在哪；网络可达、DSN 对即可。`POSTGRES_PASSWORD` 不再需要 —— 密码写进 `DATABASE_URL`，由 `db/scripts/migrate.sh` 在每个 host 一次性 setup 时写入。
@@ -33,12 +33,12 @@ dev / prod 目标机只跑 backend + frontend（dev 走 host-native：uvicorn + 
 
 仓库的运维入口分两类：
 
-- **目标机日常 + CMS 内容管线** 统一走仓库根的 `dev` 调度器（跨平台 bash 脚本，macOS / Linux / Windows Git Bash 行为一致），如 `bash dev start`、`bash dev cms-run`。`dev` 内部用 `bash <script> <subcommand>` 调用 `dev-tools/` 与 `cms/scripts/`，**不依赖 `.sh` 的 executable 位**。
+- **目标机日常 + CMS 内容管线** 统一走仓库根的 `dev` 调度器（跨平台 bash 脚本，macOS / Linux / Windows Git Bash 行为一致），如 `bash dev start`、`bash dev cms-run`。`dev` 内部用 `bash <script> <subcommand>` 调用 `devcli/` 与 `cms/scripts/`，**不依赖 `.sh` 的 executable 位**。
 - **prod / release / staging** 走 `.github/workflows/` 的 GitHub Actions（手动 `workflow_dispatch` 或 tag 触发），不在本机入口里。
 
 ```bash
 bash dev help              # 列出全部子命令 + 一句话用途
-bash dev setup             # 首次 bootstrap(等价 ./dev-tools/setup.sh)
+bash dev setup             # 首次 bootstrap(等价 ./devcli/setup.sh)
 bash dev start             # 启 host-native backend+frontend + docker db
 bash dev stop
 bash dev restart
@@ -50,13 +50,13 @@ bash dev cms-run           # 完整 CMS 流水线(词库→AI句子→TTS)
 # ... 还有 cms-vocab / cms-sentences / cms-audio / cms-staging-doctor
 ```
 
-`bash dev help` 会列出全部子命令，按 host 角色分组（dev / cms / data）。老的 `./dev-tools/.../*.sh`、`cms/scripts/*.sh` 直接调用也完全等价。Windows 用 Git Bash 终端跑 `bash dev <cmd>`（裸 PowerShell/cmd 的 bash 是 WSL 启动器，可能失败，故不提供 `.cmd` 包装）。
+`bash dev help` 会列出全部子命令，按 host 角色分组（dev / cms / data）。老的 `./devcli/.../*.sh`、`cms/scripts/*.sh` 直接调用也完全等价。Windows 用 Git Bash 终端跑 `bash dev <cmd>`（裸 PowerShell/cmd 的 bash 是 WSL 启动器，可能失败，故不提供 `.cmd` 包装）。
 
 ---
 
 ## 快速开始（开发环境）
 
-> 以下示例统一用 `bash dev`（推荐）。`./dev-tools/.../*.sh`、`cms/scripts/*.sh` 直接调用也完全等价，且 macOS / Linux / Windows (Git Bash / WSL) 行为完全一致，不需要 chmod。
+> 以下示例统一用 `bash dev`（推荐）。`./devcli/.../*.sh`、`cms/scripts/*.sh` 直接调用也完全等价，且 macOS / Linux / Windows (Git Bash / WSL) 行为完全一致，不需要 chmod。
 
 dev 主机自己跑 docker postgres（`postgres:15-alpine`，数据在 `./.docker-postgres-data/`，gitignored）—— 没有外部云 db，没有 `.dbcreds/` 间接层，`DATABASE_URL` 由 compose 的 `environment:` 直接注入 backend 容器。
 

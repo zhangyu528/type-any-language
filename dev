@@ -16,7 +16,7 @@
 # 选 bash 前缀运行 = 不需要 +x 权限 = macOS 不会踩 "permission denied" 坑;
 # 也兼容 Windows (Git Bash 的 `bash dev ...` 是标准用法)。
 #
-# 子命令自动转发到 dev-tools/ 下的脚本,所有参数透传。
+# 子命令自动转发到 devcli/ 下的脚本,所有参数透传。
 
 set -e
 
@@ -30,26 +30,26 @@ shift 2>/dev/null || true
 
 case "$SUBCMD" in
   # ---- 服务生命周期 ----
-  start)              bash dev-tools/native.sh start              "$@" ;;
-  start-frontend)     bash dev-tools/native.sh start-frontend     "$@" ;;
-  stop)               bash dev-tools/native.sh stop               "$@" ;;
-  restart)            bash dev-tools/native.sh restart            "$@" ;;
+  start)              bash devcli/native.sh start              "$@" ;;
+  start-frontend)     bash devcli/native.sh start-frontend     "$@" ;;
+  stop)               bash devcli/native.sh stop               "$@" ;;
+  restart)            bash devcli/native.sh restart            "$@" ;;
   restart-frontend)
     # Makefile 走 npm run:避免在 backend 上误改 pid 文件
     (cd frontend && npm run dev:restart)
     ;;
 
   # ---- 观测 ----
-  status)             bash dev-tools/native.sh status             "$@" ;;
-  logs)               bash dev-tools/native.sh logs               "$@" ;;
-  preflight)          bash dev-tools/native.sh preflight          "$@" ;;
-  doctor)             bash dev-tools/doctor.sh                    "$@" ;;
+  status)             bash devcli/native.sh status             "$@" ;;
+  logs)               bash devcli/native.sh logs               "$@" ;;
+  preflight)          bash devcli/native.sh preflight          "$@" ;;
+  doctor)             bash devcli/doctor.sh                    "$@" ;;
 
   # ---- 一次性 / 数据 ----
-  setup)              bash dev-tools/setup.sh                     "$@" ;;
-  migrate)            bash dev-tools/migrate.sh                   "$@" ;;
+  setup)              bash devcli/setup.sh                     "$@" ;;
+  migrate)            bash devcli/migrate.sh                   "$@" ;;
   import|import-content)
-                      bash dev-tools/import_content.sh            "$@" ;;
+                      bash devcli/import_content.sh            "$@" ;;
 
   # ---- CMS 内容管线 (原 Makefile cms-*) ----
   cms-vocab)          bash cms/scripts/staging.sh vocab           "$@" ;;

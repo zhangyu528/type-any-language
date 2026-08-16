@@ -34,9 +34,11 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-source "$SCRIPT_DIR/../../ops/lib.sh"
+# Self-contained: db/scripts owns its helpers (db_assemble_url + logging),
+# no ops/ dependency.
+source "$SCRIPT_DIR/lib.sh"
 
-# Assemble DATABASE_URL — see ops/lib.sh::db_assemble_url. The Python
+# Assemble DATABASE_URL — see db/scripts/lib.sh::db_assemble_url. The Python
 # modules (init_schema, importer, migrations.runner) no longer import
 # pipeline.env, which used to do this in Python.
 if [ -z "${DATABASE_URL:-}" ]; then

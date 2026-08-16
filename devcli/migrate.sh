@@ -1,14 +1,14 @@
 #!/bin/bash
 #
-# dev-tools/migrate.sh — apply pending schema migrations to the dev db.
+# devcli/migrate.sh — apply pending schema migrations to the dev db.
 #
 # The dev db is a `postgres:15-alpine` container in the same compose
 # file as backend. Two equivalent ways to run this:
 #
 #   1. From the host shell:
 #      DATABASE_URL=postgresql://english_dev:devpw@localhost:5432/english_dev \
-#          ./dev-tools/migrate.sh
-#      (or `./dev-tools/migrate.sh` after `docker compose up db`)
+#          ./devcli/migrate.sh
+#      (or `./devcli/migrate.sh` after `docker compose up db`)
 #
 #   2. From inside the backend container (entrypoint.sh does this
 #      automatically on every start):
@@ -26,7 +26,7 @@
 set -e
 
 COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$COMMON_DIR/../.." && pwd)"
+PROJECT_DIR="$(cd "$COMMON_DIR" && cd .. && pwd)"
 # shellcheck source=_common.sh
 source "$COMMON_DIR/_common.sh"
 setup_dev_host_env
@@ -70,7 +70,7 @@ cmd_migrate() {
     echo ""
     ok "=== migrate 完成 ==="
     info "  backend hot reload 自动捡新 schema;要确认:"
-    info "    ./dev-tools/native.sh restart"
+    info "    ./devcli/native.sh restart"
     info "  或直接由 backend entrypoint 自动跑:"
     info "    docker compose restart backend"
 }

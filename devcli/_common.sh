@@ -1,11 +1,11 @@
 #!/bin/bash
 #
-# dev-tools/_common.sh — shared helpers for the dev scripts.
+# devcli/_common.sh — shared helpers for the dev scripts.
 #
-# Sourced by every script in dev-tools/. Provides db-lifecycle helpers
+# Sourced by every script in devcli/. Provides db-lifecycle helpers
 # (start the docker db, check it's healthy, warn if it's empty) and a
 # staging-files inventory check. No image / registry / watch machinery
-# — the dev loop is host-native (dev-tools/native.sh), the only docker
+# — the dev loop is host-native (devcli/native.sh), the only docker
 # artifact on a dev host is the `db` service in docker-compose.dev.yml.
 #
 # Conventions:
@@ -28,20 +28,81 @@
 
 set -e
 
-: "${PROJECT_DIR:=$(cd "$COMMON_DIR/../.." && pwd)}"
+# Repo root is one level above devcli/ (COMMON_DIR). Use two explicit
+# `cd ..` segments (matching native.sh) — a single `cd "$COMMON_DIR/../.."`
+# collapses to the wrong parent on MSYS/Git Bash.
+: "${PROJECT_DIR:=$(cd "$COMMON_DIR" && cd .. && pwd)}"
 cd "$PROJECT_DIR"
-# shellcheck disable=SC1091
-source "$PROJECT_DIR/ops/lib.sh"  # dev/ is sibling to ops/, lib.sh still lives under ops/
+
+# ─── Self-contained helpers (no ops/ dependency) ──────────────────────────
+# devcli is host-native; the only ops/lib.sh symbols it ever consumed
+# were these lightweight logging + compose-detection helpers, so we inline
+# them here instead of source-ing ops/lib.sh (which is about image tags /
+# registry / prod secrets — none of which a dev host needs).
+if [ -t 1 ]; then
+    _LIB_RED='\033[0;31m'; _LIB_GREEN='\033[0;32m'
+    _LIB_YELLOW='\033[1;33m'; _LIB_BLUE='\033[1;34m'; _LIB_NC='\033[0m'
+else
+    _LIB_RED=''; _LIB_GREEN=''; _LIB_YELLOW=''; _LIB_BLUE=''; _LIB_NC=''
+fi
+ok()   { echo -e "${_LIB_GREEN}[OK]${_LIB_NC}   $1"; }
+warn() { echo -e "${_LIB_YELLOW}[WARN]${_LIB_NC} $1"; }
+info() { echo -e "${_LIB_BLUE}[INFO]${_LIB_NC} $1"; }
+err()  { echo -e "${_LIB_RED}[ERR]${_LIB_NC}  $1"; }
+
+detect_compose_cmd() {
+    if command -v docker-compose &> /dev/null; then
+        DOCKER_COMPOSE_CMD="docker-compose"
+    elif docker compose version &> /dev/null 2>&1; then
+        DOCKER_COMPOSE_CMD="docker compose"
+    else
+        return 1
+    fi
+}
 
 # ─── Missing helpers (refactor left these behind) ──────────────────────────
-# ops/lib.sh references `check_docker_daemon_running` but never defined it
-# (the function used to live in ops/dev/_common.sh, pre-refactor). Define it
-# here so dev-tools/{native,setup,doctor,preflight} work.
+# These used to come transitively from ops/lib.sh (via the old
+# `source ops/lib.sh` in _common.sh). They're host-native, lightweight, and
+# have nothing to do with image tags / registry / prod secrets, so we inline
+# them here for real — devcli no longer touches ops/.
 #
 # `docker info` can hang for ~30s when the daemon is not running (Docker
 # Desktop is launching). Bound the wait so preflight doesn't appear frozen.
 check_docker_daemon_running() {
     timeout 5 docker info &> /dev/null
+}
+
+check_docker_installed() {
+    command -v docker &> /dev/null
+}
+
+# port_in_use <port> → returns 0 if the port is listening, 1 otherwise.
+# Uses `ss` if available, falls back to `netstat`, then a /proc scan.
+port_in_use() {
+    local port="$1"
+    if command -v ss &> /dev/null; then
+        ss -tln 2>/dev/null | grep -qE ":${port}\b" && return 0
+    fi
+    if command -v netstat &> /dev/null; then
+        netstat -tln 2>/dev/null | grep -qE ":${port}\b" && return 0
+    fi
+    # Last-resort: TCP table on Linux.
+    if [ -r /proc/net/tcp ]; then
+        awk -v p="$port" 'BEGIN{p=strtonum("0x"p)} $2 ~ ":"p"$" {found=1; exit} END{exit !found}' /proc/net/tcp 2>/dev/null
+        return $?
+    fi
+    return 1
+}
+
+# warn_port_in_use <port> <description> → prints warning if occupied.
+# Always returns 0: warnings are advisory, never fail the script under `set -e`.
+warn_port_in_use() {
+    local port="$1"
+    local desc="$2"
+    if port_in_use "$port"; then
+        warn "$desc (端口 $port) 已被占用"
+    fi
+    return 0
 }
 
 # setup_dev_host_env: populates $DOCKER_COMPOSE_CMD for host-side scripts
@@ -64,7 +125,7 @@ setup_dev_host_env() {
 #   2. a global python3 / python on PATH (hosts that install Python globally).
 #
 # Echoes an empty string only if no Python can be found at all. Every
-# dev-tools script that shells out to the backend uses this instead of a
+# devcli script that shells out to the backend uses this instead of a
 # bare `python3`, so `bash dev start|migrate|doctor` keep working on hosts
 # whose PATH only has the project venv (Windows Store "python" alias,
 # missing global install, etc.).
@@ -99,7 +160,7 @@ require_dev_db_up() {
     cid="$($DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" ps -q db 2>/dev/null | head -1 || true)"
     if [ -z "$cid" ]; then
         err "dev db 容器没起 — host-side migrate 无 db 可连"
-        info "  → 运行: ./dev-tools/native.sh start"
+        info "  → 运行: ./devcli/native.sh start"
         return 1
     fi
     status="$(docker inspect "$cid" --format '{{.State.Health.Status}}' 2>/dev/null || echo "")"
@@ -186,7 +247,7 @@ warn_if_db_empty() {
     fi
     if [ "$count" = "0" ]; then
         warn "db 是空的 (vocabulary_libs = 0 行)"
-        info "  → 灌入内容: ./dev-tools/import_content.sh"
+        info "  → 灌入内容: ./devcli/import_content.sh"
         info "    (会自动起 db,如果没起;需要 cms/content/{vocabulary,sentences}/ 已有 staging 文件)"
     fi
 }

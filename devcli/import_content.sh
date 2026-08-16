@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# dev-tools/import_content.sh — import cms/content/ into the dev db.
+# devcli/import_content.sh — import cms/content/ into the dev db.
 #
 # Equivalent to ./db/scripts/import_staging.sh all, but routes through
 # the dev docker-compose db (postgres:15-alpine running on the dev
@@ -13,7 +13,7 @@
 #   ./db/scripts/import_staging.sh all                     # UPSERT to db
 #
 # A dev host that just wants the L step (import) can do:
-#   ./dev-tools/import_content.sh          # or
+#   ./devcli/import_content.sh          # or
 #   bash dev import
 #
 # Equivalently, from inside the running container:
@@ -32,7 +32,7 @@
 set -e
 
 COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$COMMON_DIR/../.." && pwd)"
+PROJECT_DIR="$(cd "$COMMON_DIR" && cd .. && pwd)"
 # shellcheck source=_common.sh
 source "$COMMON_DIR/_common.sh"
 setup_dev_host_env
@@ -47,7 +47,7 @@ cmd_import() {
     fi
 
     # Self-healing: bring up only the db service if it's not running.
-    # This lets `./dev-tools/import_content.sh` work standalone (e.g. on
+    # This lets `./devcli/import_content.sh` work standalone (e.g. on
     # a fresh checkout right after setup, or after pulling new
     # cms/content/ from the CMS host) without forcing the operator to
     # also start backend/frontend.

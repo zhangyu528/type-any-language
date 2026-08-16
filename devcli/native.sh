@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# dev-tools/native.sh — host-native dev loop (default).
+# devcli/native.sh — host-native dev loop (default).
 #
 # 默认 dev 工作流:在宿主机上跑 backend (uvicorn --reload :8000) + frontend
 # (next dev :3000),db 仍在 docker 里(localhost:5432)。绕开:
@@ -598,7 +598,7 @@ cmd_status() {
     if dev_db_is_up; then
         ok "db (docker compose): healthy"
     else
-        warn "db (docker compose): not up — run: ./dev-tools/native.sh start (auto-heals)"
+        warn "db (docker compose): not up — run: ./devcli/native.sh start (auto-heals)"
     fi
 }
 
@@ -614,7 +614,7 @@ cmd_logs() {
 
 usage() {
     cat <<EOF
-用法: ./dev-tools/native.sh <command>
+用法: ./devcli/native.sh <command>
 
 命令:
   start             在宿主机上启动 backend (uvicorn :$BACKEND_PORT) + frontend (next dev :$FRONTEND_PORT)

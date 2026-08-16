@@ -27,9 +27,11 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-source "$SCRIPT_DIR/../../ops/lib.sh"
+# Self-contained: db/scripts owns its helpers (db_assemble_url + logging),
+# no ops/ dependency.
+source "$SCRIPT_DIR/lib.sh"
 
-# Assemble DATABASE_URL — see ops/lib.sh::db_assemble_url. The runner
+# Assemble DATABASE_URL — see db/scripts/lib.sh::db_assemble_url. The runner
 # no longer imports pipeline.env, which used to do this in Python.
 if [ -z "${DATABASE_URL:-}" ]; then
     if ! db_assemble_url; then
@@ -41,21 +43,28 @@ fi
 # don't blow up on Windows GBK consoles.
 export PYTHONIOENCODING="${PYTHONIOENCODING:-utf-8}"
 
-# PYTHONPATH=backend — the migrations Python package lives at
-# backend/migrations/. The runner needs backend/ on the path to find
-# both `migrations.versions` (its own package) and the
-# `db_url` defensive fallback (still at db/db_url.py).
-# Resolve the Python interpreter: prefer the backend .venv, fall back to a
-# global python3/python on PATH (mirrors dev-tools/_common.sh::_backend_python).
-PYTHON_BIN="$(command -v python3 || command -v python || true)"
-if [ -z "$PYTHON_BIN" ] && [ -x "$PROJECT_DIR/backend/.venv/Scripts/python.exe" ]; then
+# Resolve the Python interpreter: PREFER the backend .venv (it carries
+# psycopg2 + sqlalchemy and understands the repo paths), fall back to a
+# global python3/python on PATH (container / CMS host where there is no
+# venv). NOTE: we must prefer the venv — a bare `python3` on a dev host
+# (e.g. a managed/launcher python) may not resolve Git-Bash `/d/...`
+# paths in PYTHONPATH and would fail with "No module named 'migrations'".
+PYTHON_BIN=""
+if [ -x "$PROJECT_DIR/backend/.venv/Scripts/python.exe" ]; then
     PYTHON_BIN="$PROJECT_DIR/backend/.venv/Scripts/python.exe"
-elif [ -z "$PYTHON_BIN" ] && [ -x "$PROJECT_DIR/backend/.venv/bin/python" ]; then
+elif [ -x "$PROJECT_DIR/backend/.venv/bin/python" ]; then
     PYTHON_BIN="$PROJECT_DIR/backend/.venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="$(command -v python3)"
+elif command -v python >/dev/null 2>&1; then
+    PYTHON_BIN="$(command -v python)"
 fi
 if [ -z "$PYTHON_BIN" ]; then
     echo "ERROR: 找不到 python3 / python,且 backend/.venv 不存在 — migrations.runner 需要它" >&2
     exit 1
 fi
-PYTHONPATH="${PROJECT_DIR}/backend${PYTHONPATH:+:$PYTHONPATH}" \
-    "$PYTHON_BIN" -c 'from migrations.runner import main; main()' "$@"
+# Run from backend/ so the `migrations` package resolves regardless of how
+# the interpreter handles PYTHONPATH path styles (a native Windows python
+# does not understand Git-Bash `/d/...` paths). `-m migrations.runner` is
+# equivalent to `from migrations.runner import main; main()`.
+( cd "$PROJECT_DIR/backend" && "$PYTHON_BIN" -m migrations.runner "$@" )

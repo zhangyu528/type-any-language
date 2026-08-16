@@ -29,6 +29,24 @@ fi
 _DB_LIB_SOURCED=1
 
 # ---------------------------------------------------------------------------
+# Logging helpers (self-contained — db/scripts owns its own, no ops/ dep)
+# ---------------------------------------------------------------------------
+# Color output when stdout is a TTY; plain otherwise (so logs/pipes stay
+# clean). Identical to the helpers historically pulled from ops/lib.sh, so
+# callers that used to source ops get the same [OK]/[WARN]/[INFO]/[ERR]
+# formatting after switching to this file.
+if [ -t 1 ]; then
+    _LIB_RED='\033[0;31m'; _LIB_GREEN='\033[0;32m'
+    _LIB_YELLOW='\033[1;33m'; _LIB_BLUE='\033[1;34m'; _LIB_NC='\033[0m'
+else
+    _LIB_RED=''; _LIB_GREEN=''; _LIB_YELLOW=''; _LIB_BLUE=''; _LIB_NC=''
+fi
+ok()   { echo -e "${_LIB_GREEN}[OK]${_LIB_NC}   $1"; }
+warn() { echo -e "${_LIB_YELLOW}[WARN]${_LIB_NC} $1"; }
+info() { echo -e "${_LIB_BLUE}[INFO]${_LIB_NC} $1"; }
+err()  { echo -e "${_LIB_RED}[ERR]${_LIB_NC}  $1"; }
+
+# ---------------------------------------------------------------------------
 # DSN resolution
 # ---------------------------------------------------------------------------
 # db_assemble_url — make sure DATABASE_URL is non-empty (and exported),

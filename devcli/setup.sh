@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# dev-tools/setup.sh — first-time (or post-reset) bootstrap for dev.
+# devcli/setup.sh — first-time (or post-reset) bootstrap for dev.
 #
 # Walks the operator through the steps a fresh dev clone needs before
 # `bash dev start` succeeds. The dev loop is host-native
@@ -22,7 +22,7 @@
 set -e
 
 COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$COMMON_DIR/../.." && pwd)"
+PROJECT_DIR="$(cd "$COMMON_DIR" && cd .. && pwd)"
 # shellcheck source=_common.sh
 source "$COMMON_DIR/_common.sh"
 
@@ -138,7 +138,7 @@ usage() {
                       (idempotent — re-runs short-circuit work that's already done)
 
 典型工作流(全新机器):
-  ./dev-tools/setup.sh              # 装 venv + node_modules + 起 db
+  ./devcli/setup.sh              # 装 venv + node_modules + 起 db
   bash dev start                  # native: uvicorn + next dev on host
   bash dev import                 # 把 cms/content/ UPSERT 到 dev db
 EOF
