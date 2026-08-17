@@ -139,17 +139,18 @@ export default function Hero({ libs, onPickLib }: HeroProps) {
           size="lg"
           onClick={handleStart}
           disabled={!canStart}
-          /* 主 CTA 走 cta 琥珀(--ds-cta),与 LibStrip featured 卡 +
-             FinalCTA 收尾 CTA 统一为同一套转化色语言。
+          /* 主 CTA 走品牌蓝(--ds-action-tint babyblue 极淡 wash);
              baseColor / lineColor / textColor 必须是字面 hex ——
              SpecularButton 把它们喂给 ogl WebGL shader,shader
-             不解析 var()。#EFA535 = --ds-cta(暗主题琥珀)作 rim 基色;
-             纯白 shine + 白字配深琥珀底制造琥珀系 Specular 高光感。 */
-          tint="var(--ds-cta)"
+             不解析 var()。#5BA8D8 = --ds-action(#8FCBF0) 与 --ds-action-deep
+             (#2F80C0) 之间的中间蓝作 rim 基色;纯白 shine + 深蓝 text
+             制造 Specular 高光感。(琥珀已收为 landing 单点转化色,
+             仅 FinalCTA + LibStrip 推荐卡使用。) */
+          tint="var(--ds-action-tint)"
           tintOpacity={1}
-          baseColor="#EFA535"
+          baseColor="#5BA8D8"
           lineColor="#FFFFFF"
-          textColor="#FFFFFF"
+          textColor="#0C2C53"
           blur={6}
           followMouse
           proximity={300}

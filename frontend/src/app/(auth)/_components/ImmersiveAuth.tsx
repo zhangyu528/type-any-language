@@ -528,11 +528,11 @@ export default function ImmersiveAuth({
                       theme="light"
                       showButton
                       showIcon
-                      /* 继续按钮颜色对齐 landing 页"注册"CTA:都用 cta 琥珀。
-                         #EFA535 = --ds-cta(暗主题琥珀)。这里不能用 var()
-                         直接传,因为 SVG 的 fill 呈现属性对 CSS 变量解析
-                         不稳定,用其解析后的 hex 等价。 */
-                      buttonColor="#EFA535"
+                      /* 继续按钮颜色对齐 landing 页"注册"CTA:都用品牌蓝
+                         --ds-action-deep(浅色主题 = #2F80C0)。这里不能用
+                         var(--ds-action-deep) 直接传,因为 SVG 的 fill 呈现
+                         属性对 CSS 变量解析不稳定,用其解析后的 hex 等价。 */
+                      buttonColor="#2F80C0"
                       /* 整卡随 mode 重挂时,自动把光标落回输入框
                          (登录↔注册切换、email→password 步进都受益)。 */
                       autoFocus
