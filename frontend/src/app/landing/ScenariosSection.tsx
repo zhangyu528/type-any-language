@@ -7,7 +7,7 @@
  *   "4 个真实场景" 的中文标题完全脱节(内容 bug)。
  * 现在:用真实的 SCENES 数据渲染 4 张卡片,每张用 reactbits 的
  *   DecryptedText(字符还原,呼应"读出来"签名母题)展示英文句,
- *   配 SpecularButton「试一下」直接 onPickLib 进入练习。
+ *   配 SpecularButton「试一下」→ onPickLib(未登录先弹注册,门禁在 page.tsx 的 navigateToSession)。
  *
  * reactbits 角色:
  *   - DecryptedText → 每卡英文句(animateOn="view" 滚动入视触发还原)

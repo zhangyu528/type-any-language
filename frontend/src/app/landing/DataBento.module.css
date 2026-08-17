@@ -4,9 +4,9 @@
  *
  * 视觉:1 行 4 个 stat item,每个 item 垂直堆叠
  *   - mainValue:大数字(36-56px) + 小单位
- *   - label:mono 小字产品自描述(A1-C1 / 真句库 / 即可开口 / 永久免费)
+ *   - label:mono 小字产品自描述(A1-C1 / 真句库 / 即可开口 / 注册免费)
  *   - item 之间用 gap 控制间距
- *   - "免费"用 --ds-cta 朱砂粉保留转化色
+ *   - "免费"回归品牌蓝(--ds-action),与同区其它 stat 一致
  *
  * 响应式:
  *   - 默认 4 items 横向

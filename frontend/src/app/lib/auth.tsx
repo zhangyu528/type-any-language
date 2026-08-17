@@ -55,31 +55,33 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
-  // Track whether a refresh is in flight so concurrent callers
-  // (e.g. login + header re-render) don't fire two parallel /me
-  // requests. The latest call wins; earlier ones just resolve to
-  // whatever state the latest call set.
-  const inflight = useRef<Promise<void> | null>(null);
+  // Guards against a STALE /me result clobbering a newer one. The
+  // initial mount hydration (R1, runs with NO session cookie → null)
+  // and a post-login refresh (R2, runs WITH the cookie → user) can
+  // overlap — e.g. the user logs in while R1 is still in flight, or
+  // React Strict Mode double-invokes the mount effect. The old code
+  // used an `inflight` guard that made R2 *return R1's promise*,
+  // so R2 resolved to R1's null and the dashboard got stuck on its
+  // loading screen until a hard refresh re-read the cookie. Worse,
+  // even a fresh R2 could be clobbered if R1 (slower backend) resolved
+  // AFTER R2. Fix: stamp every refresh with a monotonically increasing
+  // id and apply the result only if it's still the latest. The latest
+  // call always wins; superseded ones are ignored.
+  const latestAuthReq = useRef(0);
 
   const refresh = useCallback(async () => {
-    if (inflight.current) return inflight.current;
-    const p = (async () => {
-      try {
-        const u = await apiMe();
-        setUser(u);
-      } catch {
-        // Network error on initial fetch — treat as anonymous. The
-        // header stays in "login pill" state, which is honest.
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
-    })();
-    inflight.current = p;
+    const reqId = ++latestAuthReq.current;
     try {
-      await p;
+      const u = await apiMe();
+      if (reqId !== latestAuthReq.current) return; // superseded by a newer refresh
+      setUser(u);
+    } catch {
+      if (reqId !== latestAuthReq.current) return; // superseded — don't clobber
+      // Network error on initial fetch — treat as anonymous. The
+      // header stays in "login pill" state, which is honest.
+      setUser(null);
     } finally {
-      inflight.current = null;
+      if (reqId === latestAuthReq.current) setLoading(false);
     }
   }, []);
 

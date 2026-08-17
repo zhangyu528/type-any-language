@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * LibStrip — SECTION 3 选词库(2026-08 polish)
+ * LibStrip — SECTION 2 选词库(2026-08 polish)
  *
  * 真实 VocabularyLib[] 卡片网格。每张卡 = 等级 chip + 词库名
  * (DecryptedText 字符还原,呼应"读出来"母题) + 词/句数 + 描述 +
- * SpecularButton「开始读」直接 onPickLib 进入练习。
+ * SpecularButton「开始读」→ onPickLib(未登录先弹注册,门禁在 page.tsx 的 navigateToSession)。
  *
  * 2026-08 polish:
  *   - 4 张卡都包 BorderGlow,跟 Section 1/2 hover 体验一致

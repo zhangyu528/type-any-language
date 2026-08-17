@@ -40,7 +40,8 @@ import styles from './Hero.module.css';
 interface HeroProps {
   libs: VocabularyLib[];
   translationProgress: TranslationProgress;
-  onPickLib: (libId: string) => void;
+  /** 通用转化 CTA:底部大按钮「注册·开始第一句」走这个,不带具体词库。 */
+  onStartGeneric: () => void;
 }
 
 const HERO_TITLE = '读完一句，写出来就是你的。';
@@ -57,21 +58,20 @@ const TRUST_BADGES: ReadonlyArray<{ icon: string; text: string }> = [
   { icon: '✓', text: '错自动入错题本' },
 ];
 
-export default function Hero({ libs, onPickLib }: HeroProps) {
+export default function Hero({ libs, onStartGeneric }: HeroProps) {
   const { user } = useAuth();
   const firstLib = libs[0];
   const canStart = !!firstLib;
 
   const handleStart = () => {
     if (!canStart) return;
-    onPickLib(firstLib.id);
+    onStartGeneric();
   };
 
-  const startLabel = firstLib
-    ? user
-      ? `继续读 · ${firstLib.name}`
-      : '开始读第一句'
-    : '暂无课程';
+  // 通用转化 CTA:走 onStartGeneric,不带具体词库,落地主页。
+  // 文案不引用首个词库名(避免「没选词库却显示某词库」的歧义),
+  // 已登录给「开始学习」、未登录给「开始」,点击后直接进入主页。
+  const startLabel = user ? '开始学习' : '开始';
 
   return (
     <section id="hero" className={styles.bento} aria-label="产品介绍">

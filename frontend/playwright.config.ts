@@ -12,7 +12,20 @@ import * as os from 'os';
  *   3. Playwright's bundled chromium if nothing else is found.
  *      Install with: `npx playwright install chromium`.
  *
- * Run:  cd frontend && npx playwright test
+ * 专用测试端口（不复用 dev 的 :3000 / :8000）：
+ *   - webServer 起一个独立的 next dev 在 :3100，测试默认走这里。
+ *   - 后端不需要真实服务：signup 等用例用 page.route 全程 mock
+ *     （见 tests/e2e/*.spec.ts），无需 docker postgres / uvicorn。
+ *   - 若 :3100 已有实例（如你手动起的测试服务），webServer 会复用它
+ *     （reuseExistingServer: true），不会冲突。
+ *
+ * ⚠️ 运行前必须旁路 WorkBuddy 的 safe-delete 垫片（否则 next dev 在生成
+ *    .next/trace 时会被拦截 unlink 而崩溃）：
+ *      env NODE_OPTIONS= BASH_ENV= npx playwright test
+ *    该垫片通过环境变量注入，本进程及其 webServer 子进程都会继承「已清除」
+ *    的环境，故 webServer 命令本身无需再清。
+ *
+ * Run:  cd frontend && env NODE_OPTIONS= BASH_ENV= npx playwright test
  */
 
 /**
@@ -66,14 +79,30 @@ function resolveBrowserExecutable(): string | null {
 
 const EXECUTABLE_PATH = resolveBrowserExecutable();
 
+// 专用测试端口：webServer 起独立 next dev 于 :3100，避免与 dev 的 :3000 / :8000 冲突。
+// 后端用 page.route mock 覆盖，故 webServer 只拉前端即可。
+const E2E_PORT = process.env.E2E_PORT || '3100';
+
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: false,
   workers: 1,
   reporter: [['list']],
   timeout: 30_000,
+  // 专用测试服务：playwright 自动拉起 / 复用 :3100 的 next dev。
+  // 首次冷编译较慢，给 2 分钟就绪超时。
+  webServer: {
+    command: `npx next dev -p ${E2E_PORT}`,
+    url: `http://localhost:${E2E_PORT}`,
+    reuseExistingServer: true,
+    timeout: 120_000,
+    stdout: 'ignore',
+    stderr: 'pipe',
+  },
   use: {
-    baseURL: 'http://localhost:3000',
+    // 默认专用测试端口 :3100；CI / 本地不同端口可用 E2E_BASE_URL 覆盖，
+    // 例如 E2E_BASE_URL=http://localhost:3100 npx playwright test。
+    baseURL: process.env.E2E_BASE_URL || `http://localhost:${E2E_PORT}`,
     headless: true,
     actionTimeout: 5_000,
     navigationTimeout: 15_000,

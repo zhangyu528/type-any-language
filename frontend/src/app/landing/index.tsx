@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { useReducedMotion } from 'motion/react';
 import { VocabularyLib, TranslationProgress } from '../api';
 import Galaxy from '@/components/Galaxy';
@@ -62,7 +62,10 @@ const GRADIENT_WAVES_BY_THEME = {
 interface LandingPageProps {
   libs: VocabularyLib[];
   translationProgress: TranslationProgress;
+  /** 词库卡点击(带具体词库,注册弹窗会显示"开始《X》")。 */
   onPickLib: (libId: string) => void;
+  /** 通用转化 CTA(Hero / FinalCTA):不带具体词库,注册后由主页引导挑词库。 */
+  onStartGeneric: () => void;
 }
 
 /**
@@ -137,6 +140,7 @@ function useLandingBackground(theme: 'light' | 'dark'): null | LandingBgTuning {
 export default function LandingPage({
   libs,
   onPickLib,
+  onStartGeneric,
 }: LandingPageProps): ReactElement {
   /* 标记 html data-route="landing" —— 让 globals.css 把 body bg 设为 transparent,
      GradientWaves / Galaxy 的透明区域不再被不透明 body 遮住。 */
@@ -147,11 +151,7 @@ export default function LandingPage({
     };
   }, []);
 
-  const firstLib = libs[0];
   const { theme } = useTheme();
-  const handleStart = useCallback(() => {
-    if (firstLib) onPickLib(firstLib.id);
-  }, [firstLib, onPickLib]);
 
   // Lazy WebGL bg — light → GradientWaves(波浪),dark → Galaxy(星空)。
   // Gate 同一套:reduced-motion off + viewport 可见 + ≥ 720px。
@@ -205,20 +205,20 @@ export default function LandingPage({
         <Hero
           libs={libs}
           translationProgress={{}}
-          onPickLib={onPickLib}
+          onStartGeneric={onStartGeneric}
         />
 
         {/* SECTION 1: 读完一句如何记住 — 3 步拆解 */}
         <HowItWorks />
 
-        {/* SECTION 3: 词库选择 — 真实 VocabularyLib[] 卡(DecryptedText + SpecularButton) */}
+        {/* SECTION 2: 词库选择 — 真实 VocabularyLib[] 卡(DecryptedText + SpecularButton) */}
         <LibStrip libs={libs} onPickLib={onPickLib} />
 
-        {/* SECTION 4: 数据 — 4 横排无装饰 AnimatedCounter */}
+        {/* SECTION 3: 数据 — 4 横排无装饰 AnimatedCounter */}
         <DataBento libs={libs} />
 
-        {/* 收尾 CTA bar:DecryptedText 标题 + 单金属 SpecularButton「开始读」 */}
-        <FinalCTA onStart={handleStart} />
+        {/* SECTION 4: 收尾 CTA bar — DecryptedText 标题 + 单金属 SpecularButton「开始读」 */}
+        <FinalCTA onStart={onStartGeneric} />
 
         <AnimatedContent distance={16} delay={0 / 1000} direction="vertical" className={styles.footerWrap}>
           <footer className={styles.footer} aria-label="页脚">

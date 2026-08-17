@@ -91,6 +91,29 @@
   line-height: 1.65;
 }
 
+/* 从 landing 选了词库注册而来：在标题下加一颗「已为你添加《X》」胶囊，
+   让欢迎页也确认这门课已就位（替代原先的细条欢迎横幅）。 */
+.enrolled {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: calc(-1 * var(--space-3)) auto var(--space-5);
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in srgb, var(--ds-convert) 42%, transparent);
+  background: color-mix(in srgb, var(--ds-convert) 12%, transparent);
+  color: var(--ds-convert);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  line-height: 1.4;
+}
+
+.enrolled .enrolledName {
+  font-weight: var(--weight-bold);
+}
+
 .steps {
   position: relative;
   z-index: 1;
@@ -171,6 +194,29 @@
 
 .primary:active {
   transform: translateY(0);
+}
+
+/* 选词库注册时主按钮为「开始《X》」,此「先去主页看看」为次按钮(文字链)。 */
+.secondary {
+  position: relative;
+  z-index: 1;
+  margin-top: var(--space-4);
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border: none;
+  background: none;
+  color: var(--ds-action-deep);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, var(--ds-action-deep) 40%, transparent);
+}
+
+.secondary:hover {
+  color: var(--ds-action);
 }
 
 .altWrap {

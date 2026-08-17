@@ -792,3 +792,27 @@
   .progressDot { transition: none; }
   .progressDotActive { transform: none; }
 }
+
+/* 注册弹窗上下文条:从 landing 选词库注册时显示"注册后开始《X》"。
+   琥珀系(与 landing 单点转化色 --ds-cta 同调),弱填充 + 描边胶囊。 */
+.libContext {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--ds-cta-deep, #8a5a12);
+  background: color-mix(in srgb, var(--ds-cta, #EFA535) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ds-cta, #EFA535) 45%, transparent);
+}
+.libContextDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ds-cta, #EFA535);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-cta, #EFA535) 22%, transparent);
+}

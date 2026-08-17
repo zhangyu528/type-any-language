@@ -187,10 +187,9 @@ class DashboardResponse(BaseModel):
     review_due_count: int = 0
     # The user's enrolled course set ("我的课程"): lib ids the user has
     # added. Powers both the homepage "我的课程" block and the 课程
-    # center's "我的课程" tab. Empty for a brand-new user is impossible
-    # by contract (auth_service enrolls beginner courses on signup), but
-    # the field is still a list so the UI can render an "add courses"
-    # empty state without special-casing.
+    # center's "我的课程" tab. May be EMPTY for a brand-new user (signup
+    # no longer auto-enrolls beginner) — the field stays a list so the UI
+    # can render an "add courses" empty state without special-casing.
     enrolled_lib_ids: List[str] = Field(default_factory=list)
     # Lifetime rollup (all-time, not the 35-day calendar window). Powers the
     # achievements page + the AchievementWall's accurate totals. None for a

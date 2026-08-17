@@ -79,7 +79,7 @@ export default function FinalCTA({ onStart }: FinalCTAProps): ReactElement {
           proximity={300}
           className={styles.startBtn}
         >
-          开始读
+          开始
         </SpecularButton>
 
         {/* 次级动作:不想立即开始的用户的第二个出口 —— 跳到

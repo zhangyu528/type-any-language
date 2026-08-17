@@ -61,6 +61,9 @@ interface ImmersiveAuthProps {
    * 这里负责渲染 check 圆圈 + 欢迎语的微动效。
    */
   success?: { email: string } | null;
+  /** 从 landing 选词库注册时带入的词库名;signup 视图顶部显示
+   *  "注册后开始《X》"上下文条,普通注册为 undefined。 */
+  libName?: string | null;
 }
 
 type StepKey = 'email' | 'password';
@@ -171,6 +174,7 @@ export default function ImmersiveAuth({
   submitError = null,
   onClearSubmitError,
   success = null,
+  libName = null,
 }: ImmersiveAuthProps) {
   // displayMode 是"实际渲染的内容状态",滞后于 props.mode —— 这样切换时
   // "出"动画阶段仍显示旧内容,动画播完才换上新内容,中间无空档、不闪。
@@ -468,6 +472,12 @@ export default function ImmersiveAuth({
                 {displayMode === 'signup' ? '注册' : '登录'}
               </h2>
               <p className={styles.subtitle}>用真实场景练习外语口语</p>
+                {displayMode === 'signup' && libName ? (
+                  <div className={styles.libContext}>
+                    <span className={styles.libContextDot} aria-hidden />
+                    注册后开始《{libName}》
+                  </div>
+                ) : null}
             </div>
 
             <div className={styles.content}>

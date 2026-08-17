@@ -12,3 +12,36 @@
   padding: var(--space-4);
   box-sizing: border-box;
 }
+
+/* eyebrow + title + subtitle — 与 dashboard 其他分区(概览/成就/数据)
+   统一的页头范式,让「设置」进来不再缺标题 */
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ds-action-deep);
+}
+
+.title {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-h2);
+  font-weight: var(--weight-bold);
+  color: var(--ds-ink);
+}
+
+.subtitle {
+  margin: var(--space-2) 0 0;
+  max-width: 52ch;
+  font-size: var(--text-body);
+  color: var(--ds-ink-soft);
+  line-height: 1.5;
+}
