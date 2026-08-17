@@ -95,15 +95,15 @@ export default function LibStrip({ libs, onPickLib }: LibStripProps) {
                         <SpecularButton
                       size="sm"
                       onClick={() => onPickLib(lib.id)}
-                      /* CTA:featured 紫(--ds-convert),非 featured 冷蓝(--ds-action-tint)。
+                      /* CTA:featured 琥珀(--ds-cta),非 featured 冷蓝(--ds-action-tint)。
                          baseColor / lineColor / textColor 必须是字面 hex ——
                          SpecularButton 把它们喂给 ogl WebGL shader,shader
-                         不解析 var()。#7C3AED = --ds-convert-deep 紫色 rim 基色;
+                         不解析 var()。#EFA535 = --ds-cta 琥珀 rim 基色;
                          #5BA8D8 = --ds-action 与 --ds-action-deep 之间的中间蓝
                          作为冷蓝 rim 基色;白 shine 通用,字色根据底色深浅切换。 */
-                      tint={isFeatured ? 'var(--ds-convert)' : 'var(--ds-action-tint)'}
+                      tint={isFeatured ? 'var(--ds-cta)' : 'var(--ds-action-tint)'}
                       tintOpacity={0.95}
-                      baseColor={isFeatured ? '#7C3AED' : '#5BA8D8'}
+                      baseColor={isFeatured ? '#EFA535' : '#5BA8D8'}
                       lineColor="#FFFFFF"
                       textColor={isFeatured ? '#FFFFFF' : '#0C2C53'}
                       blur={isFeatured ? 6 : 4}

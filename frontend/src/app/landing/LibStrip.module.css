@@ -172,40 +172,40 @@
   box-shadow: 0 6px 22px color-mix(in srgb, var(--ds-action-tint) 22%, transparent);
 }
 
-/* 推荐卡 —— 视觉差异化,一眼锚点。紫色边框 + 2px 微抬 */
+/* 推荐卡 —— 视觉差异化,一眼锚点。琥珀边框 + 2px 微抬 */
 .libCardFeatured {
   border-width: 2px;
-  /* 紫色 = 推荐/转化语义(走 --ds-convert token);薄荷=正确,冷蓝=结构 */
-  border-color: var(--ds-convert);
-  background: color-mix(in srgb, var(--ds-convert) 4%, var(--ds-surface));
+  /* 琥珀 = 推荐语义(走 --ds-cta token,CTA 同款琥珀);薄荷=正确,冷蓝=结构 */
+  border-color: var(--ds-cta);
+  background: color-mix(in srgb, var(--ds-cta) 4%, var(--ds-surface));
   box-shadow:
-    0 4px 16px rgba(139, 92, 246, 0.18),
+    0 4px 16px rgba(186, 117, 23, 0.18),
     0 1px 2px rgba(12, 44, 83, 0.06);
   /* 静态,无 transform —— overflow: hidden 不裁切外溢 */
 }
 
 .libCardFeatured:hover {
-  border-color: var(--ds-convert-deep);
+  border-color: var(--ds-cta-deep);
   box-shadow:
-    0 8px 28px rgba(139, 92, 246, 0.28),
+    0 8px 28px rgba(133, 79, 11, 0.28),
     0 2px 4px rgba(12, 44, 83, 0.08);
 }
 
 [data-theme="dark"] .libCardFeatured {
-  border-color: var(--ds-convert-light);
+  border-color: var(--ds-cta);
   box-shadow:
-    0 4px 16px rgba(139, 92, 246, 0.22),
+    0 4px 16px rgba(239, 165, 53, 0.22),
     0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 [data-theme="dark"] .libCardFeatured:hover {
-  border-color: var(--ds-convert);
+  border-color: var(--ds-cta-deep);
   box-shadow:
-    0 8px 28px rgba(139, 92, 246, 0.32),
+    0 8px 28px rgba(239, 165, 53, 0.32),
     0 2px 4px rgba(0, 0, 0, 0.4);
 }
 
-/* 推荐小标 —— 卡片右上角 chip,紫色底白字 */
+/* 推荐小标 —— 卡片右上角 chip,琥珀底白字 */
 .featuredBadge {
   position: absolute;
   top: var(--space-3);
@@ -215,22 +215,22 @@
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  /* 推荐徽章字色 = --ds-on-convert(深紫底配白字);
-     暗主题自动映射为深紫字配亮紫底(已在 globals.css 配) */
-  color: var(--ds-on-convert);
-  background: var(--ds-convert);
+  /* 推荐徽章字色 = --ds-on-cta(琥珀底配白字);
+     暗主题自动映射为深琥珀字配亮琥珀底(已在 globals.css 配) */
+  color: var(--ds-on-cta);
+  background: var(--ds-cta);
   padding: 3px 8px;
   border-radius: 999px;
   line-height: 1;
 }
 
 [data-theme="dark"] .featuredBadge {
-  /* 暗主题紫色徽章字色用 --ds-on-convert(亮紫底配深紫字),
-     自动在 globals.css [data-theme="dark"] [data-babyblue] 里映射为 #1E1B4B;
-     背景 = 暗主题反转后的 --ds-convert(亮紫) —— 修复前 --ds-convert
+  /* 暗主题琥珀徽章字色用 --ds-on-cta(亮琥珀底配深琥珀字),
+     自动在 globals.css [data-theme="dark"] 里映射为 #412402;
+     背景 = 暗主题反转后的 --ds-cta(亮琥珀) —— 修复前 --ds-convert
      未定义,徽章透明看不见 */
-  color: var(--ds-on-convert);
-  background: var(--ds-convert);
+  color: var(--ds-on-cta);
+  background: var(--ds-cta);
 }
 
 /* ---------- 卡内布局 ---------- */

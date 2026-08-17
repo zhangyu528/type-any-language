@@ -127,30 +127,30 @@
   color: var(--ds-ink-soft);
 }
 
-/* "免费"特殊色 —— 紫色(呼应 LibStrip featured 卡 + FinalCTA CTA 的
-   "紫色=转化"语义;与下方 .statFree .label 的紫色保持统一) */
+/* "免费"特殊色 —— 琥珀(呼应 LibStrip featured 卡 + FinalCTA CTA 的
+   cta 琥珀语义;与下方 .statFree .label 的琥珀保持统一) */
 .freeText {
   font-family: var(--font-display), var(--font-sans), serif;
   font-size: clamp(32px, 4vw, 48px);
   font-weight: 600;
   line-height: 1.05;
   letter-spacing: -0.02em;
-  color: var(--ds-convert);
+  color: var(--ds-cta);
   font-variant-numeric: tabular-nums;
 }
 
 [data-theme="dark"] .freeText {
-  color: var(--ds-convert-light);
+  color: var(--ds-cta);
 }
 
 /* "免费" 副标签略加粗,让转化元素视觉权重稍大 */
 .statFree .label {
-  color: var(--ds-convert);
+  color: var(--ds-cta);
   font-weight: 600;
 }
 
 [data-theme="dark"] .statFree .label {
-  color: var(--ds-convert-light);
+  color: var(--ds-cta);
 }
 
 /* ---------- 响应式 ---------- */
