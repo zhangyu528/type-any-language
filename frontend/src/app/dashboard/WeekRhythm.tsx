@@ -117,6 +117,7 @@ export default function WeekRhythm({ days }: WeekRhythmProps) {
         out.push({
           date: iso,
           sentences_count: 0,
+          sessions_count: 0,
           accuracy: null,
           goal_hit: false,
           is_future: isFuture,

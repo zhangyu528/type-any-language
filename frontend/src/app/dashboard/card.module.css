@@ -1,0 +1,10 @@
+/* Shared glass card used by every data-page block. Wraps the DS tokens
+   (--ds-glass-surface / --ds-glass-border / --ds-glass-shadow) so each
+   component stays consistent without re-declaring the surface. */
+.card {
+  background: var(--ds-glass-surface);
+  border: 1px solid var(--ds-glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--ds-glass-shadow);
+  padding: 16px;
+}

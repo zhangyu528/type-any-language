@@ -100,6 +100,8 @@ def get_weakness(
                 "text": text_val,
                 "chinese_text": chinese_text,
                 "target_words": list(target_words) if target_words else [],
+                "cefr": cefr or "",
+                "topic": topic or "",
                 "wrong_count": wrong,
                 "attempts": total,
                 "error_rate": round(wrong / total, 3) if total else 0.0,

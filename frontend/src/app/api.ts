@@ -739,6 +739,10 @@ export interface WeakSentence {
   text: string;
   chinese_text: string;
   target_words: string[];
+  /** CEFR 等级（A2/B1/…），空串表示未分级。用于前端筛选。 */
+  cefr: string;
+  /** 话题标签（语法/旅行/…），空串表示未分类。用于前端筛选。 */
+  topic: string;
   wrong_count: number;
   attempts: number;
   /** 0–1：错误次数 / 总尝试次数。 */
@@ -973,6 +977,8 @@ export interface StreakInfo {
 export interface CalendarDay {
   date: string; // ISO date
   sentences_count: number;
+  /** Number of practice sessions started that day (surfaces the 场次 trend). */
+  sessions_count: number;
   accuracy: number | null;
   goal_hit: boolean;
   is_future: boolean;
@@ -1083,6 +1089,24 @@ export interface DayDetail {
   accuracy: number | null;
   goal_hit: boolean;
   sessions: DaySessionSummary[];
+}
+
+/**
+ * GET /api/dashboard/calendar?days=N — the per-day activity series for a
+ * custom window. Drives the data page's range selector (we fetch 2N days
+ * and split into previous/current halves for period comparison) and the
+ * cadence heatmap (a wider fixed window). `days` is optional server-side
+ * (defaults to 35); pass it to widen the window.
+ */
+export async function apiGetCalendar(days?: number): Promise<CalendarDay[]> {
+  const qs = days && days > 0 ? `?days=${days}` : '';
+  const res = await fetch(`${API_BASE_URL}/api/dashboard/calendar${qs}`, {
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    throw new Error(`获取日历失败 (HTTP ${res.status})`);
+  }
+  return res.json();
 }
 
 /** GET /api/dashboard/day/{date} — drawer payload for a clicked cell. */

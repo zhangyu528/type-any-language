@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>数据页面重设计 · 分析驾驶舱原型</title>
+<style>
+  /* ============ TAL Slate · Dark tokens (from ds/themes.css) ============ */
+  :root{
+    --bg:#0A1428; --surface:#142135; --tint:#1B2B45; --tint-deep:#243859;
+    --border:#243859; --border-strong:#5BA8F0;
+    --ink:#E8EFF8; --ink-soft:#A2B4CC; --ink-faint:#5F7896;
+    --action:#5BA8F0; --action-deep:#7DC0FF; --action-ink:#A8D0FF; --on-action:#042C53;
+    --correct:#5DE89A; --correct-fill:#3FD17A; --correct-tint:#1F3227;
+    --error:#F0997B; --error-ink:#F5C4B3; --error-line:#D85A30;
+    --cta:#EFA535; --cta-deep:#FAC775; --on-cta:#412402;
+    --glass-shadow:0 1px 0 rgba(255,255,255,.08) inset,0 1px 2px rgba(0,0,0,.3),0 6px 14px -2px rgba(0,0,0,.35),0 18px 36px -6px rgba(0,0,0,.4);
+    --radius:12px; --radius-lg:16px;
+    --space:16px;
+    --font:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+    --mono:"JetBrains Mono","SF Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--font);padding:32px 20px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--glass-shadow)}
+  .muted{color:var(--ink-soft)} .faint{color:var(--ink-faint)}
+  .mono{font-family:var(--mono)}
+
+  /* ---- command bar ---- */
+  .cmd{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+  .cmd h1{font-size:26px;letter-spacing:-.5px;font-weight:600}
+  .cmd .sub{color:var(--ink-soft);font-size:13px;margin-top:4px}
+  .controls{display:flex;gap:10px;flex-wrap:wrap}
+  .seg{display:inline-flex;background:var(--tint);border:1px solid var(--border);border-radius:999px;padding:3px}
+  .seg button{border:0;background:transparent;color:var(--ink-soft);font:inherit;font-size:13px;padding:6px 14px;border-radius:999px;cursor:pointer;transition:.15s}
+  .seg button.on{background:var(--action);color:var(--on-action);font-weight:500}
+  .seg.metric button.on{background:var(--correct-fill);color:#042C53}
+
+  /* ---- grid ---- */
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;margin-bottom:16px}
+  .col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+  @media(max-width:880px){.col-4,.col-6,.col-8{grid-column:span 12}}
+
+  /* ---- KPI strip ---- */
+  .kpis{grid-column:span 12;display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  @media(max-width:720px){.kpis{grid-template-columns:repeat(2,1fr)}}
+  .kpi{padding:18px 18px 14px}
+  .kpi .lab{font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:6px}
+  .kpi .val{font-family:var(--mono);font-size:30px;font-weight:600;margin-top:6px;letter-spacing:-1px}
+  .kpi .val small{font-size:15px;color:var(--ink-soft);font-weight:400}
+  .kpi .foot{display:flex;align-items:center;justify-content:space-between;margin-top:6px}
+  .delta{font-size:12px;font-family:var(--mono);padding:2px 8px;border-radius:999px}
+  .delta.up{color:var(--correct);background:var(--correct-tint)}
+  .delta.down{color:var(--error);background:rgba(240,153,123,.12)}
+  .delta.flat{color:var(--ink-faint);background:var(--tint)}
+  .spark{width:74px;display:block}
+
+  /* ---- card header ---- */
+  .chead{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 4px}
+  .chead h2{font-size:15px;font-weight:600}
+  .chead .hint{font-size:12px;color:var(--ink-faint)}
+
+  /* ---- trend chart ---- */
+  .chartbox{padding:4px 14px 16px}
+  svg.chart{width:100%;height:auto;display:block}
+  .legend{display:flex;gap:16px;padding:0 18px 8px;font-size:12px;color:var(--ink-soft)}
+  .legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+  .tip{position:fixed;pointer-events:none;background:#0C1E38;border:1px solid var(--border-strong);border-radius:8px;padding:6px 10px;font-size:12px;opacity:0;transition:.1s;z-index:50;box-shadow:var(--glass-shadow)}
+  .tip b{font-family:var(--mono)}
+
+  /* ---- heatmap ---- */
+  .heat{padding:8px 18px 18px}
+  .heatgrid{display:grid;grid-template-columns:repeat(19,1fr);gap:3px}
+  .cell{aspect-ratio:1;border-radius:3px;background:var(--tint)}
+  .cell.l1{background:#1d3a5f}.cell.l2{background:#2a5b8f}.cell.l3{background:var(--action)}
+  .cell.l4{background:var(--action-deep)}.cell.future{background:transparent;border:1px dashed var(--border)}
+  .heatpad{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-faint);margin-top:8px}
+
+  /* ---- rings ---- */
+  .rings{display:flex;gap:18px;padding:10px 18px 18px;justify-content:center}
+  .ring{text-align:center}
+  .ring .cap{font-size:12px;color:var(--ink-soft);margin-top:6px}
+
+  /* ---- insights ---- */
+  .insights{grid-column:span 12;display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  @media(max-width:720px){.insights{grid-template-columns:1fr}}
+  .ins{padding:16px 18px;display:flex;gap:12px;align-items:flex-start}
+  .ins .ic{font-size:20px;flex:0 0 auto}
+  .ins .txt{font-size:13px;color:var(--ink-soft)}
+  .ins .txt b{color:var(--ink);font-weight:600}
+
+  /* ---- weak points ---- */
+  .filters{display:flex;gap:6px;flex-wrap:wrap;padding:8px 18px}
+  .chip{font-size:12px;color:var(--ink-soft);background:var(--tint);border:1px solid var(--border);border-radius:999px;padding:4px 11px;cursor:pointer}
+  .chip.on{background:var(--action);color:var(--on-action);border-color:var(--action)}
+  .sortbtns{display:flex;gap:6px;padding:2px 18px 10px}
+  .sortbtns button{font:inherit;font-size:12px;background:transparent;border:1px solid var(--border);color:var(--ink-soft);border-radius:8px;padding:4px 10px;cursor:pointer}
+  .sortbtns button.on{color:var(--action-deep);border-color:var(--border-strong)}
+  .sentlist{padding:0 18px 18px;display:flex;flex-direction:column;gap:10px;max-height:520px;overflow:auto}
+  .sent{background:var(--tint);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+  .sent .top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+  .sent .en{font-size:14px;color:var(--ink)}
+  .rate{font-family:var(--mono);font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;flex:0 0 auto}
+  .rate.hi{color:var(--error);background:rgba(240,153,123,.14)}
+  .rate.mid{color:var(--cta-deep);background:rgba(239,165,53,.14)}
+  .rate.lo{color:var(--correct);background:var(--correct-tint)}
+  .sent .zh{font-size:13px;color:var(--ink-soft);margin-top:4px}
+  .words{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .wchip{font-size:12px;background:var(--tint-deep);color:var(--action-ink);border-radius:6px;padding:2px 8px}
+  .sent .foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+  .sent .meta{font-size:12px;color:var(--ink-faint);font-family:var(--mono)}
+  .acts{display:flex;gap:8px}
+  .btn{font:inherit;font-size:12px;border-radius:999px;padding:6px 13px;cursor:pointer;border:1px solid var(--border)}
+  .btn.p{background:var(--correct-fill);color:#042C53;border-color:var(--correct-fill)}
+  .btn.g{background:transparent;color:var(--action-deep)}
+
+  /* ---- distribution ---- */
+  .dist{padding:8px 18px 18px;display:flex;flex-direction:column;gap:16px}
+  .barrow{display:flex;align-items:center;gap:10px;font-size:12px}
+  .barrow .name{width:54px;color:var(--ink-soft);font-family:var(--mono)}
+  .bartrack{flex:1;height:9px;background:var(--tint);border-radius:999px;overflow:hidden}
+  .barfill{height:100%;background:var(--action);border-radius:999px}
+  .barrow .num{width:34px;text-align:right;color:var(--ink-faint);font-family:var(--mono)}
+  .disttitle{font-size:12px;color:var(--ink-faint);margin-bottom:2px}
+
+  .note{max-width:1080px;margin:26px auto 0;padding:14px 18px;font-size:12px;color:var(--ink-faint);border:1px dashed var(--border);border-radius:12px}
+  .note b{color:var(--ink-soft)}
+  .gauge{position:relative;width:64px;height:64px}
+  .sectiontag{font-size:12px;letter-spacing:2px;color:var(--ink-faint);text-transform:uppercase;margin:8px 2px 4px}
+</style>
+</head>
+<body>
+<div class="tip" id="tip"></div>
+<div class="wrap">
+
+  <!-- ============ COMMAND BAR ============ -->
+  <div class="cmd">
+    <div>
+      <h1>学习数据</h1>
+      <div class="sub">你的练习全貌 · 截至今天 · 数据每小时刷新</div>
+    </div>
+    <div class="controls">
+      <div class="seg range" id="rangeSeg">
+        <button data-range="7">7天</button>
+        <button data-range="30" class="on">30天</button>
+        <button data-range="90">90天</button>
+        <button data-range="all">全部</button>
+      </div>
+      <div class="seg metric" id="metricSeg">
+        <button data-metric="sentences" class="on">句数</button>
+        <button data-metric="accuracy">准确率</button>
+        <button data-metric="sessions">场次</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ KPI STRIP ============ -->
+  <div class="kpis" id="kpis"><!-- injected --></div>
+
+  <!-- ============ TREND + SIDE ============ -->
+  <div class="grid">
+    <div class="panel col-8">
+      <div class="chead"><h2>趋势分析</h2><span class="hint" id="trendHint">本期 vs 上期</span></div>
+      <div class="legend">
+        <span><i style="background:var(--action)"></i>本期</span>
+        <span><i style="background:var(--ink-faint)"></i>上期</span>
+      </div>
+      <div class="chartbox"><svg class="chart" id="trend" viewBox="0 0 720 240" preserveAspectRatio="none"></svg></div>
+    </div>
+
+    <div class="col-4" style="display:flex;flex-direction:column;gap:16px">
+      <div class="panel">
+        <div class="chead"><h2>练习节奏</h2><span class="hint">近 18 周</span></div>
+        <div class="heat">
+          <div class="heatgrid" id="heat"></div>
+          <div class="heatpad"><span>18 周前</span><span id="heatCount">72 / 126 天有练习</span><span>今天</span></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="chead"><h2>目标进度</h2></div>
+        <div class="rings">
+          <div class="ring"><div class="gauge" id="ringDaily"></div><div class="cap">每日 20 句</div></div>
+          <div class="ring"><div class="gauge" id="ringMonthly"></div><div class="cap">每月 600 句</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ INSIGHTS ============ -->
+  <div class="sectiontag">智能洞察</div>
+  <div class="insights" id="insights"><!-- injected --></div>
+
+  <!-- ============ WEAK POINTS + DISTRIBUTION ============ -->
+  <div class="grid" style="margin-top:18px">
+    <div class="panel col-8">
+      <div class="chead">
+        <h2>薄弱点诊断</h2>
+        <span class="hint" id="weakSummary">终身准确率 —</span>
+      </div>
+      <div class="filters" id="filters">
+        <span class="chip on" data-f="all">全部</span>
+        <span class="chip" data-f="A2">A2</span>
+        <span class="chip" data-f="B1">B1</span>
+        <span class="chip" data-f="B2">B2</span>
+        <span class="chip" data-f="grammar">语法</span>
+        <span class="chip" data-f="travel">旅行</span>
+      </div>
+      <div class="sortbtns" id="sortbtns">
+        <button class="on" data-s="rate">按错误率</button>
+        <button data-s="freq">按错误次数</button>
+      </div>
+      <div class="sentlist" id="sentlist"><!-- injected --></div>
+    </div>
+
+    <div class="panel col-4">
+      <div class="chead"><h2>分布视图</h2></div>
+      <div class="dist">
+        <div>
+          <div class="disttitle">CEFR 等级错误分布</div>
+          <div id="cefrBars"></div>
+        </div>
+        <div>
+          <div class="disttitle">高频常错话题</div>
+          <div id="topicBars"></div>
+        </div>
+        <div>
+          <div class="disttitle">词库完成度</div>
+          <div id="libBars"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>原型说明：</b> 本页面为「数据」分区重设计的<strong>高保真交互原型</strong>，配色严格沿用项目设计系统 TAL Slate（深空蓝夜主题：冷蓝主色 #5BA8F0 / 琥珀 CTA / 薄荷正确 / 珊瑚错误）。
+    所有数据均为前端 mock，用于评审视觉与交互；真实实现将复用现有 <code>GET /api/dashboard</code> 与 <code>GET /api/weakness</code> 契约，并按需求新增趋势/热力图区间接口。
+    范围切换（7/30/90/全部）与指标切换（句数/准确率/场次）为本次重设计的核心新增交互。
+  </div>
+</div>
+
+<script>
+// ---------- mock data generators ----------
+function rng(seed){return function(){seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff}}
+function genSeries(n,base,seed){
+  const r=rng(seed); const out=[]; let v=base;
+  for(let i=0;i<n;i++){ v=Math.max(0,v+(r()-0.45)*base*0.5); out.push(Math.round(v)); }
+  return out;
+}
+const RANGES={7:7,30:30,90:90,all:120};
+let state={range:30,metric:'sentences',filter:'all',sort:'rate'};
+
+// 30/90/all share a long base; 7 is a slice
+const FULL={sentences:genSeries(120,18,11),accuracy:genSeries(120,72,22).map(x=>Math.min(98,Math.max(35,x))),sessions:genSeries(120,2,33).map(x=>Math.min(6,x))};
+function curPrev(metric){
+  const n=RANGES[state.range];
+  const arr=FULL[metric];
+  const cur=arr.slice(-n);
+  const prev=arr.slice(-2*n,-n);
+  return {cur,prev};
+}
+
+// ---------- KPI strip ----------
+function sparkline(arr,color){
+  const w=74,h=22; const mx=Math.max(1,...arr); const mn=Math.min(...arr);
+  const pts=arr.map((v,i)=>`${(i/(arr.length-1)*w).toFixed(1)},${(h-((v-mn)/((mx-mn)||1))*h).toFixed(1)}`).join(' ');
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
+}
+function deltaTag(d){ const cls=d>0.5?'up':d<-0.5?'down':'flat'; const ar=d>0.5?'▲':d<-0.5?'▼':'—'; return `<span class="delta ${cls}">${ar} ${Math.abs(d).toFixed(d<10?1:0)}%</span>`; }
+function renderKpis(){
+  const acc=FULL.accuracy.slice(-7), accP=FULL.accuracy.slice(-14,-7);
+  const sent=FULL.sentences.slice(-7), sentP=FULL.sentences.slice(-14,-7);
+  const data=[
+    {lab:'本周准确率',val:Math.round(acc[acc.length-1])+'<small>%</small>',d:(acc[acc.length-1]-accP[accP.length-1]),spark:acc,col:'var(--correct)'},
+    {lab:'本周句数',val:sent.reduce((a,b)=>a+b,0),d:(sent.reduce((a,b)=>a+b,0)-sentP.reduce((a,b)=>a+b,0))/Math.max(1,sentP.reduce((a,b)=>a+b,0))*100,spark:sent,col:'var(--action)'},
+    {lab:'连续打卡',val:12+'<small> 天</small>',d:0,spark:[5,6,7,8,9,10,11,12],col:'var(--cta)'},
+    {lab:'活跃天数',val:26+'<small> / 30</small>',d:8,spark:[18,20,21,22,24,25,26],col:'var(--action-deep)'},
+  ];
+  document.getElementById('kpis').innerHTML=data.map(k=>`
+    <div class="panel kpi">
+      <div class="lab">${k.lab}</div>
+      <div class="val">${k.val}</div>
+      <div class="foot">${deltaTag(k.d)} ${sparkline(k.spark,k.col)}</div>
+    </div>`).join('');
+}
+
+// ---------- trend chart ----------
+const tip=document.getElementById('tip');
+function renderTrend(){
+  const {cur,prev}=curPrev(state.metric);
+  const W=720,H=240,PX=44,PY=16,PB=28; const innerW=W-PX*2, innerH=H-PY-PB;
+  const isAcc=state.metric==='accuracy';
+  const maxV=Math.max(10,...cur,...prev)*(isAcc?1:1.1);
+  const n=cur.length;
+  const x=i=>n<=1?PX+innerW/2:PX+(i/(n-1))*innerW;
+  const y=v=>PY+innerH-(v/(isAcc?100:maxV))*innerH;
+  const toPts=a=>a.map((v,i)=>`${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const lineCur=toPts(cur), linePrev=toPts(prev);
+  const area=`M ${PX},${PY+innerH} L ${toPts(cur)} L ${x(n-1)},${PY+innerH} Z`;
+  // gridlines
+  let grid='';
+  for(let g=0;g<=4;g++){const gy=PY+(innerH/4)*g; grid+=`<line x1="${PX}" y1="${gy}" x2="${W-PX}" y2="${gy}" stroke="var(--border)" stroke-width="1"/>`;}
+  // x ticks (5)
+  let ticks='';
+  for(let t=0;t<=4;t++){const i=Math.round((n-1)*t/4); ticks+=`<text x="${x(i)}" y="${H-8}" fill="var(--ink-faint)" font-size="11" text-anchor="middle">${t===0?'期初':t===4?'今天':''}</text>`;}
+  const col=state.metric==='accuracy'?'var(--correct-fill)':'var(--action)';
+  document.getElementById('trend').innerHTML=`
+    ${grid}
+    <path d="${linePrev}" fill="none" stroke="var(--ink-faint)" stroke-width="1.6" stroke-dasharray="4 4" opacity=".7"/>
+    <path d="${area}" fill="${col}" opacity=".10"/>
+    <path d="${lineCur}" fill="none" stroke="${col}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+    ${cur.map((v,i)=>`<circle class="pt" data-i="${i}" cx="${x(i)}" cy="${y(v)}" r="3.2" fill="${col}" data-v="${v}"/>`).join('')}
+    ${ticks}`;
+  document.getElementById('trendHint').textContent=`本期均值 ${Math.round(cur.reduce((a,b)=>a+b,0)/n)}${isAcc?'%':''} · 上期 ${Math.round(prev.reduce((a,b)=>a+b,0)/Math.max(1,prev.length))}${isAcc?'%':''}`;
+  // hover tooltip
+  const svg=document.getElementById('trend');
+  svg.querySelectorAll('.pt').forEach(pt=>{
+    pt.addEventListener('mousemove',e=>{
+      const i=+pt.dataset.i; const v=pt.dataset.v;
+      tip.innerHTML=`<b>${state.metric==='accuracy'?v+'%':v+' 句'}</b><br><span class="faint">第 ${i+1} / ${n} 天</span>`;
+      tip.style.opacity=1; tip.style.left=(e.clientX+12)+'px'; tip.style.top=(e.clientY-10)+'px';
+    });
+    pt.addEventListener('mouseleave',()=>tip.style.opacity=0);
+  });
+}
+
+// ---------- heatmap ----------
+function renderHeat(){
+  const wrap=document.getElementById('heat'); const r=rng(7); let cells='';
+  for(let i=0;i<18*7;i++){
+    const v=r(); let l='';
+    if(v<0.35){l=' future';}
+    else if(v<0.55)l=' l1'; else if(v<0.75)l=' l2'; else if(v<0.9)l=' l3'; else l=' l4';
+    cells+=`<div class="cell${l}" title="练习强度"></div>`;
+  }
+  wrap.innerHTML=cells;
+}
+
+// ---------- rings ----------
+function ring(elId,pct,color){
+  const el=document.getElementById(elId); const s=64,sw=7,r=(s-sw)/2,c=2*Math.PI*r,f=(pct/100)*c;
+  el.innerHTML=`<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}">
+    <circle cx="${s/2}" cy="${s/2}" r="${r}" fill="none" stroke="var(--border)" stroke-width="${sw}" opacity=".5"/>
+    <circle cx="${s/2}" cy="${s/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round"
+      stroke-dasharray="${f} ${c}" transform="rotate(-90 ${s/2} ${s/2})"/>
+    <text x="${s/2}" y="${s/2+5}" text-anchor="middle" fill="var(--ink)" font-size="15" font-family="var(--mono)">${pct}%</text></svg>`;
+}
+function renderRings(){ ring('ringDaily',65,'var(--correct-fill)'); ring('ringMonthly',48,'var(--action)'); }
+
+// ---------- insights ----------
+function renderInsights(){
+  const items=[
+    {ic:'🔥',txt:'你已连续 <b>12 天</b>打卡，再坚持 <b>3 天</b>即可解锁「两周坚持者」徽章。'},
+    {ic:'📈',txt:'本周准确率较上周 <b>提升 6%</b>，A2 等级的错误率下降最明显。'},
+    {ic:'⏰',txt:'你通常在 <b>21:00</b> 练习，这是你正确率最高效的时段。'},
+  ];
+  document.getElementById('insights').innerHTML=items.map(i=>`
+    <div class="panel ins"><div class="ic">${i.ic}</div><div class="txt">${i.txt}</div></div>`).join('');
+}
+
+// ---------- weak points ----------
+const WEAK=[
+  {en:'I have been working here since last spring.',zh:'我从去年春天起就在这里工作。',rate:0.82,words:['since','spring'],lvl:'B1',topic:'grammar',w:9,a:11},
+  {en:'She suggested going to the cinema.',zh:'她建议去看电影。',rate:0.71,words:['suggest','cinema'],lvl:'B1',topic:'grammar',w:7,a:10},
+  {en:'We must book the hotel in advance.',zh:'我们必须提前预订酒店。',rate:0.64,words:['book','advance'],lvl:'A2',topic:'travel',w:6,a:9},
+  {en:'The delegation arrived yesterday evening.',zh:'代表团昨夜抵达。',rate:0.58,words:['delegation','arrived'],lvl:'B2',topic:'travel',w:5,a:8},
+  {en:'He is capable of handling the pressure.',zh:'他有能力应对压力。',rate:0.55,words:['capable','pressure'],lvl:'B2',topic:'grammar',w:5,a:9},
+  {en:'Could you repeat the question, please?',zh:'你能重复一下问题吗？',rate:0.49,words:['repeat','question'],lvl:'A2',topic:'travel',w:4,a:8},
+];
+function rateClass(r){return r>=0.65?'hi':r>=0.5?'mid':'lo'}
+function renderWeak(){
+  let list=WEAK.slice();
+  if(state.filter!=='all'){
+    list=list.filter(s=>s.lvl===state.filter||s.topic===state.filter);
+  }
+  list.sort((a,b)=>state.sort==='rate'?b.rate-a.rate:b.w-a.w);
+  document.getElementById('weakSummary').textContent=`共 ${list.length} 句常错 · 终身准确率 71%`;
+  document.getElementById('sentlist').innerHTML=list.map(s=>`
+    <div class="sent">
+      <div class="top">
+        <span class="en">${s.en}</span>
+        <span class="rate ${rateClass(s.rate)}">${Math.round(s.rate*100)}%</span>
+      </div>
+      <div class="zh">${s.zh}</div>
+      <div class="words">${s.words.map(w=>`<span class="wchip">${w}</span>`).join('')}</div>
+      <div class="foot">
+        <span class="meta">错 ${s.w} · 共 ${s.a} 次 · ${s.lvl}/${s.topic}</span>
+        <span class="acts">
+          <button class="btn g">加入复习</button>
+          <button class="btn p">去练习</button>
+        </span>
+      </div>
+    </div>`).join('')||'<p class="faint" style="padding:18px">该筛选下暂无常错句。</p>';
+}
+
+// ---------- distribution ----------
+function bars(elId,items,color){
+  const mx=Math.max(1,...items.map(i=>i.v));
+  document.getElementById(elId).innerHTML=items.map(i=>`
+    <div class="barrow"><span class="name">${i.k}</span><span class="bartrack"><span class="barfill" style="width:${(i.v/mx*100).toFixed(0)}%;background:${color}"></span></span><span class="num">${i.v}</span></div>`).join('');
+}
+function renderDist(){
+  bars('cefrBars',[{k:'A2',v:14},{k:'B1',v:23},{k:'B2',v:17},{k:'C1',v:6}],'var(--action)');
+  bars('topicBars',[{k:'语法',v:28},{k:'旅行',v:19},{k:'职场',v:11},{k:'饮食',v:7}],'var(--cta)');
+  bars('libBars',[{k:'剑桥',v:62},{k:'雅思',v:41},{k:'商务',v:18}],'var(--correct-fill)');
+}
+
+// ---------- wiring ----------
+document.getElementById('rangeSeg').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  [...e.currentTarget.children].forEach(x=>x.classList.remove('on')); b.classList.add('on');
+  state.range=b.dataset.range; renderTrend();
+});
+document.getElementById('metricSeg').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  [...e.currentTarget.children].forEach(x=>x.classList.remove('on')); b.classList.add('on');
+  state.metric=b.dataset.metric; renderTrend();
+});
+document.getElementById('filters').addEventListener('click',e=>{
+  const b=e.target.closest('.chip'); if(!b)return;
+  [...e.currentTarget.children].forEach(x=>x.classList.remove('on')); b.classList.add('on');
+  state.filter=b.dataset.f; renderWeak();
+});
+document.getElementById('sortbtns').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  [...e.currentTarget.children].forEach(x=>x.classList.remove('on')); b.classList.add('on');
+  state.sort=b.dataset.s; renderWeak();
+});
+
+// init
+renderKpis(); renderTrend(); renderHeat(); renderRings(); renderInsights(); renderWeak(); renderDist();
+</script>
+</body>
+</html>

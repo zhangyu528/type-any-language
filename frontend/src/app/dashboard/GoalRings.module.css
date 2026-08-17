@@ -1,0 +1,39 @@
+.root {
+  width: 100%;
+}
+
+.chead {
+  padding: 16px 18px 4px;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ds-ink);
+}
+
+.rings {
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+  padding: 12px 18px 18px;
+}
+
+.ring {
+  text-align: center;
+}
+
+.cap {
+  font-size: 12px;
+  color: var(--ds-ink-soft);
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ringNum {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ds-ink);
+}

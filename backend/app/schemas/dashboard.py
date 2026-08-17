@@ -86,6 +86,10 @@ class CalendarDay(BaseModel):
 
     date: date
     sentences_count: int
+    # Number of practice sessions started that day. Surfaces the
+    # "场次" (sessions) trend metric on the data page without a
+    # second endpoint — DailyActivity already stores it.
+    sessions_count: int = 0
     # 0.0–1.0. None when no sentences attempted (avoid "100%" on an
     # empty day).
     accuracy: Optional[float] = None

@@ -205,14 +205,15 @@ def compute_calendar(
             DailyActivity.sentences_count,
             DailyActivity.correct_count,
             DailyActivity.daily_goal_hit,
+            DailyActivity.sessions_count,
         )
         .filter(DailyActivity.user_id == user_id)
         .filter(DailyActivity.activity_date >= start)
         .filter(DailyActivity.activity_date <= today)
         .all()
     )
-    by_date: Dict[date, tuple[int, int, bool]] = {
-        r[0]: (int(r[1]), int(r[2]), bool(r[3])) for r in rows
+    by_date: Dict[date, tuple[int, int, bool, int]] = {
+        r[0]: (int(r[1]), int(r[2]), bool(r[3]), int(r[4] or 0)) for r in rows
     }
 
     # Streak node membership — reuse compute_streak's logic but cheaper.
@@ -236,6 +237,7 @@ def compute_calendar(
             out.append(CalendarDay(
                 date=d,
                 sentences_count=0,
+                sessions_count=0,
                 accuracy=None,
                 goal_hit=False,
                 is_future=True,
@@ -243,11 +245,12 @@ def compute_calendar(
             ))
             continue
 
-        sc, cc, hit = by_date.get(d, (0, 0, False))
+        sc, cc, hit, sess = by_date.get(d, (0, 0, False, 0))
         accuracy = (cc / sc) if sc > 0 else None
         out.append(CalendarDay(
             date=d,
             sentences_count=sc,
+            sessions_count=sess,
             accuracy=accuracy,
             goal_hit=hit,
             is_future=False,

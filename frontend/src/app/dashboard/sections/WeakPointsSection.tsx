@@ -1,193 +1,195 @@
 'use client';
 
 /**
- * WeakPointsSection — 数据分区里的「薄弱点」诊断（方案 1：薄弱点并进数据）。
+ * WeakPointsSection v2 — 数据分区「薄弱点诊断」。
  *
- * 数据来自 GET /api/weakness：聚合 practice_attempts 里的错误句 JOIN
- * sentences，给出常错句、常错词、常错话题、常错 CEFR 等级。这是被退休的
- * 手动「收藏」的替代——程序按错误率自动记录不熟悉的内容。
+ * 数据由 DataSection 统一拉取（GET /api/weakness）后下发，避免与
+ * DistributionPanel 重复请求。本组件负责：
+ *   - CEFR / 话题 筛选 chips
+ *   - 按错误率 / 错误次数 排序
+ *   - 每句「去练习」(onStartLib) 与「加入复习」(云端收藏，使其进入复习候选)
  *
- * 拉取失败时降级为内联提示，不阻塞数据页其它区块。
+ * 拉取失败 / 无数据时由父级通过 props 传入状态，本组件做降级渲染。
  */
 
-import { useEffect, useState } from 'react';
-import { Target } from 'lucide-react';
-import { apiGetWeakness, WeaknessPayload, WeakSentence } from '../../api';
-import LoadingMark from '../../components/LoadingMark';
+import { useMemo, useState } from 'react';
+import { Target, Plus } from 'lucide-react';
+import { addToCollection, WeaknessPayload, WeakSentence } from '../../api';
+import card from '../card.module.css';
 import styles from './WeakPointsSection.module.css';
 
-export default function WeakPointsSection({
-  onStartLib,
-}: {
+interface Props {
+  data: WeaknessPayload | null;
+  loading: boolean;
+  error: string | null;
+  userId: string;
   onStartLib: (libId: string) => void;
-}) {
-  const [data, setData] = useState<WeaknessPayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+}
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    apiGetWeakness(15)
-      .then((d) => {
-        if (!cancelled) setData(d);
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : '获取薄弱点失败');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+type SortKey = 'rate' | 'freq';
+type FilterKey = string; // 'all' | cefr | topic
+
+function rateClass(r: number): string {
+  if (r >= 0.65) return styles.hi;
+  if (r >= 0.5) return styles.mid;
+  return styles.lo;
+}
+
+export default function WeakPointsSection({ data, loading, error, userId, onStartLib }: Props) {
+  const [filter, setFilter] = useState<FilterKey>('all');
+  const [sort, setSort] = useState<SortKey>('rate');
+  const [added, setAdded] = useState<Set<string>>(new Set());
+
+  const filters = useMemo(() => {
+    if (!data) return ['all'];
+    const set = new Set<string>(['all']);
+    data.weak_cefr.forEach((c) => set.add(c.cefr));
+    data.weak_topics.forEach((t) => set.add(t.topic));
+    return Array.from(set);
+  }, [data]);
+
+  const list = useMemo(() => {
+    if (!data) return [];
+    let rows = data.weak_sentences;
+    if (filter !== 'all') {
+      rows = rows.filter((s) => s.cefr === filter || s.topic === filter);
+    }
+    const sorted = [...rows].sort((a, b) =>
+      sort === 'rate' ? b.error_rate - a.error_rate : b.wrong_count - a.wrong_count,
+    );
+    return sorted;
+  }, [data, filter, sort]);
 
   if (loading) {
     return (
-      <section className={styles.root} aria-label="薄弱点">
-        <p className={styles.title}>薄弱点</p>
-        <LoadingMark />
-      </section>
+      <div className={`${card.card} ${styles.root}`}>
+        <p className={styles.title}>薄弱点诊断</p>
+        <p className={styles.muted}>加载中…</p>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <section className={styles.root} aria-label="薄弱点">
-        <p className={styles.title}>薄弱点</p>
+      <div className={`${card.card} ${styles.root}`}>
+        <p className={styles.title}>薄弱点诊断</p>
         <p className={styles.error}>{error}</p>
-      </section>
+      </div>
     );
   }
 
-  const totals = data?.totals;
-  const hasWrong = (data?.weak_sentences.length ?? 0) > 0;
-
-  if (!hasWrong) {
+  if (!data || data.weak_sentences.length === 0) {
     return (
-      <section className={styles.root} aria-label="薄弱点">
-        <p className={styles.title}>薄弱点</p>
+      <div className={`${card.card} ${styles.root}`}>
+        <p className={styles.title}>薄弱点诊断</p>
         <p className={styles.good}>
           还没有常错句——继续保持，程序会自动记录你最容易错的句子。
         </p>
-      </section>
+      </div>
     );
   }
 
+  const handleReview = (s: WeakSentence) => {
+    addToCollection(s.sentence_id, s.target_words[0] ?? '', userId, s.lib_id ?? undefined);
+    setAdded((prev) => new Set(prev).add(s.sentence_id));
+  };
+
   return (
-    <section className={styles.root} aria-label="薄弱点">
-      <p className={styles.title}>薄弱点</p>
-
-      <div className={styles.summary}>
-        <span className={styles.sumItem}>
-          终身准确率{' '}
-          <b className={styles.sumNum}>
-            {totals?.accuracy != null ? `${Math.round(totals.accuracy * 100)}%` : '—'}
-          </b>
-        </span>
-        <span className={styles.sumItem}>
-          常错句 <b className={styles.sumNum}>{data?.weak_sentences.length ?? 0}</b>
-        </span>
-        <span className={styles.sumItem}>
-          错误尝试 <b className={styles.sumNum}>{totals?.wrong ?? 0}</b>
+    <div className={`${card.card} ${styles.root}`}>
+      <div className={styles.chead}>
+        <p className={styles.title}>薄弱点诊断</p>
+        <span className={styles.summary}>
+          共 {list.length} 句常错 · 终身准确率{' '}
+          {data.totals.accuracy != null ? `${Math.round(data.totals.accuracy * 100)}%` : '—'}
         </span>
       </div>
 
-      {/* 常错句列表 */}
+      <div className={styles.filters}>
+        {filters.map((f) => (
+          <button
+            key={f}
+            type="button"
+            className={`${styles.chip} ${filter === f ? styles.chipOn : ''}`}
+            onClick={() => setFilter(f)}
+          >
+            {f === 'all' ? '全部' : f}
+          </button>
+        ))}
+      </div>
+
+      <div className={styles.sortBtns}>
+        <button
+          type="button"
+          className={`${styles.sortBtn} ${sort === 'rate' ? styles.sortOn : ''}`}
+          onClick={() => setSort('rate')}
+        >
+          按错误率
+        </button>
+        <button
+          type="button"
+          className={`${styles.sortBtn} ${sort === 'freq' ? styles.sortOn : ''}`}
+          onClick={() => setSort('freq')}
+        >
+          按错误次数
+        </button>
+      </div>
+
       <div className={styles.sentList}>
-        {data?.weak_sentences.map((s: WeakSentence) => {
-          const rate = Math.round(s.error_rate * 100);
-          return (
-            <div key={s.sentence_id} className={styles.sentCard}>
-              <div className={styles.sentTop}>
-                <span className={styles.sentText}>{s.text}</span>
-                <span
-                  className={styles.rate}
-                  data-high={rate >= 60 ? 'true' : 'false'}
-                  title={`错误率 ${rate}%（${s.wrong_count}/${s.attempts}）`}
-                >
-                  {rate}%
-                </span>
-              </div>
-              {s.chinese_text ? (
-                <p className={styles.sentZh}>{s.chinese_text}</p>
-              ) : null}
-              {s.target_words.length > 0 ? (
-                <div className={styles.words}>
-                  {s.target_words.map((w) => (
-                    <span key={w} className={styles.wordChip}>
-                      {w}
-                    </span>
-                  ))}
+        {list.length === 0 ? (
+          <p className={styles.muted}>该筛选下暂无常错句。</p>
+        ) : (
+          list.map((s) => {
+            const rate = Math.round(s.error_rate * 100);
+            const isAdded = added.has(s.sentence_id);
+            return (
+              <div key={s.sentence_id} className={styles.sentCard}>
+                <div className={styles.sentTop}>
+                  <span className={styles.sentText}>{s.text}</span>
+                  <span
+                    className={`${styles.rate} ${rateClass(s.error_rate)}`}
+                    title={`错误率 ${rate}%（${s.wrong_count}/${s.attempts}）`}
+                  >
+                    {rate}%
+                  </span>
                 </div>
-              ) : null}
-              <div className={styles.sentFoot}>
-                <span className={styles.meta}>
-                  错 {s.wrong_count} · 共 {s.attempts} 次
-                </span>
-                <button
-                  type="button"
-                  className={styles.cta}
-                  onClick={() => s.lib_id && onStartLib(s.lib_id)}
-                  disabled={!s.lib_id}
-                >
-                  <Target size={14} /> 去练习
-                </button>
+                {s.chinese_text ? <p className={styles.sentZh}>{s.chinese_text}</p> : null}
+                {s.target_words.length > 0 ? (
+                  <div className={styles.words}>
+                    {s.target_words.map((w) => (
+                      <span key={w} className={styles.wordChip}>
+                        {w}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                <div className={styles.sentFoot}>
+                  <span className={styles.meta}>
+                    错 {s.wrong_count} · 共 {s.attempts} 次 · {s.cefr}/{s.topic}
+                  </span>
+                  <span className={styles.acts}>
+                    <button
+                      type="button"
+                      className={styles.reviewBtn}
+                      onClick={() => handleReview(s)}
+                      disabled={isAdded}
+                    >
+                      <Plus size={14} /> {isAdded ? '已加入' : '加入复习'}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.cta}
+                      onClick={() => s.lib_id && onStartLib(s.lib_id)}
+                      disabled={!s.lib_id}
+                    >
+                      <Target size={14} /> 去练习
+                    </button>
+                  </span>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
-
-      {/* 常错词聚合 */}
-      {data && data.weak_words.length > 0 ? (
-        <div className={styles.block}>
-          <p className={styles.blockTitle}>常错词</p>
-          <div className={styles.chips}>
-            {data.weak_words.map((w) => (
-              <span key={w.word} className={styles.wordChip}>
-                {w.word}
-                <b className={styles.chipCount}>{w.wrong}</b>
-              </span>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {/* 常错话题 / CEFR */}
-      {(data?.weak_topics.length ?? 0) > 0 || (data?.weak_cefr.length ?? 0) > 0 ? (
-        <div className={styles.cols}>
-          {data && data.weak_topics.length > 0 ? (
-            <div className={styles.block}>
-              <p className={styles.blockTitle}>常错话题</p>
-              <div className={styles.chips}>
-                {data.weak_topics.map((t) => (
-                  <span key={t.topic} className={styles.topicChip}>
-                    {t.topic}
-                    <b className={styles.chipCount}>{t.wrong}</b>
-                  </span>
-                ))}
-              </div>
-            </div>
-          ) : null}
-          {data && data.weak_cefr.length > 0 ? (
-            <div className={styles.block}>
-              <p className={styles.blockTitle}>常错等级</p>
-              <div className={styles.chips}>
-                {data.weak_cefr.map((c) => (
-                  <span key={c.cefr} className={styles.topicChip}>
-                    {c.cefr}
-                    <b className={styles.chipCount}>{c.wrong}</b>
-                  </span>
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-    </section>
+    </div>
   );
 }
