@@ -122,13 +122,14 @@ export default function AppHeader() {
             </button>
             <SpecularButton
               size="sm"
-              /* 主 CTA 改 "注册":匿名访客看到的是转化漏斗最顶(创建账户),
-                 而不是直接进 dashboard。带 fromParam 让注册完成后回到
-                 用户原来想去的页面(/dashboard 或 ?lib=X 之类)。 */
+              /* 主 CTA "注册":匿名访客看到的是转化漏斗最顶(创建账户)。
+                 颜色走 cta 琥珀(--ds-cta),与 landing 全场「开始读」/
+                 收尾 CTA 同一套转化色语言,带 fromParam 让注册完成后
+                 回到用户原来想去的页面。 */
               onClick={() => openAuthModal('signup', { from: fromParam })}
-              tint="var(--ds-action)"
-              tintOpacity={0.5}
-              baseColor="var(--ds-action-deep)"
+              tint="var(--ds-cta)"
+              tintOpacity={0.6}
+              baseColor="#EFA535"
               lineColor="var(--white)"
               textColor="var(--white)"
               blur={3}

@@ -49,9 +49,10 @@ const HERO_TITLE = '读完一句，写出来就是你的。';
 const HERO_SUBTITLE = '4 本词库 · 从入门到雅思,读完一句,写出来。';
 
 // 信任承诺条 —— 原 hero 的 stats 行(免登/录即用、1 键/即开始、错自动/入错题本)
-// 已合并进这里,统一为一条承诺,避免与 demo 下方信息重复、层级冗余。
+// 已合并进这里,统一为一条承诺。注意:现已无游客模式,"不需注册"类承诺作废,
+// 改为强调注册价值(免费 + 进度云端同步)。
 const TRUST_BADGES: ReadonlyArray<{ icon: string; text: string }> = [
-  { icon: '✓', text: '不需注册 · 打开即读' },
+  { icon: '✓', text: '注册免费 · 进度云端同步' },
   { icon: '✓', text: '1 键开始 · 30 秒上手' },
   { icon: '✓', text: '错自动入错题本' },
 ];
@@ -138,18 +139,17 @@ export default function Hero({ libs, onPickLib }: HeroProps) {
           size="lg"
           onClick={handleStart}
           disabled={!canStart}
-          /* tint 走 token(--ds-action-tint babyblue 极淡 wash);
+          /* 主 CTA 走 cta 琥珀(--ds-cta),与 LibStrip featured 卡 +
+             FinalCTA 收尾 CTA 统一为同一套转化色语言。
              baseColor / lineColor / textColor 必须是字面 hex ——
              SpecularButton 把它们喂给 ogl WebGL shader,shader
-             不解析 var(),必须是字符串 hex。这里 #5BA8D8 是
-             --ds-action (#8FCBF0) 与 --ds-action-deep (#2F80C0)
-             之间的中间蓝,作为 rim 阴影环的基色;纯白 shine +
-             深蓝 text 制造 Specular 高光感。 */
-          tint="var(--ds-action-tint)"
+             不解析 var()。#EFA535 = --ds-cta(暗主题琥珀)作 rim 基色;
+             纯白 shine + 白字配深琥珀底制造琥珀系 Specular 高光感。 */
+          tint="var(--ds-cta)"
           tintOpacity={1}
-          baseColor="#5BA8D8"
+          baseColor="#EFA535"
           lineColor="#FFFFFF"
-          textColor="#0C2C53"
+          textColor="#FFFFFF"
           blur={6}
           followMouse
           proximity={300}

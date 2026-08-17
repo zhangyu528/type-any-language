@@ -12,6 +12,7 @@ import LandingPage from './landing';
 import LoadingMark from './components/LoadingMark';
 import TranslationSession from './TranslationSession';
 import { useAuth } from './lib/auth';
+import { useAuthModal } from './lib/authModal';
 import styles from './practice/Practice.module.css';
 
 /**
@@ -43,6 +44,7 @@ import styles from './practice/Practice.module.css';
 export default function PracticePage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const { open: openAuthModal } = useAuthModal();
 
   // Auth-aware root redirect: logged-in users see /dashboard, not
   // the marketing Landing. Wait for `authLoading` to resolve first
@@ -144,10 +146,15 @@ export default function PracticePage() {
 
   const navigateToSession = useCallback(
     (libId: string) => {
+      // 无游客模式:未登录先弹注册,注册完成后再由用户从 /dashboard 进入练习。
+      if (!user) {
+        openAuthModal('signup');
+        return;
+      }
       pushUrl(libId);
       setSelectedLibId(libId);
     },
-    [pushUrl]
+    [pushUrl, user, openAuthModal]
   );
 
   // Navigate to landing (clear ?lib=).
