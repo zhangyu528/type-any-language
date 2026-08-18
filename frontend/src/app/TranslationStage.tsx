@@ -2,18 +2,14 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  addToCollection,
   getAudioUrl,
-  isSentenceCollected,
   LessonSentence,
   readPrefAudioRate,
   readPrefBool,
-  removeFromCollection,
   writePrefBool,
   STORAGE_SHOW_PHONETIC,
   WordInLesson,
 } from './api';
-import { useAuth } from './lib/auth';
 import SunkenShortcutBar from './SunkenShortcutBar';
 import SpecularButton from '@/components/SpecularButton';
 import BorderGlow from '@/components/BorderGlow';
@@ -28,9 +24,6 @@ interface TranslationStageProps {
   sentence: LessonSentence;
   /** Target word for the word-card at the top of the stage. */
   targetWord: WordInLesson;
-  /** The lib this sentence came from — propagated down so the
-   *  collection entry can remember the source for Me-page filtering. */
-  libId: string;
   /** Called when the user finishes a step. `correct` is true on a clean
    *  check, false on "skip". */
   onComplete: (correct: boolean) => void;
@@ -63,32 +56,19 @@ interface TranslationStageProps {
 export default function TranslationStage({
   sentence,
   targetWord,
-  libId,
   onComplete,
 }: TranslationStageProps) {
-  const { user } = useAuth();
-  const userId = user?.id ?? 'anonymous';
   const expectedWords = sentence.text.split(/\s+/);
 
   const [userInputs, setUserInputs] = useState<string[]>([]);
   const [wordResults, setWordResults] = useState<boolean[]>([]);
+  const [wordConfirmed, setWordConfirmed] = useState<boolean[]>([]);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
-  const [justErred, setJustErred] = useState(false);
   const [isPeeking, setIsPeeking] = useState(false);
   // Track which shortcut keys the user is holding down so the matching
   // kbd badges in the shortcut bar light up. Strings are normalized
   // (lowercase) — see SunkenShortcutBar's matching logic.
   const [activeKeys, setActiveKeys] = useState<string[]>([]);
-  // Whether this (sentence, word) pair is in the user's collection.
-  // Initialized from localStorage on mount/sentence-change; the star
-  // button toggles it. Re-read after the collection-changed event so
-  // cross-tab updates / future programmatic mutations land here.
-  const [isCollected, setIsCollected] = useState<boolean>(false);
-  // Transient: set true right after a toggle so the star can run
-  // a one-shot pop animation + emit particles. Cleared after the
-  // animation duration (see useEffect below) so the next toggle
-  // can fire it again.
-  const [popping, setPopping] = useState<boolean>(false);
   // User-driven audio playback rate (from /me SettingsTab). Read
   // once on mount and refreshed whenever prefs.audioRate changes
   // (cross-tab storage event). Applied to the <audio> via
@@ -127,11 +107,20 @@ export default function TranslationStage({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const isComposingRef = useRef(false);
   const compositionTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Mirror the latest typing state into a ref so global/keyboard handlers
+  // (and cell-nav) can grade the active cell without stale closures.
+  const stateRef = useRef({
+    userInputs,
+    wordResults,
+    currentWordIndex,
+  });
+  stateRef.current = { userInputs, wordResults, currentWordIndex };
 
   // Per-sentence reset on mount or sentence change.
   useEffect(() => {
     setUserInputs(new Array(expectedWords.length).fill(''));
     setWordResults(new Array(expectedWords.length).fill(false));
+    setWordConfirmed(new Array(expectedWords.length).fill(false));
     setCurrentWordIndex(0);
     setRevealed(false);
     setFeedback(null);
@@ -170,14 +159,6 @@ export default function TranslationStage({
     return () => window.clearTimeout(t);
   }, [sentence.id, autoPlayOn, sentence.audio_url, audioRate]);
 
-  // Sync isCollected state with localStorage on mount / sentence
-  // change. The Me page listens for the collection-changed event
-  // to update its tab badge — we don't need to, since the star
-  // button IS the source of truth here.
-  useEffect(() => {
-    setIsCollected(isSentenceCollected(sentence.id, userId));
-  }, [sentence.id, userId]);
-
   // Read user-driven prefs on mount + subscribe to changes.
   // - audioRate: Stage applies it on every play() and updates mid-playback
   // - showPhonetic: controls whether the IPA transcription is rendered
@@ -198,15 +179,6 @@ export default function TranslationStage({
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, []);
-
-  // Clear the popping flag once the CSS animation completes so the
-  // next toggle can fire it again. The 480ms matches the longest
-  // animation (particles fade) in the star CSS.
-  useEffect(() => {
-    if (!popping) return;
-    const t = window.setTimeout(() => setPopping(false), 480);
-    return () => window.clearTimeout(t);
-  }, [popping]);
 
   // Refocus the typewriter if a stray click lands somewhere outside
   // editable surfaces — same pattern DictationStage used. Without this,
@@ -249,15 +221,6 @@ export default function TranslationStage({
 
   // Skip reveals the correct answer first (so the user learns from the
   // miss); a second tap on "继续" advances to the next step.
-  const skip = () => {
-    if (!revealed) {
-      setRevealed(true);
-      flashFeedback('wrong');
-      return;
-    }
-    onComplete(false);
-  };
-
   // Retry — reset the cells for the SAME sentence so the user can type it
   // again after a miss. The per-sentence reset effect only fires on
   // sentence.id change, so we reset manually here (same id is reused).
@@ -275,26 +238,46 @@ export default function TranslationStage({
     window.setTimeout(() => inputRef.current?.focus(), 60);
   };
 
-  // Submit — grade the current typing without finishing the sentence:
-  // reveal the answer and surface partial credit (how many words were
-  // already correct) so the user sees exactly what they nailed.
-  const submit = () => {
+  // Reveal the full correct sentence (the single "看答案" action). Per-word
+  // grading is handled by Enter / cell navigation; this just uncovers the
+  // answer + partial credit once the user gives up on a word.
+  const revealAnswer = () => {
     if (revealed) return;
     setRevealed(true);
     flashFeedback('wrong');
+    playWrongBuzz();
   };
 
-  // Move focus to an adjacent cell. Used by the on-screen cell-nav
-  // control (essential on touch, where Tab/Shift-Tab are unavailable).
+  // Grade the active cell against the expected word, flagging a wrong
+  // (non-empty) attempt as confirmed so it stays red after the caret
+  // leaves. Reads the ref mirror for always-fresh state in any handler.
+  const gradeCurrentCell = useCallback(() => {
+    const { userInputs: ui, wordResults: wr, currentWordIndex: ci } =
+      stateRef.current;
+    const raw = (ui[ci] || '').trim();
+    if (!raw) return;
+    if (wr[ci]) return;
+    setWordConfirmed((prev) => {
+      if (prev[ci]) return prev;
+      const next = [...prev];
+      next[ci] = true;
+      return next;
+    });
+  }, []);
+
+  // Move to an adjacent cell, grading the one we're leaving first. Used by
+  // the on-screen cell-nav control (essential on touch, where Tab/Shift-Tab
+  // are unavailable) and the keyboard Tab handler below.
   const goCell = useCallback(
     (delta: number) => {
+      gradeCurrentCell();
       setCurrentWordIndex((i) => {
         const next = Math.min(Math.max(i + delta, 0), expectedWords.length - 1);
         return next;
       });
       inputRef.current?.focus();
     },
-    [expectedWords.length],
+    [expectedWords.length, gradeCurrentCell],
   );
 
   const toggleAutoPlay = useCallback(() => {
@@ -304,34 +287,6 @@ export default function TranslationStage({
       return next;
     });
   }, []);
-
-  // Toggle collection membership for this (sentence, word) pair.
-  // Atomic add/remove — collection helpers keep sentences + words
-  // in lockstep (1:1 relationship for drill pairs).
-  const toggleCollected = useCallback(() => {
-    if (isCollected) {
-      removeFromCollection(sentence.id, userId);
-      setIsCollected(false);
-      // No pop on un-favorite — the visual reward lives on the
-      // "I just saved this" beat, not the "I un-saved" beat.
-    } else {
-      addToCollection(sentence.id, targetWord.word, userId, libId);
-      setIsCollected(true);
-      // Trigger the one-shot pop animation. The useEffect clears
-      // the flag 480ms later (matching particle fade).
-      setPopping(true);
-    }
-    // Notify same-tab listeners (MePage badge) and storage event
-    // for cross-tab listeners. Same pattern as TranslationSession's
-    // progress-changed dispatch — the dual coverage is intentional.
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(
-        new CustomEvent('collection-changed', {
-          detail: { sentenceId: sentence.id, added: !isCollected },
-        }),
-      );
-    }
-  }, [isCollected, sentence.id, targetWord.word, libId, userId]);
 
   const playCorrectChime = useCallback(() => {
     try {
@@ -364,6 +319,34 @@ export default function TranslationStage({
         osc.start(start);
         osc.stop(stop);
       });
+    } catch {
+      /* 静默 */
+    }
+  }, []);
+
+  const playWrongBuzz = useCallback(() => {
+    try {
+      const Ctx: typeof AudioContext =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext })
+          .webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = audioCtxRef.current ?? new Ctx();
+      audioCtxRef.current = ctx;
+      if (ctx.state === 'suspended') ctx.resume();
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      // Quick downward "buzz" — clearly distinct from the correct chime.
+      osc.frequency.setValueAtTime(190, now);
+      osc.frequency.exponentialRampToValueAtTime(95, now + 0.18);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.14, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.24);
     } catch {
       /* 静默 */
     }
@@ -402,12 +385,24 @@ export default function TranslationStage({
           onComplete(true);
         }, 300);
       }
-    } else if (value.length >= (expectedWords[index]?.length ?? 0)) {
-      // Typed enough chars but the word is wrong → shake.
-      setJustErred(true);
-      window.setTimeout(() => setJustErred(false), 400);
     }
   };
+
+  // Confirm the CURRENT word as a whole unit (Enter key). Grade it: flag a
+  // wrong (non-empty) attempt as confirmed-wrong so the cell renders the
+  // whole word in red, then advance to the next word — symmetric with the
+  // auto-advance on a correct word, so the caret never sticks on a cell
+  // the user has already judged. Empty / already-correct cells are skipped.
+  const confirmWord = useCallback(() => {
+    const { userInputs: ui, wordResults: wr, currentWordIndex: ci } =
+      stateRef.current;
+    const raw = (ui[ci] || '').trim();
+    if (!raw) return;
+    if (wr[ci]) return;
+    gradeCurrentCell();
+    playWrongBuzz();
+    setCurrentWordIndex((i) => Math.min(i + 1, expectedWords.length - 1));
+  }, [expectedWords.length, gradeCurrentCell, playWrongBuzz]);
 
   // Typewriter onKeyDown: IME housekeeping + preventDefault for the
   // keys the global handler also catches.
@@ -421,6 +416,11 @@ export default function TranslationStage({
         clearTimeout(compositionTimerRef.current);
         compositionTimerRef.current = null;
       }
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      confirmWord();
+      return;
     }
     if (e.key === 'Tab' || e.key === ' ' || e.key === '/') {
       e.preventDefault();
@@ -475,6 +475,9 @@ export default function TranslationStage({
       if (e.key === 'Tab') {
         e.preventDefault();
         if (expectedWords.length === 0) return;
+        // Grade the cell we're leaving before cycling — Enter-style grading
+        // so a wrong attempt shows red even when navigated away via Tab.
+        gradeCurrentCell();
         if (e.shiftKey) {
           setCurrentWordIndex(
             (currentWordIndex - 1 + expectedWords.length) % expectedWords.length
@@ -582,18 +585,6 @@ export default function TranslationStage({
             <p className={styles.prompt} lang="zh">
               {sentence.chinese_text}
             </p>
-            <button
-              type="button"
-              className={styles.star}
-              data-active={isCollected ? 'true' : 'false'}
-              data-popping={popping ? 'true' : 'false'}
-              onClick={toggleCollected}
-              aria-label={isCollected ? '从收藏移除' : '收藏这句'}
-              aria-pressed={isCollected ? 'true' : 'false'}
-              title={isCollected ? '从收藏移除' : '收藏这句'}
-            >
-              {isCollected ? '★' : '☆'}
-            </button>
           </div>
         )}
 
@@ -602,6 +593,8 @@ export default function TranslationStage({
             {expectedWords.map((word, index) => {
               const isCorrectWord = wordResults[index];
               const isActive = currentWordIndex === index;
+              const isConfirmedWrong =
+                wordConfirmed[index] && !isCorrectWord;
               const input = userInputs[index] || '';
               const showPeek = isPeeking && isActive;
 
@@ -611,8 +604,8 @@ export default function TranslationStage({
                     className={
                       styles.cell +
                       (isCorrectWord ? ` ${styles.cellCorrect}` : '') +
-                      (isActive ? ` ${styles.cellActive}` : '') +
-                      (justErred && isActive ? ` ${styles.cellShake}` : '')
+                      (isConfirmedWrong ? ` ${styles.cellWrong}` : '') +
+                      (isActive ? ` ${styles.cellActive}` : '')
                     }
                   >
                     <span className={styles.cellGhost} aria-hidden>{word}</span>
@@ -620,13 +613,12 @@ export default function TranslationStage({
                       <span className={`${styles.cellText} ${styles.cellTextPeek}`}>{word}</span>
                     ) : isCorrectWord ? (
                       <span className={styles.cellText}>{word}</span>
-                    ) : isActive ? (
+                    ) : isConfirmedWrong || isActive ? (
                       <span className={styles.cellInput}>
-                        {input.split('').map((char, i) => {
-                          const status = char?.toLowerCase() === word[i]?.toLowerCase() ? 'correct' : 'wrong';
-                          return <span key={i} className={`${styles.cellChar} ${status === 'correct' ? styles.cellCharCorrect : styles.cellCharWrong}`}>{char}</span>;
-                        })}
-                        <span className={styles.cellCursor} aria-hidden>|</span>
+                        {input}
+                        {isActive && (
+                          <span className={styles.cellCursor} aria-hidden>|</span>
+                        )}
                       </span>
                     ) : (
                       <span className={styles.cellPlaceholder}></span>
@@ -701,12 +693,14 @@ export default function TranslationStage({
       <SunkenShortcutBar
         hints={
           sentence.audio_url
-            ? [
+              ? [
+                { keys: ['Enter'], label: '确认本词' },
                 { keys: ['Space'], label: '播放' },
                 { keys: ['Tab'], label: '切换格子' },
                 { keys: ['/'], label: '偷看' },
               ]
             : [
+                { keys: ['Enter'], label: '确认本词' },
                 { keys: ['Tab'], label: '切换格子' },
                 { keys: ['/'], label: '偷看' },
               ]
@@ -753,24 +747,9 @@ export default function TranslationStage({
           </>
         ) : (
           <>
-            <Button variant="ghost" size="sm" onClick={submit}>
-              提交
+            <Button variant="ghost" size="sm" onClick={revealAnswer}>
+              看答案
             </Button>
-            <SpecularButton
-              size="sm"
-              onClick={skip}
-              tint="var(--ds-action)"
-              tintOpacity={0.18}
-              baseColor="transparent"
-              lineColor="var(--ds-action-deep)"
-              textColor="var(--ds-action-deep)"
-              blur={6}
-              intensity={0.6}
-              followMouse
-              proximity={220}
-            >
-              跳过 ⏭
-            </SpecularButton>
           </>
         )}
       </div>

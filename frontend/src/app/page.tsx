@@ -10,6 +10,7 @@ import {
 } from './api';
 import LandingPage from './landing';
 import LoadingMark from './components/LoadingMark';
+import AppHeader from './components/AppHeader';
 import TranslationSession from './TranslationSession';
 import { useAuth } from './lib/auth';
 import { useAuthModal, isPostAuthNavigating, setPostAuthNavigating } from './lib/authModal';
@@ -268,31 +269,21 @@ export default function PracticePage() {
   // No lib selected → render LandingPage (the content-driven home).
   if (!selectedLibId) {
     return (
-      <LandingPage
-        libs={catalog.libs}
-        translationProgress={translationProgress}
-        onPickLib={navigateToSession}
-        onStartGeneric={startGeneric}
-      />
+      <>
+        <AppHeader />
+        <LandingPage
+          libs={catalog.libs}
+          translationProgress={translationProgress}
+          onPickLib={navigateToSession}
+          onStartGeneric={startGeneric}
+        />
+      </>
     );
   }
 
   return (
     <div className={styles.root}>
       <div className={styles.content}>
-        <header className={styles.masthead} aria-label="page header">
-          <a
-            className={styles.mastheadBrand}
-            href="/"
-            onClick={(e) => {
-              e.preventDefault();
-              navigateToLanding();
-            }}
-          >
-            ← 返回
-          </a>
-        </header>
-
         <TranslationSession
           libId={selectedLibId}
           onBack={navigateToLanding}
