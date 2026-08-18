@@ -21,6 +21,8 @@ import PracticeHintCard, {
   type PracticeHintCardKind,
 } from './practice/PracticeHintCard';
 import LoadingMark from './components/LoadingMark';
+import Stat from './ds/components/Stat';
+import Button from './ds/components/Button';
 import SpecularButton from '@/components/SpecularButton';
 import styles from './practice/TranslationStage.module.css';
 
@@ -29,7 +31,7 @@ interface TranslationSessionProps {
   onBack: () => void;
 }
 
-type SessionState = 'loading' | 'running' | 'empty-lib' | 'error';
+type SessionState = 'loading' | 'running' | 'empty-lib' | 'error' | 'finished';
 
 interface PickedStep {
   word: WordInLesson;
@@ -126,6 +128,12 @@ function pickStepBySentenceId(
   return null;
 }
 
+function formatDuration(secs: number): string {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return m > 0 ? `${m}分${s}秒` : `${s}秒`;
+}
+
 export default function TranslationSession({
   libId,
   onBack,
@@ -147,6 +155,9 @@ export default function TranslationSession({
   const [sessionStats, setSessionStats] = useState({
     total: 0,
     correct: 0,
+    streak: 0,
+    maxStreak: 0,
+    startTime: Date.now(),
   });
   const [lastResult, setLastResult] = useState<
     'correct' | 'wrong' | 'skipped' | null
@@ -200,7 +211,7 @@ export default function TranslationSession({
       }
     };
     // Reset guest trigger state on libId change (new session).
-    setSessionStats({ total: 0, correct: 0 });
+    setSessionStats({ total: 0, correct: 0, streak: 0, maxStreak: 0, startTime: Date.now() });
     setLastResult(null);
     setCardState({
       improvedCardShown: false,
@@ -370,17 +381,24 @@ export default function TranslationSession({
         );
       }
 
-      // Guest-only: update session stats + evaluate hint triggers.
-      // Use the *current* lastResult (closure), then schedule the
-      // next render to compute the new stats from nextProgress. We
-      // compute rate off the fresh progress so the threshold check
-      // sees this answer.
+      // Update run stats for everyone (drives the live HUD + end-of-session
+      // summary). Streak resets on a wrong/skipped answer, climbs on correct.
+      setSessionStats((prev) => {
+        const attempted = prev.total + 1;
+        const correctN = prev.correct + (correct ? 1 : 0);
+        const streak = correct ? prev.streak + 1 : 0;
+        const maxStreak = Math.max(prev.maxStreak, streak);
+        return { ...prev, total: attempted, correct: correctN, streak, maxStreak };
+      });
+
+      // Guest-only: evaluate hint triggers. Use the *current* lastResult
+      // (closure) + the closure sessionStats for the rate threshold so we
+      // see this answer. Signed-in users skip the nudges.
       if (isGuest) {
         const previousResult = lastResult;
         const newTotal = sessionStats.total + 1;
         const newCorrect =
           sessionStats.correct + (correct ? 1 : 0);
-        setSessionStats({ total: newTotal, correct: newCorrect });
         setLastResult(correct ? 'correct' : 'wrong');
 
         // Skip API: skipped counts as wrong, never triggers improved.
@@ -430,6 +448,17 @@ export default function TranslationSession({
     setActiveHint(null);
     setCardState((prev) => ({ ...prev, dismissedThisSession: true }));
   }, []);
+
+  // Restart the drill in place — fresh run stats, re-draw the first step
+  // from the current progress. The backend session keeps rolling (no
+  // end call) so the cumulative tally is preserved until unmount.
+  const handleRestart = () => {
+    setSessionStats({ total: 0, correct: 0, streak: 0, maxStreak: 0, startTime: Date.now() });
+    setLastResult(null);
+    const first = lesson ? pickNextStep(lesson, progress, libId) : null;
+    setCurrentStep(first);
+    setSessionState(first ? 'running' : 'empty-lib');
+  };
 
   // Aggregate stats for the meta line.
   const stats = useMemo(() => {
@@ -525,8 +554,61 @@ export default function TranslationSession({
     );
   }
 
+  if (sessionState === 'finished') {
+    const acc = sessionStats.total
+      ? Math.round((sessionStats.correct / sessionStats.total) * 100)
+      : 0;
+    const secs = Math.max(0, Math.round((Date.now() - sessionStats.startTime) / 1000));
+    return (
+      <div className={`${styles.translation} ${styles.finished}`}>
+        <span className={styles.emptyKicker}>练习完成</span>
+        <h2 className={styles.endTitle}>本轮练习结束</h2>
+        <div className={styles.endStats}>
+          <Stat value={sessionStats.total} label="练习句数" />
+          <Stat value={`${acc}%`} label="正确率" tone="mint" />
+          <Stat value={sessionStats.maxStreak} label="最长连击" tone="mint" />
+          <Stat value={formatDuration(secs)} label="用时" />
+        </div>
+        <div className={styles.actions}>
+          <Button variant="primary" size="md" onClick={handleRestart}>
+            再来一组
+          </Button>
+          <Button variant="ghost" size="md" onClick={onBack}>
+            返回词库
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
+      <div className={styles.hud}>
+        <div className={styles.hudStats}>
+          <Stat value={sessionStats.total} label="已练" />
+          <Stat
+            value={
+              sessionStats.total
+                ? `${Math.round((sessionStats.correct / sessionStats.total) * 100)}%`
+                : '0%'
+            }
+            label="正确率"
+            tone={
+              sessionStats.total && sessionStats.correct / sessionStats.total >= 0.8
+                ? 'mint'
+                : 'ink'
+            }
+          />
+          <Stat value={sessionStats.streak} label="连击" tone="mint" />
+        </div>
+        <button
+          type="button"
+          className={styles.endBtn}
+          onClick={() => setSessionState('finished')}
+        >
+          结束练习
+        </button>
+      </div>
       <TranslationStage
         sentence={currentStep.sentence}
         targetWord={currentStep.word}

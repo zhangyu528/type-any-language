@@ -9,6 +9,7 @@ import {
   readPrefAudioRate,
   readPrefBool,
   removeFromCollection,
+  writePrefBool,
   STORAGE_SHOW_PHONETIC,
   WordInLesson,
 } from './api';
@@ -16,6 +17,8 @@ import { useAuth } from './lib/auth';
 import SunkenShortcutBar from './SunkenShortcutBar';
 import SpecularButton from '@/components/SpecularButton';
 import BorderGlow from '@/components/BorderGlow';
+import IconButton from './ds/components/IconButton';
+import Button from './ds/components/Button';
 import styles from './practice/TranslationStage.module.css';
 
 interface TranslationStageProps {
@@ -96,6 +99,28 @@ export default function TranslationStage({
   // word. Defaults to true (Stage always showed it) but the user
   // can switch it off via /me SettingsTab.
   const [showPhonetic, setShowPhonetic] = useState(true);
+  // Whether to auto-play the English audio when a new sentence loads.
+  // Defaults to true (matches the "听音写句" premise); the toggle lives in
+  // the shortcut bar and persists to prefs.autoPlay.
+  const [autoPlayOn, setAutoPlayOn] = useState(true);
+  // Whether the correct English sentence is revealed (after a skip) so the
+  // user can learn from the miss before advancing.
+  const [revealed, setRevealed] = useState(false);
+  // Page-level correct/wrong wash — a brief full-bleed tint that confirms
+  // the outcome of a step without needing a modal. Auto-clears after ~900ms.
+  const [feedback, setFeedback] = useState<null | 'correct' | 'wrong'>(null);
+  // Screen-reader announcement for step outcomes. The visible feedback
+  // wash is aria-hidden, so this region is its accessible equivalent.
+  // The wrong-answer case is announced by the .answer panel's own
+  // aria-live, so we only drive this region for correct / reset.
+  const [announce, setAnnounce] = useState('');
+  const feedbackTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const flashFeedback = useCallback((kind: 'correct' | 'wrong') => {
+    setFeedback(kind);
+    if (kind === 'correct') setAnnounce('答对了');
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    feedbackTimerRef.current = setTimeout(() => setFeedback(null), 900);
+  }, []);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -108,6 +133,12 @@ export default function TranslationStage({
     setUserInputs(new Array(expectedWords.length).fill(''));
     setWordResults(new Array(expectedWords.length).fill(false));
     setCurrentWordIndex(0);
+    setRevealed(false);
+    setFeedback(null);
+    if (feedbackTimerRef.current) {
+      clearTimeout(feedbackTimerRef.current);
+      feedbackTimerRef.current = null;
+    }
     if (compositionTimerRef.current) {
       clearTimeout(compositionTimerRef.current);
       compositionTimerRef.current = null;
@@ -121,6 +152,23 @@ export default function TranslationStage({
     const t = window.setTimeout(() => inputRef.current?.focus(), 80);
     return () => window.clearTimeout(t);
   }, [sentence.id]);
+
+  // Auto-play the English audio on each new sentence when enabled. The
+  // 180ms delay lets the typewriter refocus first. Browsers may block
+  // autoplay without a prior gesture — that just means play() rejects
+  // silently and the user falls back to the 🔊 button.
+  useEffect(() => {
+    if (!autoPlayOn || !sentence.audio_url) return;
+    const t = window.setTimeout(() => {
+      if (audioRef.current) {
+        audioRef.current.src = getAudioUrl(sentence.audio_url);
+        audioRef.current.currentTime = 0;
+        audioRef.current.playbackRate = audioRate;
+        audioRef.current.play().catch(() => { /* 静默 */ });
+      }
+    }, 180);
+    return () => window.clearTimeout(t);
+  }, [sentence.id, autoPlayOn, sentence.audio_url, audioRate]);
 
   // Sync isCollected state with localStorage on mount / sentence
   // change. The Me page listens for the collection-changed event
@@ -137,11 +185,14 @@ export default function TranslationStage({
   useEffect(() => {
     setAudioRate(readPrefAudioRate());
     setShowPhonetic(readPrefBool(STORAGE_SHOW_PHONETIC, true));
+    setAutoPlayOn(readPrefBool('prefs.autoPlay', true));
     const onStorage = (e: StorageEvent) => {
       if (e.key === 'prefs.audioRate') {
         setAudioRate(readPrefAudioRate());
       } else if (e.key === 'prefs.showPhonetic') {
         setShowPhonetic(readPrefBool(STORAGE_SHOW_PHONETIC, true));
+      } else if (e.key === 'prefs.autoPlay') {
+        setAutoPlayOn(readPrefBool('prefs.autoPlay', true));
       }
     };
     window.addEventListener('storage', onStorage);
@@ -196,9 +247,63 @@ export default function TranslationStage({
     }
   }, [sentence.audio_url, audioRate]);
 
+  // Skip reveals the correct answer first (so the user learns from the
+  // miss); a second tap on "继续" advances to the next step.
   const skip = () => {
+    if (!revealed) {
+      setRevealed(true);
+      flashFeedback('wrong');
+      return;
+    }
     onComplete(false);
   };
+
+  // Retry — reset the cells for the SAME sentence so the user can type it
+  // again after a miss. The per-sentence reset effect only fires on
+  // sentence.id change, so we reset manually here (same id is reused).
+  const retry = () => {
+    setUserInputs(new Array(expectedWords.length).fill(''));
+    setWordResults(new Array(expectedWords.length).fill(false));
+    setCurrentWordIndex(0);
+    setRevealed(false);
+    setFeedback(null);
+    setAnnounce('已重置，请重新输入');
+    if (feedbackTimerRef.current) {
+      clearTimeout(feedbackTimerRef.current);
+      feedbackTimerRef.current = null;
+    }
+    window.setTimeout(() => inputRef.current?.focus(), 60);
+  };
+
+  // Submit — grade the current typing without finishing the sentence:
+  // reveal the answer and surface partial credit (how many words were
+  // already correct) so the user sees exactly what they nailed.
+  const submit = () => {
+    if (revealed) return;
+    setRevealed(true);
+    flashFeedback('wrong');
+  };
+
+  // Move focus to an adjacent cell. Used by the on-screen cell-nav
+  // control (essential on touch, where Tab/Shift-Tab are unavailable).
+  const goCell = useCallback(
+    (delta: number) => {
+      setCurrentWordIndex((i) => {
+        const next = Math.min(Math.max(i + delta, 0), expectedWords.length - 1);
+        return next;
+      });
+      inputRef.current?.focus();
+    },
+    [expectedWords.length],
+  );
+
+  const toggleAutoPlay = useCallback(() => {
+    setAutoPlayOn((prev) => {
+      const next = !prev;
+      writePrefBool('prefs.autoPlay', next);
+      return next;
+    });
+  }, []);
 
   // Toggle collection membership for this (sentence, word) pair.
   // Atomic add/remove — collection helpers keep sentences + words
@@ -291,6 +396,7 @@ export default function TranslationStage({
         setCurrentWordIndex(index + 1);
       } else {
         // Last cell correct → 300ms celebration, then advance.
+        flashFeedback('correct');
         window.setTimeout(() => {
           playCorrectChime();
           onComplete(true);
@@ -420,19 +526,54 @@ export default function TranslationStage({
 
   return (
     <div className={styles.translation}>
+      {/* Accessible outcome announcements (the visible wash is aria-hidden). */}
+      <div className={styles.srOnly} role="status" aria-live="polite">
+        {announce}
+      </div>
+      {feedback && (
+        <div
+          className={
+            styles.feedbackWash +
+            (feedback === 'correct' ? ` ${styles.feedbackCorrect}` : ` ${styles.feedbackWrong}`)
+          }
+          aria-hidden
+        />
+      )}
       <header className={styles.header}>
-        <BorderGlow className={styles.wordCardShell} glowRadius={32} glowColor="143, 203, 240" glowIntensity={1.0}>
-          <div className={styles.wordCard}>
-            <h2 className={styles.wordCardWord}>{targetWord.word}</h2>
-            {showPhonetic && targetWord.phonetic && (
-              <span className={styles.wordCardPhonetic}>{targetWord.phonetic}</span>
-            )}
-            {targetWord.translation && (
-              <p className={styles.wordCardTranslation}>{targetWord.translation}</p>
-            )}
-          </div>
-        </BorderGlow>
+        <div className={styles.wordCardWrap}>
+          <BorderGlow
+            className={styles.wordCardShell}
+            glowRadius={32}
+            glowColor="203 76% 75%"
+            glowIntensity={1.0}
+            backgroundColor="var(--ds-glass-surface)"
+          >
+            <div className={styles.wordCard}>
+              <h2 className={styles.wordCardWord}>{targetWord.word}</h2>
+              {showPhonetic && targetWord.phonetic && (
+                <span className={styles.wordCardPhonetic}>{targetWord.phonetic}</span>
+              )}
+              {targetWord.translation && (
+                <p className={styles.wordCardTranslation}>{targetWord.translation}</p>
+              )}
+            </div>
+          </BorderGlow>
+          <IconButton
+            className={styles.replayBtn}
+            variant="ghost"
+            size="md"
+            shape="circle"
+            aria-label="播放音频"
+            disabled={!sentence.audio_url}
+            onClick={playAudio}
+          >
+            <SpeakerIcon />
+          </IconButton>
+        </div>
         <span className={styles.captionBadgeInline}>看中文写英文</span>
+        {!sentence.audio_url && (
+          <span className={styles.noAudio} aria-hidden>无音频</span>
+        )}
       </header>
 
       <div className={styles.sentence}>
@@ -528,6 +669,33 @@ export default function TranslationStage({
         </div>
 
         <audio ref={audioRef} />
+
+        {/* On-screen cell navigation — the desktop path uses Tab /
+            Shift-Tab, but touch devices have no keyboard, so we expose a
+            prev/next control + a live "N / M" position readout. */}
+        <div className={styles.cellNav}>
+          <button
+            type="button"
+            className={styles.cellNavBtn}
+            onClick={() => goCell(-1)}
+            disabled={currentWordIndex === 0}
+            aria-label="上一格"
+          >
+            ← 上一格
+          </button>
+          <span className={styles.cellNavPos} aria-hidden>
+            {currentWordIndex + 1} / {expectedWords.length}
+          </span>
+          <button
+            type="button"
+            className={styles.cellNavBtn}
+            onClick={() => goCell(1)}
+            disabled={currentWordIndex === expectedWords.length - 1}
+            aria-label="下一格"
+          >
+            下一格 →
+          </button>
+        </div>
       </div>
 
       <SunkenShortcutBar
@@ -544,25 +712,90 @@ export default function TranslationStage({
               ]
         }
         activeKeys={activeKeys}
+        autoPlay={
+          sentence.audio_url
+            ? { active: autoPlayOn, onToggle: toggleAutoPlay }
+            : undefined
+        }
       />
 
+      {revealed && (
+        <div className={styles.answer} aria-live="polite">
+          <p className={styles.answerLabel}>正确答案</p>
+          <p className={styles.answerText}>{sentence.text}</p>
+          <p className={styles.answerPartial}>
+            你答对了 {wordResults.filter(Boolean).length} / {expectedWords.length} 个词
+          </p>
+        </div>
+      )}
+
       <div className={styles.actions}>
-        <SpecularButton
-          size="sm"
-          onClick={skip}
-          tint="var(--ds-action)"
-          tintOpacity={0.18}
-          baseColor="transparent"
-          lineColor="var(--ds-action-deep)"
-          textColor="var(--ds-action-deep)"
-          blur={6}
-          intensity={0.6}
-          followMouse
-          proximity={220}
-        >
-          跳过 ⏭
-        </SpecularButton>
+        {revealed ? (
+          <>
+            <SpecularButton
+              size="sm"
+              onClick={retry}
+              tint="var(--ds-action)"
+              tintOpacity={0.18}
+              baseColor="transparent"
+              lineColor="var(--ds-action-deep)"
+              textColor="var(--ds-action-deep)"
+              blur={6}
+              intensity={0.6}
+              followMouse
+              proximity={220}
+            >
+              重试 ↺
+            </SpecularButton>
+            <Button variant="primary" size="sm" onClick={() => onComplete(false)}>
+              继续下一句 →
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button variant="ghost" size="sm" onClick={submit}>
+              提交
+            </Button>
+            <SpecularButton
+              size="sm"
+              onClick={skip}
+              tint="var(--ds-action)"
+              tintOpacity={0.18}
+              baseColor="transparent"
+              lineColor="var(--ds-action-deep)"
+              textColor="var(--ds-action-deep)"
+              blur={6}
+              intensity={0.6}
+              followMouse
+              proximity={220}
+            >
+              跳过 ⏭
+            </SpecularButton>
+          </>
+        )}
       </div>
     </div>
+  );
+}
+
+/** Compact speaker icon for the audio-replay button. Inherits color via
+ *  currentColor so the button's --ds-action-deep tint applies. */
+function SpeakerIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M11 5 6 9H2v6h4l5 4V5Z" />
+      <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+      <path d="M18.5 5.5a9 9 0 0 1 0 13" />
+    </svg>
   );
 }

@@ -63,9 +63,14 @@ function PracticeRouteInner() {
   }
 
   return (
-    <main className={styles.root}>
-      {/* Aurora background - subtle layer behind content */}
-      <Aurora className="fixed inset-0 z-0" />
+    <main className={styles.root} data-babyblue>
+      {/* Aurora background - subtle layer behind content. Baby-blue
+          color stops so the animated backdrop matches the data-babyblue
+          palette (the default purple/green clashes with the new theme). */}
+      <Aurora
+        className="fixed inset-0 z-0"
+        colorStops={['#8FCBF0', '#5BA8F0', '#8FCBF0']}
+      />
 
       <div className={styles.content}>
         <header className={styles.masthead} aria-label="练习页头部">
