@@ -9,7 +9,7 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: var(--space-5);
+  gap: clamp(14px, 2.2vh, 24px);
   width: 100%;
   animation: practice-rise var(--dur-base) var(--ease-out);
 }
@@ -45,7 +45,7 @@
 .wordCardShell {
   width: 100%;
   max-width: 560px;
-  padding: var(--space-5) var(--space-6);
+  padding: clamp(14px, 2.2vh, 24px) clamp(16px, 2.5vw, 32px);
   /* Glass surface override — BorderGlow ships a dark default card bg
      (#120F17) + black shadow; align it to the dashboard glass system so
      the focal word card floats on baby-blue like every other panel.
@@ -158,7 +158,7 @@
      width; .prompt grows to fill available space. When standalone
      (no row wrapper — older usages) the padding/margin still works. */
   flex: 1;
-  padding: var(--space-6) 0;
+  padding: clamp(12px, 2.5vh, 28px) 0;
   margin: 0;
   max-width: 560px;
   word-wrap: break-word;
@@ -403,7 +403,7 @@
   justify-content: center;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) 0;
+  padding: clamp(8px, 1.5vh, 16px) 0;
 }
 
 /* Empty / loading / error / finished / empty-step variants */
@@ -484,10 +484,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(40px, 6vh, 64px);
+  gap: clamp(20px, 3.5vh, 40px);
   width: 100%;
   position: relative;
-  padding: clamp(20px, 4vh, 40px) 0;
+  padding: clamp(12px, 2.5vh, 28px) 0;
 }
 
 .sentenceDisplay {
@@ -495,7 +495,7 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: 18px;
-  line-height: 2.4;
+  line-height: 2;
   position: relative;
   padding: 0;
   width: 100%;
@@ -515,8 +515,8 @@
   align-items: flex-start;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 1.4em;
-  line-height: 2.4;
+  gap: 1em;
+  line-height: 2;
   padding: 8px 0;
 }
 
@@ -699,12 +699,12 @@
    ============================================================ */
 @media (max-width: 640px) {
   .translation {
-    gap: var(--space-4);
+    gap: var(--space-3);
   }
 
   .sentence {
-    gap: clamp(28px, 5vh, 44px);
-    padding: clamp(16px, 3vh, 28px) 0;
+    gap: clamp(20px, 4vh, 32px);
+    padding: clamp(12px, 2.5vh, 24px) 0;
   }
 
   /* Smaller cells so long words fit on narrow screens. The ghost
@@ -718,7 +718,7 @@
 
   .prompt {
     font-size: clamp(1.25rem, 5vw, 1.75rem);
-    padding: var(--space-4) 0;
+    padding: var(--space-3) 0;
   }
 
   .sentenceCells {

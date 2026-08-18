@@ -73,15 +73,6 @@ function PracticeRouteInner() {
       />
 
       <div className={styles.content}>
-        <header className={styles.masthead} aria-label="练习页头部">
-          <button
-            type="button"
-            className={styles.mastheadBrand}
-            onClick={() => router.push(returnTo)}
-          >
-            ← 返回
-          </button>
-        </header>
         <TranslationSession
           libId={libId}
           onBack={() => router.push(returnTo)}
