@@ -17,30 +17,7 @@
   background: transparent;
 }
 
-/* Feedback wash — kept for visual continuity, but a quiet neutral tint. */
-.rootFeedbackCorrect::after,
-.rootFeedbackIncorrect::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  animation: practice-bleed 1.2s var(--ease-out);
-}
-
-.rootFeedbackCorrect::after {
-  background: radial-gradient(circle at 50% 50%, var(--ds-correct-tint) 0%, transparent 55%);
-}
-
-.rootFeedbackIncorrect::after {
-  background: radial-gradient(circle at 50% 50%, var(--ds-tint) 0%, transparent 55%);
-}
-
-@keyframes practice-bleed {
-  0%   { opacity: 0; transform: scale(0.96); }
-  30%  { opacity: 1; }
-  100% { opacity: 0; transform: scale(1.04); }
-}
+/* Feedback wash moved to TranslationStage.module.css (.feedbackWash). */
 
 /* Loading state — quiet skeleton */
 .loading {
@@ -133,17 +110,6 @@
   border-radius: 2px;
 }
 
-.mastheadSub {
-  font-family: var(--font-mono);
-  font-size: var(--text-caption);
-  font-weight: 500;
-  color: var(--ds-ink-soft);
-  letter-spacing: 0.02em;
-  text-align: right;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
 /* ============================================================
    Empty catalog state
    ============================================================ */
@@ -194,10 +160,6 @@
     flex-direction: column;
     align-items: flex-start;
     gap: var(--space-2);
-  }
-
-  .mastheadSub {
-    text-align: left;
   }
 
   .content {

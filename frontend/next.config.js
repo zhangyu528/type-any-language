@@ -43,10 +43,18 @@ const nextConfig = {
       || `http://localhost:${process.env.BACKEND_PORT || 8000}`,
     NEXT_PUBLIC_APP_VERSION: APP_VERSION,
   },
-  // 允许 build 写到独立目录,避免污染正在跑的 `next dev` 用的 `.next`。
-  // 用法:NEXT_DIST_DIR=.next-build npx next build
-  // dev server 仍默认用 `.next`(NEXT_DIST_DIR 未设置)。
-  distDir: process.env.NEXT_DIST_DIR || '.next',
+  // Build 与 dev 隔离到不同目录,杜绝 `next build` 覆盖正在跑的
+  // `next dev` 的 `.next` 导致 chunk manifest 错乱(浏览器报
+  // ChunkLoadError: Loading chunk app/layout failed (timeout))。
+  //   - `next dev`   → NODE_ENV=development → `.next`(dev server 专用)
+  //   - `next build` → NODE_ENV=production  → `.next-build`(构建产物)
+  //   - `next start` → NODE_ENV=production  → `.next-build`(与 build 一致)
+  // 不再依赖"记得加 NEXT_DIST_DIR"——哪怕裸跑 `next build` 也只会
+  // 写 `.next-build`,不会污染 dev 的 `.next`。scripts/build.mjs 仍会
+  // 显式设 NEXT_DIST_DIR,这里只是兜底。NEXT_DIST_DIR 可作最终覆盖。
+  distDir:
+    process.env.NEXT_DIST_DIR ||
+    (process.env.NODE_ENV === 'production' ? '.next-build' : '.next'),
 };
 
 module.exports = nextConfig;

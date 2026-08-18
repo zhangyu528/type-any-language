@@ -14,6 +14,21 @@
   animation: practice-rise var(--dur-base) var(--ease-out);
 }
 
+/* Visually-hidden but screen-reader-accessible live region for step
+   outcomes (the visible feedback wash is aria-hidden). */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .header {
   display: flex;
   flex-direction: column;
@@ -31,12 +46,50 @@
   width: 100%;
   max-width: 560px;
   padding: var(--space-5) var(--space-6);
+  /* Glass surface override — BorderGlow ships a dark default card bg
+     (#120F17) + black shadow; align it to the dashboard glass system so
+     the focal word card floats on baby-blue like every other panel.
+     `!important` beats the global .border-glow-card presentation. */
+  border: 1px solid var(--ds-glass-border) !important;
+  box-shadow: var(--ds-glass-shadow) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
-/* Kicker under the word card — shadcn <Badge variant="slate">,
-   letter-spacing matches the old .caption kicker feel. */
-.captionBadge {
+/* Kicker under the word card — pill badge, tinted glass, action-deep
+   text. Replaces the previously unstyled inline caption. */
+.captionBadgeInline {
+  display: inline-block;
+  margin-top: var(--space-3);
+  padding: 5px 14px;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.08em;
+  color: var(--ds-action-deep);
+  background: var(--ds-glass-surface);
+  border: 1px solid var(--ds-glass-border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--ds-glass-shadow);
+  user-select: none;
+}
+
+/* No-audio hint — shown when the sentence has no audio_url. The replay
+   button is disabled in that case; this pill explains why. */
+.noAudio {
+  display: inline-block;
+  margin-top: var(--space-3);
+  padding: 4px 12px;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
   letter-spacing: 0.06em;
+  color: var(--ds-ink-soft);
+  background: var(--ds-glass-surface);
+  border: 1px solid var(--ds-glass-border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--ds-glass-shadow);
+  user-select: none;
 }
 
 .wordCard {
@@ -211,8 +264,10 @@
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-4) var(--space-5);
-  background: var(--ds-tint);
+  background: var(--ds-glass-surface);
+  border: 1px solid var(--ds-glass-border);
   border-radius: var(--radius-md);
+  box-shadow: var(--ds-glass-shadow);
   max-width: 560px;
   margin: 0 auto;
   width: 100%;
@@ -235,6 +290,65 @@
   line-height: 1.5;
   margin: 0;
   word-wrap: break-word;
+}
+
+.answerPartial {
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--ds-action-deep);
+  letter-spacing: 0.02em;
+  margin: 0;
+}
+
+/* On-screen cell navigation — touch-friendly prev/next + live position
+   readout. On desktop this duplicates Tab/Shift-Tab but improves
+   discoverability; harmless there, essential on mobile. */
+.cellNav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.cellNavBtn {
+  appearance: none;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--ds-action-deep);
+  background: var(--ds-glass-surface);
+  border: 1px solid var(--ds-glass-border);
+  border-radius: var(--radius-pill);
+  padding: 6px 14px;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out);
+}
+.cellNavBtn:hover:not(:disabled) {
+  background: var(--ds-action-soft);
+}
+.cellNavBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.cellNavBtn:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+
+.cellNavPos {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+  font-variant-numeric: tabular-nums;
+  min-width: 3.5em;
+  text-align: center;
+  user-select: none;
 }
 
 /* Input — textarea, full width, generous spacing. */
@@ -346,6 +460,19 @@
   font-size: var(--text-body);
   color: var(--ds-ink-soft);
   margin: 0;
+}
+
+/* Kicker above empty / finished titles — small muted uppercase label.
+   Referenced by TranslationSession's empty-lib + finished states. */
+.emptyKicker {
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ds-ink-soft);
+  margin: 0;
+  user-select: none;
 }
 
 /* ============================================================
@@ -571,23 +698,51 @@
    Responsive
    ============================================================ */
 @media (max-width: 640px) {
+  .translation {
+    gap: var(--space-4);
+  }
+
+  .sentence {
+    gap: clamp(28px, 5vh, 44px);
+    padding: clamp(16px, 3vh, 28px) 0;
+  }
+
+  /* Smaller cells so long words fit on narrow screens. The ghost
+     (width reference) + char/input layers must match the cell size. */
+  .cell,
+  .cellGhost,
+  .cellChar,
+  .cellInput {
+    font-size: clamp(1.5rem, 7vw, 2.25rem);
+  }
+
   .prompt {
     font-size: clamp(1.25rem, 5vw, 1.75rem);
     padding: var(--space-4) 0;
   }
 
-  .textarea {
-    font-size: var(--text-body);
+  .sentenceCells {
+    gap: 1em;
+  }
+
+  /* Bigger tap targets for the on-screen cell nav. */
+  .cellNav {
+    gap: var(--space-2);
+  }
+  .cellNavBtn {
+    min-height: 40px;
+    padding: 8px 16px;
   }
 
   .actions {
     gap: var(--space-2);
   }
 
-  .btn {
-    flex: 1 1 40%;
-    min-height: 40px;
-    font-size: var(--text-caption);
+  .hud {
+    gap: var(--space-3);
+  }
+  .hudStats {
+    gap: var(--space-4);
   }
 
   .wordCardWord {
@@ -608,4 +763,134 @@
     opacity: 1 !important;
     transform: none !important;
   }
+  /* Full-bleed wash is continuous motion + a transient full-screen tint;
+     hide it for reduced-motion users (the outcome is conveyed via the
+     sr-only aria-live region instead). */
+  .feedbackWash {
+    display: none !important;
+  }
+}
+
+/* ============================================================
+   Replay button (A1) + live HUD (A4) + end-of-session summary (A3)
+   ============================================================ */
+
+.wordCardWrap {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  justify-content: center;
+}
+
+/* Visible audio-replay control — fixes the no-button-on-mobile gap.
+   Sits at the top-right of the word card, inherits --ds-action-deep via
+   currentColor (the IconButton ghost variant is transparent). */
+.replayBtn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  color: var(--ds-action-deep);
+  z-index: 3;
+}
+.replayBtn:hover {
+  color: var(--ds-action);
+}
+.replayBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* HUD — live session stats row above the drill. */
+.hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  flex-wrap: wrap;
+}
+
+.hudStats {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.endBtn {
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink-soft);
+  background: transparent;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--radius-pill);
+  padding: 7px 16px;
+  cursor: pointer;
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+.endBtn:hover {
+  color: var(--ds-ink);
+  border-color: var(--ds-border-strong);
+  background: var(--ds-tint);
+}
+.endBtn:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+
+/* Summary stat row on the finished screen. */
+.endStats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+  margin: var(--space-2) 0;
+}
+
+/* ============================================================
+   Page-level correct/wrong feedback (B6)
+   ============================================================ */
+
+/* Full-bleed tint that confirms a step outcome. Sits above the aurora
+   but below interactive controls; pointer-events disabled so it never
+   intercepts clicks. Reuses the dashboard's practice-bleed fade. */
+.feedbackWash {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  animation: practice-bleed 0.9s var(--ease-out);
+}
+
+.feedbackCorrect {
+  background: radial-gradient(
+    circle at 50% 42%,
+    color-mix(in srgb, var(--ds-correct) 22%, transparent) 0%,
+    transparent 55%
+  );
+}
+
+.feedbackWrong {
+  background: radial-gradient(
+    circle at 50% 42%,
+    color-mix(in srgb, var(--ds-error) 16%, transparent) 0%,
+    transparent 55%
+  );
+}
+
+/* Keyframes live in this module so .feedbackWash's `animation` reference
+   resolves (CSS Modules scopes @keyframes per-file; the copy in
+   Practice.module.css is not visible here). */
+@keyframes practice-bleed {
+  0%   { opacity: 0; transform: scale(0.96); }
+  30%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.04); }
 }

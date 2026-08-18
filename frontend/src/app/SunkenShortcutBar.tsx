@@ -33,8 +33,9 @@ interface SunkenShortcutBarProps {
    * NOT captured here so a parent Space=play/pause handler still works when
    * the toggle has focus.
    *
-   * Currently unused (translation mode has no autoPlay concept); kept
-   * available in case a future mode wants it.
+   * TranslationStage wires this to the `prefs.autoPlay` preference (default
+   * on); toggling it controls sentence-audio autoplay. It is actively used,
+   * not vestigial.
    */
   autoPlay?: AutoPlayToggle;
 }
