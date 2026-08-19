@@ -11,7 +11,8 @@
  * 去重：连击只在 Hero 胶囊 + 连击动量出现；月目标只在 Hero 迷你条出现；
  * 习惯时刻只在 TodaySuggestion 出现。
  *
- * 首跑态：无任何练习记录时整页切换为 FirstRunGuide。
+ * 首跑欢迎 Hero(FirstRunGuide)已上提到 dashboard/page.tsx,整页覆盖任何
+ * 分区渲染(含选词库注册落 ?section=practice 的入口),本组件只负责概览网格。
  *
  * 本组件只做展示拼装，数据来自 page.tsx 传入的 snapshot + catalog。
  */
@@ -97,7 +98,6 @@ import ContinueCard from '../ContinueCard';
 import TodaySuggestion from './TodaySuggestion';
 import InsightStat from './InsightStat';
 import { deriveAchievements } from './achievements';
-import FirstRunGuide from './FirstRunGuide';
 import QuickNav from './QuickNav';
 import styles from './OverviewSection.module.css';
 import { DashboardSection } from '../DashboardNav';
@@ -120,6 +120,9 @@ interface OverviewSectionProps {
   enrolledLibIds?: string[];
   /** 课程多于展示上限时，跳转到课程中心的「我的课程」tab 查看全部。 */
   onOpenMyCourses?: () => void;
+  /** 从 landing 选词库注册而来：所选词库 id。存在时优先当作「当前进行中
+   *  课程」，并跳过首跑引导（避免在已选词库的情况下还展示「浏览全部词库」）。 */
+  selectedLibId?: string | null;
 }
 
 export default function OverviewSection({
@@ -132,6 +135,7 @@ export default function OverviewSection({
   onNavigate,
   enrolledLibIds,
   onOpenMyCourses,
+  selectedLibId,
 }: OverviewSectionProps) {
   // 最近词库（persisted in prefs.libId），供建议/快启/首跑态读取；
   // 点「我的课程」卡可切换当前进行中课程（setRecentId + onSetCurrentLib 落地持久化）。
@@ -142,6 +146,22 @@ export default function OverviewSection({
     () => (recentId && catalog ? catalog.libs.find((l) => l.id === recentId) ?? null : null),
     [recentId, catalog],
   );
+
+  // 有效「当前进行中课程」= 从 landing 预选的词库 优先于 本地最近词库。
+  // 这样注册时选了 CET4，主页直接锚定 CET4，而不是回退到 beginner / libs[0]。
+  const effectiveRecentId = selectedLibId ?? recentId;
+  const effectiveRecentLib = effectiveRecentId && catalog
+    ? catalog.libs.find((l) => l.id === effectiveRecentId) ?? null
+    : null;
+
+  // 「当前进行中课程」只在用户确实已加入该课(enrolled,来自 user_courses)
+  // 或确有真实练习进度(snapshot.continue.lib_id)时才算数;否则视为「无当前课」。
+  // 这避免本机调试残留的 localStorage prefs.libId(如 beginner)被当成「正在学习」
+  // 展示给其实没课的新用户——那时听音打字卡应显示空态 + 「添加课程」。
+  const recentIsEnrolled = effectiveRecentId && enrolledLibIds
+    ? enrolledLibIds.includes(effectiveRecentId)
+    : false;
+  const currentLibId = recentIsEnrolled ? effectiveRecentId : snapshot.continue.lib_id;
 
   // 我的课程：从已选课程集合过滤出 lib，最多 4 张。
   const myCourseLibs = useMemo(() => {
@@ -171,12 +191,13 @@ export default function OverviewSection({
   // 获取徽章卡：复用 deriveAchievements 的徽章进度（与提升等级完全独立）。
   const achievements = useMemo(() => deriveAchievements(snapshot), [snapshot]);
 
-  // 继续练习卡：锚定课程 = 当前进行中课程(recentId) 优先，确保 我的课程
-  // 切换时本卡联动；无当前课时才回退到上次 session 的课。
+  // 继续练习卡：锚定课程 = currentLibId（仅当用户已加入该课或有真实练习进度
+  // 时才算数，避免本机残留 localStorage 把 beginner 当成「正在学习」）。
+  // 无当前课时 currentLibId 为 null → 下方 ContinueCard 走空态 + 「添加课程」。
   const continueAnchorLib = useMemo(() => {
-    const id = recentId ?? snapshot.continue.lib_id;
+    const id = currentLibId;
     return id && catalog ? catalog.libs.find((l) => l.id === id) ?? null : null;
-  }, [recentId, snapshot.continue.lib_id, catalog]);
+  }, [currentLibId, catalog]);
 
   // 继续练习卡进度条：锚定课程的浏览器逐句进度（localStorage）。
   const continueProgress = useMemo(() => {
@@ -186,28 +207,6 @@ export default function OverviewSection({
     const remain = Math.max(0, (continueAnchorLib.sentence_count || 0) - answered);
     return { pct, remain };
   }, [continueAnchorLib, progress]);
-
-  // 首跑态：从未练习过。
-  // 用后端的终身信号 has_any_activity（按 user_id 统计 daily_activity 是否有
-  // 任何记录），它不依赖 35 天 calendar 窗口、也不依赖 user_streaks 回滚——
-  // 否则 streak 功能上线前的老账号（缺 user_streaks 行 → streak.longest 恒为 0）
-  // 会被错误切到欢迎引导。
-  // 叠加无进行中会话：避免"第一次练习进行途中"误判为首跑。
-  const isFirstRun =
-    snapshot.continue.session_id === null && !snapshot.has_any_activity;
-
-  // 首跑 / 空状态：整页切换为引导态。
-  if (isFirstRun) {
-    return (
-      <FirstRunGuide
-        catalog={catalog}
-        recentLibId={recentId}
-        recentLibName={recentLib?.name ?? null}
-        onStartLib={onStartLib}
-        onPickLib={onPickLib}
-      />
-    );
-  }
 
   return (
     <>
@@ -237,6 +236,7 @@ export default function OverviewSection({
             catalog={catalog}
             onResume={onResume}
             onPickLib={onPickLib}
+            onAddCourse={() => onNavigate('practice')}
             onStartLib={onStartLib}
             currentProgress={continueProgress}
             behind={!snapshot.daily_goal.completed}
@@ -267,7 +267,7 @@ export default function OverviewSection({
                   const answered = Object.keys(progress[lib.id]?.sentences ?? {}).length;
                   const remain = Math.max(0, (lib.sentence_count || 0) - answered);
                   const accent = accentVar(lib.accent);
-                  const current = lib.id === recentId;
+                  const current = lib.id === effectiveRecentId;
                   return (
                     <button
                       key={lib.id}
@@ -335,8 +335,8 @@ export default function OverviewSection({
             preferredHour={snapshot.preferred_hour}
             streak={snapshot.streak}
             dailyGoal={snapshot.daily_goal}
-            recentLibId={recentId}
-            recentLibName={recentLib?.name ?? null}
+            recentLibId={effectiveRecentId}
+            recentLibName={effectiveRecentLib?.name ?? null}
           />
         </AnimatedContent>
 

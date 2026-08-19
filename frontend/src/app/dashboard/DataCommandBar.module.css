@@ -1,0 +1,64 @@
+.root {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  color: var(--ds-ink);
+}
+
+.sub {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--ds-ink-soft);
+}
+
+.controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* pill segmented control — tint base, action-fill when active */
+.seg {
+  display: inline-flex;
+  background: var(--ds-tint);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--radius-pill);
+  padding: 3px;
+}
+
+.segBtn {
+  border: 0;
+  background: transparent;
+  color: var(--ds-ink-soft);
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.segBtn:hover {
+  color: var(--ds-action-deep);
+}
+
+.segOn {
+  background: var(--ds-action);
+  color: var(--ds-on-action);
+  font-weight: 500;
+}
+
+/* metric segment uses the correct (mint) accent for its active state */
+.metric .segOn {
+  background: var(--ds-correct-fill);
+  color: #042c53;
+}

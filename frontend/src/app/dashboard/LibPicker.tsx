@@ -52,10 +52,28 @@ const ACCENT_COLORS: Record<string, string> = {
   purple: '#7F77DD',
 };
 
+// Frontend-only color variety for libs whose `accent` is null — the current
+// seed reality (every lib is course_type='vocab' with no accent token), which
+// made the entire grid render the same blue. Once a lib gets an explicit
+// `accent` token, that wins (see courseAccentColor below), so this map is
+// purely a graceful fallback and stays forward-compatible with real data.
+const LEVEL_ACCENT: Record<string, string> = {
+  beginner: '#378ADD', // blue
+  cet4: '#1D9E75', // green
+  cet6: '#BA7517', // amber
+  ielts: '#7F77DD', // purple
+};
+const FALLBACK_PALETTE = ['#378ADD', '#1D9E75', '#BA7517', '#7F77DD'];
+
 export function courseAccentColor(lib: VocabularyLib): string {
   if (lib.accent && ACCENT_COLORS[lib.accent]) return ACCENT_COLORS[lib.accent];
-  const t = lib.course_type ?? 'vocab';
-  return (COURSE_TYPE_META[t] ?? COURSE_TYPE_META.vocab).color;
+  const lvl = (lib.level ?? '').toLowerCase();
+  if (LEVEL_ACCENT[lvl]) return LEVEL_ACCENT[lvl];
+  // Stable per-lib color from the id so the grid stays varied without
+  // hardcoding every future level.
+  let h = 0;
+  for (let i = 0; i < lib.id.length; i++) h = (h * 31 + lib.id.charCodeAt(i)) >>> 0;
+  return FALLBACK_PALETTE[h % FALLBACK_PALETTE.length];
 }
 
 export function courseTypeLabel(lib: VocabularyLib): string {
@@ -149,6 +167,9 @@ export function LibCard({
   ctaLabel,
   /** 在「课程库」视图里标记该课已加入我的课程（仅展示，不可再点添加）。 */
   enrolled = false,
+  /** 是否展示进度条。发现页「课程库」里未加入的课程进度几乎都是 0%，
+   *  展示空进度条是噪声，故由调用方在浏览态隐藏；我的课程/已加入/选词弹窗仍显示。 */
+  showProgress = true,
 }: {
   lib: VocabularyLib;
   onClick: () => void;
@@ -158,6 +179,8 @@ export function LibCard({
   ctaLabel?: string;
   /** 在「课程库」视图里标记该课已加入我的课程（仅展示，不可再点添加）。 */
   enrolled?: boolean;
+  /** 是否展示进度条（默认 true；发现页浏览态可由调用方关闭）。 */
+  showProgress?: boolean;
 }) {
   const color = courseAccentColor(lib);
   const typeLabel = courseTypeLabel(lib);
@@ -187,22 +210,24 @@ export function LibCard({
       <p className={styles.libDesc}>
         {lib.description ?? '从这一份开始,逐字练。'}
       </p>
-      <div className={styles.progress}>
-        <div
-          className={styles.track}
-          role="progressbar"
-          aria-valuenow={pct}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label={`${lib.name} 进度 ${pct}%`}
-        >
-          <span
-            className={styles.fill}
-            style={{ width: `${pct}%`, background: color }}
-          />
+      {showProgress ? (
+        <div className={styles.progress}>
+          <div
+            className={styles.track}
+            role="progressbar"
+            aria-valuenow={pct}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`${lib.name} 进度 ${pct}%`}
+          >
+            <span
+              className={styles.fill}
+              style={{ width: `${pct}%`, background: color }}
+            />
+          </div>
+          <span className={styles.progressLabel}>{progressLabel}</span>
         </div>
-        <span className={styles.progressLabel}>{progressLabel}</span>
-      </div>
+      ) : null}
       <span className={styles.cta}>
         <span className={styles.ctaLabel}>{cta}</span>
         <span className={styles.ctaArrow} aria-hidden>→</span>

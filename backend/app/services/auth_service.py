@@ -42,10 +42,6 @@ from app.models.user import (
     hash_session_token,
     hash_reset_token,
 )
-from app.models.user_course import UserCourse
-from app.models.vocabulary import VocabularyLib
-
-
 # ---- Password hashing -----------------------------------------------------
 # 12 rounds = ~250ms on a modern CPU. Bump to 13-14 if the host gets
 # faster; drop to 10 only if login latency is user-visible.
@@ -103,25 +99,9 @@ def create_user(
     db.commit()
     db.refresh(user)
 
-    # Default-starter enrollment: every beginner-level, published course
-    # lands in the user's 我的课程 set on signup. This is the product
-    # contract — a fresh account opens to a curated beginner set instead
-    # of an empty "add a course" void (see migration 0017 / courses router).
-    starter_libs = (
-        db.execute(
-            select(VocabularyLib).where(
-                VocabularyLib.level == "beginner",
-                VocabularyLib.is_published.is_(True),
-            )
-        )
-        .scalars()
-        .all()
-    )
-    if starter_libs:
-        db.add_all(
-            [UserCourse(user_id=user.id, lib_id=lib.id) for lib in starter_libs]
-        )
-        db.commit()
+    # 注意:注册时不再默认添加任何词库(含 beginner)。新用户的 enrolled_lib_ids
+    # 为空,由前端首跑引导(FirstRunGuide,中性「挑一个词库开始」入口)引导自选,
+    # 避免把 beginner 强塞进「我的课程」(产品意图:通用注册不强制词库)。
 
     return user
 

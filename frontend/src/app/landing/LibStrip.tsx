@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * LibStrip — SECTION 3 选词库(2026-08 polish)
+ * LibStrip — SECTION 2 选词库(2026-08 polish)
  *
  * 真实 VocabularyLib[] 卡片网格。每张卡 = 等级 chip + 词库名
  * (DecryptedText 字符还原,呼应"读出来"母题) + 词/句数 + 描述 +
- * SpecularButton「开始读」直接 onPickLib 进入练习。
+ * SpecularButton「开始读」→ onPickLib(未登录先弹注册,门禁在 page.tsx 的 navigateToSession)。
  *
  * 2026-08 polish:
  *   - 4 张卡都包 BorderGlow,跟 Section 1/2 hover 体验一致
@@ -95,15 +95,15 @@ export default function LibStrip({ libs, onPickLib }: LibStripProps) {
                         <SpecularButton
                       size="sm"
                       onClick={() => onPickLib(lib.id)}
-                      /* CTA:featured 紫(--ds-convert),非 featured 冷蓝(--ds-action-tint)。
+                      /* CTA:featured 琥珀(--ds-cta),非 featured 冷蓝(--ds-action-tint)。
                          baseColor / lineColor / textColor 必须是字面 hex ——
                          SpecularButton 把它们喂给 ogl WebGL shader,shader
-                         不解析 var()。#7C3AED = --ds-convert-deep 紫色 rim 基色;
+                         不解析 var()。#EFA535 = --ds-cta 琥珀 rim 基色;
                          #5BA8D8 = --ds-action 与 --ds-action-deep 之间的中间蓝
                          作为冷蓝 rim 基色;白 shine 通用,字色根据底色深浅切换。 */
-                      tint={isFeatured ? 'var(--ds-convert)' : 'var(--ds-action-tint)'}
+                      tint={isFeatured ? 'var(--ds-cta)' : 'var(--ds-action-tint)'}
                       tintOpacity={0.95}
-                      baseColor={isFeatured ? '#7C3AED' : '#5BA8D8'}
+                      baseColor={isFeatured ? '#EFA535' : '#5BA8D8'}
                       lineColor="#FFFFFF"
                       textColor={isFeatured ? '#FFFFFF' : '#0C2C53'}
                       blur={isFeatured ? 6 : 4}

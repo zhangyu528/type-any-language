@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { useAuthModal } from '../../lib/authModal';
+import { useAuthModal, setPostAuthNavigating } from '../../lib/authModal';
 import { useAuth } from '../../lib/auth';
 import { safeRedirectPath } from '../../lib/safeRedirect';
 import ImmersiveAuth from './ImmersiveAuth';
@@ -115,7 +115,7 @@ export default function AuthModal() {
 }
 
 interface AuthModalBodyProps {
-  state: { open: boolean; mode: 'login' | 'signup'; from: string | null };
+  state: { open: boolean; mode: 'login' | 'signup'; from: string | null; libName: string | null };
   close: () => void;
   setMode: (mode: 'login' | 'signup') => void;
   isLoading: boolean;
@@ -169,6 +169,13 @@ function AuthModalBody({
           setSuccess({ email: data.email! });
           await new Promise((resolve) => window.setTimeout(resolve, 600));
         }
+        // 关键:在 refresh() 把 user 写入、触发根路由 app/page.tsx 的
+        // 「已登录→/dashboard」重定向 effect 之前,同步置位 postAuthNavigating。
+        // 必须早于 await refresh()(同微任务):refresh 内的 setUser 会安排一次
+        // re-render,其 effect 在该微任务之后的微任务里先于本函数后续代码执行;
+        // 若晚于此处置位,该 effect 会抢跑、把带 query 的落地目标
+        // (/dashboard?welcome=1&lib=...) 清成裸 /dashboard。详见 lib/authModal.tsx 注释。
+        setPostAuthNavigating(true);
         await refresh();
         // close modal 前先 navigate 到 state.from(/me?from=/me 等被守卫挡回的场景)。
         // safeRedirectPath 兜底非法 ?from= 值(协议相对 URL / 控制字符 / 太长等),
@@ -179,7 +186,10 @@ function AuthModalBody({
         close();
       } catch (error) {
         // P3-E: 把不同 status code 映射成本地化的友好文案。
-        console.error("Auth failed:", error);
+        // 注意:登录/注册失败(401/409/422 等)是用户侧的正常情况,不是 app
+        // 崩溃,用 console.warn 而非 console.error,避免 devtools 里刷红色 error
+        // 误导(错误文案已通过 setSubmitError 内联展示给用户)。
+        console.warn("Auth rejected:", error);
         const label = state.mode === "login" ? "登录失败" : "注册失败";
         if (error instanceof ApiError) {
           if (error.status === 409) {
@@ -228,6 +238,7 @@ function AuthModalBody({
           submitError={submitError}
           onClearSubmitError={() => setSubmitError(null)}
           success={success}
+          libName={state.libName}
         />
       </div>
     </div>

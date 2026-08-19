@@ -10,8 +10,10 @@ import {
 } from './api';
 import LandingPage from './landing';
 import LoadingMark from './components/LoadingMark';
+import AppHeader from './components/AppHeader';
 import TranslationSession from './TranslationSession';
 import { useAuth } from './lib/auth';
+import { useAuthModal, isPostAuthNavigating, setPostAuthNavigating } from './lib/authModal';
 import styles from './practice/Practice.module.css';
 
 /**
@@ -43,6 +45,7 @@ import styles from './practice/Practice.module.css';
 export default function PracticePage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const { open: openAuthModal } = useAuthModal();
 
   // Auth-aware root redirect: logged-in users see /dashboard, not
   // the marketing Landing. Wait for `authLoading` to resolve first
@@ -58,9 +61,20 @@ export default function PracticePage() {
         : null;
     if (params?.get('lib')) return;
     if (user) {
+      // 注册/登录成功由 AuthModal 接管跳转(目标带 ?welcome=1&lib=... 等
+      // query)。若它正在导航,本次跳过,避免把 query 清成裸 /dashboard。
+      if (isPostAuthNavigating()) return;
       router.replace('/dashboard');
     }
   }, [authLoading, user, router]);
+
+  // 卸载时复位「post-auth 导航中」标记:导航已完成、landing 已不在路由上,
+  // 复位后不影响用户后续直接访问 /(已登录→正常重定向到 /dashboard)。
+  useEffect(() => {
+    return () => {
+      setPostAuthNavigating(false);
+    };
+  }, []);
 
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [translationProgress, setTranslationProgress] =
@@ -144,11 +158,33 @@ export default function PracticePage() {
 
   const navigateToSession = useCallback(
     (libId: string) => {
+      // 词库起点:未登录先弹注册,带入词库名让注册弹窗显示
+      // "注册后开始《X》";注册成功落 /dashboard?section=practice&lib=X
+      // (&welcome=1),由 dashboard 自动加入该词库并高亮承接闭环。
+      if (!user) {
+        const name = catalog?.libs.find((l) => l.id === libId)?.name ?? null;
+        openAuthModal('signup', {
+          from: `/dashboard?section=practice&lib=${encodeURIComponent(libId)}&welcome=1`,
+          libName: name,
+        });
+        return;
+      }
       pushUrl(libId);
       setSelectedLibId(libId);
     },
-    [pushUrl]
+    [pushUrl, user, openAuthModal, catalog]
   );
+
+  // 非词库起点(Hero / FinalCTA 的通用 CTA):未登录弹注册但不带词库,
+  // 注册成功落 /dashboard?welcome=1,dashboard 用欢迎横幅引导挑词库;
+  // 已登录直接进主页(主页会引导挑第一个词库)。
+  const startGeneric = useCallback(() => {
+    if (user) {
+      router.push('/dashboard');
+      return;
+    }
+    openAuthModal('signup', { from: '/dashboard?welcome=1' });
+  }, [user, router, openAuthModal]);
 
   // Navigate to landing (clear ?lib=).
   const navigateToLanding = useCallback(() => {
@@ -233,30 +269,21 @@ export default function PracticePage() {
   // No lib selected → render LandingPage (the content-driven home).
   if (!selectedLibId) {
     return (
-      <LandingPage
-        libs={catalog.libs}
-        translationProgress={translationProgress}
-        onPickLib={navigateToSession}
-      />
+      <>
+        <AppHeader />
+        <LandingPage
+          libs={catalog.libs}
+          translationProgress={translationProgress}
+          onPickLib={navigateToSession}
+          onStartGeneric={startGeneric}
+        />
+      </>
     );
   }
 
   return (
     <div className={styles.root}>
       <div className={styles.content}>
-        <header className={styles.masthead} aria-label="page header">
-          <a
-            className={styles.mastheadBrand}
-            href="/"
-            onClick={(e) => {
-              e.preventDefault();
-              navigateToLanding();
-            }}
-          >
-            ← 返回
-          </a>
-        </header>
-
         <TranslationSession
           libId={selectedLibId}
           onBack={navigateToLanding}

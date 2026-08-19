@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import date as date_cls
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session as DbSession
 
 from app.database import get_db
@@ -82,14 +82,19 @@ def get_dashboard(
 
 @router.get("/calendar", response_model=list)
 def get_calendar(
+    days: int = Query(default=35, ge=1, le=180),
     current_user: User = Depends(get_current_user),
     db: DbSession = Depends(get_db),
 ) -> list:
-    """Return only the 4-week calendar — used for incremental
-    hydration when the dashboard wants to refresh the grid without
-    re-fetching the full payload (e.g. after a session end)."""
+    """Return the per-day activity series for a custom window.
+
+    Drives the data page's range selector — the frontend fetches 2× the
+    visible window and splits it into previous/current halves for period
+    comparison, and a wider fixed window for the cadence heatmap. The
+    `days` ceiling (180) keeps the payload bounded for very long ranges.
+    """
     today = date_cls.today()
-    return activity_service.compute_calendar(db, current_user.id, today)
+    return activity_service.compute_calendar(db, current_user.id, today, days=days)
 
 
 @router.get("/streak", response_model=None)  # type: ignore[arg-type]

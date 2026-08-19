@@ -15,9 +15,11 @@ Shape:
   - Both FKs cascade: deleting a user wipes their enrollments, and
     unpublishing/deleting a lib removes dangling enrollments.
 
-Default seeding: auth_service.create_user enrolls every
-`level='beginner' AND is_published=True` lib on signup, so a fresh
-account already has a starter set in 我的课程 (see auth_service).
+Default seeding (HISTORICAL): auth_service.create_user originally enrolled
+every `level='beginner' AND is_published=True` lib on signup, but that
+auto-starter was removed — signup no longer adds any course, so a fresh
+account's 我的课程 starts EMPTY and the frontend first-run guide prompts a
+pick (see auth_service.create_user).
 """
 from __future__ import annotations
 

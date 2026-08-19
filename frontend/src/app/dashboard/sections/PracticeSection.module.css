@@ -353,6 +353,16 @@
   color: var(--ds-ink-soft);
 }
 
+/* 搜索无结果：文案 + 清除搜索按钮，纵向居中。 */
+.emptyWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 auto;
+  padding: var(--space-6);
+}
+
 /* 我的课程空状态：可点击的引导按钮（与主页空状态一致）。 */
 .emptyAction {
   appearance: none;
@@ -378,4 +388,20 @@
 .emptyAction:focus-visible {
   outline: 2px solid var(--ds-focus);
   outline-offset: 2px;
+}
+
+/* 从 landing 选词库注册而来:自动加入后,该卡片高亮脉冲 ~2.6s,承接"已为你添加"。
+   琥珀系描边 + 柔光,与 landing 单点转化色 --ds-cta 同调。 */
+.cardHighlight {
+  border-radius: var(--radius-lg, 18px);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--ds-cta, #EFA535) 70%, transparent),
+    0 0 0 8px color-mix(in srgb, var(--ds-cta, #EFA535) 18%, transparent);
+  animation: cardPulse 1.3s ease-in-out 0s 2;
+}
+
+@keyframes cardPulse {
+  0% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-cta, #EFA535) 55%, transparent), 0 0 0 6px color-mix(in srgb, var(--ds-cta, #EFA535) 12%, transparent); }
+  50% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-cta, #EFA535) 85%, transparent), 0 0 0 12px color-mix(in srgb, var(--ds-cta, #EFA535) 22%, transparent); }
+  100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-cta, #EFA535) 55%, transparent), 0 0 0 6px color-mix(in srgb, var(--ds-cta, #EFA535) 12%, transparent); }
 }

@@ -117,10 +117,11 @@ interface AuroraProps {
   blend?: number;
   time?: number;
   speed?: number;
+  className?: string;
 }
 
 export default function Aurora(props: AuroraProps) {
-  const { colorStops = ['#5227FF', '#7cff67', '#5227FF'], amplitude = 1.0, blend = 0.5 } = props;
+  const { colorStops = ['#5227FF', '#7cff67', '#5227FF'], amplitude = 1.0, blend = 0.5, className } = props;
   const propsRef = useRef<AuroraProps>(props);
   propsRef.current = props;
 
@@ -179,9 +180,16 @@ export default function Aurora(props: AuroraProps) {
     const mesh = new Mesh(gl, { geometry, program });
     ctn.appendChild(gl.canvas);
 
+    // Reduced-motion: render one static frame instead of looping the
+    // noise animation. The WebGL aurora is continuous motion, so
+    // prefers-reduced-motion users get a frozen gradient rather than a
+    // perpetually animating background.
+    const reduceMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
     let animateId = 0;
     const update = (t: number) => {
-      animateId = requestAnimationFrame(update);
       const { time = t * 0.01, speed = 1.0 } = propsRef.current;
       if (program) {
         program.uniforms.uTime.value = time * speed * 0.1;
@@ -194,6 +202,8 @@ export default function Aurora(props: AuroraProps) {
         });
         renderer.render({ scene: mesh });
       }
+      if (reduceMotion) return;
+      animateId = requestAnimationFrame(update);
     };
     animateId = requestAnimationFrame(update);
 
@@ -209,5 +219,5 @@ export default function Aurora(props: AuroraProps) {
     };
   }, [amplitude]);
 
-  return <div ref={ctnDom} className="aurora-container" />;
+  return <div ref={ctnDom} className={`aurora-container ${className ?? ''}`} />;
 }

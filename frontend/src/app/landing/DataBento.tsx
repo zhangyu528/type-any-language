@@ -12,7 +12,8 @@
  *   - 完全脱离"卡片"形态,跟前 3 个 section 形成视觉反差
  *   - 副标签放第二行(mono font,缩进对齐主数字),信息密度高
  *
- * 数字走 Counter 进视口 0 → 目标;"免费"用 --ds-cta 朱砂粉保留转化色。
+ * 数字走 Counter 进视口 0 → 目标;"免费"回归品牌蓝(--ds-action / --ds-action-deep),
+ * 与同区其它 stat 一致(2026-08 决策:琥珀只留 LibStrip 推荐卡 + FinalCTA 单点转化色)。
  */
 
 import AnimatedContent from '@/components/AnimatedContent';
@@ -45,7 +46,7 @@ export default function DataBento({ libs }: DataBentoProps) {
     { value: libCount,           unit: '份', label: 'A1-C1 全覆盖' },
     { value: sentenceCount,      counterSuffix: '+', unit: '句', label: '真句库' },
     { value: 30,                 unit: '秒', label: '即可开口' },
-    { value: 'free',                                label: '永久免费' },
+    { value: 'free',                                label: '注册免费' },
   ];
 
   return (

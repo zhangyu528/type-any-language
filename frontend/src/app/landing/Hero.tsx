@@ -40,7 +40,8 @@ import styles from './Hero.module.css';
 interface HeroProps {
   libs: VocabularyLib[];
   translationProgress: TranslationProgress;
-  onPickLib: (libId: string) => void;
+  /** 通用转化 CTA:底部大按钮「注册·开始第一句」走这个,不带具体词库。 */
+  onStartGeneric: () => void;
 }
 
 const HERO_TITLE = '读完一句，写出来就是你的。';
@@ -49,28 +50,28 @@ const HERO_TITLE = '读完一句，写出来就是你的。';
 const HERO_SUBTITLE = '4 本词库 · 从入门到雅思,读完一句,写出来。';
 
 // 信任承诺条 —— 原 hero 的 stats 行(免登/录即用、1 键/即开始、错自动/入错题本)
-// 已合并进这里,统一为一条承诺,避免与 demo 下方信息重复、层级冗余。
+// 已合并进这里,统一为一条承诺。注意:现已无游客模式,"不需注册"类承诺作废,
+// 改为强调注册价值(免费 + 进度云端同步)。
 const TRUST_BADGES: ReadonlyArray<{ icon: string; text: string }> = [
-  { icon: '✓', text: '不需注册 · 打开即读' },
+  { icon: '✓', text: '注册免费 · 进度云端同步' },
   { icon: '✓', text: '1 键开始 · 30 秒上手' },
   { icon: '✓', text: '错自动入错题本' },
 ];
 
-export default function Hero({ libs, onPickLib }: HeroProps) {
+export default function Hero({ libs, onStartGeneric }: HeroProps) {
   const { user } = useAuth();
   const firstLib = libs[0];
   const canStart = !!firstLib;
 
   const handleStart = () => {
     if (!canStart) return;
-    onPickLib(firstLib.id);
+    onStartGeneric();
   };
 
-  const startLabel = firstLib
-    ? user
-      ? `继续读 · ${firstLib.name}`
-      : '开始读第一句'
-    : '暂无课程';
+  // 通用转化 CTA:走 onStartGeneric,不带具体词库,落地主页。
+  // 文案不引用首个词库名(避免「没选词库却显示某词库」的歧义),
+  // 已登录给「开始学习」、未登录给「开始」,点击后直接进入主页。
+  const startLabel = user ? '开始学习' : '开始';
 
   return (
     <section id="hero" className={styles.bento} aria-label="产品介绍">
@@ -138,13 +139,13 @@ export default function Hero({ libs, onPickLib }: HeroProps) {
           size="lg"
           onClick={handleStart}
           disabled={!canStart}
-          /* tint 走 token(--ds-action-tint babyblue 极淡 wash);
+          /* 主 CTA 走品牌蓝(--ds-action-tint babyblue 极淡 wash);
              baseColor / lineColor / textColor 必须是字面 hex ——
              SpecularButton 把它们喂给 ogl WebGL shader,shader
-             不解析 var(),必须是字符串 hex。这里 #5BA8D8 是
-             --ds-action (#8FCBF0) 与 --ds-action-deep (#2F80C0)
-             之间的中间蓝,作为 rim 阴影环的基色;纯白 shine +
-             深蓝 text 制造 Specular 高光感。 */
+             不解析 var()。#5BA8D8 = --ds-action(#8FCBF0) 与 --ds-action-deep
+             (#2F80C0) 之间的中间蓝作 rim 基色;纯白 shine + 深蓝 text
+             制造 Specular 高光感。(琥珀已收为 landing 单点转化色,
+             仅 FinalCTA + LibStrip 推荐卡使用。) */
           tint="var(--ds-action-tint)"
           tintOpacity={1}
           baseColor="#5BA8D8"

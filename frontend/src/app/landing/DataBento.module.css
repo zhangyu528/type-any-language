@@ -4,9 +4,9 @@
  *
  * 视觉:1 行 4 个 stat item,每个 item 垂直堆叠
  *   - mainValue:大数字(36-56px) + 小单位
- *   - label:mono 小字产品自描述(A1-C1 / 真句库 / 即可开口 / 永久免费)
+ *   - label:mono 小字产品自描述(A1-C1 / 真句库 / 即可开口 / 注册免费)
  *   - item 之间用 gap 控制间距
- *   - "免费"用 --ds-cta 朱砂粉保留转化色
+ *   - "免费"回归品牌蓝(--ds-action),与同区其它 stat 一致
  *
  * 响应式:
  *   - 默认 4 items 横向
@@ -127,30 +127,31 @@
   color: var(--ds-ink-soft);
 }
 
-/* "免费"特殊色 —— 紫色(呼应 LibStrip featured 卡 + FinalCTA CTA 的
-   "紫色=转化"语义;与下方 .statFree .label 的紫色保持统一) */
+/* "免费" —— 回归品牌蓝(与同区其它 stat 的 --ds-action /
+   --ds-action-deep 一致);琥珀已收为 landing 单点转化色
+   (仅 FinalCTA + LibStrip 推荐卡),此处不再单独抢色。 */
 .freeText {
   font-family: var(--font-display), var(--font-sans), serif;
   font-size: clamp(32px, 4vw, 48px);
   font-weight: 600;
   line-height: 1.05;
   letter-spacing: -0.02em;
-  color: var(--ds-convert);
+  color: var(--ds-action);
   font-variant-numeric: tabular-nums;
 }
 
 [data-theme="dark"] .freeText {
-  color: var(--ds-convert-light);
+  color: var(--ds-action);
 }
 
-/* "免费" 副标签略加粗,让转化元素视觉权重稍大 */
+/* "免费" 副标签略加粗,与品牌蓝主数字呼应 */
 .statFree .label {
-  color: var(--ds-convert);
+  color: var(--ds-action-deep);
   font-weight: 600;
 }
 
 [data-theme="dark"] .statFree .label {
-  color: var(--ds-convert-light);
+  color: var(--ds-action-deep);
 }
 
 /* ---------- 响应式 ---------- */

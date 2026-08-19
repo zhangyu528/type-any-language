@@ -49,10 +49,14 @@ export default function AppHeader() {
     router.push('/');
   }, [logout, router]);
 
-  // Dashboard owns its own chrome (sidebar nav + identity + logout), so the
-  // global top header is hidden there to avoid a double nav. Landing / auth
-  // / other routes keep it.
-  if (pathname?.startsWith('/dashboard')) {
+  // AppHeader is the LANDING PAGE's own chrome only — it is no longer a
+  // global top bar. It is rendered solely by app/page.tsx on the landing
+  // home view (`/`), and never on the practice session, dashboard, me, or
+  // any other route. The guard below is defensive: if it ever gets mounted
+  // outside the landing home view, hide it so it can't leak a redundant nav
+  // onto a focused surface (which would also eat the ~52-60px of vertical
+  // space the "fit on one screen, no scroll" polish reclaims).
+  if (pathname !== '/') {
     return null;
   }
 
@@ -122,9 +126,10 @@ export default function AppHeader() {
             </button>
             <SpecularButton
               size="sm"
-              /* 主 CTA 改 "注册":匿名访客看到的是转化漏斗最顶(创建账户),
-                 而不是直接进 dashboard。带 fromParam 让注册完成后回到
-                 用户原来想去的页面(/dashboard 或 ?lib=X 之类)。 */
+              /* 主 CTA "注册":匿名访客看到的是转化漏斗最顶(创建账户)。
+                 颜色走品牌蓝(--ds-action / --ds-action-deep);注册提交
+                 弹窗的「继续」按钮(CurvedInput)同样走品牌蓝,保持一致。
+                 带 fromParam 让注册完成后回到用户原来想去的页面。 */
               onClick={() => openAuthModal('signup', { from: fromParam })}
               tint="var(--ds-action)"
               tintOpacity={0.5}

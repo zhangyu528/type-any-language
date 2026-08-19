@@ -1,94 +1,118 @@
-/* ============================================================
-   TrendChart — dependency-free SVG line chart
-   ============================================================ */
-
 .root {
-  margin: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-4) var(--space-5) var(--space-3);
-  background: color-mix(in srgb, var(--ds-surface) 80%, transparent);
-  border: 1px solid var(--ds-border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--elev-1);
+  width: 100%;
+}
+
+.chead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 16px 18px 4px;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ds-ink);
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--ds-ink-faint);
+  font-family: var(--font-mono);
 }
 
 .legend {
   display: flex;
-  gap: var(--space-4);
-  font-size: var(--text-caption);
+  gap: 16px;
+  padding: 0 18px 8px;
+  font-size: 12px;
   color: var(--ds-ink-soft);
 }
 
 .legendItem {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
 }
 
-.swatchSent,
-.swatchAcc {
+.swatchCur,
+.swatchPrev {
+  display: inline-block;
   width: 14px;
   height: 3px;
   border-radius: 2px;
+  margin-right: 6px;
 }
 
-.swatchSent {
+.swatchCur {
   background: var(--ds-action);
 }
 
-.swatchAcc {
-  background: var(--ds-action-mint);
+.swatchPrev {
+  background: var(--ds-ink-faint);
 }
 
 .svg {
   width: 100%;
   height: auto;
   display: block;
+  padding: 0 14px 16px;
+}
+
+.grid {
+  stroke: var(--ds-border);
+  stroke-width: 1;
 }
 
 .axis {
   stroke: var(--ds-border-strong);
   stroke-width: 1;
+  opacity: 0.6;
 }
 
 .area {
   fill: var(--ds-action);
-  opacity: 0.12;
+  opacity: 0.1;
 }
 
-.lineSent {
+.lineCur {
   stroke: var(--ds-action);
-  stroke-width: 2.5;
+  stroke-width: 2.4;
   stroke-linejoin: round;
   stroke-linecap: round;
 }
 
-.lineAcc {
-  stroke: var(--ds-action-mint);
-  stroke-width: 2.5;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-  stroke-dasharray: 5 4;
+.linePrev {
+  stroke: var(--ds-ink-faint);
+  stroke-width: 1.6;
+  stroke-dasharray: 4 4;
+  opacity: 0.7;
+}
+
+.pt {
+  cursor: pointer;
+  transition: r var(--dur-fast) var(--ease-out);
 }
 
 .tick {
-  fill: var(--ds-ink-soft);
+  fill: var(--ds-ink-faint);
   font-size: 11px;
-  font-family: var(--font-mono), monospace;
 }
 
-.caption {
-  margin: 0;
-  text-align: right;
-  color: var(--ds-ink-soft);
-  font-size: var(--text-caption);
+.tipLine {
+  stroke: var(--ds-border-strong);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+
+.tipText {
+  fill: var(--ds-ink);
+  font-size: 12px;
+  font-family: var(--font-mono);
 }
 
 .empty {
-  margin: 0;
-  padding: var(--space-4);
+  padding: 24px 18px 28px;
   color: var(--ds-ink-soft);
-  font-size: var(--text-body);
 }

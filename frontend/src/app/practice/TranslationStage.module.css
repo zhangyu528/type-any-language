@@ -9,9 +9,24 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: var(--space-5);
+  gap: clamp(14px, 2.2vh, 24px);
   width: 100%;
   animation: practice-rise var(--dur-base) var(--ease-out);
+}
+
+/* Visually-hidden but screen-reader-accessible live region for step
+   outcomes (the visible feedback wash is aria-hidden). */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .header {
@@ -30,13 +45,51 @@
 .wordCardShell {
   width: 100%;
   max-width: 560px;
-  padding: var(--space-5) var(--space-6);
+  padding: clamp(14px, 2.2vh, 24px) clamp(16px, 2.5vw, 32px);
+  /* Glass surface override — BorderGlow ships a dark default card bg
+     (#120F17) + black shadow; align it to the dashboard glass system so
+     the focal word card floats on baby-blue like every other panel.
+     `!important` beats the global .border-glow-card presentation. */
+  border: 1px solid var(--ds-glass-border) !important;
+  box-shadow: var(--ds-glass-shadow) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
-/* Kicker under the word card — shadcn <Badge variant="slate">,
-   letter-spacing matches the old .caption kicker feel. */
-.captionBadge {
+/* Kicker under the word card — pill badge, tinted glass, action-deep
+   text. Replaces the previously unstyled inline caption. */
+.captionBadgeInline {
+  display: inline-block;
+  margin-top: var(--space-3);
+  padding: 5px 14px;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.08em;
+  color: var(--ds-action-deep);
+  background: var(--ds-glass-surface);
+  border: 1px solid var(--ds-glass-border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--ds-glass-shadow);
+  user-select: none;
+}
+
+/* No-audio hint — shown when the sentence has no audio_url. The replay
+   button is disabled in that case; this pill explains why. */
+.noAudio {
+  display: inline-block;
+  margin-top: var(--space-3);
+  padding: 4px 12px;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
   letter-spacing: 0.06em;
+  color: var(--ds-ink-soft);
+  background: var(--ds-glass-surface);
+  border: 1px solid var(--ds-glass-border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--ds-glass-shadow);
+  user-select: none;
 }
 
 .wordCard {
@@ -78,10 +131,9 @@
   max-width: 480px;
 }
 
-/* Prompt row — wraps the centered Chinese prompt + the star
-   collection button. The prompt is the visual focal point; the
-   star sits at the right edge of the same row. Mobile: stack via
-   the @media block at the bottom. */
+/* Prompt row — wraps the centered Chinese prompt (the visual focal
+   point) so it stays horizontally centered + capped at max-width.
+   Mobile: stack via the @media block at the bottom. */
 .promptRow {
   display: flex;
   align-items: center;
@@ -105,104 +157,11 @@
      width; .prompt grows to fill available space. When standalone
      (no row wrapper — older usages) the padding/margin still works. */
   flex: 1;
-  padding: var(--space-6) 0;
+  padding: clamp(12px, 2.5vh, 28px) 0;
   margin: 0;
   max-width: 560px;
   word-wrap: break-word;
   overflow-wrap: anywhere;
-}
-
-/* Star button — toggle for adding the (sentence, word) pair to the
-   user's collection. Subtle outline star at rest (☆); warm amber
-   filled star when collected (★). Sits to the right of the
-   Chinese prompt so the focal point is unaffected. */
-.star {
-  position: relative;
-  flex-shrink: 0;
-  width: 40px;
-  height: 40px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  line-height: 1;
-  background: transparent;
-  border: 1px solid var(--cm-line);
-  border-radius: 999px;
-  color: var(--label-quaternary);
-  cursor: pointer;
-  padding: 0;
-  transition: color var(--duration-fast) var(--ease-standard),
-              background var(--duration-fast) var(--ease-standard),
-              border-color var(--duration-fast) var(--ease-standard),
-              transform var(--duration-fast) var(--ease-standard);
-}
-.star:hover {
-  color: var(--cm-accent);
-  border-color: var(--cm-accent);
-  background: rgba(255, 159, 28, 0.08);
-}
-.star:active {
-  transform: scale(0.94);
-}
-.star:focus-visible {
-  outline: 2px solid var(--cm-accent);
-  outline-offset: 2px;
-}
-.star[data-active="true"] {
-  color: var(--cm-accent);
-  border-color: var(--cm-accent);
-  background: rgba(255, 159, 28, 0.10);
-}
-
-/* Pop animation — fires when toggling ☆ → ★. Scale 1 → 1.3 → 1
-   over 320ms gives a "snap into place" feel. The 4 particles
-   radiate outward from the star center via 4 box-shadows and fade
-   out at the same time. Pure CSS — no JS, no DOM nodes. */
-.star[data-popping="true"] {
-  animation: translation-star-pop 320ms var(--cm-spring, cubic-bezier(0.34, 1.56, 0.64, 1)) both;
-}
-@keyframes translation-star-pop {
-  0%   { transform: scale(1); }
-  40%  { transform: scale(1.3); }
-  100% { transform: scale(1); }
-}
-
-/* Particle dots — 4 small orange dots radiating N/S/E/W from the
-   star center. Each ::pseudo gets 2 particles via its own box-shadow
-   set; together they cover 4 directions. */
-.star[data-popping="true"]::before,
-.star[data-popping="true"]::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 4px;
-  height: 4px;
-  margin: -2px 0 0 -2px;
-  border-radius: 50%;
-  background: var(--cm-accent);
-  pointer-events: none;
-}
-.star[data-popping="true"]::before {
-  animation: translation-star-particle-1 480ms var(--ease-standard) both;
-  box-shadow:
-    0 0 0 0 var(--cm-accent),
-    12px 0 0 0 var(--cm-accent);
-}
-.star[data-popping="true"]::after {
-  animation: translation-star-particle-2 480ms var(--ease-standard) both;
-  box-shadow:
-    -12px 0 0 0 var(--cm-accent),
-    0 12px 0 0 var(--cm-accent);
-}
-@keyframes translation-star-particle-1 {
-  0%   { transform: translate(0, 0) scale(1);   opacity: 1; }
-  100% { transform: translate(12px, 0) scale(0); opacity: 0; }
-}
-@keyframes translation-star-particle-2 {
-  0%   { transform: translate(0, 0) scale(1);    opacity: 1; }
-  100% { transform: translate(-12px, 0) scale(0); opacity: 0; }
 }
 
 /* Reference answer panel — shows on wrong answers. */
@@ -211,8 +170,10 @@
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-4) var(--space-5);
-  background: var(--ds-tint);
+  background: var(--ds-glass-surface);
+  border: 1px solid var(--ds-glass-border);
   border-radius: var(--radius-md);
+  box-shadow: var(--ds-glass-shadow);
   max-width: 560px;
   margin: 0 auto;
   width: 100%;
@@ -235,6 +196,15 @@
   line-height: 1.5;
   margin: 0;
   word-wrap: break-word;
+}
+
+.answerPartial {
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--ds-action-deep);
+  letter-spacing: 0.02em;
+  margin: 0;
 }
 
 /* Input — textarea, full width, generous spacing. */
@@ -289,7 +259,7 @@
   justify-content: center;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) 0;
+  padding: clamp(8px, 1.5vh, 16px) 0;
 }
 
 /* Empty / loading / error / finished / empty-step variants */
@@ -348,6 +318,19 @@
   margin: 0;
 }
 
+/* Kicker above empty / finished titles — small muted uppercase label.
+   Referenced by TranslationSession's empty-lib + finished states. */
+.emptyKicker {
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ds-ink-soft);
+  margin: 0;
+  user-select: none;
+}
+
 /* ============================================================
    Sentence cells — per-word dictation grid with underscore
    placeholders.
@@ -357,10 +340,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(40px, 6vh, 64px);
+  gap: clamp(20px, 3.5vh, 40px);
   width: 100%;
   position: relative;
-  padding: clamp(20px, 4vh, 40px) 0;
+  padding: clamp(12px, 2.5vh, 28px) 0;
 }
 
 .sentenceDisplay {
@@ -368,7 +351,7 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: 18px;
-  line-height: 2.4;
+  line-height: 2;
   position: relative;
   padding: 0;
   width: 100%;
@@ -381,6 +364,12 @@
   pointer-events: none;
   width: 1px;
   height: 1px;
+  /* This input is only a keyboard/screen-reader capture surface — the
+     visible caret is the fake .cellCursor bar inside the active cell.
+     opacity:0 alone doesn't always suppress the native caret (some
+     engines draw it on the OS compositor), so force it transparent to
+     avoid a second, stray cursor. */
+  caret-color: transparent;
 }
 
 .sentenceCells {
@@ -388,8 +377,8 @@
   align-items: flex-start;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 1.4em;
-  line-height: 2.4;
+  gap: 1em;
+  line-height: 2;
   padding: 8px 0;
 }
 
@@ -441,8 +430,15 @@
     opacity   var(--dur-base) var(--ease-out);
 }
 
+/* All overlays (cellText / cellInput / cellTextPeek) share the same
+   absolute positioning so the cell's height is determined by the
+   ghost only. cellInput is in this list unconditionally — without
+   that, switching Tab/Backspace out of a typed-but-not-confirmed
+   cell would drop the rendered text below the ghost (the cell grew
+   to fit normal-flow cellInput on top of the ghost), making the
+   word appear to "fall" when navigation moved focus away. */
 .cellCorrect .cellText,
-.cellActive .cellInput,
+.cellInput,
 .cellActive .cellTextPeek {
   position: absolute;
   top: 0;
@@ -472,6 +468,16 @@
   transform: scaleX(0);
 }
 
+/* Whole-word feedback — replaces the old per-letter coloring.
+   A word is graded as a unit: when confirmed wrong (Enter on a
+   non-matching word) the entire typed word turns coral, no
+   per-character red/green split. Correct words already get
+   .cellCorrect (mint). */
+.cellWrong .cellInput,
+.cellWrong .cellText {
+  color: var(--ds-error);
+}
+
 .cellPlaceholder {
   display: block;
   height: 0;
@@ -496,46 +502,35 @@
 .cellInput {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  width: 100%;
+  justify-content: center;
   padding: 0 4px;
   font-family: var(--font-sans);
   font-size: clamp(2rem, 6vw, 2.75rem);
   line-height: 1;
   font-weight: 500;
-  color: transparent;
+  /* Visible in-flight text — soft by default so the wrong (coral) state
+     reads as the loudest signal in the cell. The active-cell underline
+     already carries the "this is where I'm typing" cue, so the text
+     itself doesn't need to be the strong ink. */
+  color: var(--ds-ink-soft);
   border: none;
   background: transparent;
   outline: none;
   caret-color: transparent;
 }
 
-.cellChar {
-  display: inline-block;
-  font-family: var(--font-sans);
-  font-size: clamp(2rem, 6vw, 2.75rem);
-  line-height: 1;
-  width: 0.625em;
-  text-align: center;
-  font-weight: 500;
-  transition: color var(--dur-fast) var(--ease-out);
-}
-
-.cellCharCorrect {
-  color: var(--ds-ink);
-}
-
-.cellCharWrong {
-  color: var(--ds-ink-soft);
-  text-decoration: line-through;
-  text-decoration-color: var(--ds-ink-soft);
-  text-decoration-thickness: 1.5px;
-  text-decoration-skip-ink: none;
-}
-
-.cellCharPending {
-  color: var(--ds-ink-faint);
-  opacity: 0.6;
+/* Long-input fallback: when the user types more than ~11 chars the
+   shrink table already brings the font close to its floor, but on
+   narrow viewports the line can still overflow. Truncate the leading
+   characters and right-align so the cursor + most recent keystrokes
+   stay visible (similar to how a terminal keeps the latest output on
+   screen). Going from short → long stays smooth because both classes
+   share the font-size transition. */
+.cellInputTruncate {
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
+  justify-content: flex-end;
 }
 
 .cellCursor {
@@ -547,19 +542,26 @@
   margin-right: 2px;
 }
 
+/* Per-cell overflow feedback — fires when the user presses a key while
+   the input has already reached expected.length. Coral color + shake
+   so the user knows the key was rejected, paired with the wrong-buzz
+   audio flash. 350ms total, deep enough to land but not annoying. */
+.cellOverflow {
+  color: var(--ds-error) !important;
+  animation: cell-overflow-shake 0.35s var(--ease-out);
+}
+
+@keyframes cell-overflow-shake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-4px); }
+  40%      { transform: translateX(4px); }
+  60%      { transform: translateX(-2px); }
+  80%      { transform: translateX(2px); }
+}
+
 @keyframes cell-cursor-blink {
   0%, 50%    { opacity: 1; }
   50.01%, 100% { opacity: 0; }
-}
-
-.cellShake {
-  animation: cell-shake 0.4s ease-in-out;
-}
-
-@keyframes cell-shake {
-  0%, 100% { transform: translateX(0); }
-  25%      { transform: translateX(-3px); }
-  75%      { transform: translateX(3px); }
 }
 
 @keyframes practice-rise {
@@ -571,23 +573,49 @@
    Responsive
    ============================================================ */
 @media (max-width: 640px) {
-  .prompt {
-    font-size: clamp(1.25rem, 5vw, 1.75rem);
-    padding: var(--space-4) 0;
+  .translation {
+    gap: var(--space-3);
   }
 
-  .textarea {
-    font-size: var(--text-body);
+  .sentence {
+    gap: clamp(20px, 4vh, 32px);
+    padding: clamp(12px, 2.5vh, 24px) 0;
+  }
+
+  /* Smaller cells so long words fit on narrow screens. The ghost
+     (width reference) + input layers must match the cell size. */
+  .cell,
+  .cellGhost,
+  .cellInput {
+    font-size: clamp(1.5rem, 7vw, 2.25rem);
+  }
+
+  .prompt {
+    font-size: clamp(1.25rem, 5vw, 1.75rem);
+    padding: var(--space-3) 0;
+  }
+
+  .sentenceCells {
+    gap: 1em;
   }
 
   .actions {
     gap: var(--space-2);
   }
 
-  .btn {
-    flex: 1 1 40%;
-    min-height: 40px;
-    font-size: var(--text-caption);
+  .hud {
+    justify-content: center;
+    gap: var(--space-3);
+  }
+  .hudStats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-2) var(--space-5);
+    width: 100%;
+    max-width: 300px;
+  }
+  .endBtn {
+    width: auto;
   }
 
   .wordCardWord {
@@ -595,17 +623,317 @@
     line-height: var(--text-display-lh);
   }
 }
-/* Reduced-motion — star pop + particles snap to final state.
-   The PracticeHintCard / answer panel animations have their own
-   reduced-motion overrides in globals.css (see @media block at
-   the bottom of that file). The star is local to this file so
-   it lives here. */
+/* Reduced-motion — the full-bleed feedback wash is continuous motion +
+   a transient full-screen tint; hide it for reduced-motion users (the
+   outcome is conveyed via the sr-only aria-live region instead). */
 @media (prefers-reduced-motion: reduce) {
-  .star,
-  .star::before,
-  .star::after {
-    animation: none !important;
-    opacity: 1 !important;
-    transform: none !important;
+  .feedbackWash {
+    display: none !important;
   }
+  .milestone {
+    animation: none !important;
+  }
+}
+
+/* ============================================================
+   Replay button (A1) + live HUD (A4) + end-of-session summary (A3)
+   ============================================================ */
+
+.wordCardWrap {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  justify-content: center;
+}
+
+/* Visible audio-replay control — fixes the no-button-on-mobile gap.
+   Sits at the top-right of the word card, inherits --ds-action-deep via
+   currentColor (the IconButton ghost variant is transparent). */
+.replayBtn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  color: var(--ds-action-deep);
+  z-index: 3;
+}
+.replayBtn:hover {
+  color: var(--ds-action);
+}
+.replayBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* HUD — live session stats row above the drill. */
+.hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  flex-wrap: wrap;
+}
+
+/* Top progress bar — full-viewport thin rail pinned to the top of the
+   practice surface. The fill gradient mirrors the bottom (drill-end)
+   milestone strip so upward = downward progress reads consistently
+   across the page. 3px is just thick enough to read at a glance but
+   thin enough to never compete with the word card for attention. */
+.topProgress {
+  position: sticky;
+  top: 0;
+  width: 100%;
+  height: 3px;
+  background: var(--ds-glass-border);
+  z-index: 10;
+}
+
+.topProgressFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--ds-action), var(--ds-action-deep));
+  transition: width var(--dur-base) var(--ease-out);
+}
+
+.hudStats {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.endBtn {
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--ds-ink-soft);
+  background: transparent;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--radius-pill);
+  padding: 7px 16px;
+  cursor: pointer;
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+.endBtn:hover {
+  color: var(--ds-ink);
+  border-color: var(--ds-border-strong);
+  background: var(--ds-tint);
+}
+.endBtn:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+
+/* Summary stat row on the finished screen. */
+.endStats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+  margin: var(--space-2) 0;
+}
+
+/* Streak milestone badge — transient "连击 N！" celebration that pops
+   in near the top of the drill when the streak hits a multiple of 5.
+   Fixed + pointer-events:none so it never pushes layout / blocks input
+   (keeps the "fit on one screen, no scroll" goal intact). */
+.milestone {
+  position: fixed;
+  top: 14vh;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  pointer-events: none;
+  padding: 10px 24px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  font-weight: 700;
+  color: #5a3b00;
+  background: linear-gradient(135deg, #ffe7a3, #ffcf5c);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 8px 30px rgba(255, 180, 40, 0.45);
+  animation: milestone-pop 1.5s var(--ease-out) forwards;
+}
+@keyframes milestone-pop {
+  0%   { opacity: 0; transform: translateX(-50%) scale(0.7); }
+  15%  { opacity: 1; transform: translateX(-50%) scale(1.06); }
+  30%  { transform: translateX(-50%) scale(1); }
+  80%  { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) scale(1) translateY(-10px); }
+}
+
+/* Practice progress — thin bar showing how much of the lib the user has
+   drilled (answered / total). Sits just above the meta line. */
+.progressWrap {
+  width: 100%;
+  max-width: 560px;
+  height: 4px;
+  margin: 0 auto;
+  border-radius: 999px;
+  background: var(--ds-glass-border);
+  overflow: hidden;
+}
+.progressBar {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--ds-action), var(--ds-action-deep));
+  transition: width var(--dur-base) var(--ease-out);
+}
+
+/* ============================================================
+   Review screen — shown after the last cell is correct. Replaces
+   the drill surface with a static "answer card" and waits for the
+   user to press Enter to advance. The kicker / card / sentence /
+   continue button stack vertically, centered, with the same glass
+   surface treatment as the word-card header so it feels like the
+   drill morphed into its review state.
+   ============================================================ */
+
+.reviewScreen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(20px, 3vh, 32px);
+  padding: clamp(24px, 4vh, 40px) 0;
+  animation: practice-rise var(--dur-base) var(--ease-out);
+}
+
+.reviewKicker {
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ds-correct);
+  user-select: none;
+}
+
+.reviewSentence {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 560px;
+  text-align: center;
+}
+
+.reviewChinese {
+  font-family: var(--font-sans);
+  font-size: clamp(1.25rem, 3.5vw, 1.75rem);
+  font-weight: 500;
+  color: var(--ds-ink-soft);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.reviewEnglish {
+  font-family: var(--font-sans);
+  font-size: clamp(1.25rem, 3.5vw, 1.75rem);
+  font-weight: 500;
+  color: var(--ds-ink);
+  line-height: 1.4;
+  margin: 0;
+  word-wrap: break-word;
+}
+
+.reviewContinue {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  appearance: none;
+  background: var(--ds-glass-surface);
+  border: 1px solid var(--ds-glass-border);
+  border-radius: var(--radius-pill);
+  padding: 10px 22px;
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  color: var(--ds-action-deep);
+  cursor: pointer;
+  box-shadow: var(--ds-glass-shadow);
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.reviewContinue:hover {
+  background: var(--ds-action-soft);
+  transform: translateY(-1px);
+}
+
+.reviewContinue:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+
+.reviewKey {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.02em;
+  color: var(--ds-on-action);
+  background: var(--ds-action-deep);
+  border: 0.5px solid var(--ds-action-deep);
+  border-bottom: 2.5px solid var(--ds-action-deep);
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  animation: review-key-pulse 1.4s var(--ease-out) infinite;
+}
+
+.reviewHint {
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.02em;
+}
+
+@keyframes review-key-pulse {
+  0%, 60%, 100% { opacity: 1; }
+  30%          { opacity: 0.55; }
+}
+
+/* ============================================================
+   Page-level correct/wrong feedback (B6)
+   ============================================================ */
+
+/* Full-bleed tint that confirms a step outcome. Sits above the aurora
+   but below interactive controls; pointer-events disabled so it never
+   intercepts clicks. Reuses the dashboard's practice-bleed fade. */
+.feedbackWash {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  animation: practice-bleed 0.9s var(--ease-out);
+}
+
+.feedbackCorrect {
+  background: radial-gradient(
+    circle at 50% 42%,
+    color-mix(in srgb, var(--ds-correct) 22%, transparent) 0%,
+    transparent 55%
+  );
+}
+
+.feedbackWrong {
+  background: radial-gradient(
+    circle at 50% 42%,
+    color-mix(in srgb, var(--ds-error) 16%, transparent) 0%,
+    transparent 55%
+  );
+}
+
+/* Keyframes live in this module so .feedbackWash's `animation` reference
+   resolves (CSS Modules scopes @keyframes per-file; the copy in
+   Practice.module.css is not visible here). */
+@keyframes practice-bleed {
+  0%   { opacity: 0; transform: scale(0.96); }
+  30%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.04); }
 }

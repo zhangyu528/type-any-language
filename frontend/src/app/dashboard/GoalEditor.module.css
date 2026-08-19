@@ -1,5 +1,5 @@
 /* ============================================================
-   GoalEditor — daily + monthly target editor
+   GoalEditor — daily target editor
    ============================================================ */
 
 .root {
@@ -7,12 +7,17 @@
   flex-direction: column;
   gap: var(--space-3);
   padding: var(--space-5);
-  background: color-mix(in srgb, var(--ds-surface) 80%, transparent);
-  border: 1px solid var(--ds-border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--elev-1);
-  max-width: 760px;
-  margin: var(--space-5) auto 0;
+  /* 对齐 dashboard 玻璃卡系统(与 Achievements/Overview 同套 token),
+     去掉原先的 80% 透明 + radius-xl + elev-1 旧写法 */
+  background: var(--ds-glass-surface);
+  border: 1px solid var(--ds-glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--ds-glass-shadow);
+  /* 去掉 760px 窄卡 + auto 居中,改与 SettingsTab 同宽(content-max),
+     避免设置页上下两块宽度不一致 */
+  width: 100%;
+  margin: 0;
+  box-sizing: border-box;
 }
 
 .header {
@@ -33,18 +38,6 @@
   margin: 0;
   color: var(--ds-ink-soft);
   font-size: var(--text-caption);
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-4);
-}
-
-@media (max-width: 639px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 .block {

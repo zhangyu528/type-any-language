@@ -7,7 +7,7 @@
  *   "4 个真实场景" 的中文标题完全脱节(内容 bug)。
  * 现在:用真实的 SCENES 数据渲染 4 张卡片,每张用 reactbits 的
  *   DecryptedText(字符还原,呼应"读出来"签名母题)展示英文句,
- *   配 SpecularButton「试一下」直接 onPickLib 进入练习。
+ *   配 SpecularButton「试一下」→ onPickLib(未登录先弹注册,门禁在 page.tsx 的 navigateToSession)。
  *
  * reactbits 角色:
  *   - DecryptedText → 每卡英文句(animateOn="view" 滚动入视触发还原)
@@ -90,16 +90,19 @@ export default function ScenariosSection({ libs, onPickLib }: ScenariosSectionPr
                 )}
               </div>
               <div className={styles.cardSpacer} />
-              {/* baseColor / lineColor / textColor 必须是字面 hex ——
-                  SpecularButton 把它们喂给 ogl WebGL shader,shader
-                  不解析 var()。#5BA8D8 = --ds-action 与 --ds-action-deep
-                  之间的中间蓝 rim 基色,白 shine + 深字通用。 */}
+              {/* 试一下 CTA 走品牌蓝(--ds-action-tint),与 Hero 主 CTA
+                  统一品牌色语言(琥珀已收为 landing 单点转化色,
+                  仅 FinalCTA + LibStrip 推荐卡使用)。baseColor /
+                  lineColor / textColor 必须是字面 hex —— SpecularButton
+                  喂给 ogl shader,不解析 var()。#5BA8D8 = --ds-action
+                  与 --ds-action-deep 之间的中间蓝 rim 基色,
+                  白 shine + 深蓝字。 */}
                             <SpecularButton
                 size="sm"
                 onClick={handleTry}
                 disabled={!firstLib}
                 tint="var(--ds-action-tint)"
-                tintOpacity={0.9}
+                tintOpacity={0.95}
                 baseColor="#5BA8D8"
                 lineColor="#FFFFFF"
                 textColor="#0C2C53"

@@ -1,0 +1,52 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 12-col responsive grid for the two-column rows. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 16px;
+}
+
+.col8 {
+  grid-column: span 8;
+  min-width: 0;
+}
+
+.col4 {
+  grid-column: span 4;
+  min-width: 0;
+}
+
+/* right-hand stack: heatmap + goal rings sit above each other. */
+.col4stack {
+  grid-column: span 4;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.loadingRow {
+  display: flex;
+  justify-content: center;
+  padding: 24px;
+}
+
+.loadingCard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+}
+
+@media (max-width: 880px) {
+  .col8,
+  .col4,
+  .col4stack {
+    grid-column: span 12;
+  }
+}

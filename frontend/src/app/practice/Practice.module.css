@@ -8,39 +8,17 @@
 
 .root {
   min-height: 100vh;
+  min-height: 100dvh;
   width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: clamp(40px, 8vh, 96px) clamp(24px, 5vw, 80px);
+  padding: clamp(12px, 2.5vh, 28px) clamp(16px, 4vw, 40px);
   position: relative;
   background: transparent;
 }
 
-/* Feedback wash — kept for visual continuity, but a quiet neutral tint. */
-.rootFeedbackCorrect::after,
-.rootFeedbackIncorrect::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  animation: practice-bleed 1.2s var(--ease-out);
-}
-
-.rootFeedbackCorrect::after {
-  background: radial-gradient(circle at 50% 50%, var(--ds-correct-tint) 0%, transparent 55%);
-}
-
-.rootFeedbackIncorrect::after {
-  background: radial-gradient(circle at 50% 50%, var(--ds-tint) 0%, transparent 55%);
-}
-
-@keyframes practice-bleed {
-  0%   { opacity: 0; transform: scale(0.96); }
-  30%  { opacity: 1; }
-  100% { opacity: 0; transform: scale(1.04); }
-}
+/* Feedback wash moved to TranslationStage.module.css (.feedbackWash). */
 
 /* Loading state — quiet skeleton */
 .loading {
@@ -88,7 +66,8 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: clamp(48px, 10vh, 96px);
+  gap: clamp(12px, 2.5vh, 24px);
+  margin: auto 0;
   position: relative;
   z-index: 2;
   animation: practice-rise var(--dur-slow) var(--ease-out);
@@ -97,51 +76,6 @@
 @keyframes practice-rise {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
-}
-
-/* ============================================================
-   Masthead — single word on the left, tabular counter on the right
-   ============================================================ */
-
-.masthead {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 0;
-  gap: var(--space-5);
-  flex-wrap: wrap;
-}
-
-.mastheadBrand {
-  font-family: var(--font-sans);
-  font-size: var(--text-body);
-  font-weight: var(--weight-medium);
-  color: var(--ds-ink);
-  letter-spacing: -0.01em;
-  line-height: 1;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.mastheadBrand:hover {
-  opacity: 0.7;
-}
-
-.mastheadBrand:focus-visible {
-  outline: 2px solid var(--ds-focus);
-  outline-offset: 4px;
-  border-radius: 2px;
-}
-
-.mastheadSub {
-  font-family: var(--font-mono);
-  font-size: var(--text-caption);
-  font-weight: 500;
-  color: var(--ds-ink-soft);
-  letter-spacing: 0.02em;
-  text-align: right;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
 }
 
 /* ============================================================
@@ -187,20 +121,10 @@
    ============================================================ */
 @media (max-width: 640px) {
   .root {
-    padding: 32px 20px 60px;
-  }
-
-  .masthead {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-2);
-  }
-
-  .mastheadSub {
-    text-align: left;
+    padding: 16px 16px 24px;
   }
 
   .content {
-    gap: var(--space-6);
+    gap: var(--space-4);
   }
 }

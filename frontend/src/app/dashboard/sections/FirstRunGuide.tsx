@@ -1,32 +1,30 @@
 'use client';
 
 /**
- * FirstRunGuide — 首跑 / 空状态引导态（方向 B 新模块，2026-08-15 打磨）。
+ * FirstRunGuide — 注册后首屏欢迎页(2026-08 改好版)。
  *
- * 当无任何练习记录（session_id 为 null 且本周 0 句）时，概览整页切换为
- * 此引导态。打磨后定位为「欢迎 hero」：
- *   - 顶部 sparkle 徽章 + 紫色光晕，营造"开始"仪式感；
- *   - 三步法（选词库 → 听音敲写 → 看反馈）用带箭头的图标步骤条串联；
- *   - 唯一主 CTA = 推荐词库（最近词库优先，否则 catalog 首张/推荐卡），
- *     直驱练习，避免「pick 按钮 vs 直接开练 chips」的歧义；
- *   - 其余词库作为备选 chips，带等级 + 词数，方便首次做选择；
- *   - "浏览全部词库" 走 onPickLib() 打开选择器；
- *   - 底部一句"下一步"提示，预告设定每日目标，强化「这是第一步」。
+ * 纯欢迎 Hero:问候新用户 + 一句话说明产品玩法,主按钮「进入主页 →」
+ * 直接进概览(主页)。不再强推某个词库、也不再点词库跳练习——选词库是
+ * 进入主页后「开始第一句」卡 / 我的课程 的明确动作,而非欢迎页的职责。
  *
- * 纯展示组件，无 hooks（保持 hook 顺序稳定）。复用 onStartLib / onPickLib
- * 两个既有入口，不新增路由逻辑。
+ * 仅当 isFirstRun(从未练习过)时由 OverviewSection 渲染,无论注册时是否
+ *  选了词库——选了词库会额外在标题下展示「已为你添加《X》」胶囊;点
+ *  「进入主页 →」后 OverviewSection 关掉本引导(会话内只欢迎一次)。
  */
 
-import { Fragment } from 'react';
-import { Catalog, VocabularyLib } from '../../api';
 import styles from './FirstRunGuide.module.css';
 
 interface FirstRunGuideProps {
-  catalog?: Catalog | null;
-  recentLibId?: string | null;
-  recentLibName?: string | null;
-  onStartLib: (libId: string) => void;
-  onPickLib: () => void;
+  /** 新用户展示名,用于「欢迎加入，X ✨」。 */
+  userName?: string | null;
+  /** 点「进入主页 →」→ 关掉本引导,渲染正常概览(通用注册无选词库时即主按钮)。 */
+  onEnterHome: () => void;
+  /** 从 landing 选了词库注册而来:该词库已加入「我的课程」,于标题下展示
+   *  「你即将开始《X》」胶囊,确认课程已就位。通用注册(无选词库)不传。 */
+  enrolledLibName?: string | null;
+  /** 选了词库时提供:主按钮变为「开始《X》」,直接进练习页开练该课
+   *  (而非仅进概览)。通用注册不传,主按钮即「进入主页」。 */
+  onStartCourse?: () => void;
 }
 
 const BookIcon = (
@@ -56,22 +54,13 @@ const STEPS = [
 ];
 
 export default function FirstRunGuide({
-  catalog,
-  recentLibId,
-  recentLibName,
-  onStartLib,
-  onPickLib,
+  userName,
+  onEnterHome,
+  enrolledLibName,
+  onStartCourse,
 }: FirstRunGuideProps) {
-  const libs = catalog?.libs ?? [];
-  const recentFromCatalog = recentLibId ? libs.find((l) => l.id === recentLibId) ?? null : null;
-  const recommended: VocabularyLib | null =
-    recentFromCatalog ??
-    libs[0] ??
-    (recentLibName ? { id: recentLibId ?? '', name: recentLibName, level: '', word_count: 0, sentence_count: 0 } : null);
-  const altLibs = libs.filter((l) => recommended && l.id !== recommended.id).slice(0, 3);
-
   return (
-    <section className={styles.root} aria-label="开始练习">
+    <section className={styles.root} aria-label="欢迎">
       <div className={styles.glow} aria-hidden="true" />
 
       <div className={styles.badge} aria-hidden="true">
@@ -81,59 +70,53 @@ export default function FirstRunGuide({
         </svg>
       </div>
 
-      <p className={styles.kicker}>第一步 · 开始学习</p>
-      <h2 className={styles.title}>开始你的第一句</h2>
+      <p className={styles.kicker}>新账号 · 第一步</p>
+      <h2 className={styles.title}>{`欢迎加入，${userName ?? ''} ✨`}</h2>
+      {enrolledLibName ? (
+        <p className={styles.enrolled}>
+          <span aria-hidden="true">📚</span>
+          你即将开始《<span className={styles.enrolledName}>{enrolledLibName}</span>》的学习
+        </p>
+      ) : null}
       <p className={styles.sub}>
         听音 → 逐字敲写 → 即时反馈。三步循环，不知不觉把一个词刻进肌肉记忆。
       </p>
 
       <ol className={styles.steps}>
         {STEPS.map((s, i) => (
-          <Fragment key={s.n}>
-            <li className={styles.step}>
-              <span className={styles.stepIcon}>{s.icon}</span>
-              <span className={styles.stepLabel}>{s.label}</span>
-              <span className={styles.stepHint}>{s.hint}</span>
-            </li>
+          <li key={s.n} className={styles.step}>
+            <span className={styles.stepIcon}>{s.icon}</span>
+            <span className={styles.stepLabel}>{s.label}</span>
+            <span className={styles.stepHint}>{s.hint}</span>
             {i < STEPS.length - 1 ? (
               <span className={styles.arrow} aria-hidden="true">
                 →
               </span>
             ) : null}
-          </Fragment>
+          </li>
         ))}
       </ol>
 
-      {recommended ? (
-        <button type="button" className={styles.primary} onClick={() => onStartLib(recommended.id)}>
-          {recentFromCatalog ? `继续《${recommended.name}》→` : `开始《${recommended.name}》第一句 →`}
-        </button>
+      {enrolledLibName && onStartCourse ? (
+        <>
+          <button type="button" className={styles.primary} onClick={onStartCourse}>
+            {`开始《${enrolledLibName}》 →`}
+          </button>
+          <button type="button" className={styles.secondary} onClick={onEnterHome}>
+            先去主页看看
+          </button>
+        </>
       ) : (
-        <button type="button" className={styles.primary} onClick={onPickLib}>
-          挑一个词库开始 →
+        <button type="button" className={styles.primary} onClick={onEnterHome}>
+          进入主页 →
         </button>
       )}
 
-      {altLibs.length > 0 ? (
-        <div className={styles.altWrap}>
-          <span className={styles.altLabel}>或者，直接选一份开始</span>
-          <div className={styles.chips}>
-            {altLibs.map((lib) => (
-              <button key={lib.id} type="button" className={styles.chip} onClick={() => onStartLib(lib.id)}>
-                {lib.level ? <span className={styles.chipLevel}>{lib.level}</span> : null}
-                <span className={styles.chipName}>{lib.name}</span>
-                <span className={styles.chipMeta}>{lib.word_count.toLocaleString()} 词</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      <button type="button" className={styles.browse} onClick={onPickLib}>
-        浏览全部词库
-      </button>
-
-      <p className={styles.note}>完成第一句后，主页会帮你设定每日目标，并追踪学习进度。</p>
+      <p className={styles.note}>
+        {enrolledLibName
+          ? '《' + enrolledLibName + '》已加入「我的课程」，点上方按钮即可直接开练。'
+          : '进入主页后点「开始第一句」即可开练；也可随时在「我的课程」里挑一份合适的词库。'}
+      </p>
     </section>
   );
 }

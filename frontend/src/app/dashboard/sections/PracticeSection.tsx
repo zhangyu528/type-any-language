@@ -14,7 +14,7 @@
  * SettingsSection — this partition is pure browsing.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Catalog,
@@ -51,6 +51,8 @@ interface PracticeSectionProps {
   courseTab: CourseTab;
   /** 切换子视图。 */
   onCourseTabChange: (tab: CourseTab) => void;
+  /** 从 landing 选词库注册而来:高亮并滚动到该词库(发现 tab 内)。 */
+  pendingLibId?: string | null;
 }
 
 export default function PracticeSection({
@@ -63,6 +65,7 @@ export default function PracticeSection({
   onUnenroll,
   courseTab,
   onCourseTabChange,
+  pendingLibId,
 }: PracticeSectionProps) {
   const [activeType, setActiveType] = useState<string>('all');
   const [query, setQuery] = useState('');
@@ -78,6 +81,10 @@ export default function PracticeSection({
     () => Array.from(new Set(catalog.libs.map((l) => l.course_type ?? 'vocab'))),
     [catalog],
   );
+  // 当前 seed 所有 lib 都是 course_type='vocab'，分面只有 1 个值时
+  // 「全部 / 词汇」是死 UI（点词汇=点全部）。此时隐藏整行 chips；
+  // 未来出现多 course_type 会自动恢复显示。
+  const showTypeChips = types.length > 1;
 
   // 「我的课程」= 已选集合；「课程库」= 全部词库（已选的也展示，
   // 仅标记为"已添加"并可直接进入练习，强化"添加=移入我的课程"的心智）。
@@ -128,6 +135,21 @@ export default function PracticeSection({
     }
     return list;
   }, [sourceLibs, activeType, query, sort, progress, courseTab]);
+
+  // 从 landing 选词库注册而来:滚动到该词库卡片并高亮 ~2.6s,承接"已为你添加"。
+  const highlightRef = useRef<HTMLLIElement | null>(null);
+  const [highlightOn, setHighlightOn] = useState(false);
+  const pendingVisible = pendingLibId
+    ? visible.some((l) => l.id === pendingLibId)
+    : false;
+  useEffect(() => {
+    if (!pendingLibId || !pendingVisible) return;
+    const el = highlightRef.current;
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setHighlightOn(true);
+    const t = window.setTimeout(() => setHighlightOn(false), 2600);
+    return () => window.clearTimeout(t);
+  }, [pendingLibId, pendingVisible, courseTab]);
 
   return (
     <div className={styles.root}>
@@ -189,32 +211,34 @@ export default function PracticeSection({
         </label>
       </div>
 
-      <div className={styles.chips} role="tablist" aria-label="课程分类">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeType === 'all'}
-          className={`${styles.chip} ${activeType === 'all' ? styles.chipActive : ''}`}
-          onClick={() => setActiveType('all')}
-        >
-          全部
-        </button>
-        {types.map((t) => {
-          const meta = COURSE_TYPE_META[t] ?? COURSE_TYPE_META.vocab;
-          return (
-            <button
-              key={t}
-              type="button"
-              role="tab"
-              aria-selected={activeType === t}
-              className={`${styles.chip} ${activeType === t ? styles.chipActive : ''}`}
-              onClick={() => setActiveType(t)}
-            >
-              {meta.label}
-            </button>
-          );
-        })}
-      </div>
+      {showTypeChips ? (
+        <div className={styles.chips} role="tablist" aria-label="课程分类">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeType === 'all'}
+            className={`${styles.chip} ${activeType === 'all' ? styles.chipActive : ''}`}
+            onClick={() => setActiveType('all')}
+          >
+            全部
+          </button>
+          {types.map((t) => {
+            const meta = COURSE_TYPE_META[t] ?? COURSE_TYPE_META.vocab;
+            return (
+              <button
+                key={t}
+                type="button"
+                role="tab"
+                aria-selected={activeType === t}
+                className={`${styles.chip} ${activeType === t ? styles.chipActive : ''}`}
+                onClick={() => setActiveType(t)}
+              >
+                {meta.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
 
       {showFeatured && recentLib ? (
         <FeaturedCourse
@@ -233,8 +257,19 @@ export default function PracticeSection({
           >
             你还没有课程,去「课程库」挑一个添加 →
           </button>
+        ) : query.trim() ? (
+          <div className={styles.emptyWrap}>
+            <p className={styles.empty}>没有匹配「{query.trim()}」的课程</p>
+            <button
+              type="button"
+              className={styles.emptyAction}
+              onClick={() => setQuery('')}
+            >
+              清除搜索
+            </button>
+          </div>
         ) : (
-          <p className={styles.empty}>没有可添加的课程。</p>
+          <p className={styles.empty}>还没有上架的课程。</p>
         )
       ) : (
         <motion.ul
@@ -251,13 +286,20 @@ export default function PracticeSection({
               const onClick = inMine || isEnrolled ? () => onPickLib(lib.id) : () => onEnroll(lib.id);
               const ctaLabel =
                 inMine || isEnrolled ? undefined : '添加';
+              const liClass = [
+                inMine ? styles.cardCellWrap : '',
+                lib.id === pendingLibId && highlightOn ? styles.cardHighlight : '',
+              ]
+                .filter(Boolean)
+                .join(' ') || undefined;
               return (
                 <motion.li
                   key={lib.id}
+                  ref={lib.id === pendingLibId ? highlightRef : undefined}
                   layout
                   variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
                   exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.18 } }}
-                  className={inMine ? styles.cardCellWrap : undefined}
+                  className={liClass}
                 >
                   <LibCard
                     lib={lib}
@@ -265,6 +307,7 @@ export default function PracticeSection({
                     progressPct={libProgressPct(lib, progress)}
                     ctaLabel={ctaLabel}
                     enrolled={!inMine && isEnrolled}
+                    showProgress={inMine || isEnrolled}
                   />
                   {inMine ? (
                     <button

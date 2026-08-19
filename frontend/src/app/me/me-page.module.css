@@ -929,9 +929,13 @@
   justify-content: space-between;
   gap: var(--space-5);
   padding: var(--space-4) var(--space-5);
-  background: var(--ds-surface);
-  border: 1px solid var(--ds-border);
-  border-radius: var(--radius-md);
+  /* 对齐 dashboard 玻璃卡系统(与 GoalEditor / 各分区同套 token),
+     原 opaque --ds-surface 实底改为半透明玻璃,避免设置页上下两块
+     一实一透的不一致 */
+  background: var(--ds-glass-surface);
+  border: 1px solid var(--ds-glass-border);
+  box-shadow: var(--ds-glass-shadow);
+  border-radius: var(--radius-lg);
   min-height: 56px;
 }
 
@@ -961,9 +965,10 @@
   display: flex;
   gap: var(--space-3);
   padding: var(--space-4) var(--space-5);
-  background: var(--ds-surface);
-  border: 1px solid var(--ds-border);
-  border-radius: var(--radius-md);
+  background: var(--ds-glass-surface);
+  border: 1px solid var(--ds-glass-border);
+  box-shadow: var(--ds-glass-shadow);
+  border-radius: var(--radius-lg);
 }
 
 /* Segmented control — two-state horizontal picker */
@@ -1112,9 +1117,10 @@
   flex-direction: column;
   gap: var(--space-3);
   padding: var(--space-5);
-  background: var(--ds-surface);
-  border: 1px solid var(--ds-border);
-  border-radius: var(--radius-md);
+  background: var(--ds-glass-surface);
+  border: 1px solid var(--ds-glass-border);
+  box-shadow: var(--ds-glass-shadow);
+  border-radius: var(--radius-lg);
 }
 
 .me-confirm__title {

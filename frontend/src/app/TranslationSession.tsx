@@ -21,6 +21,8 @@ import PracticeHintCard, {
   type PracticeHintCardKind,
 } from './practice/PracticeHintCard';
 import LoadingMark from './components/LoadingMark';
+import Stat from './ds/components/Stat';
+import Button from './ds/components/Button';
 import SpecularButton from '@/components/SpecularButton';
 import styles from './practice/TranslationStage.module.css';
 
@@ -29,7 +31,7 @@ interface TranslationSessionProps {
   onBack: () => void;
 }
 
-type SessionState = 'loading' | 'running' | 'empty-lib' | 'error';
+type SessionState = 'loading' | 'running' | 'empty-lib' | 'error' | 'finished';
 
 interface PickedStep {
   word: WordInLesson;
@@ -126,6 +128,12 @@ function pickStepBySentenceId(
   return null;
 }
 
+function formatDuration(secs: number): string {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return m > 0 ? `${m}分${s}秒` : `${s}秒`;
+}
+
 export default function TranslationSession({
   libId,
   onBack,
@@ -147,6 +155,9 @@ export default function TranslationSession({
   const [sessionStats, setSessionStats] = useState({
     total: 0,
     correct: 0,
+    streak: 0,
+    maxStreak: 0,
+    startTime: Date.now(),
   });
   const [lastResult, setLastResult] = useState<
     'correct' | 'wrong' | 'skipped' | null
@@ -159,6 +170,37 @@ export default function TranslationSession({
   const [activeHint, setActiveHint] = useState<PracticeHintCardKind | null>(
     null
   );
+
+  // Live study-timer — ticks every second while the drill is running.
+  // sessionStats.startTime is the single source of truth (reset on mount
+  // + restart), so the effect re-syncs whenever it changes.
+  const [elapsedSecs, setElapsedSecs] = useState(0);
+  useEffect(() => {
+    if (sessionState !== 'running') return;
+    const start = sessionStats.startTime;
+    const tick = () =>
+      setElapsedSecs(Math.max(0, Math.round((Date.now() - start) / 1000)));
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [sessionState, sessionStats.startTime]);
+
+  // Streak milestone celebration — fires a transient "连击 N！" badge
+  // whenever the streak lands on a multiple of 5 (5/10/15…). A ref
+  // tracks the last celebrated value so it won't re-fire on a re-render
+  // at the same streak, and resets when the streak breaks (drops).
+  const [milestone, setMilestone] = useState(0);
+  const lastCelebratedRef = useRef(0);
+  useEffect(() => {
+    const s = sessionStats.streak;
+    if (s > 0 && s % 5 === 0 && s !== lastCelebratedRef.current) {
+      lastCelebratedRef.current = s;
+      setMilestone(s);
+      const t = window.setTimeout(() => setMilestone(0), 1500);
+      return () => window.clearTimeout(t);
+    }
+    if (s < lastCelebratedRef.current) lastCelebratedRef.current = 0;
+  }, [sessionStats.streak]);
 
   // --- backend practice session wiring (best-effort telemetry) ---
   // We hold the live session id + running tally in refs so the
@@ -200,7 +242,7 @@ export default function TranslationSession({
       }
     };
     // Reset guest trigger state on libId change (new session).
-    setSessionStats({ total: 0, correct: 0 });
+    setSessionStats({ total: 0, correct: 0, streak: 0, maxStreak: 0, startTime: Date.now() });
     setLastResult(null);
     setCardState({
       improvedCardShown: false,
@@ -370,17 +412,24 @@ export default function TranslationSession({
         );
       }
 
-      // Guest-only: update session stats + evaluate hint triggers.
-      // Use the *current* lastResult (closure), then schedule the
-      // next render to compute the new stats from nextProgress. We
-      // compute rate off the fresh progress so the threshold check
-      // sees this answer.
+      // Update run stats for everyone (drives the live HUD + end-of-session
+      // summary). Streak resets on a wrong/skipped answer, climbs on correct.
+      setSessionStats((prev) => {
+        const attempted = prev.total + 1;
+        const correctN = prev.correct + (correct ? 1 : 0);
+        const streak = correct ? prev.streak + 1 : 0;
+        const maxStreak = Math.max(prev.maxStreak, streak);
+        return { ...prev, total: attempted, correct: correctN, streak, maxStreak };
+      });
+
+      // Guest-only: evaluate hint triggers. Use the *current* lastResult
+      // (closure) + the closure sessionStats for the rate threshold so we
+      // see this answer. Signed-in users skip the nudges.
       if (isGuest) {
         const previousResult = lastResult;
         const newTotal = sessionStats.total + 1;
         const newCorrect =
           sessionStats.correct + (correct ? 1 : 0);
-        setSessionStats({ total: newTotal, correct: newCorrect });
         setLastResult(correct ? 'correct' : 'wrong');
 
         // Skip API: skipped counts as wrong, never triggers improved.
@@ -430,6 +479,17 @@ export default function TranslationSession({
     setActiveHint(null);
     setCardState((prev) => ({ ...prev, dismissedThisSession: true }));
   }, []);
+
+  // Restart the drill in place — fresh run stats, re-draw the first step
+  // from the current progress. The backend session keeps rolling (no
+  // end call) so the cumulative tally is preserved until unmount.
+  const handleRestart = () => {
+    setSessionStats({ total: 0, correct: 0, streak: 0, maxStreak: 0, startTime: Date.now() });
+    setLastResult(null);
+    const first = lesson ? pickNextStep(lesson, progress, libId) : null;
+    setCurrentStep(first);
+    setSessionState(first ? 'running' : 'empty-lib');
+  };
 
   // Aggregate stats for the meta line.
   const stats = useMemo(() => {
@@ -525,17 +585,85 @@ export default function TranslationSession({
     );
   }
 
+  if (sessionState === 'finished') {
+    const acc = sessionStats.total
+      ? Math.round((sessionStats.correct / sessionStats.total) * 100)
+      : 0;
+    const secs = Math.max(0, Math.round((Date.now() - sessionStats.startTime) / 1000));
+    return (
+      <div className={`${styles.translation} ${styles.finished}`}>
+        <span className={styles.emptyKicker}>练习完成</span>
+        <h2 className={styles.endTitle}>本轮练习结束</h2>
+        <div className={styles.endStats}>
+          <Stat value={sessionStats.total} label="练习句数" />
+          <Stat value={`${acc}%`} label="正确率" tone="mint" />
+          <Stat value={sessionStats.maxStreak} label="最长连击" tone="mint" />
+          <Stat value={formatDuration(secs)} label="用时" />
+        </div>
+        <div className={styles.actions}>
+          <Button variant="primary" size="md" onClick={handleRestart}>
+            再来一组
+          </Button>
+          <Button variant="ghost" size="md" onClick={onBack}>
+            返回主页
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
+      {stats && (
+        <div className={styles.topProgress} aria-hidden>
+          <div
+            className={styles.topProgressFill}
+            style={{
+              width: `${Math.round((stats.answered / stats.total) * 100)}%`,
+            }}
+          />
+        </div>
+      )}
+      <div className={styles.hud}>
+        <div className={styles.hudStats}>
+          <Stat value={sessionStats.total} label="已练" />
+          <Stat
+            value={
+              sessionStats.total
+                ? `${Math.round((sessionStats.correct / sessionStats.total) * 100)}%`
+                : '0%'
+            }
+            label="正确率"
+            tone={
+              sessionStats.total && sessionStats.correct / sessionStats.total >= 0.8
+                ? 'mint'
+                : 'ink'
+            }
+          />
+          <Stat value={sessionStats.streak} label="连击" tone="mint" />
+          <Stat value={formatDuration(elapsedSecs)} label="用时" />
+        </div>
+        <button
+          type="button"
+          className={styles.endBtn}
+          onClick={() => setSessionState('finished')}
+        >
+          结束练习
+        </button>
+      </div>
       <TranslationStage
         sentence={currentStep.sentence}
         targetWord={currentStep.word}
-        libId={libId}
         onComplete={handleStepComplete}
       />
+      {milestone > 0 && (
+        <div className={styles.milestone} aria-hidden>
+          连击 {milestone}！
+        </div>
+      )}
       {stats && (
         <p className={styles.meta} aria-label="练习进度">
-          已答 {stats.correct} / {stats.total} 句 ({stats.percent}%)
+          已答 {stats.answered} / {stats.total} 句 ({stats.percent}%)
           {' · '}
           本词 {currentWordAnswered} 句
         </p>

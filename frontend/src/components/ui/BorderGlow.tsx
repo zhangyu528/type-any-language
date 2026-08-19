@@ -52,6 +52,16 @@ function buildGradientVars(colors: string[]): Record<string, string> {
 function easeOutCubic(x: number) { return 1 - Math.pow(1 - x, 3); }
 function easeInCubic(x: number) { return x * x * x; }
 
+// prefers-reduced-motion guard — the cursor-following glow + the intro
+// sweep are continuous motion; reduced-motion users get a static card.
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    !!window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+}
+
 interface AnimateOpts {
   start?: number; end?: number; duration?: number; delay?: number;
   ease?: (t: number) => number; onUpdate: (v: number) => void; onEnd?: () => void;
@@ -113,6 +123,7 @@ const BorderGlow: React.FC<BorderGlowProps> = ({
   }, [getCenterOfElement]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (prefersReducedMotion()) return;
     const card = cardRef.current;
     if (!card) return;
 
@@ -128,7 +139,7 @@ const BorderGlow: React.FC<BorderGlowProps> = ({
   }, [getEdgeProximity, getCursorAngle]);
 
   useEffect(() => {
-    if (!animated || !cardRef.current) return;
+    if (!animated || !cardRef.current || prefersReducedMotion()) return;
     const card = cardRef.current;
     const angleStart = 110;
     const angleEnd = 465;
