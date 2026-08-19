@@ -38,8 +38,12 @@
 }
 
 .specular-button:disabled {
+  /* opacity 0.55 + grayscale 让 WebGL 高光消失 + 灰度化,
+     视觉强烈传达"不可点"。只用 opacity 在 hero 大 CTA 上不够明显
+     (背后还在跑 WebGL 高光),加 grayscale 立即显出"关闭"状态。 */
   opacity: 0.55;
   cursor: default;
+  filter: grayscale(0.7) brightness(0.95);
 }
 
 .specular-button:disabled:active {

@@ -1,6 +1,12 @@
 'use client';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { motion, useMotionValue, useAnimationFrame, useTransform } from 'motion/react';
+import {
+  motion,
+  useMotionValue,
+  useAnimationFrame,
+  useTransform,
+  useReducedMotion,
+} from 'motion/react';
 import './ShinyText.css';
 
 interface ShinyTextProps {
@@ -31,17 +37,41 @@ const ShinyText: React.FC<ShinyTextProps> = ({
   delay = 0
 }) => {
   const [isPaused, setIsPaused] = useState(false);
+  /* 滚出视口时停跑 shimmer (省 GPU);滚回视口时恢复正常 rAF。
+     走 IntersectionObserver,rootMargin 给 100px 缓冲,用户快速滚
+     过头不至于立即停 shimmer。 */
+  const [inView, setInView] = useState(true);
+  const ref = useRef<HTMLSpanElement | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(
+      ([entry]) => setInView(entry.isIntersecting),
+      { rootMargin: '100px 0px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
   const progress = useMotionValue(0);
   const elapsedRef = useRef(0);
   const lastTimeRef = useRef<number | null>(null);
   const directionRef = useRef(direction === 'left' ? 1 : -1);
+  /* a11y WCAG 2.3.3:尊重 prefers-reduced-motion 偏好。
+     系统设置开 "减少动效" 时不跑 shimmer 扫光,直接显示终态
+     (backgroundPosition 锁 100%,shine 跑完位置),
+     文字基础色 / 颜色完全跟非动效时一致。 */
+  const reduceMotion = useReducedMotion();
 
   const animationDuration = speed * 1000;
   const delayDuration = delay * 1000;
 
   useAnimationFrame(time => {
-    if (disabled || isPaused) {
+    /* 滚出视口 / reduced-motion / disabled / pauseOnHover 都停 rAF 累加 */
+    if (disabled || isPaused || reduceMotion || !inView) {
       lastTimeRef.current = null;
+      // reduce-motion:锁 progress 100% (shine 跑完位置),文字保持终态色彩。
+      if (reduceMotion) progress.set(100);
       return;
     }
 
@@ -120,6 +150,7 @@ const ShinyText: React.FC<ShinyTextProps> = ({
 
   return (
     <motion.span
+      ref={ref}
       className={`shiny-text ${className}`}
       style={{ ...gradientStyle, backgroundPosition }}
       onMouseEnter={handleMouseEnter}
