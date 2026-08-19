@@ -102,21 +102,6 @@ class CalendarDay(BaseModel):
     is_streak_node: bool
 
 
-# ---- Monthly goal bar ----------------------------------------------------
-class MonthlyGoalInfo(BaseModel):
-    """Progress toward the user's monthly_goal."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    target: int
-    current: int
-    year_month: str  # "2026-07"
-    achieved: bool
-    # Projection: True if current pace will hit target by month end.
-    # Simple heuristic — "current / days_elapsed * days_in_month >= target".
-    on_track: bool
-
-
 # ---- Progress Snapshot (3 KPI cards) ------------------------------------
 class KpiStat(BaseModel):
     """One KPI tile: a value, a delta vs the prior window, and a label."""
@@ -164,7 +149,6 @@ class DashboardResponse(BaseModel):
     # 35 days: today-27 .. today (4 weeks inclusive of current). The
     # calendar grid renders these as 5 rows × 7 columns.
     calendar: List[CalendarDay]
-    monthly_goal: MonthlyGoalInfo
     # Three KPI tiles keyed by name. Keys: "accuracy", "sentences",
     # "new_words". The DashboardResponse is open to more tiles later
     # (e.g. "review_queue_count") without a schema bump.
@@ -235,24 +219,3 @@ class DailyGoalUpdate(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     target: int = Field(ge=1, le=100_000)
-
-
-# ---- Monthly-goal mutation ----------------------------------------------
-class MonthlyGoalUpdate(BaseModel):
-    """Request body for POST /api/dashboard/monthly-goal."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    target: int = Field(ge=1, le=100_000)
-
-
-class MonthlyGoalResponse(BaseModel):
-    """Response from POST /api/dashboard/monthly-goal."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    target: int
-    current: int
-    year_month: str
-    achieved: bool
-    on_track: bool

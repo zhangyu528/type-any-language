@@ -11,7 +11,7 @@
  *     previous halves for period comparison) + a fixed heatmap window.
  *   - GET /api/weakness                    → weak points + CEFR/topic distribution
  *     (fetched ONCE here and shared with WeakPointsSection + DistributionPanel).
- *   - snapshot.streak / daily_goal / monthly_goal → rings + streak insights.
+ *   - snapshot.streak / daily_goal / lifetime → rings + streak insights.
  *
  * The whole section is still lazy-loaded by page.tsx (dynamic, ssr:false).
  */
@@ -183,7 +183,7 @@ export default function DataSection({ snapshot, onStartLib }: DataSectionProps) 
         </div>
         <div className={styles.col4stack}>
           <HeatmapPanel days={calHeat} onSelectDay={setDrawerDate} />
-          <GoalRings daily={snapshot.daily_goal} monthly={snapshot.monthly_goal} />
+          <GoalRings daily={snapshot.daily_goal} totalSentences={snapshot.lifetime?.total_sentences} />
         </div>
       </div>
 

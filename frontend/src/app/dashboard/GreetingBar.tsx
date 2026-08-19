@@ -29,7 +29,8 @@
 
 import { Flame } from 'lucide-react';
 import DecryptedText from '@/components/DecryptedText';
-import { DashboardUser, MonthlyGoalInfo, StreakInfo } from '../api';
+import { DashboardUser, StreakInfo } from '../api';
+import { deriveLevel, LevelInfo } from './level';
 import styles from './GreetingBar.module.css';
 
 function pickGreeting(hour: number): string {
@@ -64,26 +65,15 @@ function pickStreakCopy(streak: StreakInfo): {
   };
 }
 
-type MonthlyTone = 'achieved' | 'onTrack' | 'behind';
-
-function pickMonthlyTone(goal: MonthlyGoalInfo): MonthlyTone {
-  if (goal.achieved) return 'achieved';
-  if (goal.on_track) return 'onTrack';
-  return 'behind';
-}
-
-function pickMonthlyStatusCopy(tone: MonthlyTone): string {
-  if (tone === 'achieved') return '已完成';
-  if (tone === 'onTrack') return '进度良好';
-  return '落后';
-}
-
 const WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
 export interface GreetingBarProps {
   user: DashboardUser;
   streak: StreakInfo;
-  monthlyGoal: MonthlyGoalInfo;
+  /** Lifetime total_sentences — drives the level widget on the right
+   *  side of the hero. May be undefined for brand-new accounts that
+   *  haven't recorded any practice yet. */
+  totalSentences?: number;
   /** 今日状态：未达标(落后)=true → 左轨琥珀；达标=done → 左轨薄荷绿。 */
   behind: boolean;
 }
@@ -91,13 +81,14 @@ export interface GreetingBarProps {
 export default function GreetingBar({
   user,
   streak,
-  monthlyGoal,
+  totalSentences,
   behind,
 }: GreetingBarProps) {
   const now = new Date();
   const timeBand = pickTimeBand(now.getHours());
   const greeting = pickGreeting(now.getHours());
   const display = (user.display_name || user.email || '').trim() || '朋友';
+  const level: LevelInfo = deriveLevel(totalSentences);
 
   const dateDay = `${now.getMonth() + 1}月${now.getDate()}日`;
   const dateWeek = WEEK[now.getDay()];
@@ -112,29 +103,6 @@ export default function GreetingBar({
       : null;
 
   const streakCopy = pickStreakCopy(streak);
-  const monthlyTone = pickMonthlyTone(monthlyGoal);
-  const monthlyStatusCopy = pickMonthlyStatusCopy(monthlyTone);
-  const monthlyPct =
-    monthlyGoal.target > 0
-      ? Math.min(100, Math.round((monthlyGoal.current / monthlyGoal.target) * 100))
-      : 0;
-
-  // Pace projection: how many sentences/day are still needed (on average
-  // over the remaining days) to hit the monthly target by month-end.
-  // Surfaces as a one-line hint under the bar — "预计可达成" when on
-  // track, "日均还需 N 句" when behind (N = daily pace still required).
-  const monthlyHint = (() => {
-    if (monthlyGoal.achieved) return { text: '已完成', tone: 'achieved' as const };
-    const [y, m] = monthlyGoal.year_month.split('-').map(Number);
-    if (!y || !m) return { text: '', tone: 'onTrack' as const };
-    const daysInMonth = new Date(y, m, 0).getDate();
-    const daysLeft = Math.max(1, daysInMonth - now.getDate());
-    const needed = Math.max(0, monthlyGoal.target - monthlyGoal.current);
-    const perDay = Math.ceil(needed / daysLeft);
-  return monthlyGoal.on_track
-    ? { text: '预计可达成', tone: 'onTrack' as const }
-    : { text: `日均还需 ${perDay} 句`, tone: 'behind' as const };
-  })();
 
   return (
     <header
@@ -184,39 +152,37 @@ export default function GreetingBar({
         <span className={styles.dateWeek}>{dateWeek}</span>
       </div>
 
-      {/* Monthly goal: small header (label + status) → thin bar →
-         count → hint, pinned right. The number is the hero of this
-         block; "本月目标" sits as a quiet caption above it. */}
+      {/* Learning level: tier badge + linear progress through the
+         current tier → total lifetime sentences. Pinned to the same
+         right slot the old monthly-goal block occupied so the hero
+         composition doesn't shift. */}
       <div
-        className={styles.monthly}
-        aria-label={`本月目标 ${monthlyGoal.current} / ${monthlyGoal.target} 句`}
+        className={styles.level}
+        aria-label={`等级 ${level.label} (Lv${level.level}),累计 ${level.total} 句`}
       >
-        <div className={styles.monthlyHead}>
-          <span className={styles.monthlyLabel}>本月目标</span>
-          <span
-            className={`${styles.monthlyStatus} ${styles[`status-${monthlyTone}`]}`}
-            aria-label={monthlyStatusCopy}
-          >
-            {monthlyStatusCopy}
-          </span>
+        <div className={styles.levelHead}>
+          <span className={styles.levelBadge}>Lv{level.level}</span>
+          <span className={styles.levelLabel}>{level.label}</span>
         </div>
-        <div className={styles.monthlyTrack}>
-          <div
-            className={`${styles.monthlyFill} ${styles[`monthlyFill-${monthlyTone}`]}`}
-            style={{ width: `${monthlyPct}%` }}
-          />
+        <div
+          className={styles.levelTrack}
+          role="progressbar"
+          aria-valuenow={level.pct}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="本级进度"
+        >
+          <div className={styles.levelFill} style={{ width: `${level.pct}%` }} />
         </div>
-        <p className={styles.monthlyText}>
-          <span className={styles.monthlyNum}>{monthlyGoal.current}</span>
-          <span className={styles.monthlySep}>/</span>
-          <span className={styles.monthlyTotal}>{monthlyGoal.target}</span>
-          <span className={styles.monthlyUnit}>句</span>
+        <p className={styles.levelMeta}>
+          <span className={styles.levelTotal}>{level.total}</span>
+          <span className={styles.levelSep}>句</span>
+          {level.capped ? (
+            <span className={styles.levelCapped}>· 已登顶</span>
+          ) : (
+            <span className={styles.levelNeeded}>· 还差 {level.toNext} 句升级</span>
+          )}
         </p>
-        {monthlyHint.text ? (
-          <p className={`${styles.monthlyHint} ${styles[`hint-${monthlyHint.tone}`]}`}>
-            {monthlyHint.text}
-          </p>
-        ) : null}
       </div>
     </header>
   );

@@ -38,11 +38,11 @@ class User(Base):
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     last_login_at = Column(DateTime, nullable=True)
-    # Dashboard preferences — added in migration 0011. Defaults are
-    # conservative (20/day, 600/month) so a brand-new user has a
-    # concrete target before they touch /me/settings.
+    # Dashboard preferences — added in migration 0011. The monthly
+    # target was retired in 0018 after the home page switched to a
+    # learning-level widget driven by lifetime total_sentences; only
+    # daily_goal remains as a column.
     daily_goal = Column(Integer, nullable=False, default=20)
-    monthly_goal = Column(Integer, nullable=False, default=600)
 
 
 """

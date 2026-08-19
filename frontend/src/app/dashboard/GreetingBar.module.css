@@ -179,10 +179,11 @@
   letter-spacing: 0.06em;
 }
 
-/* -------- Monthly goal (absorbed from old CalendarHeader) -------- */
-/* The right-side block. flex 0 1 auto so it shrinks under narrow
-   viewports before the lead column does. */
-.monthly {
+/* -------- Learning level (replaces the old monthly-goal block) -------- */
+/* Same right-side slot the monthly block used to occupy. Linear tier
+   thresholds feel meaningful — every sentence nudges the bar a visible
+   amount — and the label doubles as a soft achievement. */
+.level {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -192,51 +193,56 @@
   margin-left: var(--space-5);
 }
 
-/* Small header row: "本月目标" caption + status pill, pushed apart. */
-.monthlyHead {
+.levelHead {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
 }
 
-.monthlyTrack {
+.levelBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 3px 10px;
+  font-family: var(--font-display);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.04em;
+  color: var(--ds-ink);
+  background: var(--ds-glass-surface);
+  border: 1px solid var(--ds-glass-border);
+  border-radius: var(--radius-pill);
+}
+
+.levelLabel {
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.02em;
+  color: var(--ds-ink);
+}
+
+.levelTrack {
   height: 8px;
-  /* Use tint-deep (not tint) so the track contrasts against the
-     white card surface in light mode and the navy card in dark
-     mode. tint was so close to surface that the track disappeared
-     against the card. */
   background: var(--ds-tint-deep);
   border-radius: var(--radius-pill);
   overflow: hidden;
   box-shadow: inset 0 1px 2px rgba(12, 68, 124, 0.08);
 }
 
-[data-theme='dark'] .monthlyTrack {
-  /* Dark mode: tint-deep (#1E3E5F) on surface (#102A45) is still
-     too close in luminance. Step up to a slightly lighter track so
-     the unfilled portion reads clearly against the dark card. */
+[data-theme='dark'] .levelTrack {
   background: #2a4868;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
-.monthlyFill {
+.levelFill {
   height: 100%;
+  background: linear-gradient(90deg, var(--ds-correct-fill), var(--ds-cta));
   border-radius: var(--radius-pill);
   transition: width var(--dur-base) var(--ease-out);
 }
 
-.monthlyFill-onTrack {
-  background: var(--ds-correct-fill);
-}
-.monthlyFill-behind {
-  background: var(--ds-error);
-}
-.monthlyFill-achieved {
-  background: var(--ds-cta);
-}
-
-.monthlyText {
+.levelMeta {
   margin: 0;
   display: inline-flex;
   align-items: baseline;
@@ -244,57 +250,24 @@
   font-size: var(--text-caption);
   color: var(--ds-ink-soft);
   font-variant-numeric: tabular-nums;
-  flex-wrap: wrap;
 }
 
-.monthlyLabel {
-  font-size: var(--text-caption);
-  font-weight: var(--weight-medium);
-  letter-spacing: 0.02em;
-  color: var(--ds-ink);
-}
-
-.monthlyNum {
+.levelTotal {
   font-family: var(--font-display);
   font-size: var(--text-h2);
   font-weight: var(--weight-medium);
   color: var(--ds-ink);
   line-height: 1;
-  display: inline-block;
 }
 
-.monthlySep,
-.monthlyTotal {
-  color: var(--ds-ink-soft);
-  font-weight: var(--weight-regular);
-}
-
-.monthlyUnit {
+.levelSep,
+.levelNeeded {
   color: var(--ds-ink-soft);
 }
 
-.monthlyStatus {
-  font-size: var(--text-caption);
-  font-weight: var(--weight-medium);
-  /* 状态药丸现位于 .monthlyHead 标题行右端，由 space-between 推开。 */
-}
-
-.status-onTrack {
+.levelCapped {
   color: var(--ds-correct);
-}
-.status-behind {
-  color: var(--ds-error-ink);
-}
-.status-achieved {
-  color: var(--ds-cta-deep);
-}
-
-/* Pace projection line under the monthly bar. */
-.monthlyHint {
-  margin: 0;
-  font-size: var(--text-caption);
   font-weight: var(--weight-medium);
-  color: var(--ds-ink-soft);
 }
 
 .hint-achieved {

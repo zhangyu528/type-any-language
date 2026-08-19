@@ -102,16 +102,6 @@ export function deriveAchievements(snapshot: DashboardSnapshot): AchievementsMod
       earned: totalSentences >= 100,
     },
     {
-      id: 'month',
-      label: '月度达标',
-      earnedSub: '本月已达成',
-      lockedSub: (_c, t) => `还差 ${Math.max(0, t - _c)} 天`,
-      current: snapshot.monthly_goal.current,
-      target: snapshot.monthly_goal.target > 0 ? snapshot.monthly_goal.target : 1,
-      unit: '天',
-      earned: snapshot.monthly_goal.achieved,
-    },
-    {
       id: 'loyal',
       label: '忠诚学子',
       earnedSub: '学习满 30 天',

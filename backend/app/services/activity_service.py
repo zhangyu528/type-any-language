@@ -40,7 +40,6 @@ from app.schemas.dashboard import (
     DaySessionSummary,
     KpiStat,
     LifetimeStats,
-    MonthlyGoalInfo,
     StreakInfo,
 )
 
@@ -257,45 +256,6 @@ def compute_calendar(
             is_streak_node=d in streak_dates,
         ))
     return out
-
-
-def compute_monthly_goal(
-    db: DbSession,
-    user_id: UUID,
-    today: date,
-) -> MonthlyGoalInfo:
-    """Return progress + projection toward users.monthly_goal."""
-    target = _get_monthly_goal(db, user_id)
-    year_month = today.strftime("%Y-%m")
-    _, days_in_month = calendar.monthrange(today.year, today.month)
-    days_elapsed = today.day
-
-    # SUM(sentences_count) for the current month, in one query.
-    month_start = today.replace(day=1)
-    row = (
-        db.query(func.coalesce(func.sum(DailyActivity.sentences_count), 0))
-        .filter(DailyActivity.user_id == user_id)
-        .filter(DailyActivity.activity_date >= month_start)
-        .filter(DailyActivity.activity_date <= today)
-        .one()
-    )
-    current = int(row[0])
-    achieved = current >= target
-
-    # Projection: current / days_elapsed * days_in_month >= target?
-    if days_elapsed <= 0:
-        on_track = target <= 0
-    else:
-        projected = current / days_elapsed * days_in_month
-        on_track = projected >= target
-
-    return MonthlyGoalInfo(
-        target=target,
-        current=current,
-        year_month=year_month,
-        achieved=achieved,
-        on_track=on_track,
-    )
 
 
 def compute_kpis(
@@ -553,13 +513,6 @@ def _get_daily_goal(db: DbSession, user_id: UUID) -> int:
     user = db.query(User.daily_goal).filter(User.id == user_id).first()
     if user is None or user[0] is None:
         return 20  # default mirrors users.daily_goal server default
-    return int(user[0])
-
-
-def _get_monthly_goal(db: DbSession, user_id: UUID) -> int:
-    user = db.query(User.monthly_goal).filter(User.id == user_id).first()
-    if user is None or user[0] is None:
-        return 600
     return int(user[0])
 
 

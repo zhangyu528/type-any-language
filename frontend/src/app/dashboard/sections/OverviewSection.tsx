@@ -214,7 +214,7 @@ export default function OverviewSection({
         <GreetingBar
           user={snapshot.user}
           streak={snapshot.streak}
-          monthlyGoal={snapshot.monthly_goal}
+          totalSentences={snapshot.lifetime?.total_sentences}
           behind={!snapshot.daily_goal.completed}
         />
       </header>
@@ -253,7 +253,6 @@ export default function OverviewSection({
           <StreakMomentum
             streak={snapshot.streak}
             calendar={snapshot.calendar}
-            yearMonth={snapshot.monthly_goal.year_month}
           />
         </AnimatedContent>
 
