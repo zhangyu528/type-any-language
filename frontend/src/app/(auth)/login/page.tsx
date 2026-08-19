@@ -1,22 +1,19 @@
 'use client';
 
-/**
- * /login — 触发 AuthModal(全站唯一登录 UI)。
- *
- * 之前:整页路由,自己渲染 <ImmersiveAuth> + .overlay 假装 modal 视觉。
- *       用户直访 /login 或被 /me 守卫重定向到这里时,看到的是"伪 modal 页"。
- * 现在:本页只触发 AuthModalProvider.open('login', { from }),然后
- *       router.replace('/') 把 URL 抹掉 —— 用户留在 home,modal 盖在 home 上,
- *       跟 AppHeader 点"登录"按钮是完全一样的体验(单一 modal 入口)。
- *       state.from 传给 modal,modal 成功后用 safeRedirectPath 跳转。
- */
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthModal } from '../../lib/authModal';
 import { safeRedirectPath } from '../../lib/safeRedirect';
 
 export default function LoginPage() {
-  return <LoginInner />;
+  /* useSearchParams() 在 Next.js 15 prerender 必须包 Suspense boundary。
+     整页路由触发 modal + replace,SearchParams 仅用于读 from 状态,
+     包 Suspense 后 fallback 是空 — 客户端 hydrate 后立刻 trigger modal。 */
+  return (
+    <Suspense fallback={null}>
+      <LoginInner />
+    </Suspense>
+  );
 }
 
 function LoginInner() {
