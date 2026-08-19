@@ -17,7 +17,7 @@
  *     hydration 前同步写入 data-theme
  */
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
 export type Theme = 'light' | 'dark';
 
@@ -63,8 +63,14 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
     }
   };
 
+  /* toggleTheme:从 ThemeContext 暴露的便捷方法,navheader / floating 按钮用。
+     避免在调用处重复写 setTheme(theme === 'light' ? 'dark' : 'light')。 */
+  const toggleTheme = useCallback(() => {
+    setAndPersist(theme === 'light' ? 'dark' : 'light');
+  }, [theme]);
+
   return (
-    <ThemeContext.Provider value={{ theme, setTheme: setAndPersist }}>
+    <ThemeContext.Provider value={{ theme, setTheme: setAndPersist, toggleTheme }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -75,11 +81,13 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
 interface ThemeContextValue {
   theme: Theme;
   setTheme: (t: Theme) => void;
+  toggleTheme: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
   theme: DEFAULT_THEME,
   setTheme: () => {},
+  toggleTheme: () => {},
 });
 
 export function useTheme(): ThemeContextValue {

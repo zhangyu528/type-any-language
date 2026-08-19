@@ -10,6 +10,17 @@
   background: transparent;
   color: var(--ds-ink);
   font-family: var(--font-sans);
+  /* AppHeader 是 position: fixed 浮在 viewport 顶 (~16-24px top + ~64-72px height),
+     不占文档流 → landing 第一个 section (hero) 会从 y=0 开始,跟 header 重叠。
+     padding-top 给 header 留位,desktop 88px / mobile 80px 都够。 */
+  padding-top: clamp(80px, 8vh, 96px);
+}
+
+@media (max-width: 720px) {
+  .root {
+    /* mobile: header 56px + top 16px = 72px,留 80px 够。 */
+    padding-top: 80px;
+  }
 }
 
 
