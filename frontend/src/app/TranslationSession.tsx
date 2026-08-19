@@ -605,7 +605,7 @@ export default function TranslationSession({
             再来一组
           </Button>
           <Button variant="ghost" size="md" onClick={onBack}>
-            返回词库
+            返回主页
           </Button>
         </div>
       </div>
