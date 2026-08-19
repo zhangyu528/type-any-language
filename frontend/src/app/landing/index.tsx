@@ -97,18 +97,7 @@ type LandingBgTuning =
 function useLandingBackground(theme: 'light' | 'dark'): null | LandingBgTuning {
   const reduce = useReducedMotion();
   const [mounted, setMounted] = useState(true);
-  const [smallScreen, setSmallScreen] = useState(false);
   const rootRef = useRef<HTMLElement | null>(null);
-
-  // Track viewport size (coarse gate).
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const mql = window.matchMedia('(max-width: 720px)');
-    const sync = () => setSmallScreen(mql.matches);
-    sync();
-    mql.addEventListener('change', sync);
-    return () => mql.removeEventListener('change', sync);
-  }, []);
 
   // Find the landing root once; IntersectionObserver watches it.
   useEffect(() => {
@@ -127,8 +116,16 @@ function useLandingBackground(theme: 'light' | 'dark'): null | LandingBgTuning {
     return () => io.disconnect();
   }, []);
 
+  // WebGL gating matrix:
+  //   - prefers-reduced-motion: on  → null (system opt-out)
+  //   - hero out of viewport       → null (lazy; long landing saves GPU)
+  //   - everything else             → mount WebGL on all viewports
+  //
+  // The old `max-width: 720px` gate is gone: viewport width is a poor
+  // proxy for GPU horsepower, and modern phones render WebGL 2 fine.
+  // Devices that truly can't handle it fall back to the browser's
+  // built-in CSS path automatically.
   if (reduce) return null;
-  if (smallScreen) return null;
   if (!mounted) return null;
   if (theme === 'dark') {
     return { kind: 'galaxy', ...GALAXY_BY_THEME.dark };
@@ -236,18 +233,6 @@ export default function LandingPage({
                 <span className={styles.metaLabel}>适用场景</span>
                 <p className={styles.metaText}>
                   语言学习者 · 每天读完一句,就是你的。
-                </p>
-              </div>
-              <div className={styles.metaBlock}>
-                <span className={styles.metaLabel}>转化路径</span>
-                <p className={styles.metaPath}>
-                  <span className={styles.metaPathStep}>读一句</span>
-                  <span className={styles.metaPathArrow}>→</span>
-                  <span className={styles.metaPathStep}>写出来</span>
-                  <span className={styles.metaPathArrow}>→</span>
-                  <span className={styles.metaPathStep}>错改对</span>
-                  <span className={styles.metaPathArrow}>→</span>
-                  <span className={styles.metaPathStep}>记住</span>
                 </p>
               </div>
             </div>

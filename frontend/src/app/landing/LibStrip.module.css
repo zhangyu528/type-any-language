@@ -35,7 +35,7 @@
   align-items: center;
   gap: var(--space-2);
   font-family: var(--font-mono), monospace;
-  font-size: 11px;
+  font-size: var(--text-caption);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ds-action-deep);
@@ -62,7 +62,7 @@
 .subtitle {
   margin: 0;
   font-family: var(--font-mono), monospace;
-  font-size: 12px;
+  font-size: var(--text-caption);
   color: var(--ds-ink-soft);
   letter-spacing: 0.04em;
 }
@@ -248,7 +248,7 @@
 .libLevel {
   align-self: flex-start;
   font-family: var(--font-mono), monospace;
-  font-size: 11px;
+  font-size: var(--text-caption);
   letter-spacing: 0.08em;
   color: var(--ds-action-deep);
   text-transform: uppercase;
@@ -282,7 +282,7 @@
 .libMeta {
   margin: 0;
   font-family: var(--font-mono), monospace;
-  font-size: 12px;
+  font-size: var(--text-caption);
   color: var(--ds-ink-soft);
   letter-spacing: 0.02em;
 }
@@ -295,7 +295,7 @@
 .libLevelLabel {
   margin: 0;
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: var(--ds-ink-faint);
   letter-spacing: 0.04em;
   line-height: 1.5;
@@ -314,7 +314,7 @@
      4 张卡 button 位置完全一致(底部 y + 右 x) */
   margin-top: auto;
   align-self: flex-end;
-  font-size: 12px !important;
+  font-size: var(--text-caption) !important;
   padding: 6px 14px !important;
   /* min-width 让 4 张卡的"开始读 →" 按钮视觉对齐(宽度一致),
      即使有 featured/非 featured 状态区分(颜色/边框),宽度统一 */

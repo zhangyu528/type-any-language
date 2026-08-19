@@ -66,7 +66,7 @@
 /* 次级动作:mono + 婴儿蓝,弱化但不淹没 */
 .secondaryLink {
   font-family: var(--font-mono), monospace;
-  font-size: 12px;
+  font-size: var(--text-caption);
   letter-spacing: 0.06em;
   color: var(--ds-action-deep);
   text-decoration: none;

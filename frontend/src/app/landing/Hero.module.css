@@ -62,7 +62,7 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--ds-action) 24%, transparent);
   color: var(--ds-action-deep);
-  font-size: 11px;
+  font-size: var(--text-caption);
   font-weight: 700;
   font-family: var(--font-mono), monospace;
 }
@@ -205,7 +205,7 @@
   align-items: center;
   gap: 6px;
   font-family: var(--font-mono), monospace;
-  font-size: 12px;
+  font-size: var(--text-caption);
   color: var(--ds-ink-soft);
   letter-spacing: 0.04em;
 }
