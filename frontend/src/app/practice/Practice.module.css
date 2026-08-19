@@ -18,41 +18,6 @@
   background: transparent;
 }
 
-/* Masthead — back link header. Shared by the landing route (app/page.tsx)
-   when a session is active; the standalone /practice route omits it in JSX
-   but the classes stay here so both routes resolve. */
-.masthead {
-  display: flex;
-  align-items: center;
-  width: 100%;
-}
-
-.mastheadBrand {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-family: var(--font-sans);
-  font-size: var(--text-body);
-  font-weight: var(--weight-medium);
-  color: var(--ds-ink-soft);
-  text-decoration: none;
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
-  transition: color var(--dur-fast) var(--ease-out),
-    background var(--dur-fast) var(--ease-out);
-  cursor: pointer;
-}
-
-.mastheadBrand:hover {
-  color: var(--ds-ink);
-  background: var(--ds-tint);
-}
-
-.mastheadBrand:focus-visible {
-  outline: 2px solid var(--ds-accent);
-  outline-offset: 2px;
-}
-
 /* Feedback wash moved to TranslationStage.module.css (.feedbackWash). */
 
 /* Loading state — quiet skeleton */

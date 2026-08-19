@@ -1,5 +1,4 @@
 import { Fraunces, JetBrains_Mono, Noto_Sans_SC } from 'next/font/google';
-import AppHeader from './components/AppHeader';
 import ThemeProvider from './components/ThemeProvider';
 import { AuthProvider } from './lib/auth';
 import { AuthModalProvider } from './lib/authModal';
@@ -66,7 +65,6 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             <AuthModalProvider>
-              <AppHeader />
               {children}
               <AuthModal />
             </AuthModalProvider>
