@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * AppHeader — 全局顶部 chrome,fixed 定位,磨砂薄荷底。
+ * AppHeader — landing-only 顶部 chrome,磨砂 pill
  *
  * 设计语言:统一、克制,单点金属。
  *   - 磨砂半透 + backdrop blur,底部 1px 发丝边。
@@ -24,16 +24,25 @@
  *
  * Route-aware:不再 hide /login / /signup(stub 页面,见对应 page.tsx 注释),
  * 全局 chrome 始终显示。
+ *
+ * 2026-08 polish (landing-perf sweep):
+ *   - CSS 移到 AppHeader.module.css (跟 landing 各 section 一致)
+ *   - 滚出 hero 区 header 渐隐,向上滚再显(scroll-driven,提升阅读沉浸感)
+ *   - 登出加 confirm(防误点)
  */
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import SpecularButton from '@/components/SpecularButton';
 import { useAuth } from '../lib/auth';
 import { useAuthModal } from '../lib/authModal';
+import styles from './AppHeader.module.css';
 
-/* /login / /signup 现在是 stub 页面(mount 时 open modal + replace('/')),
-   不再渲染 chrome —— 全局 HIDE_CHROME_PATHS 列表可以删。 */
+/* 滚出 隐藏 阈值 (px):用户向下滚动超过这个距离,header 渐隐 */
+const SCROLL_HIDE_THRESHOLD = 120;
+/* 向上滚 阈值 (px):用户向上滚动超过这个距离,header 渐显。
+   设得小一些,让向上滚一点点就能恢复 nav,符合"我要回去看 nav"的心智。 */
+const SCROLL_SHOW_THRESHOLD = 40;
 
 export default function AppHeader() {
   const pathname = usePathname();
@@ -41,10 +50,37 @@ export default function AppHeader() {
   const { user, loading, logout } = useAuth();
   const { open: openAuthModal } = useAuthModal();
 
-  // 登出后主动去 landing,避免 /me 守卫把 user=null 推回 /login 形成死循环。
-  // 必须在所有 early return 之前调用(否则 /dashboard 与 其他路由 的 hook
-  // 顺序不一致,触发 "change in the order of Hooks" 报错)。
+  // scroll-driven hide/show:用 lastY + lastDir 跟踪滚动方向。
+  // 向下滚过阈值 → hide,向上滚过阈值 → show,避免抖动。
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let lastY = window.scrollY;
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const y = window.scrollY;
+        const delta = y - lastY;
+        if (delta > SCROLL_HIDE_THRESHOLD && y > 240) {
+          setHidden(true);
+        } else if (delta < -SCROLL_SHOW_THRESHOLD) {
+          setHidden(false);
+        }
+        lastY = y;
+        ticking = false;
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // 登出加 confirm:防误点(之前直接跳 /,点错就退出)。
+  // 必须在所有 early return 之前(避免 hook 顺序变化)。
   const handleLogout = useCallback(async () => {
+    if (typeof window === 'undefined') return;
+    if (!window.confirm('确定要登出吗?')) return;
     await logout();
     router.push('/');
   }, [logout, router]);
@@ -69,14 +105,19 @@ export default function AppHeader() {
       ? encodeURIComponent(pathname)
       : undefined;
 
+  const rootClass = [
+    styles.root,
+    isLanding ? styles['root--landing'] : '',
+    hidden ? styles['root--hidden'] : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
-    <header
-      className={`app-header${isLanding ? ' app-header--landing' : ''}`}
-      role="banner"
-    >
-      <Link href="/" className="app-header__brand" aria-label="Type Any Language · 首页">
+    <header className={rootClass} role="banner">
+      <Link href="/" className={styles.brand} aria-label="Type Any Language · 首页">
         <svg
-          className="app-header__brand-mark"
+          className={styles.brandMark}
           viewBox="0 0 24 24"
           width="22"
           height="22"
@@ -91,15 +132,15 @@ export default function AppHeader() {
             )}
           </g>
         </svg>
-        <span className="app-header__brand-name">Type Any Language</span>
+        <span className={styles.brandName}>Type Any Language</span>
       </Link>
 
-      <nav className="app-header__nav" aria-label="主导航">
+      <nav className={styles.nav} aria-label="主导航">
         {loading ? null : user ? (
           <>
             <Link
               href="/dashboard/settings"
-              className="app-header__avatar"
+              className={styles.avatar}
               aria-label={`${user.display_name} — 我的主页`}
               title={`${user.display_name} · 我的主页`}
             >
@@ -107,7 +148,7 @@ export default function AppHeader() {
             </Link>
             <button
               type="button"
-              className="app-header__logoutBtn"
+              className={styles.logoutBtn}
               onClick={() => void handleLogout()}
               aria-label="登出"
             >
@@ -118,7 +159,7 @@ export default function AppHeader() {
           <>
             <button
               type="button"
-              className="app-header__loginBtn"
+              className={styles.loginBtn}
               onClick={() => openAuthModal('login', { from: fromParam })}
               aria-label="登录"
             >
