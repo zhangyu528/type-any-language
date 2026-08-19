@@ -171,6 +171,37 @@ export default function TranslationSession({
     null
   );
 
+  // Live study-timer — ticks every second while the drill is running.
+  // sessionStats.startTime is the single source of truth (reset on mount
+  // + restart), so the effect re-syncs whenever it changes.
+  const [elapsedSecs, setElapsedSecs] = useState(0);
+  useEffect(() => {
+    if (sessionState !== 'running') return;
+    const start = sessionStats.startTime;
+    const tick = () =>
+      setElapsedSecs(Math.max(0, Math.round((Date.now() - start) / 1000)));
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [sessionState, sessionStats.startTime]);
+
+  // Streak milestone celebration — fires a transient "连击 N！" badge
+  // whenever the streak lands on a multiple of 5 (5/10/15…). A ref
+  // tracks the last celebrated value so it won't re-fire on a re-render
+  // at the same streak, and resets when the streak breaks (drops).
+  const [milestone, setMilestone] = useState(0);
+  const lastCelebratedRef = useRef(0);
+  useEffect(() => {
+    const s = sessionStats.streak;
+    if (s > 0 && s % 5 === 0 && s !== lastCelebratedRef.current) {
+      lastCelebratedRef.current = s;
+      setMilestone(s);
+      const t = window.setTimeout(() => setMilestone(0), 1500);
+      return () => window.clearTimeout(t);
+    }
+    if (s < lastCelebratedRef.current) lastCelebratedRef.current = 0;
+  }, [sessionStats.streak]);
+
   // --- backend practice session wiring (best-effort telemetry) ---
   // We hold the live session id + running tally in refs so the
   // start/end calls stay outside React's render cycle and never block
@@ -583,6 +614,16 @@ export default function TranslationSession({
 
   return (
     <>
+      {stats && (
+        <div className={styles.topProgress} aria-hidden>
+          <div
+            className={styles.topProgressFill}
+            style={{
+              width: `${Math.round((stats.answered / stats.total) * 100)}%`,
+            }}
+          />
+        </div>
+      )}
       <div className={styles.hud}>
         <div className={styles.hudStats}>
           <Stat value={sessionStats.total} label="已练" />
@@ -600,6 +641,7 @@ export default function TranslationSession({
             }
           />
           <Stat value={sessionStats.streak} label="连击" tone="mint" />
+          <Stat value={formatDuration(elapsedSecs)} label="用时" />
         </div>
         <button
           type="button"
@@ -612,12 +654,16 @@ export default function TranslationSession({
       <TranslationStage
         sentence={currentStep.sentence}
         targetWord={currentStep.word}
-        libId={libId}
         onComplete={handleStepComplete}
       />
+      {milestone > 0 && (
+        <div className={styles.milestone} aria-hidden>
+          连击 {milestone}！
+        </div>
+      )}
       {stats && (
         <p className={styles.meta} aria-label="练习进度">
-          已答 {stats.correct} / {stats.total} 句 ({stats.percent}%)
+          已答 {stats.answered} / {stats.total} 句 ({stats.percent}%)
           {' · '}
           本词 {currentWordAnswered} 句
         </p>
