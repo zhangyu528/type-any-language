@@ -117,6 +117,15 @@
   color: var(--ds-action);
 }
 
+/* 句数后的 "+" 后缀(Counter 无 suffix 参数,这里静态渲染) */
+.suffix {
+  font-family: var(--font-display), serif;
+  font-size: clamp(14px, 1.4vw, 18px);
+  font-weight: 500;
+  color: var(--ds-action-deep);
+  margin-left: 1px;
+}
+
 /* 副标签:mono 小字,产品自描述 */
 .label {
   margin: 0;
@@ -136,12 +145,10 @@
   font-weight: 600;
   line-height: 1.05;
   letter-spacing: -0.02em;
-  color: var(--ds-action);
+  /* 与同区其它 stat 数字同色(--ds-action-deep),避免暗色下主次反转;
+     强调改由 .statFree .label 加粗承担 */
+  color: var(--ds-action-deep);
   font-variant-numeric: tabular-nums;
-}
-
-[data-theme="dark"] .freeText {
-  color: var(--ds-action);
 }
 
 /* "免费" 副标签略加粗,与品牌蓝主数字呼应 */
@@ -150,21 +157,29 @@
   font-weight: 600;
 }
 
-[data-theme="dark"] .statFree .label {
-  color: var(--ds-action-deep);
+/* ---------- 响应式 + 分隔线 ---------- */
+/* 4 横排(≥721px):相邻 stat 用细竖线分隔,列间距改由 padding 承担,
+   故 flex 列间距归零,避免「竖线 + 64px gap」双重间距 */
+@media (min-width: 721px) {
+  .statsRow {
+    gap: var(--space-3) 0;
+  }
+  .statItem:not(:first-child) {
+    border-left: 1px solid color-mix(in srgb, var(--ds-action) 18%, transparent);
+    padding-left: var(--space-7);
+  }
 }
 
-/* ---------- 响应式 ---------- */
-@media (max-width: 900px) {
+/* ≤720px:退 2x2,无竖线(靠 gap 呼吸) */
+@media (max-width: 720px) {
   .statsRow {
-    /* 4 items 退 2x2 */
     max-width: 480px;
   }
 }
 
+/* ≤480px:单列 */
 @media (max-width: 480px) {
   .statsRow {
-    /* 单列 */
     flex-direction: column;
     align-items: center;
   }

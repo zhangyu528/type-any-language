@@ -24,7 +24,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-5);
   text-align: center;
 }
 
@@ -49,16 +49,7 @@
   display: inline-block;
 }
 
-.titleArrow {
-  display: inline-block;
-  font-family: var(--font-mono), monospace;
-  color: var(--ds-action);
-  font-weight: 500;
-  font-size: 0.95em;
-  transition: transform var(--dur-base) var(--ease-out);
-}
-
-/* CTA:full-bleed 段内唯一视觉锚点,min-width 给小屏一个稳定尺寸 */
+/* CTA:收尾段内唯一视觉锚点,min-width 给小屏一个稳定尺寸 */
 .startBtn {
   min-width: 200px;
 }

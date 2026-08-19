@@ -211,10 +211,10 @@ export default function LandingPage({
         {/* SECTION 2: 词库选择 — 真实 VocabularyLib[] 卡(DecryptedText + SpecularButton) */}
         <LibStrip libs={libs} onPickLib={onPickLib} />
 
-        {/* SECTION 3: 数据 — 4 横排无装饰 AnimatedCounter */}
+        {/* SECTION 3: 数据 — 4 横排细竖线分隔(≥721px),数字进视口滚动计数 */}
         <DataBento libs={libs} />
 
-        {/* SECTION 4: 收尾 CTA bar — DecryptedText 标题 + 单金属 SpecularButton「开始读」 */}
+        {/* SECTION 4: 收尾 CTA — DecryptedText 标题 + 单金属 SpecularButton「开始读第一句 →」 */}
         <FinalCTA onStart={onStartGeneric} />
 
         <AnimatedContent distance={16} delay={0 / 1000} direction="vertical" className={styles.footerWrap}>

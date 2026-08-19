@@ -3,12 +3,12 @@
 /**
  * DataBento — SECTION 3 数据(2026-08 inline 范式)
  *
- * 4 数据点(产品口径):词库数 / 句数 / 上手时间 / 价格
+ * 4 数据点(产品口径):词库数 / 句数 / 上手时间 / 免费(注册免费)
  * 数据派生自 props.libs(后端 catalog)—— 不再硬编码营销数字。
  *
  * 2026-08 范式重设计:
  *   - 之前:4 cell 网格 + BlurText,跟 HowItWorks / LibStrip 同构(卡片矩阵)
- *   - 现在:inline stats row,1 行 4 个数据点(数字+小字标签) + · 分隔
+ *   - 现在:inline stats row,1 行 4 个数据点(数字+小字标签),≥721px 加细竖线分隔
  *   - 完全脱离"卡片"形态,跟前 3 个 section 形成视觉反差
  *   - 副标签放第二行(mono font,缩进对齐主数字),信息密度高
  *
@@ -54,7 +54,7 @@ export default function DataBento({ libs }: DataBentoProps) {
       <AnimatedContent distance={20} delay={0 / 1000} direction="vertical" className={styles.header}>
         <p className={styles.kicker}>SECTION 3 · 数据</p>
         <h2 id="data-bento-title" className={styles.title}>
-          看见上手成本有多低。
+          规模与门槛，一眼看清。
         </h2>
       </AnimatedContent>
 
@@ -85,6 +85,9 @@ export default function DataBento({ libs }: DataBentoProps) {
                       fontSize={48}
                       className={styles.value}
                     />
+                    {d.counterSuffix && (
+                      <span className={styles.suffix}>{d.counterSuffix}</span>
+                    )}
                     {d.unit && <span className={styles.unit}>{d.unit}</span>}
                   </>
                 )}

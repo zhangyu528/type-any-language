@@ -1,21 +1,22 @@
 'use client';
 
 /**
- * FinalCTA — SECTION 4 收尾 CTA(full-bleed 范式,2026-08 重设计)
+ * FinalCTA — SECTION 4 收尾 CTA(2026-08 重设计)
  *
- * 之前:glass bar(.bar 容器,backdrop-blur + border + shadow),本质是
- *      "另一种卡片",跟前面 4 个 section 的卡片形态同构。
- * 现在:full-bleed 段 — 整段 section 用全宽背景填充(类似 hero 的
- *      全屏开场),内容居中,**无 box 容器**,跟前面的卡片形态完全
- *      反差。视觉上"landing 起于 hero 开场,终于 FinalCTA 收尾",
- *      首尾对称。
+ * 设计:透明 bg 的普通 section(非 full-bleed),跟 hero 靠"背景透出"
+ *      对偶 —— landing 起于 hero(背景透出 + 中央内容),终于 FinalCTA
+ *      (同样背景透出 + 中央内容),中间 3 个 section 是 frosted 卡片。
+ *      不再有 .bar 玻璃容器(无 backdrop-blur / border / 多层 shadow),
+ *      避免跟前面 section 的卡片形态同构。
  *
- * 跟之前版本的差异:
- *   - 删 .bar 容器(不再有 backdrop-blur / border / 多层 shadow)
- *   - .root 取消 max-width,全宽背景填满 viewport
- *   - 背景用渐变(浅薄荷 → 奶白 / 深空蓝 → 暗夜)
+ * CTA 文案约定(Hero 同源):用"具体动词 + 名词" ——「开始读第一句 →」,
+ *   不用裸「开始」。箭头放在按钮内(Hero 同款),标题不放悬空箭头。
+ *
+ * 差异点 vs 之前:
+ *   - 删 .bar 容器
+ *   - .root 透明 bg,GradientWaves / Galaxy 透出
  *   - 内部 .contentWrap max-width 跟其他 section 一致
- *   - title 加大(28 → clamp 28-44),跟 hero 同一档视觉重量
+ *   - title 加大(clamp 28-44),跟 hero 同一档视觉重量
  */
 
 import { type ReactElement } from 'react';
@@ -39,7 +40,7 @@ export default function FinalCTA({ onStart }: FinalCTAProps): ReactElement {
         direction="vertical"
         className={styles.contentWrap}
       >
-<h2 id="final-cta-title" className={styles.title}>
+        <h2 id="final-cta-title" className={styles.title}>
           {reduce ? (
             <span className={styles.titleMain}>读完一句，就是你的</span>
           ) : (
@@ -53,9 +54,6 @@ export default function FinalCTA({ onStart }: FinalCTAProps): ReactElement {
               className={styles.titleMain}
             />
           )}
-          <span className={styles.titleArrow} aria-hidden="true">
-            →
-          </span>
         </h2>
 
         <SpecularButton
@@ -79,7 +77,7 @@ export default function FinalCTA({ onStart }: FinalCTAProps): ReactElement {
           proximity={300}
           className={styles.startBtn}
         >
-          开始
+          开始读第一句 →
         </SpecularButton>
 
         {/* 次级动作:不想立即开始的用户的第二个出口 —— 跳到
