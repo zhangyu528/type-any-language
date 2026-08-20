@@ -2,7 +2,7 @@
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: rgba(0, 0, 0, 0.4);
+  background: color-mix(in srgb, var(--ds-ink) 18%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   display: flex;
@@ -11,6 +11,13 @@
   padding: var(--space-4);
   animation: fadeIn 0.2s ease;
   overflow: auto;
+}
+
+[data-theme="dark"] .overlay {
+  /* dark 主题:用 --ds-bg 60% 替代 --ds-ink 25% 变体 —— --ds-ink dark 是浅色(#E8F4FC),
+     25% 加在 Galaxy 深底上变成"提亮"效果,失去 modal dim 语义。改用 --ds-bg dark #0A1E33 × 60%
+     罩在深底上 → 真的"压暗"页面让 modal 跳出来(light 主题维持 18% ink 不变)。 */
+  background: color-mix(in srgb, var(--ds-bg) 60%, transparent);
 }
 
 .dialog {

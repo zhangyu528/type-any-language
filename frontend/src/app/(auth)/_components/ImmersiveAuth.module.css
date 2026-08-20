@@ -211,14 +211,16 @@
      现恢复:用半透明的 surface(color-mix 85%)让背后模糊页面透出来,
      再叠 blur(28px) saturate(180%) —— 与 globals.css 的玻璃卡同款配方。
      仍保留 border + 阴影,可读性靠 85% 不透明白底保证。 */
-  background: color-mix(in srgb, var(--ds-surface) 85%, transparent);
+  /* 2026-08:从 85% → 92% — card 后面 overlay 25% 暗染色透过来,15% 透明显示成"灰雾",减到 8% 透出几乎看不见,card 看上去是干净白 */
+  background: color-mix(in srgb, var(--ds-surface) 92%, transparent);
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
   border: 1px solid var(--ds-border);
   border-radius: 28px;
+  /* 2026-08 改:从纯黑阴影改成 --ds-ink 蓝调阴影,light 下阴影跟 babyblue 主调一致,避免工业感硬黑阴影。透明度 18%→14% / 12%→8% 略减弱。 */
   box-shadow:
-    0 30px 60px -16px rgba(0, 0, 0, 0.18),
-    0 16px 32px -10px rgba(0, 0, 0, 0.12);
+    0 30px 60px -16px color-mix(in srgb, var(--ds-ink) 14%, transparent),
+    0 16px 32px -10px color-mix(in srgb, var(--ds-ink) 8%, transparent);
   overflow: hidden;
   /* v9.5: fill the .glow (TiltCard wrapper) so the white card
      area actually covers the full 444px. Without this, .card
@@ -377,7 +379,8 @@
 
 .error {
   font-size: 13px;
-  color: var(--ds-error);
+  /* 2026-08:从 --ds-error (#F0997B) 改成 #A8331A —— --ds-error 在 light 白卡上只有 2.20:1 (AA Normal fail),#A8331A 衬白底达 ~5:1 ✓ */
+  color: #A8331A;
   letter-spacing: 0.01em;
   text-align: center;
   animation: shake 0.32s var(--ease-out);
@@ -544,7 +547,8 @@
   letter-spacing: 0.02em;
 }
 .strengthLabel[data-level="1"] {
-  color: var(--ds-error);
+  /* 同 .error:light 白底 --ds-error 仅 2.20:1 fail,改 #A8331A */
+  color: #A8331A;
 }
 .strengthLabel[data-level="2"] {
   color: var(--ds-warning, #ef9f27);
@@ -794,7 +798,7 @@
 }
 
 /* 注册弹窗上下文条:从 landing 选词库注册时显示"注册后开始《X》"。
-   琥珀系(与 landing 单点转化色 --ds-cta 同调),弱填充 + 描边胶囊。 */
+   2026-08 改:light 主题从 --ds-cta 琥珀改 --ds-convert-deep 紫,跟 landing light 母题对齐;暗主题 [data-theme="dark"] 块覆盖保留琥珀。 */
 .libContext {
   display: inline-flex;
   align-items: center;
@@ -805,14 +809,27 @@
   font-size: 13px;
   font-weight: 600;
   line-height: 1.2;
-  color: var(--ds-cta-deep, #8a5a12);
-  background: color-mix(in srgb, var(--ds-cta, #EFA535) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ds-cta, #EFA535) 45%, transparent);
+  color: var(--ds-convert-deep, #6D28D9);
+  background: color-mix(in srgb, var(--ds-convert-deep, #6D28D9) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ds-convert-deep, #6D28D9) 45%, transparent);
 }
 .libContextDot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--ds-cta, #EFA535);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-cta, #EFA535) 22%, transparent);
+  background: var(--ds-convert-deep, #6D28D9);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-convert-deep, #6D28D9) 22%, transparent);
+}
+
+[data-theme="dark"] .libContext {
+  /* dark 下回琥珀 —— dashboard 暖色主转化,跟其它推荐语义统一
+     (libContext 在 dark 里不该用 --ds-convert-deep 紫,2026-08 上一轮
+     改时漏写 dark 覆盖块,补上) */
+  color: var(--ds-cta);
+  background: color-mix(in srgb, var(--ds-cta) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ds-cta) 45%, transparent);
+}
+[data-theme="dark"] .libContextDot {
+  background: var(--ds-cta);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-cta) 22%, transparent);
 }
