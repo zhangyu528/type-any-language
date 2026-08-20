@@ -232,21 +232,45 @@ export default function LandingPage({
         <AnimatedContent distance={16} delay={0 / 1000} direction="vertical" className={styles.footerWrap}>
           <footer className={styles.footer} aria-label="页脚">
             <div className={styles.footerBrand}>
-              <span className={styles.footerBrandName}>Type Any Language</span>
+              <a href="/" className={styles.footerBrandLink} aria-label="Type Any Language · 首页">
+                <svg
+                  className={styles.footerMark}
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  aria-hidden="true"
+                >
+                  <rect x="2" y="2" width="20" height="20" rx="6" fill="var(--ds-action-deep)" />
+                  <g fill="#fff">
+                    {[8, 12, 16].flatMap((cy) =>
+                      [8, 12, 16].map((cx) => (
+                        <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="1.5" />
+                      ))
+                    )}
+                  </g>
+                </svg>
+                <span className={styles.footerBrandName}>Type Any Language</span>
+              </a>
+              <p className={styles.footerTagline}>
+                语言学习者 · 每天读完一句,就是你的。
+              </p>
+            </div>
+
+            <div className={styles.footerCol}>
+              <span className={styles.footerColLabel}>探索</span>
               <ul className={styles.footerLinks}>
-                <li>
-                  <a href="mailto:hi@type-any-language.dev">联系</a>
-                </li>
+                <li><a href="#how-it-works">怎么用</a></li>
+                <li><a href="#lib-strip">词库</a></li>
+                <li><a href="#data-bento">数据</a></li>
               </ul>
             </div>
 
-            <div className={styles.footerMeta}>
-              <div className={styles.metaBlock}>
-                <span className={styles.metaLabel}>适用场景</span>
-                <p className={styles.metaText}>
-                  语言学习者 · 每天读完一句,就是你的。
-                </p>
-              </div>
+            <div className={styles.footerCol}>
+              <span className={styles.footerColLabel}>支持</span>
+              <ul className={styles.footerLinks}>
+                <li><a href="mailto:hi@type-any-language.dev">联系</a></li>
+                <li><a href="mailto:hi@type-any-language.dev?subject=反馈">反馈</a></li>
+              </ul>
             </div>
 
             <span className={styles.footerYear}>© 2026</span>

@@ -153,7 +153,9 @@
   font-weight: var(--weight-semibold, 600);
   letter-spacing: -0.025em;
   line-height: 1.18;
-  color: var(--ds-ink);
+  /* 文字色由 ShinyText 的 color / shineColor prop 决定(见 Hero.tsx)
+     —— ShinyText 用 WebkitTextFillColor: transparent + gradient 覆盖了
+     文字色,<h1> 上的 color 永远到不了用户眼前。 */
   /* 居中下 flex column 让 ShinyText 居中;align-self center
      防止 flex 父容器的 align-items: center 干扰。 */
   display: flex;

@@ -324,15 +324,16 @@ export default function AppHeader() {
               /* 主 CTA "注册":匿名访客看到的是转化漏斗最顶(创建账户)。
                  文案 "免费开始" 比 "注册 →" 更直接 —— 漏斗最顶用户没建立
                  "我要注册" 的意图,直接告诉"免费、开始"降低决策成本。
-                 颜色走品牌蓝(--ds-action / --ds-action-deep);注册提交
-                 弹窗的「继续」按钮(CurvedInput)同样走品牌蓝,保持一致。
+                 颜色对齐 Hero 主 CTA(品牌蓝浅 tint + 深蓝字,两主题达标):
+                 baseColor/lineColor 必须是字面 hex(进 ogl shader,var() 回落黑);
+                 textColor 深蓝 #0C2C53(浅蓝/亮蓝底上白字不达标)。
                  带 fromParam 让注册完成后回到用户原来想去的页面。 */
               onClick={() => openAuthModal('signup', { from: fromParam })}
-              tint="var(--ds-action)"
-              tintOpacity={0.5}
-              baseColor="var(--ds-action-deep)"
-              lineColor="var(--white)"
-              textColor="var(--white)"
+              tint="var(--ds-action-tint)"
+              tintOpacity={1}
+              baseColor="#5BA8D8"
+              lineColor="#FFFFFF"
+              textColor="#0C2C53"
               blur={3}
               intensity={0.7}
               followMouse

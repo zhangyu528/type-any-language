@@ -21,6 +21,7 @@
 
 import { useReducedMotion } from 'motion/react';
 import LazySpecularButton from '@/components/LazySpecularButton';
+import { useTheme } from '../components/ThemeProvider';
 import DecryptedText from '@/components/DecryptedText';
 import BorderGlow from '@/components/BorderGlow';
 import AnimatedContent from '@/components/AnimatedContent';
@@ -38,6 +39,14 @@ interface LibStripProps {
 
 export default function LibStrip({ libs, onPickLib }: LibStripProps) {
   const reduce = useReducedMotion();
+  const { theme } = useTheme();
+  // featured 卡按钮 fill:亮=深紫,暗=琥珀(同 FinalCTA 主转化色,
+  // 亮主题从琥珀改紫后,白字对比度 3.72:1 → 8.08:1)。
+  const featuredFill = theme === 'dark' ? 'var(--ds-cta)' : 'var(--ds-convert-deep)';
+  // featured rim:比 fill 再深一档 —— 跟 FinalCTA 同步真阴影环。
+  const featuredRim = theme === 'dark' ? '#854F0B' : '#4C1D95';
+  // featured 按钮字色:暗=深咖 #412402(亮琥珀底上白字不达标),亮=白字(深紫底达标)
+  const featuredText = theme === 'dark' ? '#412402' : '#FFFFFF';
 
   return (
     <section id="lib-strip" className={styles.root} aria-labelledby="lib-strip-title">
@@ -100,17 +109,20 @@ export default function LibStrip({ libs, onPickLib }: LibStripProps) {
                       placeholder={<span className={styles.libBtn} aria-hidden="true" />}
                       size="sm"
                       onClick={() => onPickLib(lib.id)}
-                      /* CTA:featured 琥珀(--ds-cta),非 featured 冷蓝(--ds-action-tint)。
+                      /* CTA(2026-08 改):
+                         featured 卡:亮=深紫 --ds-convert-deep,暗=琥珀 --ds-cta;
+                         非 featured:冷蓝 --ds-action-tint 不变。
                          baseColor / lineColor / textColor 必须是字面 hex ——
                          SpecularButton 把它们喂给 ogl WebGL shader,shader
-                         不解析 var()。#EFA535 = --ds-cta 琥珀 rim 基色;
-                         #5BA8D8 = --ds-action 与 --ds-action-deep 之间的中间蓝
-                         作为冷蓝 rim 基色;白 shine 通用,字色根据底色深浅切换。 */
-                      tint={isFeatured ? 'var(--ds-cta)' : 'var(--ds-action-tint)'}
+                         不解析 var()。rim 走"比 fill 深一档":
+                           featured 亮 #4C1D95 / 暗 #854F0B
+                           非 featured #5BA8D8(冷蓝 rim 基色,不动)
+                         白 shine 通用,字色按底色深浅切:featured 白字,冷蓝底深蓝字。 */
+                      tint={isFeatured ? featuredFill : 'var(--ds-action-tint)'}
                       tintOpacity={0.95}
-                      baseColor={isFeatured ? '#EFA535' : '#5BA8D8'}
+                      baseColor={isFeatured ? featuredRim : '#5BA8D8'}
                       lineColor="#FFFFFF"
-                      textColor={isFeatured ? '#FFFFFF' : '#0C2C53'}
+                      textColor={isFeatured ? featuredText : '#0C2C53'}
                       blur={isFeatured ? 6 : 4}
                       followMouse
                       proximity={220}

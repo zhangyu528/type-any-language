@@ -294,13 +294,13 @@
   background-color: rgba(143, 203, 240, 0.18);
 }
 .menuItemPrimary {
-  background: var(--ds-action);
-  color: var(--ds-on-action);
+  background: var(--ds-action-tint);
+  color: #0C2C53;
   font-weight: 600;
   margin-top: 4px;
 }
 .menuItemPrimary:hover {
-  background: var(--ds-action-deep);
+  background: color-mix(in srgb, var(--ds-action-tint) 82%, var(--ds-action-deep));
 }
 
 /* Desktop 默认不显示 hamburger / menu */

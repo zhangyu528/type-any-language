@@ -86,7 +86,20 @@ export default function Hero({ libs, onStartGeneric }: HeroProps) {
         className={styles.titleBlock}
       >
         <h1 className={styles.title}>
-          <ShinyText text={HERO_TITLE} speed={4} delay={0.5} />
+          <ShinyText
+          text={HERO_TITLE}
+          speed={4}
+          delay={0.5}
+          /* 主题色从 --shiny-base/--shiny-shine 读,避免 hardcoded
+             #b5b5b5/#ffffff 在 light theme 浅底上对比度只有 1.92:1 的问题。
+             ShinyText 内部用 WebkitTextFillColor: transparent + gradient,
+             <h1> 上的 color: var(--ds-ink) 不会被应用,
+             所以必须把主题色直接喂给 ShinyText。
+             亮底 -> --shiny-base=#0C447C / --shiny-shine=#5BB3F0 (9.20:1)
+             暗底 -> --shiny-base=#E8F4FC / --shiny-shine=#1F3A5F (15:1) */
+          color="var(--shiny-base)"
+          shineColor="var(--shiny-shine)"
+        />
         </h1>
         <p className={styles.subtitle}>{HERO_SUBTITLE}</p>
       </AnimatedContent>

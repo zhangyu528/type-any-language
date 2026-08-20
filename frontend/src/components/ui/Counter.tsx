@@ -124,7 +124,12 @@ export default function Counter({
   counterStyle,
   digitStyle,
   gradientHeight = 16,
-  gradientFrom = 'black',
+  /* mask 颜色跟所在 section 背景同色,让 fade-out 看起来"无缝消失"
+    而不是黑色描边。原来默认 'black' 在 light 下所有 Counter 都显得
+    "数字上下贴黑边",2026-08 改成 var(--ds-bg) 主题感知后全站 5处
+    Counter 同步生效(landing DataBento / dashboard 三处 / me/StatsTab)。
+    需要不同底色(如放在 card 上)时 caller 显式传 gradientFrom 即可。 */
+  gradientFrom = 'var(--ds-bg)',
   gradientTo = 'transparent',
   topGradientStyle,
   bottomGradientStyle

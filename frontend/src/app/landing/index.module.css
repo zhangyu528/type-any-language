@@ -26,9 +26,14 @@
 
 /* ---------- 背景层(性能优化)----------
    - .landingBg      永远挂载。
-       · light theme:纯 CSS「极光 wash」—— 婴儿蓝/软珊瑚/淡紫三团低透明度
+       · light theme:纯 CSS「极光 wash」—— 婴儿蓝 单色调低透明度
          光斑缓慢漂移(color-mix 朝 --ds-bg 调淡,浅底不抢文字),0 JS、不进
          首屏 chunk;reduced-motion 下静止。
+         (2026-08 决定:背景层只用 --ds-action 一个色 token,跟
+         --ds-bg #F2F8FE 同色系 → 视觉上单色调,层次靠位置/透明度差
+         而不是色相差。紫/琥珀只用在按钮 / 卡边 / 徽章等前景层,
+         不进背景 —— 之前两次尝试加紫 wash(--ds-convert) 都跟
+         「单色背景」原则冲突,撤回。) 
        · dark theme:透明层,由 Galaxy WebGL 承担背景。
    - .landingBgGalaxy 只在 dark + reduced-motion=off + viewport 可见 +
      ≥ 720px 时挂载,IntersectionObserver 控制 mount/unmount。Galaxy
@@ -46,7 +51,8 @@
   background-color: transparent;
 }
 
-/* 极光 wash(仅 light theme):三团品牌色光斑缓慢漂移。
+/* 极光 wash(仅 light theme):婴儿蓝单色调 wash,两团不同位置
+   透明度差产生层次。
    - 用 .landingBg 的 ::before / ::after 两个模糊大色块承载,transform 动画
      走合成层(GPU 友好),不重排;color-mix 朝 --ds-bg 调淡保证浅底可读。
    - 暗主题由 Galaxy WebGL 负责,这里用 :not([data-theme="dark"]) 排除,
@@ -64,7 +70,7 @@
 :root:not([data-theme="dark"]) [data-babyblue] .landingBg::before {
   background:
     radial-gradient(38% 38% at 26% 30%, color-mix(in srgb, var(--ds-action) 55%, transparent) 0%, transparent 70%),
-    radial-gradient(32% 32% at 72% 22%, color-mix(in srgb, var(--ds-convert) 40%, transparent) 0%, transparent 70%);
+    radial-gradient(32% 32% at 72% 22%, color-mix(in srgb, var(--ds-action) 40%, transparent) 0%, transparent 70%);
   filter: blur(72px);
   opacity: 0.8;
   animation: landing-aurora-a 24s ease-in-out infinite alternate;
@@ -72,7 +78,7 @@
 
 :root:not([data-theme="dark"]) [data-babyblue] .landingBg::after {
   background:
-    radial-gradient(42% 42% at 74% 74%, color-mix(in srgb, var(--ds-cta) 36%, transparent) 0%, transparent 70%),
+    radial-gradient(42% 42% at 74% 74%, color-mix(in srgb, var(--ds-action) 36%, transparent) 0%, transparent 70%),
     radial-gradient(30% 30% at 18% 82%, color-mix(in srgb, var(--ds-action) 45%, transparent) 0%, transparent 70%);
   filter: blur(84px);
   opacity: 0.72;
@@ -134,7 +140,7 @@
   padding: var(--space-6) var(--space-5);
   border-top: 1px solid var(--ds-border);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--space-6);
   color: var(--ds-ink-soft);
   font-size: var(--text-caption);
@@ -144,21 +150,58 @@
 .footerBrand {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-3);
+}
+
+.footerBrandLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ds-ink);
+  text-decoration: none;
+}
+
+.footerMark {
+  flex: none;
 }
 
 .footerBrandName {
   color: var(--ds-ink);
   font-weight: 500;
-  font-family: var(--font-display), serif;
+  font-family: var(--font-sans);
   font-size: var(--text-body);
-  letter-spacing: -0.005em;
+  letter-spacing: -0.015em;
+}
+
+.footerTagline {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  color: var(--ds-ink-soft);
+  line-height: 1.55;
+}
+
+.footerCol {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.footerColLabel {
+  font-family: var(--font-mono), monospace;
+  font-size: var(--text-caption);
+  letter-spacing: 0.08em;
+  color: var(--ds-ink-faint);
+  text-transform: uppercase;
 }
 
 .footerLinks {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
   list-style: none;
   padding: 0;
   margin: 0;
@@ -180,43 +223,16 @@
   color: var(--ds-action-deep);
 }
 
-/* 适用场景一个段落 — footer 不再重复展示"转化路径",
-   那条 4 步路径已在 HowItWorks 出现过。 */
-.footerMeta {
-  grid-column: 2 / 4;
-}
-
-.metaBlock {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.metaLabel {
-  font-family: var(--font-mono), monospace;
-  font-size: var(--text-caption);
-  letter-spacing: 0.08em;
-  color: var(--ds-ink-faint);
-  text-transform: uppercase;
-}
-
-.metaText {
-  margin: 0;
-  font-family: var(--font-sans);
-  font-size: var(--text-caption);
-  color: var(--ds-ink-soft);
-  line-height: 1.55;
-}
-
 .footerYear {
+  grid-column: 1 / -1;
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--ds-border);
   font-family: var(--font-mono), monospace;
   font-size: var(--text-caption);
   letter-spacing: 0.04em;
   color: var(--ds-ink-faint);
   opacity: 0.7;
-  text-align: right;
-  align-self: end;
 }
 
 /* ---------- 响应式 ---------- */
@@ -224,12 +240,6 @@
 @media (max-width: 900px) {
   .footer {
     grid-template-columns: 1fr;
-  }
-  .footerMeta {
-    grid-column: 1;
-    grid-template-columns: 1fr;
-  }
-  .footerYear {
-    text-align: left;
+    gap: var(--space-5);
   }
 }
