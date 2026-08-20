@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, type ReactElement } from 'react';
 import dynamic from 'next/dynamic';
 import { useReducedMotion } from 'motion/react';
 import { VocabularyLib, TranslationProgress } from '../api';
@@ -38,7 +38,9 @@ const LANDING_ROUTE_VALUE = 'landing';
  *
  * 都进 CSS fallback(.landingBg)当:
  *   - reduced-motion 系统偏好打开
- *   - 视口不可见(IntersectionObserver,长 landing 页节省 GPU)
+ *   - (无 — bg 在路由生命周期内常驻,2026-08 移除 IO unmount 修复
+ *     resize 时 bg 消失的 bug;若要省 GPU,dark Galaxy 后续可单独按
+ *     hero 观察再优化)
  *   - 屏幕 < 720px(WebGL 在小屏性价比差且费电)
  *
  * 详见 useLandingBackground hook 的 gating matrix。
@@ -92,20 +94,23 @@ interface LandingPageProps {
 }
 
 /**
- * Decide whether to mount the heavy Galaxy WebGL canvas, and unmount
- * it when the hero scrolls out of view (saves GPU on long landing
- * pages with several sections). Returns:
- *   - `null`         → render the CSS fallback only
- *   - Galaxy tuning  → render <Galaxy /> (mounted = true means it's
- *                       currently in viewport, so safe to draw)
+ * Decide what background to mount for the current theme. Returns:
+ *   - `null`         → render the CSS fallback only (reduced-motion)
+ *   - Galaxy tuning  → render <Galaxy />  (dark theme)
+ *   - DotField tuning → render <DotField /> (light theme, Canvas 2D)
  *
- * Gating matrix:
- *   theme   │ reducedMotion │ viewport   │ mount?
- *   ─────────┼───────────────┼────────────┼─────────
- *   light   │ any           │ any        │ no  (CSS only)
- *   dark    │ yes           │ any        │ no  (CSS only)
- *   dark    │ no            │ not visible│ no  (lazy)
- *   dark    │ no            │ visible    │ yes (WebGL)
+ * 2026-08 简化:不再做 IO unmount,bg 在 LandingPage 路由生命周期内
+ * 常驻 —— 之前 IO 观察整个 [data-landing-root] + resize 触发 reflow
+ * 重算 intersection 导致 mounted 翻 false → bg 消失(用户报告
+ * "resize 时 bg 没了")。light DotField (Canvas 2D) 不需要 GPU 节省,
+ * dark Galaxy 跟随保留(真要省 GPU 可后续单独按 [hero] 优化)。
+ *
+ * Gating matrix (simplified):
+ *   theme │ reducedMotion │ mount?
+ *   ──────┼───────────────┼───────
+ *   any   │ yes           │ no   (CSS only)
+ *   light │ no            │ yes  (DotField, Canvas 2D)
+ *   dark  │ no            │ yes  (Galaxy, WebGL)
  *
  * Plus a coarse small-screen gate (`< 720px`) — phones get the CSS
  * background regardless, since WebGL is overkill for a 360px-wide
@@ -113,41 +118,23 @@ interface LandingPageProps {
  */
 function useLandingBackground(theme: 'light' | 'dark'): null | LandingBgTuning {
   const reduce = useReducedMotion();
-  const [mounted, setMounted] = useState(true);
-  const rootRef = useRef<HTMLElement | null>(null);
 
-  // Find the landing root once; IntersectionObserver watches it.
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const el = document.querySelector(`[data-landing-root]`) as HTMLElement | null;
-    if (!el) return;
-    rootRef.current = el;
-    setMounted(true); // assume visible on first paint
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        setMounted(entry.isIntersecting);
-      },
-      { rootMargin: '120px 0px' },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
+  /* 2026-08 改:不再用 IntersectionObserver unmount。
+     - light 用 Canvas 2D DotField,unmount 省不出多少 GPU,反而在
+       resize 时因为 IO 观察整个 [data-landing-root] 重算 intersection
+       把 mounted 翻成 false → DotField 整个消失 → "bg 没了"
+     - dark Galaxy (WebGL) 理论上省 GPU 有意义,但 resize 同问题 +
+       hook 删干净逻辑更直接;真要省可以后续按 [hero] 观察,目前
+       不优化
+     现在 bg 在 LandingPage 路由上常驻,靠 React unmount 整组件离开
+     时才卸载。 */
 
-  // WebGL gating matrix:
-  //   - prefers-reduced-motion: on  → null (system opt-out)
-  //   - hero out of viewport       → null (lazy; long landing saves GPU)
-  //   - everything else             → mount WebGL on all viewports
-  //
-  // The old `max-width: 720px` gate is gone: viewport width is a poor
-  // proxy for GPU horsepower, and modern phones render WebGL 2 fine.
-  // Devices that truly can't handle it fall back to the browser's
-  // built-in CSS path automatically.
   if (reduce) return null;
-  if (!mounted) return null;
   if (theme === 'dark') {
     return { kind: 'galaxy', ...GALAXY_BY_THEME.dark };
   }
-  /* light → GradientWaves,3 色按 sky / water / foam 语义对接调色板 */
+  /* light → Canvas 2D DotField dot grid + hover bulge(全页 hover
+     跟手,与之前修过的 scroll offset 修复一起保留) */
   return { kind: 'dotfield', ...DOTFIELD_BY_THEME.light };
 }
 
