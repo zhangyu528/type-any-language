@@ -3,11 +3,14 @@
 /**
  * ThemeProvider — 全站 light/dark 切换(默认 dark)
  *
- * 2026-08 改:DEFAULT_THEME 改为 dark,AppHeader 移除 ThemeToggle 按钮
- * (主题切换从全局 nav 入口降到 /me/settings 偏好项)。
- * localStorage 持久化逻辑保留,用户切回 light 后刷新页面仍生效。
- *
- * 之前的工作方式(参考):
+ * 2026-08 状态(注释修正,代码同步):
+ *   - DEFAULT_THEME = dark(landing 优先 Galaxy + 深空蓝渐变)
+ *   - 主题切换分两层:
+ *     · desktop AppHeader nav 上的 sun/moon icon(匿名可见,快切)
+ *     · /me/settings 完整 selector(登录用户偏好入口)
+ *   - mobile hamburger menu 不再放主题项(2026-08 删,跟 desktop +
+ *     /me/settings 重复,挤占转化 CTA"免费开始"位置)
+ *   - localStorage 持久化保留,用户切回 light 后刷新页面仍生效。
  *
  * 工作方式:
  *   - 在 <html> 上写 `data-theme="light" | "dark"`,ds/themes.css 用
@@ -22,8 +25,11 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 export type Theme = 'light' | 'dark';
 
 const STORAGE_KEY = 'landing.theme';
-const DEFAULT_THEME: Theme = 'dark'; /* 2026-08 改:AppHeader 去掉 ThemeToggle,landing 默认走 dark
-   (Galaxy + 深空蓝渐变 + 星空主题)。用户可在 /me/settings 手动切回 light。 */
+/* landing 默认 dark(Galaxy + 深空蓝渐变 + 星空主题),
+   2026-08 把 landing 调到 light 下的紫/单色调风格后,desktop nav
+   保留 sun/moon icon 让匿名访客一键切回 dark;登录用户也可用
+   /me/settings 的完整 selector 切换。 */
+const DEFAULT_THEME: Theme = 'dark';
 
 function readStoredTheme(): Theme {
   if (typeof window === 'undefined') return DEFAULT_THEME;

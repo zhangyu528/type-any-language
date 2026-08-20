@@ -251,14 +251,6 @@ export default function AppHeader() {
                 </button>
                 <button
                   type="button"
-                  className={styles.menuItem}
-                  role="menuitem"
-                  onClick={toggleTheme}
-                >
-                  {theme === 'light' ? '深色主题' : '浅色主题'}
-                </button>
-                <button
-                  type="button"
                   className={styles.menuItemPrimary}
                   role="menuitem"
                   onClick={() => {
@@ -295,16 +287,11 @@ export default function AppHeader() {
           </>
         ) : (
           <>
-            <button
-              type="button"
-              className={styles.loginBtn}
-              onClick={() => openAuthModal('login', { from: fromParam })}
-              aria-label="登录"
-            >
-              登录
-            </button>
             {/* 主题切换:landing 用户能立即切,不用去 /me/settings。
-                sun/moon icon (lucide-react),无障碍 label 跟图标语义对齐。 */}
+                sun/moon icon (lucide-react),无障碍 label 跟图标语义对齐。
+                (2026-08 改位置:从登录右边挪到最左 —— utility / 偏好
+                跟 auth 概念上分离,左→右阅读 utility → 次级 auth →
+                主转化 CTA,匿名访客首眼可见) */}
             <button
               type="button"
               className={styles.themeToggle}
@@ -313,6 +300,14 @@ export default function AppHeader() {
               title={theme === 'light' ? '切换到深色主题' : '切换到浅色主题'}
             >
               {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+            </button>
+            <button
+              type="button"
+              className={styles.loginBtn}
+              onClick={() => openAuthModal('login', { from: fromParam })}
+              aria-label="登录"
+            >
+              登录
             </button>
             <LazySpecularButton
               placeholder={

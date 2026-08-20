@@ -300,6 +300,9 @@
   background: color-mix(in srgb, var(--ds-action) 14%, transparent);
   border-radius: 999px;
   color: var(--ds-action-deep);
+  /* 之前漏了 padding,文字直接贴胶囊边缘(对比 .libLevel 同样
+     婴儿蓝 tint 胶囊却 padding 2px 8px)—— 补上对齐 */
+  padding: 2px 8px;
 }
 
 /* ---------- mock progress bar ---------- */
