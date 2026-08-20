@@ -245,6 +245,20 @@ const DotField = memo(({
       rafRef.current = requestAnimationFrame(tick);
     }
 
+    /* offset 实时同步 —— 之前只在 doResize (resize 时)更新,
+       scroll 后变 stale:fixed 容器 rect.top 始终 0 但 scrollY 在变,
+       offsetY 锁在 mount 时的 0 → bulge 跟着 scroll 漂走(light 下
+       滚过 hero 后 bulge 掉 viewport 底,看起来"hover 失效")。
+       现在 scroll 每次触发 updateOffset 重算 offsetX/Y (rect.left +
+       window.scrollX 在 fixed / absolute / relative 容器下都对),
+       滚动只赋两个数字无 debounce 必要。 */
+    function updateOffset() {
+      const rect = canvas!.parentElement!.getBoundingClientRect();
+      sizeRef.current.offsetX = rect.left + window.scrollX;
+      sizeRef.current.offsetY = rect.top + window.scrollY;
+    }
+    window.addEventListener('scroll', updateOffset, { passive: true });
+
     doResize();
     window.addEventListener('resize', resize);
     window.addEventListener('mousemove', onMouseMove, { passive: true });
@@ -261,6 +275,7 @@ const DotField = memo(({
       clearTimeout(resizeTimer);
       window.removeEventListener('resize', resize);
       window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('scroll', updateOffset);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
