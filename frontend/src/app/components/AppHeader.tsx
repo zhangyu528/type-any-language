@@ -37,13 +37,18 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import LazySpecularButton from '@/components/LazySpecularButton';
 import { usePathname, useRouter } from 'next/navigation';
 import { Sun, Moon } from 'lucide-react';
-import SpecularButton from '@/components/SpecularButton';
 import { useAuth } from '../lib/auth';
 import { useAuthModal } from '../lib/authModal';
 import { useTheme } from './ThemeProvider';
 import styles from './AppHeader.module.css';
+
+/* The header CTA (注册) wraps an `ogl` WebGL shader. Lazy-load it via
+   LazySpecularButton so `ogl` stays out of the landing's first-paint
+   chunk. The placeholder reuses the login button's class to hold the same
+   box, then fades into the shiny CTA once it mounts. */
 
 /* 滚出 隐藏 阈值 (px):用户向下滚动超过这个距离,header 渐隐。
    60px = 滚过 hero 区一小段就藏,灵敏 (之前 120px 滚 2 屏才藏,阅读时被 nav 干扰)。 */
@@ -309,7 +314,12 @@ export default function AppHeader() {
             >
               {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
             </button>
-            <SpecularButton
+            <LazySpecularButton
+              placeholder={
+                <button type="button" className={styles.loginBtn} aria-hidden="true" tabIndex={-1}>
+                  免费开始
+                </button>
+              }
               size="sm"
               /* 主 CTA "注册":匿名访客看到的是转化漏斗最顶(创建账户)。
                  文案 "免费开始" 比 "注册 →" 更直接 —— 漏斗最顶用户没建立
@@ -330,7 +340,7 @@ export default function AppHeader() {
               aria-label="注册"
             >
               免费开始
-            </SpecularButton>
+            </LazySpecularButton>
           </>
         )}
       </nav>

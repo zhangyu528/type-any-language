@@ -32,9 +32,9 @@ import { useEffect, useRef, useState } from 'react';
 import { VocabularyLib, TranslationProgress } from '../api';
 import { useAuth } from '../lib/auth';
 import ShinyText from '@/components/ShinyText';
-import SpecularButton from '@/components/SpecularButton';
 import AnimatedContent from '@/components/AnimatedContent';
 import TypefallDemo from './TypefallDemo';
+import LazySpecularButton from '@/components/LazySpecularButton';
 import styles from './Hero.module.css';
 
 interface HeroProps {
@@ -142,7 +142,8 @@ export default function Hero({ libs, onStartGeneric }: HeroProps) {
         direction="vertical"
         className={styles.heroBottomCta}
       >
-        <SpecularButton
+        <LazySpecularButton
+          placeholder={<span className={styles.bottomCtaBtn} aria-hidden="true" />}
           size="lg"
           onClick={handleStart}
           disabled={!canStart}
@@ -165,7 +166,7 @@ export default function Hero({ libs, onStartGeneric }: HeroProps) {
           aria-label={startLabel}
         >
           {startLabel} →
-        </SpecularButton>
+        </LazySpecularButton>
       </AnimatedContent>
     </section>
   );

@@ -51,7 +51,18 @@ const DotField = memo(({
   const svgRef = useRef<SVGSVGElement>(null);
   const glowRef = useRef<SVGCircleElement>(null);
   const dotsRef = useRef<Dot[]>([]);
-  const mouseRef = useRef({ x: -9999, y: -9999, prevX: -9999, prevY: -9999, speed: 0 });
+  // mouseRef 初始 -9999 是为了"鼠标没在画面里"时 bulge 看不见;
+  // 但 mount 后用户第一次移动鼠标之前这个 -9999 仍然存在,
+  // bulge 仍在 (-9999, -9999) 看不到。修法:lazy init (第 1 次挂载时)
+  // 立即把 mouseRef 设到 viewport 中心,这样 mount 后 bulge 立刻出现在中央,
+  // 用户第一次移动时 mousemove 直接覆盖为真实位置。
+  const mouseRef = useRef({
+    x: typeof window === 'undefined' ? 0 : window.innerWidth / 2,
+    y: typeof window === 'undefined' ? 0 : window.innerHeight / 2,
+    prevX: 0,
+    prevY: 0,
+    speed: 0,
+  });
   const rafRef = useRef<number | null>(null);
   const sizeRef = useRef({ w: 0, h: 0, offsetX: 0, offsetY: 0 });
   const glowOpacity = useRef(0);

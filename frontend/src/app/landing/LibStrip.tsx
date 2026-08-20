@@ -20,13 +20,17 @@
  */
 
 import { useReducedMotion } from 'motion/react';
+import LazySpecularButton from '@/components/LazySpecularButton';
 import DecryptedText from '@/components/DecryptedText';
-import SpecularButton from '@/components/SpecularButton';
 import BorderGlow from '@/components/BorderGlow';
 import AnimatedContent from '@/components/AnimatedContent';
 import { VocabularyLib } from '../api';
 import styles from './LibStrip.module.css';
 
+/* SpecularButton wraps an `ogl` WebGL shader; this section is below the
+   fold, so lazy-load it via LazySpecularButton to keep `ogl` out of the
+   first-paint chunk. The placeholder holds the CTA's box via the same
+   className, then fades in once the shiny button mounts. */
 interface LibStripProps {
   libs: VocabularyLib[];
   onPickLib: (libId: string) => void;
@@ -92,7 +96,8 @@ export default function LibStrip({ libs, onPickLib }: LibStripProps) {
                       {lib.word_count.toLocaleString()} 词 · {lib.sentence_count.toLocaleString()} 句
                     </p>
                     {lib.description ? <p className={styles.libLevelLabel}>{lib.description}</p> : null}
-                        <SpecularButton
+                        <LazySpecularButton
+                      placeholder={<span className={styles.libBtn} aria-hidden="true" />}
                       size="sm"
                       onClick={() => onPickLib(lib.id)}
                       /* CTA:featured 琥珀(--ds-cta),非 featured 冷蓝(--ds-action-tint)。
@@ -112,7 +117,7 @@ export default function LibStrip({ libs, onPickLib }: LibStripProps) {
                       className={styles.libBtn}
                     >
                       开始读 →
-                    </SpecularButton>
+                    </LazySpecularButton>
                   </div>
                 </div>
               </BorderGlow>

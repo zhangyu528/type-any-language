@@ -1,0 +1,14 @@
+.fadeIn {
+  animation: specularFadeIn 320ms ease-out both;
+}
+
+@keyframes specularFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fadeIn {
+    animation: none;
+  }
+}

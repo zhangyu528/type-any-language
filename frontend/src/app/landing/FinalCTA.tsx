@@ -21,9 +21,9 @@
 
 import { type ReactElement } from 'react';
 import DecryptedText from '@/components/DecryptedText';
-import SpecularButton from '@/components/SpecularButton';
 import AnimatedContent from '@/components/AnimatedContent';
 import { useReducedMotion } from 'motion/react';
+import LazySpecularButton from '@/components/LazySpecularButton';
 import styles from './FinalCTA.module.css';
 
 interface FinalCTAProps {
@@ -56,7 +56,8 @@ export default function FinalCTA({ onStart }: FinalCTAProps): ReactElement {
           )}
         </h2>
 
-        <SpecularButton
+        <LazySpecularButton
+          placeholder={<span className={styles.startBtn} aria-hidden="true" />}
           type="button"
           size="lg"
           onClick={onStart}
@@ -78,7 +79,7 @@ export default function FinalCTA({ onStart }: FinalCTAProps): ReactElement {
           className={styles.startBtn}
         >
           开始读第一句 →
-        </SpecularButton>
+        </LazySpecularButton>
 
         {/* 次级动作:不想立即开始的用户的第二个出口 —— 跳到
            #lib-strip 看完整词库选择。mono + 婴儿蓝,弱化但不淹没。 */}

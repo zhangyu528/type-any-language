@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactElement } from 'react';
+import dynamic from 'next/dynamic';
 import { useReducedMotion } from 'motion/react';
 import { VocabularyLib, TranslationProgress } from '../api';
-import Galaxy from '@/components/Galaxy';
-import GradientWaves from '@/components/GradientWaves';
 import { useTheme } from '../components/ThemeProvider';
 import Hero from './Hero';
 import HowItWorks from './HowItWorks';
@@ -13,6 +12,14 @@ import DataBento from './DataBento';
 import FinalCTA from './FinalCTA';
 import AnimatedContent from '@/components/AnimatedContent';
 import styles from './index.module.css';
+
+/* WebGL backgrounds are decorative — a CSS fallback (.landingBg)
+   always renders behind them, and only ONE mounts per theme (dark→Galaxy,
+   light→GradientWaves). Lazy-load both so `ogl` + the ~760 lines of shader
+   code stay out of the landing's first-paint chunk. The CSS fallback covers
+   the brief load, so no placeholder component is needed. */
+const Galaxy = dynamic(() => import('@/components/Galaxy'), { ssr: false });
+const DotField = dynamic(() => import('@/components/DotField'), { ssr: false });
 
 /* Landing 路由专属:html 标 data-route="landing" 让 globals.css 把 body bg
    设为 transparent,GradientWaves / Galaxy 的 transparent canvas 区域不再被
@@ -40,24 +47,40 @@ const GALAXY_BY_THEME = {
   dark: { density: 1.2, hueShift: 210, speed: 0.5, glowIntensity: 0.5 },
 };
 
-/* Light theme GradientWaves 配置 —— 3 色按"sky / water / wave foam"语义拆分,
-   全部硬对接 babyblue + coral 调色板 */
-const GRADIENT_WAVES_BY_THEME = {
+/* Light theme DotField 配置 —— Canvas 2D 点阵 + hover bulge 互动,
+   不用 WebGL (跟 Galaxy 的 ogl 解耦),Canvas 2D 在 light 主题 + 长时间
+   动画时性能更稳。
+   **配色层级**(从浅到深 → 视觉权重):
+     - Hero bg:        --ds-bg           #F2F8FE    ← 浅 babyblue (基础底)
+     - DotField bg:    gradient #5DA9D8 → #2F80C0  ← 中等 babyblue (点阵层)
+     - DotField glow:  rgba(143,203,240,0.5)       ← ds-action 主蓝 (hover 高亮)
+   DotField 用 gradient 当画布底色,所有点 fill = gradient,所以点
+   颜色 = bg 颜色。比起 hero bg (#F2F8FE) 深 2-3 档,视觉"点阵浮在
+   bg 之上"明显。鼠标 hover 时 bulge 偏亮 + glow 偏主蓝,跟 hero 文字
+   层级清晰 (dot < 文字 < 主 CTA)。
+   bulgeStrength 偏弱 (30) 不抢 hero 焦点,但 cursorRadius 220 让
+   影响范围足够大,鼠标移动时 bulge 跟手明确。 */
+const DOTFIELD_BY_THEME = {
   light: {
-    horizonColor: '#CDEBFB',   /* 天空 —— 浅婴儿蓝(--ds-action-tint) */
-    waveColor:    '#8FCBF0',   /* 水波 —— 婴儿蓝主调(--ds-action) */
-    crestColor:    '#F4A6B0',   /* 浪尖 —— 软珊瑚高光(--ds-cta) */
-    /* tilt 默认 1.11 波浪视角偏俯视,改 0.6 让波浪更"侧" ——
-       模拟从远处看水面的扁平感,不抢 hero 焦点 */
-    tilt: 0.6,
-    speed: 0.3,              /* 慢速波浪,跟 hero 慢节奏打字对齐 */
-    amplitude: 1.2,          /* 波幅压低 —— 默认 2.5 太"汹涌" */
-    opacity: 0.7,            /* 整体不透明度,波浪形视觉重量 > 极光色带,必须压 */
-    grain: false,            /* 关掉 grain,light 主题下噪点太重 */
-    mouseInteraction: false, /* 关闭鼠标交互,跟 Galaxy 一致 */
+    gradientFrom: '#5DA9D8',
+    gradientTo: '#2F80C0',
+    dotRadius: 1.8,
+    dotSpacing: 18,
+    cursorRadius: 220,
+    cursorForce: 0.15,
+    bulgeStrength: 30,
+    glowRadius: 60,
+    glowColor: 'transparent',
+    sparkle: true,
   },
 };
 
+type LandingBgTuning =
+  | { kind: 'galaxy'; density: number; hueShift: number; speed: number; glowIntensity: number }
+  | { kind: 'dotfield'; gradientFrom: string; gradientTo: string;
+      dotRadius: number; dotSpacing: number; cursorRadius: number;
+      cursorForce: number; bulgeStrength: number; glowRadius: number;
+      glowColor: string; sparkle: boolean };
 
 interface LandingPageProps {
   libs: VocabularyLib[];
@@ -88,12 +111,6 @@ interface LandingPageProps {
  * background regardless, since WebGL is overkill for a 360px-wide
  * screen and burns battery.
  */
-type LandingBgTuning =
-  | { kind: 'galaxy'; density: number; hueShift: number; speed: number; glowIntensity: number }
-  | { kind: 'gradientwaves'; horizonColor: string; waveColor: string; crestColor: string;
-      tilt: number; speed: number; amplitude: number; opacity: number;
-      grain: boolean; mouseInteraction: boolean };
-
 function useLandingBackground(theme: 'light' | 'dark'): null | LandingBgTuning {
   const reduce = useReducedMotion();
   const [mounted, setMounted] = useState(true);
@@ -131,7 +148,7 @@ function useLandingBackground(theme: 'light' | 'dark'): null | LandingBgTuning {
     return { kind: 'galaxy', ...GALAXY_BY_THEME.dark };
   }
   /* light → GradientWaves,3 色按 sky / water / foam 语义对接调色板 */
-  return { kind: 'gradientwaves', ...GRADIENT_WAVES_BY_THEME.light };
+  return { kind: 'dotfield', ...DOTFIELD_BY_THEME.light };
 }
 
 export default function LandingPage({
@@ -160,13 +177,7 @@ export default function LandingPage({
          The CSS fallback is always present in the DOM; Galaxy is mounted
          on top when the hook returns a tuning. This keeps the visual
          continuous across theme switches and IO toggle boundaries. */}
-      <div
-        className={`${styles.landingBg} ${landingBg ? styles.landingBgHasWebGL : ''}`}
-        aria-hidden="true"
-      >
-        {/* 6 个 1px 星点独立 twinkle —— 必须跟 nebula 分开 layer 才能各自动画 */}
-        <div className={styles.stars} aria-hidden="true" />
-      </div>
+      <div className={styles.landingBg} aria-hidden="true" />
       {landingBg?.kind === 'galaxy' ? (
         <div className={styles.landingBgGalaxy} aria-hidden="true">
           <Galaxy
@@ -182,18 +193,19 @@ export default function LandingPage({
           />
         </div>
       ) : null}
-      {landingBg?.kind === 'gradientwaves' ? (
+      {landingBg?.kind === 'dotfield' ? (
         <div className={styles.landingBgGradientWaves} aria-hidden="true">
-          <GradientWaves
-            horizonColor={landingBg.horizonColor}
-            waveColor={landingBg.waveColor}
-            crestColor={landingBg.crestColor}
-            tilt={landingBg.tilt}
-            speed={landingBg.speed}
-            amplitude={landingBg.amplitude}
-            opacity={landingBg.opacity}
-            grain={landingBg.grain}
-            mouseInteraction={landingBg.mouseInteraction}
+          <DotField
+            gradientFrom={landingBg.gradientFrom}
+            gradientTo={landingBg.gradientTo}
+            dotRadius={landingBg.dotRadius}
+            dotSpacing={landingBg.dotSpacing}
+            cursorRadius={landingBg.cursorRadius}
+            cursorForce={landingBg.cursorForce}
+            bulgeStrength={landingBg.bulgeStrength}
+            glowRadius={landingBg.glowRadius}
+            glowColor={landingBg.glowColor}
+            sparkle={landingBg.sparkle}
           />
         </div>
       ) : null}
