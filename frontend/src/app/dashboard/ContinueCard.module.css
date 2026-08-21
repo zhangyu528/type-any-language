@@ -20,15 +20,20 @@
   border: 1px solid var(--ds-glass-border);
   background: var(--ds-glass-surface);
   box-shadow: var(--ds-glass-shadow);
-  /* 区域主色随「今日状态」联动：落后(未达标)→琥珀(--ds-cta)，
-     达标(done)→薄荷绿(--ds-correct)。默认给落后值，done 时由下方覆盖。
-     卡片内所有强调色（圆点/药丸/进度条/切换链接）统一走这两个语义变量，
-     与「每日目标·还差N句」共用同一套 落后→琥珀/达标→绿 语义。 */
-  --cc-accent: var(--ds-cta);
-  --cc-accent-deep: var(--ds-cta-deep);
+  /* 区域主色与主 CTA 统一到产品主色 slate 冷蓝(--ds-action 系),
+     跟主行动按钮同色;达标(done)状态切薄荷绿(= 通过/正确语义)。
+     默认给主色值,done 时由下方覆盖。
+     卡片内所有强调色(脉冲圆点 / 课程 pill 底+边+文字 /
+     进度条填充 / 切换链接)统一走 --cc-accent + --cc-accent-deep
+     这一对变量,与主 CTA 一起组成完整的 cool-blue accent 层级
+     (fill 按钮 > soft pill > 发光圆点 > 文字 deep)。 */
+  --cc-accent: var(--ds-action);
+  --cc-accent-deep: var(--ds-action-deep);
 }
 
-/* 今日达标：整卡强调色转薄荷绿（CTA 按钮自身 WebGL 填充为不变主行动色，保留琥珀）。 */
+/* 今日达标：整卡强调色转薄荷绿(--ds-correct),"通过/正确"通行色;
+   仅作用于卡片内部装饰,kicker 圆点 + 课程 pill 变绿,主 CTA 仍是
+   不变的主色(琥珀留给全站稀缺转化锚;绿留给"今天达标"的成就语义)。 */
 .root[data-status='done'] {
   --cc-accent: var(--ds-correct);
   --cc-accent-deep: var(--ds-correct);
@@ -181,22 +186,26 @@
 
 /* SpecularButton (reactbits.dev port) renders its own WebGL rim;
    we add a static outer-glow shadow so the button reads as
-   "premium / elevated" even before the cursor lands on it. */
+   "premium / elevated" even before the cursor lands on it.
+
+   2026-08-20 跟随 CTA 主色统一改为产品主色 slate 冷蓝(--ds-action),
+   不再用 --ds-cta 琥珀做 hover 阴影(fallback 也对齐,
+   防止 --cta-tint 未及时注入时回落到琥珀抢戏)。 */
 .cta {
   align-self: flex-start;
   margin-top: auto;
   white-space: nowrap;
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--ds-cta) 32%, transparent),
-    0 8px 22px -8px color-mix(in srgb, var(--ds-cta) 55%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--cta-tint, var(--ds-action)) 32%, transparent),
+    0 8px 22px -8px color-mix(in srgb, var(--cta-tint, var(--ds-action)) 55%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.18);
   transition: box-shadow 200ms ease-out;
 }
 
 .cta:hover {
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--ds-cta) 55%, transparent),
-    0 14px 30px -10px color-mix(in srgb, var(--ds-cta) 65%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--ds-action) 55%, transparent),
+    0 14px 30px -10px color-mix(in srgb, var(--ds-action) 65%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 

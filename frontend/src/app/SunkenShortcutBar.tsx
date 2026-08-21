@@ -70,7 +70,15 @@ export default function SunkenShortcutBar({
     <section className={styles.root} aria-label="快捷键参考">
       <div className={styles.list}>
         {hints.map((sc) => {
-          const anyActive = sc.keys.some((k) => active.has(normalize(k)));
+          // Compose keys into a single token for combo matching. A
+          // single-key hint matches the corresponding single token
+          // ('space' matches 'Space'); a combo hint ('Shift Space')
+          // matches only when the combined token is in activeKeys.
+          // This avoids the bug where pressing Space alone would light
+          // up both 'Space' and 'Shift Space' hints because both
+          // happen to contain 'space'.
+          const mergedKey = sc.keys.map(normalize).join('+');
+          const anyActive = active.has(mergedKey);
           return (
             <div
               key={sc.label}
@@ -79,11 +87,17 @@ export default function SunkenShortcutBar({
               }
             >
               <span className={styles.keys}>
-                {sc.keys.map((k, i) => {
-                  const isLit = active.has(normalize(k));
+                {sc.keys.map((k) => {
+                  // Single-key hints: light when its own key is active.
+                  // Combo hints: light every kbd (modifier + trigger) when
+                  // the combined token is active — so holding Shift in
+                  // 'Shift Space' shows Shift lit too, not just Space.
+                  const isLit = sc.keys.length === 1
+                    ? active.has(normalize(k))
+                    : active.has(mergedKey);
                   return (
                     <kbd
-                      key={i}
+                      key={k}
                       className={
                         styles.kbd + (isLit ? ` ${styles.kbdActive}` : '')
                       }

@@ -74,23 +74,6 @@
   user-select: none;
 }
 
-/* No-audio hint — shown when the sentence has no audio_url. The replay
-   button is disabled in that case; this pill explains why. */
-.noAudio {
-  display: inline-block;
-  margin-top: var(--space-3);
-  padding: 4px 12px;
-  font-family: var(--font-sans);
-  font-size: var(--text-caption);
-  font-weight: var(--weight-medium);
-  letter-spacing: 0.06em;
-  color: var(--ds-ink-soft);
-  background: var(--ds-glass-surface);
-  border: 1px solid var(--ds-glass-border);
-  border-radius: var(--radius-pill);
-  box-shadow: var(--ds-glass-shadow);
-  user-select: none;
-}
 
 .wordCard {
   display: flex;
@@ -311,12 +294,6 @@
   margin: 0;
 }
 
-.endMeta {
-  font-family: var(--font-sans);
-  font-size: var(--text-body);
-  color: var(--ds-ink-soft);
-  margin: 0;
-}
 
 /* Kicker above empty / finished titles — small muted uppercase label.
    Referenced by TranslationSession's empty-lib + finished states. */
@@ -478,6 +455,16 @@
   color: var(--ds-error);
 }
 
+/* Empty + wrong — 单元格无字符时 .cellInput/.cellText 没东西可标红,
+   仅靠 ::after 下划线变红作为错误反馈。覆盖 .cell::after 的默认
+   灰色,让空 cell 在 submit 后也能看到自己被判错。 */
+.cellWrong::after {
+  background: var(--ds-error);
+  opacity: 1;
+  transform: scaleX(1);
+  height: 1.5px;
+}
+
 .cellPlaceholder {
   display: block;
   height: 0;
@@ -487,7 +474,12 @@
   color: var(--ds-ink);
 }
 
-.cellActive::after {
+/* Active cell underline — only when NOT wrong. .cellWrong::after takes
+   precedence when both apply so the user can always see "this cell
+   needs fixing" (red underline) even when their cursor is parked on
+   it. Active cells that aren't wrong get the blue running underline
+   as the "I'm here" cue. */
+.cellActive:not(.cellWrong)::after {
   height: 1.5px;
   background: var(--ds-action);
   transform: scaleX(1);
@@ -540,6 +532,12 @@
   background: var(--ds-caret);
   animation: cell-cursor-blink 1.4s var(--ease-out) infinite;
   margin-right: 2px;
+}
+
+/* Wrong + active — 光标跟随 cell 错误状态变红,与红下划线/红字保持
+   一致的错误色调。仅当 cellWrong 时应用,默认 cellCursor 仍是 --ds-caret 蓝色。 */
+.cellWrong .cellCursor {
+  background: var(--ds-error);
 }
 
 /* Per-cell overflow feedback — fires when the user presses a key while
@@ -613,9 +611,6 @@
     gap: var(--space-2) var(--space-5);
     width: 100%;
     max-width: 300px;
-  }
-  .endBtn {
-    width: auto;
   }
 
   .wordCardWord {
@@ -704,27 +699,35 @@
   flex-wrap: wrap;
 }
 
-.endBtn {
+/* Skip — inline ghost action beneath the cells. Kept subtle so it never
+   competes with the word card; Esc is its keyboard twin (see
+   TranslationStage's global keydown). */
+.skipBtn {
+  align-self: center;
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--ds-ink-soft);
   font-family: var(--font-sans);
   font-size: var(--text-caption);
   font-weight: var(--weight-medium);
-  color: var(--ds-ink-soft);
-  background: transparent;
-  border: 1px solid var(--ds-border);
-  border-radius: var(--radius-pill);
-  padding: 7px 16px;
+  letter-spacing: 0.04em;
   cursor: pointer;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
   transition:
     color var(--dur-fast) var(--ease-out),
-    border-color var(--dur-fast) var(--ease-out),
     background var(--dur-fast) var(--ease-out);
 }
-.endBtn:hover {
+.skipBtn:hover:not(:disabled) {
   color: var(--ds-ink);
-  border-color: var(--ds-border-strong);
   background: var(--ds-tint);
 }
-.endBtn:focus-visible {
+.skipBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.skipBtn:focus-visible {
   outline: 2px solid var(--ds-focus);
   outline-offset: 2px;
 }
@@ -769,23 +772,6 @@
   100% { opacity: 0; transform: translateX(-50%) scale(1) translateY(-10px); }
 }
 
-/* Practice progress — thin bar showing how much of the lib the user has
-   drilled (answered / total). Sits just above the meta line. */
-.progressWrap {
-  width: 100%;
-  max-width: 560px;
-  height: 4px;
-  margin: 0 auto;
-  border-radius: 999px;
-  background: var(--ds-glass-border);
-  overflow: hidden;
-}
-.progressBar {
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--ds-action), var(--ds-action-deep));
-  transition: width var(--dur-base) var(--ease-out);
-}
 
 /* ============================================================
    Review screen — shown after the last cell is correct. Replaces
@@ -797,12 +783,38 @@
    ============================================================ */
 
 .reviewScreen {
+  /* Modal overlay — fixed 全屏遮罩 + frosted blur,与项目内 ModalShell
+     / AuthModal 配方一致。Backdrop click → handleContinue(走父组件)。 */
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--ds-bg) 78%, transparent);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  animation: review-overlay-fade var(--dur-base) var(--ease-out) both;
+}
+
+/* Modal dialog — 居中浮卡,elevated 阴影 + 玻璃质感。drill 表面在背
+   后被 overlay 遮罩,视觉上真正"切到 review 模式"。 */
+.reviewCard {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: clamp(20px, 3vh, 32px);
-  padding: clamp(24px, 4vh, 40px) 0;
-  animation: practice-rise var(--dur-base) var(--ease-out);
+  width: 100%;
+  max-width: min(640px, 100%);
+  padding: clamp(28px, 5vh, 44px) clamp(20px, 4vw, 36px);
+  background: var(--ds-glass-surface);
+  border: 0.5px solid var(--ds-glass-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--ds-glass-shadow),
+    0 24px 64px -16px rgba(0, 0, 0, 0.35);
+  animation: review-card-rise 400ms var(--ease-out) both;
 }
 
 .reviewKicker {
@@ -813,6 +825,12 @@
   text-transform: uppercase;
   color: var(--ds-correct);
   user-select: none;
+}
+
+/* Skip review — same kicker slot, but the answer was skipped, not nailed,
+   so drop the mint "correct" color in favor of neutral ink. */
+.reviewKickerSkip {
+  color: var(--ds-ink-soft);
 }
 
 .reviewSentence {
@@ -896,6 +914,27 @@
 @keyframes review-key-pulse {
   0%, 60%, 100% { opacity: 1; }
   30%          { opacity: 0.55; }
+}
+
+@keyframes review-overlay-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes review-card-rise {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to   { opacity: 1; transform: scale(1)   translateY(0);   }
+}
+
+/* Respect reduced motion — modal still appears (opacity:1) but the
+   scale/translate entry animation is suppressed. */
+@media (prefers-reduced-motion: reduce) {
+  .reviewScreen,
+  .reviewCard {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }
 
 /* ============================================================

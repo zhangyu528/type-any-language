@@ -41,28 +41,9 @@
   font-size: var(--text-caption);
 }
 
-.quickStart {
-  appearance: none;
-  border: 1px solid var(--ds-border-strong);
-  background: transparent;
-  color: var(--ds-action-deep);
-  font: inherit;
-  font-weight: var(--weight-medium);
-  padding: 8px 16px;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out);
-}
-
-.quickStart:hover {
-  background: var(--ds-action-soft);
-}
-
-.quickStart:focus-visible {
-  outline: 2px solid var(--ds-focus);
-  outline-offset: 2px;
-}
-
+/* 2026-08:outline → filled primary pill。深蓝底 + 白字,Play icon 在文字左。
+   hover/active 用 action 同系色微亮,跟全站 nav 主 CTA(注册)主调对齐。
+   内部 inline-flex + gap 让 Play 图标跟"快速开始"文字有正确间距。 */
 .headerRight {
   display: flex;
   align-items: center;
@@ -143,8 +124,8 @@
 }
 
 .removeCourse:hover {
-  color: var(--ds-error, #d6455b);
-  border-color: var(--ds-error, #d6455b);
+  color: var(--ds-error);
+  border-color: var(--ds-error);
 }
 
 /* ---------- 工具栏:搜索 + 排序 ---------- */
@@ -182,33 +163,6 @@
   outline-offset: 2px;
 }
 
-.sort {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.sortLabel {
-  font-size: var(--text-caption);
-  color: var(--ds-ink-soft);
-}
-
-.sortSelect {
-  height: var(--control-input);
-  padding: 0 var(--space-3);
-  border: 1px solid var(--ds-glass-border);
-  background: var(--ds-glass-surface);
-  border-radius: var(--radius-pill);
-  color: var(--ds-ink);
-  font: inherit;
-  font-size: var(--text-body);
-  cursor: pointer;
-}
-
-.sortSelect:focus-visible {
-  outline: 2px solid var(--ds-focus);
-  outline-offset: 2px;
-}
 
 /* ---------- 分类 chips ---------- */
 
@@ -395,13 +349,13 @@
 .cardHighlight {
   border-radius: var(--radius-lg, 18px);
   box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--ds-cta, #EFA535) 70%, transparent),
-    0 0 0 8px color-mix(in srgb, var(--ds-cta, #EFA535) 18%, transparent);
+    0 0 0 2px color-mix(in srgb, var(--ds-cta) 70%, transparent),
+    0 0 0 8px color-mix(in srgb, var(--ds-cta) 18%, transparent);
   animation: cardPulse 1.3s ease-in-out 0s 2;
 }
 
 @keyframes cardPulse {
-  0% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-cta, #EFA535) 55%, transparent), 0 0 0 6px color-mix(in srgb, var(--ds-cta, #EFA535) 12%, transparent); }
-  50% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-cta, #EFA535) 85%, transparent), 0 0 0 12px color-mix(in srgb, var(--ds-cta, #EFA535) 22%, transparent); }
-  100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-cta, #EFA535) 55%, transparent), 0 0 0 6px color-mix(in srgb, var(--ds-cta, #EFA535) 12%, transparent); }
+  0% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-cta) 55%, transparent), 0 0 0 6px color-mix(in srgb, var(--ds-cta) 12%, transparent); }
+  50% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-cta) 85%, transparent), 0 0 0 12px color-mix(in srgb, var(--ds-cta) 22%, transparent); }
+  100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-cta) 55%, transparent), 0 0 0 6px color-mix(in srgb, var(--ds-cta) 12%, transparent); }
 }

@@ -11,6 +11,24 @@
   background: var(--ds-glass-surface);
   box-shadow: var(--ds-glass-shadow);
   box-sizing: border-box;
+  /* Hover 方案 1 (通用) —— 整卡微玻璃浮起:
+     透明的 border 占位避免 hover 时突然多出 1px border 导致 layout 抖动;
+     边框由透明 → 40% action, 边框在 hover 时"亮"起来, 叠一层 1px 外光线 +
+     一道 24px 柔光, 与 GreetingBar 同思路但更轻量(1px 外光线 vs GreetingBar
+     的 3 层)。所有 transition 0.25s ease-out,跟体系节奏一致。 */
+  border: 1px solid transparent;
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out);
+}
+.root:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--ds-action) 40%, transparent);
+  box-shadow:
+    var(--ds-glass-shadow),
+    0 0 0 1px color-mix(in srgb, var(--ds-action) 24%, transparent),
+    0 8px 24px -8px color-mix(in srgb, var(--ds-action) 30%, transparent);
 }
 
 /* 与「今日建议」图标同款：38px 圆角方块 + 色调底。 */
@@ -66,4 +84,15 @@
 .sub {
   font-size: var(--text-caption);
   color: var(--ds-ink-soft);
+}
+
+/* prefers-reduced-motion:translateY 撤掉,box-shadow 回到基础值,边框回到透明,
+   hover 反馈瞬间固定不动画。 */
+@media (prefers-reduced-motion: reduce) {
+  .root { transition: none; }
+  .root:hover {
+    transform: none;
+    box-shadow: var(--ds-glass-shadow);
+    border-color: transparent;
+  }
 }

@@ -6,9 +6,9 @@
  * 为什么独立: AuthModal.tsx (consumer) 与 provider 拆开避免循环引用,
  * 镜像 app/lib/auth.tsx 的 Provider + hook 模式。
  *
- * 触发点 (3 处):
+ * 触发点:
  *   - AppHeader 「登录」/「注册」按钮
- *   - TranslationSession 提示卡的 onLogin (内部 PracticeHintCard 转发)
+ *   （练习页 TranslationSession 的访客提示卡 PracticeHintCard 已移除，不再经此触发）
  *
  * 不抢: /me 匿名守卫仍走整页 router.replace('/login?from=/me'),
  * 直访 /login?from= 也走整页 — modal 只服务 in-app 触发。

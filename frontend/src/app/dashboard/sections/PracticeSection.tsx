@@ -16,6 +16,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useTheme } from '../../components/ThemeProvider';
 import {
   Catalog,
   VocabularyLib,
@@ -31,14 +32,11 @@ import {
 } from '../LibPicker';
 import styles from './PracticeSection.module.css';
 
-type SortKey = 'recommended' | 'progress' | 'level';
-
 export type CourseTab = 'mine' | 'discover';
 
 interface PracticeSectionProps {
   catalog: Catalog;
   onPickLib: (libId: string) => void;
-  onStartPractice: () => void;
   /** User id for localStorage progress lookup (per-course completion %). */
   userId: string;
   /** The user's enrolled course ids ("我的课程"). */
@@ -58,7 +56,6 @@ interface PracticeSectionProps {
 export default function PracticeSection({
   catalog,
   onPickLib,
-  onStartPractice,
   userId,
   enrolledLibIds,
   onEnroll,
@@ -69,8 +66,7 @@ export default function PracticeSection({
 }: PracticeSectionProps) {
   const [activeType, setActiveType] = useState<string>('all');
   const [query, setQuery] = useState('');
-  const [sort, setSort] = useState<SortKey>('recommended');
-
+  const { theme } = useTheme();
   const progress = useMemo(
     () => loadTranslationProgress(userId),
     [userId],
@@ -117,24 +113,14 @@ export default function PracticeSection({
       }
       return true;
     });
-    // 「我的课程」默认（推荐）按进度降序：最近在练的排前面。
-    if (sort === 'recommended' && courseTab === 'mine') {
+    // 「我的课程」默认按进度降序：最近在练的排前面。
+    if (courseTab === 'mine') {
       list = [...list].sort(
         (a, b) => libProgressPct(b, progress) - libProgressPct(a, progress),
-      );
-    } else if (sort === 'progress') {
-      list = [...list].sort(
-        (a, b) => libProgressPct(b, progress) - libProgressPct(a, progress),
-      );
-    } else if (sort === 'level') {
-      list = [...list].sort((a, b) =>
-        a.level === b.level
-          ? a.name.localeCompare(b.name)
-          : a.level.localeCompare(b.level),
       );
     }
     return list;
-  }, [sourceLibs, activeType, query, sort, progress, courseTab]);
+  }, [sourceLibs, activeType, query, progress, courseTab]);
 
   // 从 landing 选词库注册而来:滚动到该词库卡片并高亮 ~2.6s,承接"已为你添加"。
   const highlightRef = useRef<HTMLLIElement | null>(null);
@@ -179,9 +165,6 @@ export default function PracticeSection({
               课程库
             </button>
           </div>
-          <button type="button" className={styles.quickStart} onClick={onStartPractice}>
-            快速开始 →
-          </button>
         </div>
       </div>
 
@@ -196,19 +179,6 @@ export default function PracticeSection({
             aria-label="搜索课程"
           />
         </div>
-        <label className={styles.sort}>
-          <span className={styles.sortLabel}>排序</span>
-          <select
-            className={styles.sortSelect}
-            value={sort}
-            onChange={(e) => setSort(e.target.value as SortKey)}
-            aria-label="排序方式"
-          >
-            <option value="recommended">推荐</option>
-            <option value="progress">进度</option>
-            <option value="level">难度</option>
-          </select>
-        </label>
       </div>
 
       {showTypeChips ? (
@@ -223,7 +193,7 @@ export default function PracticeSection({
             全部
           </button>
           {types.map((t) => {
-            const meta = COURSE_TYPE_META[t] ?? COURSE_TYPE_META.vocab;
+            const meta = COURSE_TYPE_META[theme][t] ?? COURSE_TYPE_META[theme].vocab;
             return (
               <button
                 key={t}
@@ -245,6 +215,7 @@ export default function PracticeSection({
           lib={recentLib}
           pct={recentPct}
           onPick={() => onPickLib(recentLib.id)}
+          theme={theme}
         />
       ) : null}
 
@@ -308,6 +279,7 @@ export default function PracticeSection({
                     ctaLabel={ctaLabel}
                     enrolled={!inMine && isEnrolled}
                     showProgress={inMine || isEnrolled}
+                    theme={theme}
                   />
                   {inMine ? (
                     <button
@@ -334,18 +306,20 @@ function FeaturedCourse({
   lib,
   pct,
   onPick,
+  theme,
 }: {
   lib: VocabularyLib;
   pct: number;
   onPick: () => void;
+  theme: 'light' | 'dark';
 }) {
-  const color = courseAccentColor(lib);
+  const color = courseAccentColor(lib, theme);
   return (
     <div className={styles.featured}>
       <span className={styles.featuredBar} style={{ background: color }} aria-hidden />
       <div className={styles.featuredBody}>
         <span className={styles.featuredKicker} style={{ color }}>
-          {courseTypeLabel(lib)}
+          {courseTypeLabel(lib, theme)}
         </span>
         <h3 className={styles.featuredName}>{lib.name}</h3>
         <p className={styles.featuredMeta}>

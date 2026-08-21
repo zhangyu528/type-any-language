@@ -36,10 +36,10 @@
 }
 
 .cell.l1 {
-  background: #1d3a5f;
+  background: color-mix(in srgb, var(--ds-action) 30%, transparent);
 }
 .cell.l2 {
-  background: #2a5b8f;
+  background: color-mix(in srgb, var(--ds-action) 60%, transparent);
 }
 .cell.l3 {
   background: var(--ds-action);

@@ -60,5 +60,5 @@
 /* metric segment uses the correct (mint) accent for its active state */
 .metric .segOn {
   background: var(--ds-correct-fill);
-  color: #042c53;
+  color: var(--ds-action-deep);
 }

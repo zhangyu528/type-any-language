@@ -32,53 +32,83 @@ import {
 } from '../api';
 import { readRecentLibId } from '../landing/data';
 import { useAuth } from '../lib/auth';
+import { useTheme } from '../components/ThemeProvider';
 import { riseIn, staggerParent } from '../ds/motion';
 import styles from './LibPicker.module.css';
 
-/** Course-type → display label + accent color. A vocabulary lib is the
- *  first course_type ("vocab"); grammar / listening / exam reuse the same
- *  surface with their own color. `accent` on the lib overrides by token. */
-export const COURSE_TYPE_META: Record<string, { label: string; color: string }> = {
-  vocab: { label: '词汇', color: '#378ADD' },
-  grammar: { label: '语法', color: '#1D9E75' },
-  listening: { label: '听力', color: '#BA7517' },
-  exam: { label: '考试', color: '#7F77DD' },
+/**
+ * Course-type → display label + accent color.
+ * 2026-08:状态色按主题走(跟 landing FinalCTA / LibStrip featured
+ * 主转化母题对齐 — light=冷紫 / dark=暖琥珀):
+ *   listening  听力  light=#8B5CF6 冷紫  /  dark=#EFA535 暖琥珀
+ *   cet6       等级  light=#8B5CF6 冷紫  /  dark=#EFA535 暖琥珀
+ *   amber 通用 通用  light=#8B5CF6 冷紫  /  dark=#EFA535 暖琥珀
+ * 蓝/绿两主题同色(#378ADD/#1D9E75)已经合理不需要切。
+ */
+export const COURSE_TYPE_META: Record<'light' | 'dark', Record<string, { label: string; color: string }>> = {
+  light: {
+    vocab:     { label: '词汇', color: '#378ADD' },
+    grammar:   { label: '语法', color: '#1D9E75' },
+    listening: { label: '听力', color: '#8B5CF6' },
+    exam:      { label: '考试', color: '#7F77DD' },
+  },
+  dark: {
+    vocab:     { label: '词汇', color: '#378ADD' },
+    grammar:   { label: '语法', color: '#1D9E75' },
+    listening: { label: '听力', color: '#EFA535' },
+    exam:      { label: '考试', color: '#A78BFA' },
+  },
 };
 
-const ACCENT_COLORS: Record<string, string> = {
-  blue: '#378ADD',
-  green: '#1D9E75',
-  amber: '#BA7517',
-  purple: '#7F77DD',
+const ACCENT_COLORS: Record<'light' | 'dark', Record<string, string>> = {
+  light: {
+    blue:   '#378ADD',
+    green:  '#1D9E75',
+    amber:  '#8B5CF6',  // 紫代替琥珀
+    purple: '#7F77DD',
+  },
+  dark: {
+    blue:   '#378ADD',
+    green:  '#1D9E75',
+    amber:  '#EFA535',
+    purple: '#A78BFA',
+  },
 };
 
-// Frontend-only color variety for libs whose `accent` is null — the current
-// seed reality (every lib is course_type='vocab' with no accent token), which
-// made the entire grid render the same blue. Once a lib gets an explicit
-// `accent` token, that wins (see courseAccentColor below), so this map is
-// purely a graceful fallback and stays forward-compatible with real data.
-const LEVEL_ACCENT: Record<string, string> = {
-  beginner: '#378ADD', // blue
-  cet4: '#1D9E75', // green
-  cet6: '#BA7517', // amber
-  ielts: '#7F77DD', // purple
+const LEVEL_ACCENT: Record<'light' | 'dark', Record<string, string>> = {
+  light: {
+    beginner: '#378ADD',
+    cet4:     '#1D9E75',
+    cet6:     '#8B5CF6',
+    ielts:    '#7F77DD',
+  },
+  dark: {
+    beginner: '#378ADD',
+    cet4:     '#1D9E75',
+    cet6:     '#EFA535',
+    ielts:    '#7F77DD',
+  },
 };
-const FALLBACK_PALETTE = ['#378ADD', '#1D9E75', '#BA7517', '#7F77DD'];
+const FALLBACK_PALETTE: Record<'light' | 'dark', string[]> = {
+  light: ['#378ADD', '#1D9E75', '#8B5CF6', '#7F77DD'],
+  dark:  ['#378ADD', '#1D9E75', '#EFA535', '#7F77DD'],
+};
 
-export function courseAccentColor(lib: VocabularyLib): string {
-  if (lib.accent && ACCENT_COLORS[lib.accent]) return ACCENT_COLORS[lib.accent];
+// 2026-08:状态色按主题走,函数接受 theme 参数(显式,不依赖 hook 内部态,保持可单元测试)。
+export function courseAccentColor(lib: VocabularyLib, theme: 'light' | 'dark'): string {
+  const accents = ACCENT_COLORS[theme];
+  if (lib.accent && accents[lib.accent]) return accents[lib.accent];
   const lvl = (lib.level ?? '').toLowerCase();
-  if (LEVEL_ACCENT[lvl]) return LEVEL_ACCENT[lvl];
-  // Stable per-lib color from the id so the grid stays varied without
-  // hardcoding every future level.
+  const levelMap = LEVEL_ACCENT[theme];
+  if (levelMap[lvl]) return levelMap[lvl];
   let h = 0;
   for (let i = 0; i < lib.id.length; i++) h = (h * 31 + lib.id.charCodeAt(i)) >>> 0;
-  return FALLBACK_PALETTE[h % FALLBACK_PALETTE.length];
+  return FALLBACK_PALETTE[theme][h % FALLBACK_PALETTE[theme].length];
 }
 
-export function courseTypeLabel(lib: VocabularyLib): string {
+export function courseTypeLabel(lib: VocabularyLib, theme: 'light' | 'dark'): string {
   const t = lib.course_type ?? 'vocab';
-  const meta = COURSE_TYPE_META[t] ?? COURSE_TYPE_META.vocab;
+  const meta = COURSE_TYPE_META[theme][t] ?? COURSE_TYPE_META[theme].vocab;
   return `${meta.label} · ${lib.level.toUpperCase()}`;
 }
 
@@ -97,6 +127,7 @@ export interface LibPickerProps {
 
 export default function LibPicker({ libs, onPick }: LibPickerProps) {
   const recentLibId = useMemo(() => readRecentLibId(), []);
+  const { theme } = useTheme();
   const recentLib = recentLibId
     ? libs.find((l) => l.id === recentLibId) ?? null
     : null;
@@ -124,6 +155,7 @@ export default function LibPicker({ libs, onPick }: LibPickerProps) {
             onClick={() => onPick(recentLib.id)}
             recent
             progressPct={libProgressPct(recentLib, progress)}
+            theme={theme}
           />
         </motion.div>
       ) : null}
@@ -149,6 +181,7 @@ export default function LibPicker({ libs, onPick }: LibPickerProps) {
                   lib={lib}
                   onClick={() => onPick(lib.id)}
                   progressPct={libProgressPct(lib, progress)}
+                  theme={theme}
                 />
               </motion.li>
             ))}
@@ -165,6 +198,7 @@ export function LibCard({
   recent = false,
   progressPct,
   ctaLabel,
+  theme,
   /** 在「课程库」视图里标记该课已加入我的课程（仅展示，不可再点添加）。 */
   enrolled = false,
   /** 是否展示进度条。发现页「课程库」里未加入的课程进度几乎都是 0%，
@@ -177,13 +211,16 @@ export function LibCard({
   progressPct?: number | null;
   /** Override the status-derived CTA text (e.g. "添加" in 发现 view). */
   ctaLabel?: string;
+  /** 2026-08:状态色按主题走,父组件传 light/dark 进来(LibCard 是 inner
+   *  component,不直接 useTheme 避免不必要的 hook 链路,保持纯渲染)。 */
+  theme: 'light' | 'dark';
   /** 在「课程库」视图里标记该课已加入我的课程（仅展示，不可再点添加）。 */
   enrolled?: boolean;
   /** 是否展示进度条（默认 true；发现页浏览态可由调用方关闭）。 */
   showProgress?: boolean;
 }) {
-  const color = courseAccentColor(lib);
-  const typeLabel = courseTypeLabel(lib);
+  const color = courseAccentColor(lib, theme);
+  const typeLabel = courseTypeLabel(lib, theme);
   const pct = progressPct ?? 0;
   const cta = ctaLabel ?? (pct >= 100 ? '复习' : pct > 0 ? '继续' : '开始');
   const progressLabel =

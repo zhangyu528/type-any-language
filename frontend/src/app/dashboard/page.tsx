@@ -480,7 +480,6 @@ function DashboardInner() {
           <PracticeSection
             catalog={catalog}
             onPickLib={handlePickLib}
-            onStartPractice={handleStartPractice}
             userId={user.id}
             enrolledLibIds={enrolledLibIds}
             onEnroll={handleEnroll}

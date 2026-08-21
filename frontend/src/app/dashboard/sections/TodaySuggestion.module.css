@@ -11,6 +11,24 @@
   box-shadow: var(--ds-glass-shadow);
   font: inherit;
   color: inherit;
+  /* Hover 方案 1 (通用,与 InsightStat 同款):
+     整卡微玻璃浮起,与下方 InsightStat 完全一致。
+     注意:TodaySuggestion 注释是"整卡可点 → 直驱练习" 但 TSX 当前没
+     wiring onClick,这里只做 hover 视觉反馈,不假装可点(以防误导用户)。
+     若日后补 onClick,这一组 hover 已经备好,无需再改。 */
+  border: 1px solid transparent;
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out);
+}
+.root:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--ds-action) 40%, transparent);
+  box-shadow:
+    var(--ds-glass-shadow),
+    0 0 0 1px color-mix(in srgb, var(--ds-action) 24%, transparent),
+    0 8px 24px -8px color-mix(in srgb, var(--ds-action) 30%, transparent);
 }
 
 .icon {
@@ -66,4 +84,14 @@
 .shield .icon {
   background: color-mix(in srgb, var(--ds-cta) 16%, transparent);
   color: var(--ds-cta);
+}
+
+/* prefers-reduced-motion:translateY 撤掉,box-shadow 回到基础值,边框回到透明 */
+@media (prefers-reduced-motion: reduce) {
+  .root { transition: none; }
+  .root:hover {
+    transform: none;
+    box-shadow: var(--ds-glass-shadow);
+    border-color: transparent;
+  }
 }

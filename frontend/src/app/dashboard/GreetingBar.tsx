@@ -74,7 +74,9 @@ export interface GreetingBarProps {
    *  side of the hero. May be undefined for brand-new accounts that
    *  haven't recorded any practice yet. */
   totalSentences?: number;
-  /** 今日状态：未达标(落后)=true → 左轨琥珀；达标=done → 左轨薄荷绿。 */
+  /** 今日状态：未达标(落后)=true → 左轨主色冷蓝(--ds-action,与 ContinueCard
+   * 卡片 behind 态一致);达标=done → 左轨薄荷绿(--ds-correct)。
+   * 不再用琥珀作为落后态警示色,与全局 "琥珀=稀缺 CTA 锚" 视觉预算对齐。 */
   behind: boolean;
 }
 

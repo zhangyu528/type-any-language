@@ -27,6 +27,9 @@ export interface SpecularButtonProps {
   onClick?: MouseEventHandler<HTMLButtonElement>;
   className?: string;
   type?: 'button' | 'submit' | 'reset';
+  /** 2026-08:允许传 inline style(通常用于设 CSS 变量,如 --cta-tint 传主题感知色
+   * 给 button 内部 box-shadow 等使用)。延续 button 接受 className 的灵活风格。 */
+  style?: CSSProperties;
 }
 
 interface ShaderProps {

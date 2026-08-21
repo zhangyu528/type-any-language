@@ -54,7 +54,7 @@
 
 .down {
   color: var(--ds-error-ink);
-  background: rgba(208, 90, 48, 0.14);
+  background: color-mix(in srgb, var(--ds-error) 14%, transparent);
 }
 
 .flat {

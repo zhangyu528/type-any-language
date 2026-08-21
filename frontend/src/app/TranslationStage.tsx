@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   getAudioUrl,
   LessonSentence,
@@ -97,11 +97,12 @@ export default function TranslationStage({
   // ~350ms and the wrong buzz fires as audible feedback.
   const overflowTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [overflowIndex, setOverflowIndex] = useState<number | null>(null);
-  // Review screen — flips to true once the last cell is correct. The
-  // 300ms celebration (chime + mint wash) plays first, then we swap
-  // the drill surface for a static review surface and wait for the
-  // user to press Enter to hand control back to the parent.
-  const [showReview, setShowReview] = useState(false);
+  // Review screen — flips to true on a correct (or skipped) final cell.
+  // After a correct answer we celebrate (300ms chime + mint wash) then
+  // swap the drill surface for a static review surface and wait for
+  // Enter to advance. Skip reveals the correct answer (graded wrong).
+  const [reviewKind, setReviewKind] = useState<'correct' | 'skip' | null>(null);
+  const showReview = reviewKind !== null;
   const flashFeedback = useCallback((kind: 'correct' | 'wrong') => {
     setFeedback(kind);
     if (kind === 'correct') setAnnounce('答对了');
@@ -131,9 +132,18 @@ export default function TranslationStage({
   // Clears showReview first so the next sentence's reset effect sees
   // a clean state, then calls onComplete(true) to swap the sentence.
   const handleContinue = useCallback(() => {
-    setShowReview(false);
-    onComplete(true);
-  }, [onComplete]);
+    setReviewKind(null);
+    onComplete(reviewKind === 'correct');
+  }, [onComplete, reviewKind]);
+
+  // Skip — reveal the correct sentence in the review screen, then let the
+  // user press Enter (or click 继续) to advance. The answer is graded as
+  // wrong (onComplete(false)) so the sentence re-enters the wrong bucket
+  // and gets retried later, but the learner still sees the correct answer.
+  const handleSkip = useCallback(() => {
+    if (reviewKind !== null) return;
+    setReviewKind('skip');
+  }, [reviewKind]);
 
   // Per-sentence reset on mount or sentence change.
   useEffect(() => {
@@ -142,7 +152,7 @@ export default function TranslationStage({
       overflowTimerRef.current = null;
     }
     setOverflowIndex(null);
-    setShowReview(false);
+    setReviewKind(null);
     setUserInputs(new Array(expectedWords.length).fill(''));
     setWordResults(new Array(expectedWords.length).fill(false));
     setWordConfirmed(new Array(expectedWords.length).fill(false));
@@ -366,20 +376,31 @@ export default function TranslationStage({
   }, []);
 
   // ---- Cell typing ----
+  // 整句思考模式:用户键入字符只更新 userInputs / 清 stale 红,**不**判
+  // 对错、不染色、不自动进入 review。Enter 才会触发整句判定
+  // (handleSentenceSubmit 下方)。
+  // 防御性截断:value 超过 expected.length(粘贴超长/IME 绕过
+  // maxLength) → 截断到 maxLength + flashCellOverflow 报错反馈。
+  // maxLength 正常键入会阻止输入,但粘贴/IME 仍可能绕过。
   const handleWordChange = (index: number, value: string) => {
     if (isComposingRef.current) {
       return;
     }
 
+    const expected = expectedWords[index];
+    let safeValue = value;
+    if (expected && value.length > expected.length) {
+      safeValue = value.slice(0, expected.length);
+      flashCellOverflow();
+    }
+
     const newInputs = [...userInputs];
-    newInputs[index] = value;
+    newInputs[index] = safeValue;
     setUserInputs(newInputs);
 
-    // Any new typing clears the confirmed-wrong state for this cell —
-    // the user is refining their guess, so the cell should look like a
-    // fresh attempt (gray) until they press Enter again. We only
-    // dispatch when the flag is actually set, to avoid an extra render
-    // on the common path (first-time typing into a clean cell).
+    // Stale-red reset: user 在被标错的 cell 里重新打字 — 清掉 cellWrong
+    // 类,保留 wordResults 占位(下次 submit 时被覆写)。这样修改时
+    // 视觉立刻回到中性,而不是红字 + 输入字符同时存在。
     if (wordConfirmed[index]) {
       setWordConfirmed((prev) => {
         if (!prev[index]) return prev;
@@ -388,35 +409,107 @@ export default function TranslationStage({
         return next;
       });
     }
-
-    const expected = expectedWords[index]?.toLowerCase().replace(/[.,!?;:'"]/g, '');
-    const input = value.toLowerCase().replace(/[.,!?;:'"]/g, '');
-
-    const isWordCorrect = input === expected;
-    const newResults = [...wordResults];
-    newResults[index] = isWordCorrect;
-    setWordResults(newResults);
-
-    if (isWordCorrect) {
-      // Auto-complete with correct case.
-      newInputs[index] = expectedWords[index];
-      setUserInputs(newInputs);
-
-      if (index < expectedWords.length - 1) {
-        setCurrentWordIndex(index + 1);
-      } else {
-        // Last cell correct → 300ms celebration, then flip to the
-        // review screen. The user presses Enter to actually advance;
-        // we don't call onComplete(true) here so the parent stays
-        // out of the way until the user is ready.
-        flashFeedback('correct');
-        window.setTimeout(() => {
-          playCorrectChime();
-          setShowReview(true);
-        }, 300);
-      }
-    }
   };
+
+  // Smart cell navigation target — 跳过「已确认对」的 cell
+  // (wordResults[i]=true && wordConfirmed[i]=true),落到任何「不一致」
+  // cell(错的、空的、曾对但被用户重新编辑使 confirmed 清零的)。
+  // 读 stateRef.current 而非 useState 闭包:确保 submit 后立即按
+  // Space/Backspace 智能跳时拿到的是最新 wordResults/wordConfirmed
+  // (避免 useCallback 重建 + useEffect 重建 listener 的时序差)。
+  // deps 只含 expectedWords(基本不变),smartNextIndex 引用稳定,Space/
+  // Backspace handler 不需要随每次 submit 重建。
+  // 边缘 case:句子大多数 cell 已对,只有 from 自身或某个 cell 是错/空,
+  // 扫 len 圈时 step=len 才回到 from 自身(其他都扫过);若 from 自己
+  // 不是已对,落到 from 自身(用户当前 cell 就是要改的 cell,合理停留/跳到
+  // 自身)。fallback 仍为 0 / len-1(全对时跳回头/尾供用户从头审视)。
+  const smartNextIndex = useCallback(
+    (from: number, direction: 1 | -1): number => {
+      if (expectedWords.length === 0) return 0;
+      const len = expectedWords.length;
+      const { wordResults, wordConfirmed } = stateRef.current;
+      for (let step = 1; step <= len; step++) {
+        const i = ((from + direction * step) % len + len) % len;
+        if (i === from) {
+          // 扫完 len 圈回到 from 自身;若 from 不是已对,落到自身。
+          if (!(wordResults[i] && wordConfirmed[i])) return i;
+          continue;
+        }
+        if (!(wordResults[i] && wordConfirmed[i])) return i;
+      }
+      return direction === 1 ? 0 : len - 1;
+    },
+    [expectedWords],
+  );
+
+  // 整句 submit — 一次性判定所有 cell,根据结果分流:
+  //   - 整句全对 → 300ms chime + 弹 review 卡 "答对了"(整句完成反馈)
+  //   - 当前 cell 答对但整句还有错/空 cell → 智能跳下一格,保持答题心流
+  //   - 当前 cell 答错 → 错的 cell 标红 + 错误音效,用户原地修改再按 Enter
+  //     重交(或在错的 cell 重新输入字符,输满自动重交)
+  //   - 任意 cell 错但当前 cell 对:见上,跳下一格
+  // Esc 任意时刻强制 skip → reviewKind='skip'。
+  // 不在 reactive render 路径,纯 callback。
+  const handleSentenceSubmit = useCallback(() => {
+    if (isComposingRef.current) return;
+    if (showReview) return; // review 卡已独占 Enter
+
+    const results: boolean[] = [];
+    const confirmed: boolean[] = [];
+    let allCorrect = true;
+    for (let i = 0; i < expectedWords.length; i++) {
+      const expectedWord = expectedWords[i];
+      const userWord = (userInputs[i] ?? '').trim();
+      // 复用原 normalize: lowercase + 去标点。
+      const expectedNorm = expectedWord.toLowerCase().replace(/[.,!?;:'"]/g, '');
+      const inputNorm = userWord.toLowerCase().replace(/[.,!?;:'"]/g, '');
+      const correct = userWord.length > 0 && expectedNorm === inputNorm;
+      results.push(correct);
+      confirmed.push(true);
+      if (!correct) allCorrect = false;
+    }
+    setWordResults(results);
+    setWordConfirmed(confirmed);
+
+    if (allCorrect) {
+      flashFeedback('correct');
+      playCorrectChime();
+      window.setTimeout(() => setReviewKind('correct'), 300);
+    } else if (results[currentWordIndex]) {
+      // 当前 cell 答对但整句还有错/空 cell → 自动跳下一格,保持心流。
+      // 智能跳:用本地计算的 results 数组(而非 stateRef.wordResults)
+      // 判定跳过「这次 submit 验证对」的 cell,落到错/空 cell。
+      // 为什么不用 smartNextIndex:React setState 是异步的,submit 同步返回
+      // 后 commit 之前 stateRef 仍是旧值,smartNextIndex 看到旧 wordResults
+      // 会把刚验证为对的 cell 误判为"未对"(stale state)。
+      flashFeedback('correct');
+      playCorrectChime();
+      const len = expectedWords.length;
+      let target = (currentWordIndex + 1) % len;
+      for (let step = 1; step <= len; step++) {
+        const i = (currentWordIndex + step) % len;
+        if (i === currentWordIndex) continue;
+        if (!results[i]) {
+          target = i;
+          break;
+        }
+      }
+      setCurrentWordIndex(target);
+    } else {
+      flashFeedback('wrong');
+      playWrongBuzz();
+      // 不调用 onComplete — 用户留在 step 改错再交。
+    }
+  }, [
+    expectedWords,
+    userInputs,
+    currentWordIndex,
+    showReview,
+    flashFeedback,
+    playCorrectChime,
+    playWrongBuzz,
+    smartNextIndex,
+  ]);
 
   // Typewriter onKeyDown: IME housekeeping + per-word overflow guard
   // (HTML maxLength is the source of truth, this layer adds the
@@ -441,7 +534,7 @@ export default function TranslationStage({
     if (
       e.key.length === 1 &&
       !e.ctrlKey && !e.metaKey && !e.altKey &&
-      e.key !== 'Tab' && e.key !== ' ' && e.key !== '/'
+      e.key !== ' ' && e.key !== '/'
     ) {
       const expected = expectedWords[currentWordIndex];
       const maxLen = expected?.length || 0;
@@ -457,33 +550,33 @@ export default function TranslationStage({
     // so the click bias maps to "I typed something" rather than "I
     // navigated". Held keys are debounced inside playKeyboardTick.
     if (
-      e.key !== 'Tab' &&
       e.key !== 'Shift' &&
       e.key !== 'Control' &&
       e.key !== 'Alt' &&
-      e.key !== 'Meta'
+      e.key !== 'Meta' &&
+      e.key !== 'Enter' &&
+      e.key !== ' ' &&
+      e.key !== 'k' && e.key !== 'K'
     ) {
       playKeyboardTick();
     }
-    if (e.key === 'Backspace') {
-      // Empty cell + Backspace → step back to the previous cell. The cell
-      // we leave preserves any typed content (the cell render falls into
-      // the `|| input` branch so the text stays visible). When the cell
-      // has content we let the browser delete the trailing char.
-      const cur = userInputs[currentWordIndex] || '';
-      if (cur === '' && currentWordIndex > 0) {
-        e.preventDefault();
-        setCurrentWordIndex(currentWordIndex - 1);
-      }
+    // Enter — 整句提交触发器。review 卡已用 Enter 推进,所以在 showReview
+    // 时由 review 内部 handler 接管;这里的早出避免重复触发。
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSentenceSubmit();
       return;
     }
-    if (e.key === 'Tab' || e.key === ' ' || e.key === '/') {
+    if (e.key === ' ' || e.key === '/') {
       e.preventDefault();
     }
   };
 
-  // Global keyboard handler — Space (play audio), Tab (cycle cells), /
-  // (peek the active cell's answer).
+  // Global keyboard handler — Space (next cell), Backspace (prev cell when
+  // empty / native delete otherwise), K (play audio), / (peek the
+  // active cell's answer), Enter (sentence submit), Esc (skip).
+  // Shift+Space is intentionally omitted — Chinese IMEs hijack it for
+  // 中文/英文 toggle.
   useEffect(() => {
     const isEditableTarget = (target: EventTarget | null) => {
       const el = target as HTMLElement | null;
@@ -506,6 +599,15 @@ export default function TranslationStage({
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (isEditableTarget(e.target)) return;
 
+      // Skip (Escape) — only from the live drill, not the review screen
+      // (review owns Enter/Space already). Reveals the answer, then the
+      // review screen's continue affordance advances (graded wrong).
+      if (e.key === 'Escape' && !showReview) {
+        e.preventDefault();
+        handleSkip();
+        return;
+      }
+
       // Review screen is the only surface where Enter is a global
       // shortcut — it advances to the next sentence. We also swallow
       // Space / Tab / Backspace / '/' so leftover drill bindings don't
@@ -521,41 +623,84 @@ export default function TranslationStage({
       }
 
       // Mark this key as held — lights up the matching kbd badge in
-      // the shortcut bar. We only track keys that have a registered
-      // shortcut in this stage (Space / Tab / Backspace / '/') so the
-      // bar only shows what the user can actually do.
+      // the shortcut bar. Done BEFORE any key-specific handler so every
+      // tracked key (Backspace / Space / K / Enter / '/') gets feedback
+      // regardless of which branch executes next. Shift+Space is
+      // intentionally NOT tracked — Chinese IMEs (微软拼音 / 搜狗)
+      // hijack Shift+Space to toggle 中文/英文.
       const trackedKey =
         e.key === ' ' || e.code === 'Space'
-          ? 'space'
-          : e.key === 'Tab'
-            ? 'tab'
+            ? 'space'
             : e.key === 'Backspace'
               ? 'backspace'
               : e.key === '/'
                 ? '/'
-                : null;
+                : e.key === 'k' || e.key === 'K'
+                  ? 'k'
+                  : e.key === 'Enter'
+                    ? 'enter'
+                    : null;
       if (trackedKey) {
         setActiveKeys((prev) => (prev.includes(trackedKey) ? prev : [...prev, trackedKey]));
       }
 
-      if ((e.key === ' ' || e.code === 'Space') && sentence.audio_url) {
+      // Backspace — cell 有字符时浏览器默认删字符(保留打字肌肉记忆);
+      // cell 已空 → 智能反向跳:跳过「已确认对」的 cell (wordResults &&
+      // wordConfirmed),落到最近的错/空/未确认 cell。从 currentWordIndex
+      // 起反向扫 len 圈,跳过自身(currentWordIndex),找最近的落点;找不到
+      // 落点时 fallback 到 currentWordIndex - 1(字面意义的"上一格",
+      // 可能是已对 cell)。
+      // 读 stateRef 而非 useState 闭包:确保 submit 后立即按 Backspace
+      // 也能拿到最新 wordResults/wordConfirmed/currentWordIndex。
+      if (e.key === 'Backspace') {
+        const { currentWordIndex: curIdx, wordResults, wordConfirmed } = stateRef.current;
+        const cur = (stateRef.current.userInputs[curIdx]) || '';
+        if (cur === '' && curIdx > 0) {
+          e.preventDefault();
+          const len = expectedWords.length;
+          // 智能反向跳:跳过已对 cell,落到最近的错/空 cell;扫到自身时
+          // 判别自身(curIdx),若自身是唯一没验证的 cell,跳到自身(停留)。
+          let target = curIdx - 1;
+          for (let step = 1; step <= len; step++) {
+            const i = (curIdx - step + len * 2) % len;
+            if (i === curIdx) {
+              if (!(wordResults[i] && wordConfirmed[i])) {
+                target = i;
+                break;
+              }
+              continue;
+            }
+            if (!(wordResults[i] && wordConfirmed[i])) {
+              target = i;
+              break;
+            }
+          }
+          setCurrentWordIndex(target);
+        }
+        return;
+      }
+
+      // Audio play (K). Space is now reserved for cell navigation, so
+      // audio moves off to a single-letter shortcut that doesn't collide
+      // with the typewriter input.
+      if ((e.key === 'k' || e.key === 'K') && sentence.audio_url) {
         e.preventDefault();
         playAudio();
         return;
       }
-      if (e.key === 'Tab') {
+      // Smart navigation — Space 跳下一格。Shift+Space 故意不用:中文 IME
+      // (微软拼音/搜狗) 把 Shift+Space 截获用于切中英文,无法可靠触发
+      // 智能上一格。Backspace 在 cell 空时承担「上一格」角色。
+      //
+      // 读 stateRef.current.currentWordIndex 而非 useCallback 闭包:submit
+      // 触发 setCurrentWordIndex 后,handler 闭包可能仍是旧值(React state
+      // 更新异步 + useEffect 重建 listener 有时序差)。读 stateRef 总
+      // 是最新值。smartNextIndex 内部已用 stateRef 读 wordResults/confirmed。
+      if (e.key === ' ' || e.code === 'Space') {
         e.preventDefault();
-        if (expectedWords.length === 0) return;
-        // Pure navigation — typing state is preserved on the cell we leave
-        // (re-render shows it via the `|| input` short-circuit in the cells
-        // loop). Enter is the only key that grades + advances.
-        if (e.shiftKey) {
-          setCurrentWordIndex(
-            (currentWordIndex - 1 + expectedWords.length) % expectedWords.length
-          );
-        } else {
-          setCurrentWordIndex((currentWordIndex + 1) % expectedWords.length);
-        }
+        const { currentWordIndex } = stateRef.current;
+        const target = smartNextIndex(currentWordIndex, 1);
+        setCurrentWordIndex(target);
         inputRef.current?.focus();
         return;
       }
@@ -572,14 +717,16 @@ export default function TranslationStage({
       // keydown so ' ' (space) matches 'space'.
       const trackedKey =
         e.key === ' ' || e.code === 'Space'
-          ? 'space'
-          : e.key === 'Tab'
-            ? 'tab'
+            ? 'space'
             : e.key === 'Backspace'
               ? 'backspace'
               : e.key === '/'
                 ? '/'
-                : null;
+                : e.key === 'k' || e.key === 'K'
+                  ? 'k'
+                  : e.key === 'Enter'
+                    ? 'enter'
+                    : null;
       if (trackedKey) {
         setActiveKeys((prev) => prev.filter((k) => k !== trackedKey));
       }
@@ -598,7 +745,32 @@ export default function TranslationStage({
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [currentWordIndex, expectedWords, playAudio, sentence.audio_url, showReview, handleContinue]);
+  }, [expectedWords, playAudio, sentence.audio_url, showReview, handleContinue, handleSkip, smartNextIndex]);
+
+  const stageHints = useMemo(() => {
+    // Space → 下一格(智能跳过已对 cell)。
+    // Backspace → 上一格(cell 空时智能反向跳;有字符时浏览器默认删字符)。
+    // K → 播放音频(原 Space 触发 audio,Space 现在被切格占用)。
+    // Shift+Space 故意不用:中文 IME 把它截获用于切中英文。
+    const base = sentence.audio_url
+      ? [
+          { keys: ['Space'], label: '下一格' },
+          { keys: ['Backspace'], label: '上一格' },
+          { keys: ['K'], label: '播放' },
+          { keys: ['/'], label: '偷看' },
+        ]
+      : [
+          { keys: ['Space'], label: '下一格' },
+          { keys: ['Backspace'], label: '上一格' },
+          { keys: ['/'], label: '偷看' },
+        ];
+    // 整句提交:让用户知道 Enter 是判分触发器,不是 cell 切换。
+    return [
+      ...base,
+      { keys: ['Enter'], label: '判分' },
+      { keys: ['Esc'], label: '跳过' },
+    ];
+  }, [sentence.audio_url]);
 
   return (
     <div className={styles.translation}>
@@ -607,13 +779,35 @@ export default function TranslationStage({
         {announce}
       </div>
       {showReview ? (
-        // Review screen — shown after a fully-correct sentence. Renders
-        // a static "answer card" (word + ZH/EN sentence) and waits for
-        // the user to press Enter (or click) to advance. We don't render
-        // the drill cells here because the input is locked pending the
-        // continue signal.
-        <div className={styles.reviewScreen} data-review>
-          <span className={styles.reviewKicker}>答对了</span>
+        // Review screen — modal overlay that dims + blurs the drill
+        // behind it, then surfaces the answer card and waits for
+        // Enter/click to advance. The drill cells stay mounted under
+        // .reviewScreen but are visually obscured by the frosted
+        // backdrop. role="dialog" + aria-modal announces a modal
+        // region to assistive tech; aria-labelledby ties the dialog
+        // to its kicker so a screen reader says "答对了, 对话框".
+        <div
+          className={styles.reviewScreen}
+          data-review
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="review-title"
+          onClick={handleContinue}
+        >
+          <div
+            className={styles.reviewCard}
+            onClick={(e) => e.stopPropagation()}
+          >
+          <span
+            id="review-title"
+            className={
+              reviewKind === 'skip'
+                ? `${styles.reviewKicker} ${styles.reviewKickerSkip}`
+                : styles.reviewKicker
+            }
+          >
+            {reviewKind === 'skip' ? '已跳过' : '答对了'}
+          </span>
           <div className={styles.wordCardWrap}>
             <BorderGlow
               className={styles.wordCardShell}
@@ -650,6 +844,7 @@ export default function TranslationStage({
             <kbd className={styles.reviewKey}>Enter</kbd>
             <span className={styles.reviewHint}>继续下一题 →</span>
           </button>
+          </div>
         </div>
       ) : (
         <>
@@ -693,6 +888,7 @@ export default function TranslationStage({
             <SpeakerIcon />
           </IconButton>
         </div>
+        <span className={styles.captionBadgeInline}>看中文，写英文</span>
       </header>
 
       <div className={styles.sentence}>
@@ -788,23 +984,16 @@ export default function TranslationStage({
         <audio ref={audioRef} />
       </div>
 
+      <button
+        type="button"
+        className={styles.skipBtn}
+        onClick={handleSkip}
+        disabled={showReview}
+      >
+        跳过这道题
+      </button>
       <SunkenShortcutBar
-        hints={
-          showReview
-            ? [{ keys: ['Enter'], label: '继续下一题' }]
-            : sentence.audio_url
-              ? [
-                { keys: ['Space'], label: '播放' },
-                { keys: ['Tab'], label: '切换格子' },
-                { keys: ['Backspace'], label: '上一格' },
-                { keys: ['/'], label: '偷看' },
-              ]
-            : [
-                { keys: ['Tab'], label: '切换格子' },
-                { keys: ['Backspace'], label: '上一格' },
-                { keys: ['/'], label: '偷看' },
-              ]
-        }
+        hints={stageHints}
         activeKeys={activeKeys}
         autoPlay={
           sentence.audio_url

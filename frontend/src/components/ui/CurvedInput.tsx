@@ -224,6 +224,7 @@ interface CurvedInputProps {
    *  placeholder as the a11y name) so screen readers and form
    *  autofill get a stable field name. Falls back to placeholder. */
   label?: string;
+  className?: string;
   theme?: Theme;
   width?: number | string;
   bend?: number;
@@ -252,7 +253,6 @@ interface CurvedInputProps {
   /** 挂载即聚焦隐藏 input。用于 auth modal 切换 登录/注册 时整块内容重挂,
       让光标自动落回输入框(Props 透传原生 autoFocus)。 */
   autoFocus?: boolean;
-  className?: string;
   style?: CSSProperties;
 }
 
