@@ -322,8 +322,14 @@
 }
 
 .levelSep,
-.levelNeeded {
+.levelNeeded,
+.levelGain {
   color: var(--ds-ink-soft);
+}
+
+.levelGain {
+  color: var(--ds-action-deep);
+  font-weight: var(--weight-medium);
 }
 
 .levelCapped {

@@ -96,7 +96,7 @@ def review_candidates(
     sent_rows = db.execute(
         text(
             "SELECT id, lib_id, text, chinese_text, audio_url "
-            "FROM sentences WHERE id = ANY(:ids::uuid[])"
+            "FROM sentences WHERE id = ANY(CAST(:ids AS uuid[]))"
         ),
         {"ids": [str(i) for i in ordered_ids]},
     ).fetchall()

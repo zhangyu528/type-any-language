@@ -1,0 +1,119 @@
+/* LevelEmblem — 100 级纯 CSS 胶囊(无图标 / 无 SVG 形状)。
+   7 段 tier 共享同一胶囊造型,仅通过颜色(浅/深两档)+ 中央数字
+   区分等级。渐变 + 描边 + 内高光 + 外光晕全部由 CSS 变量切换。 */
+
+.wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  border-radius: var(--radius-pill, 999px);
+  background: linear-gradient(135deg,
+    var(--emblem-fill-from),
+    var(--emblem-fill-to));
+  border: 1.5px solid var(--emblem-stroke);
+  /* 立体感:内白光 + 内暗影 + 外部 tier 色光晕 */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12),
+    0 2px 8px color-mix(in oklab, var(--emblem-glow-color, var(--ds-action)) 25%, transparent);
+  transition: transform 200ms var(--ease-out), filter 200ms var(--ease-out),
+    box-shadow 200ms var(--ease-out);
+  user-select: none;
+}
+
+/* 中央数字 — 等级编号。
+   字号由 prop size 决定(0.5em);
+   颜色 / 阴影由 --emblem-number-color / --emblem-number-shadow-color 控制,
+   每个 accent 自己定:浅色档(深字)用浅阴影提亮,深色档(浅字)用深阴影立体。 */
+.centerNumber {
+  position: relative;
+  z-index: 2;
+  font-family: var(--font-mono), monospace;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--emblem-number-color, #fff);
+  text-shadow: 0 0 1.5px var(--emblem-number-shadow-color, rgba(255, 255, 255, 0.3));
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+/* ── 状态 ── */
+.state_locked {
+  filter: grayscale(0.85) opacity(0.5);
+}
+
+.state_passed {
+  /* pill 自身不做降亮 — 容器(.tierCellPast opacity 0.85)统一处理 */
+}
+
+.state_current {
+  animation: emblem-pulse 2.4s var(--ease-out) infinite;
+}
+
+@keyframes emblem-pulse {
+  0%, 100% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.28),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.12),
+      0 2px 6px color-mix(in oklab, var(--emblem-glow-color, var(--ds-action)) 25%, transparent);
+  }
+  50% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.28),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.12),
+      0 2px 18px var(--emblem-glow-color, var(--ds-action));
+  }
+}
+
+/* forceActive:locked + hover 预览(去掉灰度,显示激活色 + 抬升 + tier 光晕) */
+.wrap.forceActive.state_locked {
+  filter: none;
+  opacity: 1;
+  transform: scale(1.05);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12),
+    0 0 14px var(--emblem-glow-color, var(--ds-action));
+  transition: transform 200ms var(--ease-out), box-shadow 200ms var(--ease-out);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   7 段 × 浅/深 = 14 种 accent 颜色。
+   每段 tier 内:
+     - L 前半(toneLight): 浅色 → 鲜艳深色(胶囊底色亮)
+     - L 后半(toneDeep): 鲜艳深色 → 更深(胶囊底色更沉)
+   数字颜色 / 阴影由 --emblem-number-color / --emblem-number-shadow-color 控制,
+   浅色档(深字)用浅阴影提亮,深色档(浅字)用深阴影立体。
+   ════════════════════════════════════════════════════════════════ */
+
+/* 1. 青铜(1-14) */
+.accent_bronze.toneLight { --emblem-fill-from: #fcd9a8; --emblem-fill-to: #d49464; --emblem-stroke: #8b5a2b; --emblem-glow-color: #d49464; --emblem-number-color: #3a200a; --emblem-number-shadow-color: rgba(255, 255, 255, 0.4); }
+.accent_bronze.toneDeep  { --emblem-fill-from: #d49464; --emblem-fill-to: #8b5a2b; --emblem-stroke: #5b3a1a; --emblem-glow-color: #b47840; --emblem-number-color: #fff8e7; --emblem-number-shadow-color: rgba(0, 0, 0, 0.35); }
+
+/* 2. 翡翠(15-28) */
+.accent_emerald.toneLight { --emblem-fill-from: #6ee7b7; --emblem-fill-to: #14b8a6; --emblem-stroke: #0f766e; --emblem-glow-color: #14b8a6; --emblem-number-color: #022c22; --emblem-number-shadow-color: rgba(255, 255, 255, 0.4); }
+.accent_emerald.toneDeep  { --emblem-fill-from: #14b8a6; --emblem-fill-to: #065f46; --emblem-stroke: #064e3b; --emblem-glow-color: #10b981; --emblem-number-color: #ecfdf5; --emblem-number-shadow-color: rgba(0, 0, 0, 0.35); }
+
+/* 3. 黄金(29-42) */
+.accent_gold.toneLight    { --emblem-fill-from: #fde68a; --emblem-fill-to: #f59e0b; --emblem-stroke: #b45309; --emblem-glow-color: #f59e0b; --emblem-number-color: #451a03; --emblem-number-shadow-color: rgba(255, 255, 255, 0.4); }
+.accent_gold.toneDeep     { --emblem-fill-from: #f59e0b; --emblem-fill-to: #b45309; --emblem-stroke: #78350f; --emblem-glow-color: #d97706; --emblem-number-color: #fef3c7; --emblem-number-shadow-color: rgba(0, 0, 0, 0.35); }
+
+/* 4. 红宝石(43-56) */
+.accent_ruby.toneLight    { --emblem-fill-from: #fda4af; --emblem-fill-to: #e11d48; --emblem-stroke: #9f1239; --emblem-glow-color: #e11d48; --emblem-number-color: #4c0519; --emblem-number-shadow-color: rgba(255, 255, 255, 0.4); }
+.accent_ruby.toneDeep     { --emblem-fill-from: #e11d48; --emblem-fill-to: #9f1239; --emblem-stroke: #881337; --emblem-glow-color: #be123c; --emblem-number-color: #ffe4e6; --emblem-number-shadow-color: rgba(0, 0, 0, 0.35); }
+
+/* 5. 紫水晶(57-70) */
+.accent_amethyst.toneLight { --emblem-fill-from: #c4b5fd; --emblem-fill-to: #7c3aed; --emblem-stroke: #5b21b6; --emblem-glow-color: #7c3aed; --emblem-number-color: #2e1065; --emblem-number-shadow-color: rgba(255, 255, 255, 0.4); }
+.accent_amethyst.toneDeep  { --emblem-fill-from: #7c3aed; --emblem-fill-to: #4c1d95; --emblem-stroke: #3b1675; --emblem-glow-color: #6d28d9; --emblem-number-color: #ede9fe; --emblem-number-shadow-color: rgba(0, 0, 0, 0.35); }
+
+/* 6. 蓝宝石(71-85) */
+.accent_sapphire.toneLight { --emblem-fill-from: #93c5fd; --emblem-fill-to: #2563eb; --emblem-stroke: #1e40af; --emblem-glow-color: #3b82f6; --emblem-number-color: #1e3a8a; --emblem-number-shadow-color: rgba(255, 255, 255, 0.4); }
+.accent_sapphire.toneDeep  { --emblem-fill-from: #2563eb; --emblem-fill-to: #1e3a8a; --emblem-stroke: #172554; --emblem-glow-color: #1d4ed8; --emblem-number-color: #eff6ff; --emblem-number-shadow-color: rgba(0, 0, 0, 0.35); }
+
+/* 7. 钻石(86-100)— 冰白到深冰蓝(钻石白蓝) */
+.accent_diamond.toneLight  { --emblem-fill-from: #e0f2fe; --emblem-fill-to: #67e8f9; --emblem-stroke: #22d3ee; --emblem-glow-color: #67e8f9; --emblem-number-color: #0c4a6e; --emblem-number-shadow-color: rgba(255, 255, 255, 0.4); }
+.accent_diamond.toneDeep   { --emblem-fill-from: #67e8f9; --emblem-fill-to: #0c4a6e; --emblem-stroke: #0e7490; --emblem-glow-color: #22d3ee; --emblem-number-color: #ecfeff; --emblem-number-shadow-color: rgba(0, 0, 0, 0.35); }

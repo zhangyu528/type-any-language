@@ -214,7 +214,8 @@ export default function OverviewSection({
         <GreetingBar
           user={snapshot.user}
           streak={snapshot.streak}
-          totalSentences={snapshot.lifetime?.total_sentences}
+          totalCorrect={snapshot.lifetime?.total_correct}
+          accuracy={snapshot.lifetime?.accuracy}
           behind={!snapshot.daily_goal.completed}
         />
       </header>
@@ -364,7 +365,7 @@ export default function OverviewSection({
             sub={
               achievements.next
                 ? `还差 ${Math.max(0, achievements.next.target - achievements.next.current)}${achievements.next.unit} · ${achievements.next.label}`
-                : `已集齐 ${achievements.badges.length} 枚`
+                : `已集齐 ${achievements.totalCount} 枚`
             }
           />
         </AnimatedContent>

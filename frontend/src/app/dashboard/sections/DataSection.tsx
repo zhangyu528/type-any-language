@@ -183,7 +183,11 @@ export default function DataSection({ snapshot, onStartLib }: DataSectionProps) 
         </div>
         <div className={styles.col4stack}>
           <HeatmapPanel days={calHeat} onSelectDay={setDrawerDate} />
-          <GoalRings daily={snapshot.daily_goal} totalSentences={snapshot.lifetime?.total_sentences} />
+          <GoalRings
+            daily={snapshot.daily_goal}
+            totalCorrect={snapshot.lifetime?.total_correct}
+            accuracy={snapshot.lifetime?.accuracy}
+          />
         </div>
       </div>
 

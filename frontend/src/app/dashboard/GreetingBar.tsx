@@ -70,10 +70,10 @@ const WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周�
 export interface GreetingBarProps {
   user: DashboardUser;
   streak: StreakInfo;
-  /** Lifetime total_sentences — drives the level widget on the right
-   *  side of the hero. May be undefined for brand-new accounts that
-   *  haven't recorded any practice yet. */
-  totalSentences?: number;
+  /** Lifetime total_correct — quality-first XP base. */
+  totalCorrect?: number;
+  /** Lifetime accuracy 0–1 — drives the accuracy tier boost. */
+  accuracy?: number | null;
   /** 今日状态：未达标(落后)=true → 左轨主色冷蓝(--ds-action,与 ContinueCard
    * 卡片 behind 态一致);达标=done → 左轨薄荷绿(--ds-correct)。
    * 不再用琥珀作为落后态警示色,与全局 "琥珀=稀缺 CTA 锚" 视觉预算对齐。 */
@@ -83,14 +83,15 @@ export interface GreetingBarProps {
 export default function GreetingBar({
   user,
   streak,
-  totalSentences,
+  totalCorrect,
+  accuracy,
   behind,
 }: GreetingBarProps) {
   const now = new Date();
   const timeBand = pickTimeBand(now.getHours());
   const greeting = pickGreeting(now.getHours());
   const display = (user.display_name || user.email || '').trim() || '朋友';
-  const level: LevelInfo = deriveLevel(totalSentences);
+  const level: LevelInfo = deriveLevel({ totalCorrect, accuracy });
 
   const dateDay = `${now.getMonth() + 1}月${now.getDate()}日`;
   const dateWeek = WEEK[now.getDay()];
@@ -160,11 +161,11 @@ export default function GreetingBar({
          composition doesn't shift. */}
       <div
         className={styles.level}
-        aria-label={`等级 ${level.label} (Lv${level.level}),累计 ${level.total} 句`}
+        aria-label={`等级 ${level.tierName} (Lv${level.level}),累计正确 ${level.correctCount} 句`}
       >
         <div className={styles.levelHead}>
           <span className={styles.levelBadge}>Lv{level.level}</span>
-          <span className={styles.levelLabel}>{level.label}</span>
+          <span className={styles.levelLabel}>{level.tierName}</span>
         </div>
         <div
           className={styles.levelTrack}
@@ -177,12 +178,12 @@ export default function GreetingBar({
           <div className={styles.levelFill} style={{ width: `${level.pct}%` }} />
         </div>
         <p className={styles.levelMeta}>
-          <span className={styles.levelTotal}>{level.total}</span>
-          <span className={styles.levelSep}>句</span>
+          <span className={styles.levelTotal}>{level.correctCount}</span>
+          <span className={styles.levelSep}>句正确 · 本级 {level.costForNextLevel} XP</span>
           {level.capped ? (
             <span className={styles.levelCapped}>· 已登顶</span>
           ) : (
-            <span className={styles.levelNeeded}>· 还差 {level.toNext} 句升级</span>
+            <span className={styles.levelNeeded}>· 还差 {level.toNextXp} XP 升级</span>
           )}
         </p>
       </div>
