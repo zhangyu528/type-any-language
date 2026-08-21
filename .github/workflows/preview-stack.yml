@@ -100,12 +100,30 @@ jobs:
           NEXT_PUBLIC_API_URL: ''
         run: npm run build:pages
 
+      - name: Cache cloudflared binary
+        id: cache-cf
+        uses: actions/cache@v4
+        with:
+          # 固定版本 key + restore-keys fallback:
+          # - key 完全匹配(version + OS) → 立刻用 cache,跳过 30MB 下载
+          # - 任何旧 cloudflared-* key 命中 → 用旧版本(冷启动不会卡死)
+          # - 都不命中 → Install cloudflared step 重新下
+          # 所有 branch 共享同一 cache(不带 branch 信息)
+          path: /tmp/cloudflared
+          key: cloudflared-v2024.10.2-${{ runner.os }}-amd64
+          restore-keys: |
+            cloudflared-v
+
       - name: Install cloudflared
+        if: steps.cache-cf.outputs.cache-hit != 'true'
         run: |
+          # 缓存未命中 → 下载。锁版本避免 'latest' 漂移。
           curl -fsSL -o /tmp/cloudflared \
-            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+            https://github.com/cloudflare/cloudflared/releases/download/2024.10.2/cloudflared-linux-amd64
           chmod +x /tmp/cloudflared
-          /tmp/cloudflared --version
+
+      - name: Verify cloudflared
+        run: /tmp/cloudflared --version
 
       - name: Start backend
         working-directory: backend
