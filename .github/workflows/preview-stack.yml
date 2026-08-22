@@ -99,9 +99,13 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         env:
-          NEXT_PUBLIC_DEMO_MODE: 'false'
+          # GITHUB_PAGES=1 → next.config.js 走 output: 'export' 路径(static export)
+          # NEXT_PUBLIC_DEMO_MODE=true → client JS 走 mock data,不调真 backend
+          # NEXT_PUBLIC_API_URL='' → 相对 URL,nginx 反代 /api/* 到 uvicorn
+          GITHUB_PAGES: '1'
+          NEXT_PUBLIC_DEMO_MODE: 'true'
           NEXT_PUBLIC_API_URL: ''
-        run: npm run build:pages
+        run: npm run build
 
       - name: Get current month (cache key rotation)
         id: month
