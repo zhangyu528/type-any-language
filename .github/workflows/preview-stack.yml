@@ -100,9 +100,12 @@ jobs:
         working-directory: frontend
         env:
           # GITHUB_PAGES=1 → next.config.js 走 output: 'export' 路径(static export)
+          # NEXT_DIST_DIR=out → override scripts/build.mjs 默认的 .next-build
+          #                       static export 输出到 frontend/out/(nginx root 期望的位置)
           # NEXT_PUBLIC_DEMO_MODE=true → client JS 走 mock data,不调真 backend
           # NEXT_PUBLIC_API_URL='' → 相对 URL,nginx 反代 /api/* 到 uvicorn
           GITHUB_PAGES: '1'
+          NEXT_DIST_DIR: out
           NEXT_PUBLIC_DEMO_MODE: 'true'
           NEXT_PUBLIC_API_URL: ''
         run: npm run build
