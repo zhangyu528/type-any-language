@@ -1,0 +1,388 @@
+/* AppHeader — landing-only 顶部 chrome,磨砂 pill
+ *
+ * 2026-08 polish (landing-perf sweep):
+ *   - backdrop blur 36→20 (视觉差异微小,GPU 占用降 50%)
+ *   - 4 层 box-shadow → 2 层 (inset highlight + 1 outer ambient)
+ *   - 入场动画 filter: blur(8px) → transform translateY (无 GPU 模糊)
+ *   - focus-visible 样式 (键盘 a11y)
+ *   - 移动端 brand 缩为 "TA" (现 display:none 改成短文字)
+ *   - scroll 行为 (滚出 隐藏,向上滚 显示) — JS 驱动
+ *
+ * Light 主题 + dark 主题分别给一套阴影 (亮底要深阴影,深底要浅色高光)。
+ * reduced-motion 关闭所有动效。
+ */
+
+.root {
+  /* fixed (不是 relative):header 永远悬浮在视口顶部,scroll-driven
+     hide/show 才能生效。否则 relative 跟着页面滚,transform translateY
+     看不见 — 上次做的 scroll 行为实际上完全无效。
+     top + left + right + margin auto 保持水平居中,跟之前一样的居中观感。 */
+  position: fixed;
+  top: clamp(16px, 2.4vh, 24px);
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: calc(100% - clamp(48px, 8vw, 80px));
+  max-width: 720px;
+  min-height: 64px;
+  padding: 0 24px;
+  margin: 0 auto;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ds-surface) 78%, transparent);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid color-mix(in srgb, var(--ds-border) 70%, transparent);
+  /* 2 层阴影:inset 顶缘高光 + 1 outer ambient (远处浮起感) */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 18px 36px -6px rgba(12, 68, 124, 0.18);
+  z-index: 2;
+  /* isolation: isolate 创建独立 stacking context,header 内部的
+     z-index(2)不会跟外层模态(50+)或 hero 内容(0)数字战争;
+     也避免 backdrop-filter blur 引起 z-index 重新计算。 */
+  isolation: isolate;
+  /* 入场:opacity + transform translateY(无模糊,GPU 友好)。
+     delay 200ms 让 hero 内容先出现,header 后落,视觉层次更清晰。
+     fill-mode: backwards (不是 both):只锁 0% 的 "opacity 0 + translateY(-8px)"
+     入场前状态。动画跑完 100% 后,header 回到无 transform 状态,这样
+     .root--hidden 加的 transform translateY(-100%) 才能生效。
+     用 both 会让动画终态 (translateY 0) 永久锁住,覆盖 hidden 的 transform,
+     这是为什么滚下没反应的原因。 */
+  animation: app-header-drop-in 420ms cubic-bezier(0.16, 1, 0.3, 1) 200ms backwards;
+  transition:
+    box-shadow 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 220ms ease-out;
+  will-change: transform, opacity;
+}
+
+/* scroll 隐藏:JS 加 .root--hidden 类触发 transform translateY */
+.root--hidden {
+  transform: translateY(calc(-100% - var(--space-5)));
+  opacity: 0;
+  pointer-events: none;
+}
+
+.root:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 24px 48px -8px rgba(12, 68, 124, 0.24);
+}
+
+@keyframes app-header-drop-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- Brand ---------- */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  border-radius: var(--radius-sm);
+  color: var(--ds-ink);
+  text-decoration: none;
+  user-select: none;
+}
+
+/* WCAG 2.4.1 Bypass Blocks:键盘用户 / 屏幕阅读器 Tab 一次就能跳过 nav
+   直接进 hero,不用 Tab 5+ 次。藏到屏幕外,focus 时显出来。 */
+.skipLink {
+  position: absolute;
+  left: -9999px;
+  top: 8px;
+  z-index: 100;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ds-on-action);
+  background: var(--ds-action-deep);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  transition: left 0.15s ease;
+}
+.skipLink:focus,
+.skipLink:focus-visible {
+  left: 16px;
+  outline: 2px solid var(--ds-action);
+  outline-offset: 2px;
+}
+.brandMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+.brandName {
+  font-size: 14px;
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.015em;
+  color: var(--ds-ink);
+  white-space: nowrap;
+}
+
+/* ---------- Nav ---------- */
+.nav {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ---------- Login / Logout: ghost text 按钮 ---------- */
+.loginBtn,
+.logoutBtn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
+  height: 32px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ds-ink);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-pill);
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition: background-color var(--dur-fast, 150ms) var(--ease-out);
+}
+.loginBtn:hover,
+.logoutBtn:hover {
+  background-color: rgba(143, 203, 240, 0.22);
+}
+
+/* ---------- Avatar: 圆点 link,薄荷底白字 ---------- */
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--avatar-sm);
+  height: var(--avatar-sm);
+  border-radius: var(--radius-pill);
+  background: var(--ds-action);
+  color: var(--ds-on-action);
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+}
+
+/* ---------- Focus-visible (键盘 a11y) ---------- */
+.brand:focus-visible,
+.loginBtn:focus-visible,
+.logoutBtn:focus-visible,
+.avatar:focus-visible,
+.themeToggle:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 4px;
+}
+
+/* ---------- Theme toggle (sun / moon icon) ---------- */
+.themeToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  border: 0;
+  color: var(--ds-ink);
+  cursor: pointer;
+  transition: background-color var(--dur-fast, 150ms) var(--ease-out);
+}
+.themeToggle:hover {
+  background-color: rgba(143, 203, 240, 0.22);
+}
+
+/* ---------- Mobile (< 720px): hamburger 菜单 ---------- */
+.menuWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.hamburger {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+  transition: background-color var(--dur-fast, 150ms) var(--ease-out);
+}
+.hamburger:hover {
+  background-color: rgba(143, 203, 240, 0.22);
+}
+.hamburger:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+.hamburgerBar {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: var(--ds-ink);
+  border-radius: 2px;
+  transition: transform 200ms var(--ease-out), opacity 200ms var(--ease-out);
+}
+.hamburgerBarOpen:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
+}
+.hamburgerBarOpen:nth-child(2) {
+  opacity: 0;
+}
+.hamburgerBarOpen:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
+}
+
+.menu {
+  /* 默认收起,绝对定位在 header 下方,避免挤占 header 高度 */
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--ds-glass-shadow);
+  /* hidden by default */
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition:
+    opacity 200ms var(--ease-out),
+    transform 200ms var(--ease-out);
+  z-index: 10;
+}
+.menuOpen {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.menuItem,
+.menuItemPrimary {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 10px 14px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ds-ink);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--dur-fast, 150ms) var(--ease-out);
+}
+.menuItem:hover,
+.menuItemPrimary:hover {
+  background-color: rgba(143, 203, 240, 0.18);
+}
+.menuItemPrimary {
+  background: var(--ds-action-tint);
+  color: #0C2C53;
+  font-weight: 600;
+  margin-top: 4px;
+}
+.menuItemPrimary:hover {
+  background: color-mix(in srgb, var(--ds-action-tint) 82%, var(--ds-action-deep));
+}
+
+/* Desktop 默认不显示 hamburger / menu */
+@media (min-width: 720px) {
+  .menuWrap {
+    display: none;
+  }
+}
+
+/* ---------- Landing 变体: 磨砂更透 + 阴影加深 ---------- */
+.root--landing {
+  background: color-mix(in srgb, var(--ds-surface) 64%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 22px 44px -6px rgba(12, 68, 124, 0.22);
+}
+.root--landing:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 28px 56px -8px rgba(12, 68, 124, 0.28);
+}
+
+/* ---------- Dark 主题: 浅色高光,深色 ambient ---------- */
+[data-theme='dark'] .root {
+  box-shadow:
+    inset 0 1px 0 rgba(143, 203, 240, 0.14),
+    0 18px 36px -6px rgba(0, 0, 0, 0.45);
+}
+[data-theme='dark'] .root:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(143, 203, 240, 0.18),
+    0 24px 48px -8px rgba(0, 0, 0, 0.55);
+}
+[data-theme='dark'] .root--landing {
+  box-shadow:
+    inset 0 1px 0 rgba(143, 203, 240, 0.12),
+    0 22px 44px -6px rgba(0, 0, 0, 0.50);
+}
+[data-theme='dark'] .root--landing:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(143, 203, 240, 0.16),
+    0 28px 56px -8px rgba(0, 0, 0, 0.60);
+}
+
+/* ---------- Mobile (< 720px): brand 缩为 "TA" 短文字 + nav 间距缩 ---------- */
+@media (max-width: 720px) {
+  .root {
+    min-height: 56px;
+    padding: 0 16px;
+    margin: clamp(16px, 2vh, 24px) auto clamp(12px, 1.5vh, 20px);
+  }
+  /* brand 名缩为短码 "TA",仍保留品牌识别但不占太多横向空间 */
+  .brandName {
+    font-size: 12px;
+  }
+  .nav {
+    gap: var(--space-1);
+  }
+  .loginBtn,
+  .logoutBtn {
+    padding: 0 10px;
+    height: 28px;
+    font-size: 12px;
+  }
+}
+
+/* 极窄屏 (< 400px):brand 名再缩为纯 icon,不占文字宽度 */
+@media (max-width: 400px) {
+  .brandName {
+    display: none;
+  }
+}
+
+/* ---------- Reduced-motion: 关闭入场 + scroll 隐藏 + hover 过渡 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .root {
+    animation: none;
+    transition: box-shadow 280ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  /* reduced-motion 下不用 transition 隐藏,直接用 display: none
+     节省 layout 开销(用户偏好少动效 → transform 动画也省掉)。 */
+  .root--hidden {
+    display: none;
+  }
+}

@@ -22,8 +22,8 @@
     transform var(--dur-med, 0.28s) var(--ease-out, ease);
   /* 浮层（rail tooltip / 账号名片）配色：浅色主题下刻意用深底浅字，
      暗色主题换成深空蓝，避免与 sidebar 自身底色糊在一起。 */
-  --nav-pop-bg: #1f2433;
-  --nav-pop-ink: #f1efea;
+  --nav-pop-bg: var(--ds-bg-dark, #0A1E33);
+  --nav-pop-ink: var(--ds-ink);
   --nav-pop-hover: rgba(255, 255, 255, 0.18);
   --nav-pop-item: rgba(255, 255, 255, 0.1);
 }
@@ -31,7 +31,7 @@
 [data-theme='dark'] .sidebar {
   background: rgba(15, 17, 25, 0.86);
   border-right: 1px solid rgba(255, 255, 255, 0.07);
-  --nav-pop-bg: #1e3e5f;
+  --nav-pop-bg: var(--ds-surface-dark, #102A45);
   --nav-pop-ink: var(--ds-ink);
   --nav-pop-hover: rgba(255, 255, 255, 0.16);
   --nav-pop-item: rgba(255, 255, 255, 0.08);
@@ -570,7 +570,7 @@
   outline-offset: 1px;
 }
 .cardItem[data-danger='true']:hover {
-  background: color-mix(in srgb, #e24b4a 34%, transparent);
+  background: color-mix(in srgb, var(--ds-error) 34%, transparent);
 }
 
 /* 版本号从品牌区下方移到名片里 —— 低频信息不该占常驻垂直空间。 */

@@ -33,13 +33,18 @@ const hexToRgba = (hex: string, alpha: number): string => {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
 };
 
-type ShadowSize = 'sm' | 'md' | 'lg';
+/* 2026-08 加 'none':让 caller 关掉输入框周边阴影。
+   light/dark 主题下阴影都给"卡浮起来"加负分(原 SHADOWS 16/40/0.52
+   在 light 下色 #0E1A2E @52% 很深,在 dark 下色 #000000 @52% 直接黑),
+   用户反馈"输入框周围有阴影,light 和 dark 都不想要"。 */
+type ShadowSize = 'sm' | 'md' | 'lg' | 'none';
 type Theme = 'dark' | 'light';
 
-const SHADOWS: Record<ShadowSize, [number, number, number]> = {
+const SHADOWS: Record<ShadowSize, [number, number, number] | undefined> = {
   sm: [5, 12, 0.3],
   md: [10, 24, 0.4],
-  lg: [16, 40, 0.52]
+  lg: [16, 40, 0.52],
+  none: undefined
 };
 
 interface ThemePalette {
@@ -53,23 +58,53 @@ interface ThemePalette {
 }
 
 const THEMES: Record<Theme, ThemePalette> = {
+  /* 2026-08 改:dark palette 全部对齐项目 ds token (--ds-*),
+     跟 light palette 同款做法(2026-08 上一轮 D 改的)。
+     之前暗 palette 故意保留 reactbits 原色,但 modal 改成 theme-aware
+     之后,暗主题下 card 是 --ds-surface #102A45 深海军,input 背景却是
+     #1B1722 暗紫 + 文字 #f5f5f5 中灰 —— 紫调跟海军调不一致,文字也
+     不是项目主调色。对照表 (dark):
+       backgroundColor  --ds-surface   #102A45
+       textColor        --ds-ink       #E8F4FC
+       placeholderColor --ds-ink-soft  #A2B4CC
+       borderColor      --ds-border    #1E3E5F(比 surface 深,跟 light 反向:
+                              light 用 #DDE4ED 比 surface 浅,让 card 上
+                              的 input 视觉"提起来";dark 用 #1E3E5F 比
+                              surface 深,让 input 在深底上"压下去"形成边框)
+       buttonColor / buttonTextColor / shadowColor 不动 —— 跟 light 一致,
+       caller 在 auth modal 里用 ctaBtn/ctaText 主题感知覆盖。
+     注:dark palette 之前一直闲置(模态强制 light),2026-08 theme-aware
+     改造后才真正用到,所以这是 dark palette 第一次跟 ds 对齐。 */
   dark: {
-    backgroundColor: '#1B1722',
-    textColor: '#f5f5f5',
-    placeholderColor: '#a1a1aa',
-    borderColor: '#392e4e',
+    backgroundColor: '#102A45',
+    textColor: '#E8F4FC',
+    placeholderColor: '#A2B4CC',
+    borderColor: '#1E3E5F',
     buttonColor: '#A855F7',
     buttonTextColor: '#ffffff',
     shadowColor: '#000000'
   },
+  /* 2026-08 改:light palette 全部对齐项目 ds token (--ds-*),
+     而不是 reactbits 自带的 reactbits 蓝紫色。原来两套色板在
+     auth modal / reset-password 独立页产生轻微视觉割裂。
+     对照表 (light):
+       backgroundColor  --ds-surface  #FFFFFF ✓
+       textColor        --ds-ink      #0E1A2E
+       placeholderColor --ds-ink-soft #5A6577
+       borderColor      --ds-border   #DDE4ED
+       buttonColor      --ds-action   #378ADD
+       shadowColor      --ds-ink      #0E1A2E (取深色做阴影 tint)
+     暗 palette 不变 —— 这次只针对 light 打磨。
+     注:这些 hex 是 CurvedInput 内部 SVG / canvas 渲染输入,
+     不能直接用 var(),固化在 TS 常量里。 */
   light: {
-    backgroundColor: '#ffffff',
-    textColor: '#1d2050',
-    placeholderColor: '#9aa0b6',
-    borderColor: '#262a56',
-    buttonColor: '#4763eb',
+    backgroundColor: '#FFFFFF',
+    textColor: '#0E1A2E',
+    placeholderColor: '#5A6577',
+    borderColor: '#DDE4ED',
+    buttonColor: '#378ADD',
     buttonTextColor: '#ffffff',
-    shadowColor: '#0b0e2a'
+    shadowColor: '#0E1A2E'
   }
 };
 
@@ -189,6 +224,7 @@ interface CurvedInputProps {
    *  placeholder as the a11y name) so screen readers and form
    *  autofill get a stable field name. Falls back to placeholder. */
   label?: string;
+  className?: string;
   theme?: Theme;
   width?: number | string;
   bend?: number;
@@ -217,7 +253,6 @@ interface CurvedInputProps {
   /** 挂载即聚焦隐藏 input。用于 auth modal 切换 登录/注册 时整块内容重挂,
       让光标自动落回输入框(Props 透传原生 autoFocus)。 */
   autoFocus?: boolean;
-  className?: string;
   style?: CSSProperties;
 }
 

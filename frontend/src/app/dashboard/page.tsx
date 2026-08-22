@@ -4,7 +4,7 @@
  * /dashboard — login-required learning console.
  *
  * This page is the orchestrator for a 6-partition console
- * (主页 / 发现 / 复习 / 数据 / 成就 / 设置). URL `?section=` is the single
+ * (主页 / 发现 / 复习 / 数据 / 等级和成就 / 设置). URL `?section=` is the single
  * source of truth for the active partition (deep-linkable + browser
  * back/forward); the picker modal uses `?picker=1` on the same URL.
  *
@@ -139,21 +139,6 @@ function DashboardInner() {
 
   // ---- Partition + picker state (URL = source of truth) ----
   const [uiState, setUiState] = useState<UiState>(readState);
-  // 侧边栏默认折叠(76px rail)；hover/focus 临时展开，pin 锁定展开。
-  // pin 状态持久化到 localStorage，刷新后保持用户上次的锁定选择。
-  const [pinned, setPinned] = useState<boolean>(() => {
-    try {
-      return window.localStorage.getItem('prefs.sidebarPinned') === '1';
-    } catch {
-      return false;
-    }
-  });
-  // 侧边栏展开态 = 用户点击固定(pin)；默认折叠为 76px rail。
-  // 不再用 hover 自动展开：hover 浮层会压住主显示区，hover 推内容又会造成
-  // 割裂，故改为「点击伸缩按钮切换 + pin 持久化」(VS Code / Notion 模型)。
-  // 内容区 margin 与侧栏宽度共用同一个 collapsed 标志（展开时让位，
-  // 折叠时收为 rail），不再维护第二个同义变量。
-  const collapsed = !pinned;
   const [mobileOpen, setMobileOpen] = useState(false);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -300,19 +285,6 @@ function DashboardInner() {
     },
     [setSection],
   );
-
-  // Pin 锁定：切换时把状态持久化到 localStorage，刷新后保持。
-  const togglePin = useCallback(() => {
-    setPinned((p) => {
-      const np = !p;
-      try {
-        window.localStorage.setItem('prefs.sidebarPinned', np ? '1' : '0');
-      } catch {
-        /* 隐私模式静默 */
-      }
-      return np;
-    });
-  }, []);
 
   // 登出（与 AppHeader 行为一致）：清会话后回 landing。
   const handleLogout = useCallback(async () => {
@@ -480,7 +452,6 @@ function DashboardInner() {
           <PracticeSection
             catalog={catalog}
             onPickLib={handlePickLib}
-            onStartPractice={handleStartPractice}
             userId={user.id}
             enrolledLibIds={enrolledLibIds}
             onEnroll={handleEnroll}
@@ -533,7 +504,6 @@ function DashboardInner() {
   return (
     <main
       className={styles.root}
-      data-collapsed={collapsed ? 'true' : 'false'}
       data-mobile-open={mobileOpen ? 'true' : 'false'}
     >
       {/* Static baby-blue mesh background (replaces the old WebGL Aurora).
@@ -561,9 +531,6 @@ function DashboardInner() {
         reviewDue={snapshot.review_due_count ?? 0}
         user={user}
         onLogout={handleLogout}
-        collapsed={collapsed}
-        pinned={pinned}
-        onTogglePin={togglePin}
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
       />

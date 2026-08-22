@@ -39,7 +39,7 @@
   align-items: center;
   gap: var(--space-2);
   font-family: var(--font-mono), monospace;
-  font-size: 11px;
+  font-size: var(--text-caption);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ds-action-deep);
@@ -283,7 +283,7 @@
 /* step 标签(读/抄/记) */
 .stepLabel {
   font-family: var(--font-mono), monospace;
-  font-size: 11px;
+  font-size: var(--text-caption);
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--ds-action-deep);
@@ -327,7 +327,7 @@
 /* cardSub:3 步体验描述 */
 .cardSub {
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--text-caption);
   color: var(--ds-ink-soft);
   line-height: 1.55;
   margin: 0;

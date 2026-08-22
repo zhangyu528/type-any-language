@@ -1,0 +1,58 @@
+/* BadgeRing — 徽章 + 环形进度 SVG。
+   进度弧 stroke 跟随 BadgeEmblem 的 accent(--badge-color 已挂在外层作用域)。
+   这里 CSS 只管结构 + 轨道底色;fill 用内联 hex 是因为 SVG attr 中 CSS var 在
+   某些渲染管线失效(上一轮已踩过这个坑)。 */
+
+.wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ring {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.track {
+  stroke: var(--ds-tint-deep);
+  opacity: 0.7;
+}
+
+.fill {
+  /* 进度弧:已默认在 inline 设了 stroke + strokeDashoffset,
+     这里只挂 transition 让宽度变化平滑。 */
+  transition: stroke-dashoffset 600ms var(--ease-out);
+}
+
+.fillEarned {
+  /* earned 满弧:加柔和发光(用 filter 实现)。 */
+  filter: drop-shadow(0 0 6px currentColor);
+  opacity: 0.85;
+}
+
+.emblem {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+/* earned 状态:徽章本体走统一金色(产品主色 --ds-cta 系列)。
+   进度弧也走金色,所有 earned 视觉一致(跨 8 个 accent)。
+   通过子选择器设置 --badge-* CSS 变量,覆盖 BadgeEmblem 的 accent 变量。
+   icon 用深琥珀 #78350f — 在金色渐变上对比度强,清晰可读。 */
+.wrapEarned {
+  --badge-fill-from: #fde68a;
+  --badge-fill-to: #f59e0b;
+  --badge-stroke-color: #b45309;
+  --badge-glow-color: #f59e0b;
+  --badge-color: #f59e0b;
+  --badge-icon-color: #78350f;
+  --badge-icon-shadow: rgba(255, 251, 235, 0.55);
+}

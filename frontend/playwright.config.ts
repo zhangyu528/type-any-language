@@ -79,9 +79,11 @@ function resolveBrowserExecutable(): string | null {
 
 const EXECUTABLE_PATH = resolveBrowserExecutable();
 
-// 专用测试端口：webServer 起独立 next dev 于 :3100，避免与 dev 的 :3000 / :8000 冲突。
-// 后端用 page.route mock 覆盖，故 webServer 只拉前端即可。
+// 专用测试端口：默认 :3100 跑 dev,设 E2E_PROD=1 切到 prod (next start,需先 build)。
+// 性能测试 (landing.perf.spec.ts) 只在 prod 跑才有意义(dev 数字被 HMR / source maps
+// 严重污染,跟用户实际体验脱节 2-3 倍),其他 e2e 仍跑 dev。
 const E2E_PORT = process.env.E2E_PORT || '3100';
+const E2E_PROD = process.env.E2E_PROD === '1';
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -89,10 +91,13 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   timeout: 30_000,
-  // 专用测试服务：playwright 自动拉起 / 复用 :3100 的 next dev。
-  // 首次冷编译较慢，给 2 分钟就绪超时。
+  // 专用测试服务:默认 next dev (其他 e2e 用);prod 性能测试走 E2E_PROD=1 + next start。
+  // CI 跑 prod 测试需要先 `npm run build`(pretest:prod 自动跑)。
+  // 首次冷编译较慢,给 2 分钟就绪超时。
   webServer: {
-    command: `npx next dev -p ${E2E_PORT}`,
+    command: E2E_PROD
+      ? `npx next start -p ${E2E_PORT}`
+      : `npx next dev -p ${E2E_PORT}`,
     url: `http://localhost:${E2E_PORT}`,
     reuseExistingServer: true,
     timeout: 120_000,

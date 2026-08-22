@@ -21,9 +21,17 @@
   inset: 0;
   z-index: 0;
   pointer-events: none;
+  /* 2026-08 改 light 主题右下 + 中央 wash 色:
+     - 左上 / 底 wash 已用 --ds-action(婴儿蓝),light 主题下没问题
+     - 右上 wash 之前用 --ds-cta(深琥珀 #BA7517),叠在浅婴儿蓝底上"沙土/警示"色,
+       跟"light=cold / dark=warm"主转化母题冲突
+     - 改用 --ds-action 婴儿蓝 wash,跟 landing 单色调 babyblue 主调对齐
+     - dark 主题块里 --ds-cta 琥珀 wash 保留(深底要"暖"提亮),但把
+       5% 改成 --ds-convert-light 6%,暗紫比琥珀"暖而不警示",跟
+       dashboard 深底母题更协调 */
   background:
     radial-gradient(ellipse 600px 400px at 20% 10%, color-mix(in srgb, var(--ds-action) 12%, transparent), transparent 70%),
-    radial-gradient(ellipse 500px 350px at 80% 60%, color-mix(in srgb, var(--ds-cta) 8%, transparent), transparent 70%),
+    radial-gradient(ellipse 500px 350px at 80% 60%, color-mix(in srgb, var(--ds-action) 8%, transparent), transparent 70%),
     radial-gradient(ellipse 700px 500px at 50% 100%, color-mix(in srgb, var(--ds-action) 10%, transparent), transparent 70%),
     var(--ds-bg);
   transition: background 0.6s ease;
@@ -32,7 +40,7 @@
 [data-theme='dark'] .bgMesh {
   background:
     radial-gradient(ellipse 600px 400px at 20% 10%, color-mix(in srgb, var(--ds-action) 8%, transparent), transparent 70%),
-    radial-gradient(ellipse 500px 350px at 80% 60%, color-mix(in srgb, var(--ds-cta) 5%, transparent), transparent 70%),
+    radial-gradient(ellipse 500px 350px at 80% 60%, color-mix(in srgb, var(--ds-convert-light) 6%, transparent), transparent 70%),
     radial-gradient(ellipse 700px 500px at 50% 100%, color-mix(in srgb, var(--ds-action) 7%, transparent), transparent 70%),
     var(--ds-bg);
 }
@@ -252,8 +260,9 @@
   justify-content: center;
   width: 42px;
   height: 42px;
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  background: rgba(255, 255, 255, 0.72);
+  /* 2026-08:light 主题用现有玻璃 token 替代硬编码 rgba */
+  border: 1px solid var(--ds-glass-border);
+  background: var(--ds-glass-surface);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border-radius: 12px;
@@ -263,7 +272,7 @@
 }
 
 .menuBtn:hover {
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--ds-surface);
 }
 
 .menuBtn:focus-visible {
@@ -281,7 +290,9 @@
   position: fixed;
   inset: 0;
   z-index: 25;
-  background: rgba(8, 12, 20, 0.45);
+  /* 2026-08:从硬编码 rgba(8,12,20,0.45) 改用 var(--ds-bg) 主题感知压暗
+     (light 下 #F2F8FE 45% / dark 下 #0A1E33 45%)。色调跟主题一致。 */
+  background: color-mix(in srgb, var(--ds-bg) 45%, transparent);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
 }

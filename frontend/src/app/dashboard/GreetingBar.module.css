@@ -1,7 +1,8 @@
 /* GreetingBar — the dashboard "hero" header.
    Status theming: root carries data-status (behind / done) which drives
-   the left accent rail (--accent-edge) + corner glow (--glow), so the
-   hero reflects today's goal state: amber = behind, green = done. */
+   the corner glow (--glow), so the hero reflects today's goal state:
+   behind = 主色冷蓝 (--ds-action,与 ContinueCard behind 态对齐),
+   done = 薄荷绿 (--ds-correct,"今日达标"通行色)。 */
 
 .root {
   position: relative;
@@ -17,20 +18,54 @@
   width: 100%;
   max-width: var(--content-max);
   flex-wrap: wrap;
-  /* 角光 --glow 与左轨 --accent-edge 均随「今日状态」联动：
-     落后(未达标)→琥珀(--ds-cta)，达标(done)→薄荷绿(--ds-correct)。
-     默认给落后值，done 时由下方覆盖。已不再随时段变化。 */
-  --glow: rgba(239, 165, 53, 0.30);
-  --accent-edge: var(--ds-cta);
+  /* 角光 --glow 随「今日状态」联动:
+     behind(未达标)→主色冷蓝(--ds-action,与同页 ContinueCard 卡片一致),
+     done(今日达标)→薄荷绿(--ds-correct,"达成"通行色)。
+     默认给 behind 值,done 时由下方覆盖。色源归 --ds-* token,不再写死 rgba。
+     (2026-08-20:移除 ::after 左线框后,--accent-edge 不再被 ::after 引用,
+     但仍保留为语义命名 token:behind = --ds-action,done = --ds-correct,
+     由 .root:hover 的 --glow color-mix 自动跟随状态色。) */
+  --glow: color-mix(in srgb, var(--ds-action) 30%, transparent);
+  --accent-edge: var(--ds-action);
+  /* hover 反馈:角光渐亮 + 边框变深 + 整卡微抬,0.25s ease-out。配色由
+     --ds-action 单一来源,light/dark 双模式自动跟随。
+     .root:hover::before 同时启动 glowDrift 6s 一圈的 scale+translate 漂移,
+     让左上角的 radial-gradient "在飘 / 在呼吸",hover 才挂,不默认跑。) */
+  transition: transform var(--dur-base) var(--ease-out),
+              box-shadow var(--dur-base) var(--ease-out),
+              border-color var(--dur-base) var(--ease-out);
 }
 
-/* 今日达标：左轨线框 + 角光转薄荷绿，与「还差 N 句」达标态同一语义色。 */
+/* 今日达标：角光转薄荷绿，与 ContinueCard「behind→绿」达标态同语义。
+   --accent-edge 同步切换,影响 .root:hover 内 --glow 跟随状态。 */
 .root[data-status='done'] {
+  --glow: color-mix(in srgb, var(--ds-correct) 30%, transparent);
   --accent-edge: var(--ds-correct);
-  --glow: rgba(93, 232, 154, 0.30);
 }
 
-/* soft time-of-day glow, top-left corner */
+/* Hover 方案 A (去 ::after 左线框后) —— translateY(-2px) + 三层外发光
+   + 触发角光 ::before 启动渐变角"漂移"动画(下方 @keyframes glowDrift)。
+   这里 hover 同时定义 translateY / box-shadow / 边框 / --glow,
+   同一 transition 一起动;::before 的关键帧是 hover 才挂的,默认不动。 */
+.root:hover {
+  --glow: color-mix(in srgb, var(--accent-edge) 80%, transparent);
+  border-color: color-mix(in srgb, var(--ds-action) 60%, var(--ds-glass-border));
+  transform: translateY(-2px);
+  box-shadow:
+    var(--ds-glass-shadow),
+    0 0 0 1px color-mix(in srgb, var(--ds-action) 40%, transparent),
+    0 0 32px -4px color-mix(in srgb, var(--ds-action) 35%, transparent),
+    0 12px 32px -10px color-mix(in srgb, var(--ds-action) 25%, transparent);
+}
+.root:hover::before {
+  animation: glowDrift 6s ease-in-out infinite;
+  opacity: 0.9;
+}
+
+/* Top-left corner —— 整张卡的渐变色"灵魂"位置。
+   radial-gradient(closest-side, var(--glow), transparent 72%) 默认静卧。
+   hover 时由上方 .root:hover::before 触发 glowDrift,6s 一圈 scale + 飘,
+   配合 --glow 自身 80% 透明提升,整张卡左上角像"被点亮且在呼吸"。 */
 .root::before {
   content: '';
   position: absolute;
@@ -42,20 +77,13 @@
   opacity: 0.55;
   pointer-events: none;
   z-index: 0;
+  will-change: transform, opacity;
 }
 
-/* thin accent rail on the left edge */
-.root::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 14%;
-  bottom: 14%;
-  width: 4px;
-  border-radius: 0 4px 4px 0;
-  background: var(--accent-edge);
-  opacity: 0.9;
-  z-index: 0;
+@keyframes glowDrift {
+  0%, 100% { transform: scale(1.0) translate(0, 0);                opacity: 0.55; }
+  33%      { transform: scale(1.14) translate(6%, -4%);            opacity: 0.85; }
+  66%      { transform: scale(0.94) translate(-3%, 5%);            opacity: 0.62; }
 }
 
 .root > * {
@@ -179,10 +207,11 @@
   letter-spacing: 0.06em;
 }
 
-/* -------- Monthly goal (absorbed from old CalendarHeader) -------- */
-/* The right-side block. flex 0 1 auto so it shrinks under narrow
-   viewports before the lead column does. */
-.monthly {
+/* -------- Learning level (replaces the old monthly-goal block) -------- */
+/* Same right-side slot the monthly block used to occupy. Linear tier
+   thresholds feel meaningful — every sentence nudges the bar a visible
+   amount — and the label doubles as a soft achievement. */
+.level {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -192,51 +221,89 @@
   margin-left: var(--space-5);
 }
 
-/* Small header row: "本月目标" caption + status pill, pushed apart. */
-.monthlyHead {
+.levelHead {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
 }
 
-.monthlyTrack {
+.levelBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 3px 10px;
+  font-family: var(--font-display);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.04em;
+  color: var(--ds-ink);
+  background: var(--ds-glass-surface);
+  border: 1px solid var(--ds-glass-border);
+  border-radius: var(--radius-pill);
+}
+
+.levelLabel {
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.02em;
+  color: var(--ds-ink);
+}
+
+.levelTrack {
   height: 8px;
-  /* Use tint-deep (not tint) so the track contrasts against the
-     white card surface in light mode and the navy card in dark
-     mode. tint was so close to surface that the track disappeared
-     against the card. */
   background: var(--ds-tint-deep);
   border-radius: var(--radius-pill);
   overflow: hidden;
   box-shadow: inset 0 1px 2px rgba(12, 68, 124, 0.08);
 }
 
-[data-theme='dark'] .monthlyTrack {
-  /* Dark mode: tint-deep (#1E3E5F) on surface (#102A45) is still
-     too close in luminance. Step up to a slightly lighter track so
-     the unfilled portion reads clearly against the dark card. */
-  background: #2a4868;
+[data-theme='dark'] .levelTrack {
+  background: var(--ds-action-deep);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
-.monthlyFill {
+.levelFill {
   height: 100%;
+  /* 进度填充:已练成走 correct 绿,未来一级走产品主色冷蓝(--ds-action),
+     与 GreetingBar 卡片装饰 / ContinueCard 卡片 behind 态同色系;
+     不再用 --ds-cta 琥珀终点,避免与「全局琥珀稀缺 CTA 锚」抢戏。 */
+  background: linear-gradient(90deg, var(--ds-correct-fill), var(--ds-action));
   border-radius: var(--radius-pill);
   transition: width var(--dur-base) var(--ease-out);
+  /* Hover 方案 C —— 进度条 shimmer 流光锚点:
+     position: relative 给 ::after 锚定到 fill 实际宽度(已 % 化),
+     overflow: hidden 把 shimmer 限制在 pill 圆角内,不逃到背景里。 */
+  position: relative;
+  overflow: hidden;
 }
 
-.monthlyFill-onTrack {
-  background: var(--ds-correct-fill);
+/* 流光层:横向透明 → 浅白 → 透明渐变,默认 translateX(-100%) 藏在 fill 左侧外。
+   .levelTrack:hover 时由下方规则推动到 translateX(120%) 滑过 fill 末尾,
+   0.9s 一次,纯 hover 才触发,不默认播放。rgba(255,255,255,0.55) 是 light/dark
+   通用的「玻璃高光」白,底层渐变是 green → slate 双色都自然承托。 */
+.levelFill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    transparent 30%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 70%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  transition: transform 0.9s var(--ease-out);
+  pointer-events: none;
 }
-.monthlyFill-behind {
-  background: var(--ds-error);
-}
-.monthlyFill-achieved {
-  background: var(--ds-cta);
+.levelTrack:hover .levelFill::after {
+  transform: translateX(120%);
 }
 
-.monthlyText {
+.levelMeta {
   margin: 0;
   display: inline-flex;
   align-items: baseline;
@@ -244,61 +311,37 @@
   font-size: var(--text-caption);
   color: var(--ds-ink-soft);
   font-variant-numeric: tabular-nums;
-  flex-wrap: wrap;
 }
 
-.monthlyLabel {
-  font-size: var(--text-caption);
-  font-weight: var(--weight-medium);
-  letter-spacing: 0.02em;
-  color: var(--ds-ink);
-}
-
-.monthlyNum {
+.levelTotal {
   font-family: var(--font-display);
   font-size: var(--text-h2);
   font-weight: var(--weight-medium);
   color: var(--ds-ink);
   line-height: 1;
-  display: inline-block;
 }
 
-.monthlySep,
-.monthlyTotal {
-  color: var(--ds-ink-soft);
-  font-weight: var(--weight-regular);
-}
-
-.monthlyUnit {
+.levelSep,
+.levelNeeded,
+.levelGain {
   color: var(--ds-ink-soft);
 }
 
-.monthlyStatus {
-  font-size: var(--text-caption);
+.levelGain {
+  color: var(--ds-action-deep);
   font-weight: var(--weight-medium);
-  /* 状态药丸现位于 .monthlyHead 标题行右端，由 space-between 推开。 */
 }
 
-.status-onTrack {
+.levelCapped {
   color: var(--ds-correct);
-}
-.status-behind {
-  color: var(--ds-error-ink);
-}
-.status-achieved {
-  color: var(--ds-cta-deep);
-}
-
-/* Pace projection line under the monthly bar. */
-.monthlyHint {
-  margin: 0;
-  font-size: var(--text-caption);
   font-weight: var(--weight-medium);
-  color: var(--ds-ink-soft);
 }
 
+/* 等已达成本级/本月目标的提示文字色 —— 统一走产品主色冷蓝(--ds-action-deep),
+   与 GreetingBar 卡片装饰 / ContinueCard 内部 accent 同色系;
+   不再用 --ds-cta-deep 琥珀,避免与全局 CTA 锚抢戏。 */
 .hint-achieved {
-  color: var(--ds-cta-deep);
+  color: var(--ds-action-deep);
 }
 .hint-onTrack {
   color: var(--ds-correct);
@@ -333,4 +376,23 @@
        normal flow under lead instead of being pushed right. */
     margin-left: 0;
   }
+}
+
+/* prefers-reduced-motion: 关掉 hover 反馈的 transition 和 transform。
+   · .root 抬升 / 边框 / 外发光:瞬时生效,不动画(translateY 撤掉)
+   · .root::before glowDrift 漂移动画:撤掉,瞬间固定在默认 opacity
+   · .levelFill shimmer:直接 display:none,连"流光"都不让出现
+   不动 .levelFill 自身的 width transition(那是 production progress 动画)。 */
+@media (prefers-reduced-motion: reduce) {
+  .root,
+  .levelFill::after {
+    transition: none;
+  }
+  .root:hover {
+    transform: none;
+    box-shadow: var(--ds-glass-shadow);
+    border-color: var(--ds-glass-border);
+  }
+  .root:hover::before { animation: none; opacity: 0.55; }
+  .levelFill::after { display: none; }
 }

@@ -35,7 +35,7 @@
   align-items: center;
   gap: var(--space-2);
   font-family: var(--font-mono), monospace;
-  font-size: 11px;
+  font-size: var(--text-caption);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ds-action-deep);
@@ -62,7 +62,7 @@
 .subtitle {
   margin: 0;
   font-family: var(--font-mono), monospace;
-  font-size: 12px;
+  font-size: var(--text-caption);
   color: var(--ds-ink-soft);
   letter-spacing: 0.04em;
 }
@@ -175,19 +175,23 @@
 /* 推荐卡 —— 视觉差异化,一眼锚点。琥珀边框 + 2px 微抬 */
 .libCardFeatured {
   border-width: 2px;
-  /* 琥珀 = 推荐语义(走 --ds-cta token,CTA 同款琥珀);薄荷=正确,冷蓝=结构 */
-  border-color: var(--ds-cta);
-  background: color-mix(in srgb, var(--ds-cta) 4%, var(--ds-surface));
+  /* 推荐语义(2026-08 改):亮主题紫色 = 主转化色,跟 babyblue 主调
+     一脉相承(原琥珀是反面色,跟冷调母题割裂)。暗主题继续走琥珀
+     (见下方 [data-theme="dark"] 覆盖)。薄荷=正确,冷蓝=结构,
+     紫/琥珀=主转化锚。 */
+  border-color: var(--ds-convert-deep);
+  background: color-mix(in srgb, var(--ds-convert-deep) 4%, var(--ds-surface));
   box-shadow:
-    0 4px 16px rgba(186, 117, 23, 0.18),
+    0 4px 16px rgba(109, 40, 217, 0.18),
     0 1px 2px rgba(12, 44, 83, 0.06);
   /* 静态,无 transform —— overflow: hidden 不裁切外溢 */
 }
 
 .libCardFeatured:hover {
-  border-color: var(--ds-cta-deep);
+  /* 亮主题紫色 hover,比 base 再深一档(violet-900 = #4C1D95) */
+  border-color: #4C1D95;
   box-shadow:
-    0 8px 28px rgba(133, 79, 11, 0.28),
+    0 8px 28px rgba(76, 29, 149, 0.28),
     0 2px 4px rgba(12, 44, 83, 0.08);
 }
 
@@ -205,7 +209,7 @@
     0 2px 4px rgba(0, 0, 0, 0.4);
 }
 
-/* 推荐小标 —— 卡片右上角 chip,琥珀底白字 */
+/* 推荐小标 —— 卡片右上角 chip,亮主题紫底白字 / 暗主题琥珀(见下) */
 .featuredBadge {
   position: absolute;
   top: var(--space-3);
@@ -215,20 +219,20 @@
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  /* 推荐徽章字色 = --ds-on-cta(琥珀底配白字);
-     暗主题自动映射为深琥珀字配亮琥珀底(已在 globals.css 配) */
-  color: var(--ds-on-cta);
-  background: var(--ds-cta);
+  /* 推荐徽章(2026-08 改):亮主题紫底白字(--ds-convert-deep + #FFFFFF,
+     对比 7.10:1 ✓ AA Normal);暗主题走 --ds-cta + --ds-on-cta
+     (深琥珀字配亮琥珀底,见下方 [data-theme="dark"])。 */
+  color: #FFFFFF;
+  background: var(--ds-convert-deep);
   padding: 3px 8px;
   border-radius: 999px;
   line-height: 1;
 }
 
 [data-theme="dark"] .featuredBadge {
-  /* 暗主题琥珀徽章字色用 --ds-on-cta(亮琥珀底配深琥珀字),
-     自动在 globals.css [data-theme="dark"] 里映射为 #412402;
-     背景 = 暗主题反转后的 --ds-cta(亮琥珀) —— 修复前 --ds-convert
-     未定义,徽章透明看不见 */
+  /* 暗主题琥珀徽章(2026-08 决定保留暖色,亮紫→暗琥珀切换是预期):
+     字色 --ds-on-cta 在 [data-theme="dark"] 映射为 #412402(深琥珀字),
+     背景 --ds-cta 暗主题映射为 #EFA535(亮琥珀) → 对比 6.84:1 ✓ AA Normal */
   color: var(--ds-on-cta);
   background: var(--ds-cta);
 }
@@ -248,7 +252,7 @@
 .libLevel {
   align-self: flex-start;
   font-family: var(--font-mono), monospace;
-  font-size: 11px;
+  font-size: var(--text-caption);
   letter-spacing: 0.08em;
   color: var(--ds-action-deep);
   text-transform: uppercase;
@@ -282,7 +286,7 @@
 .libMeta {
   margin: 0;
   font-family: var(--font-mono), monospace;
-  font-size: 12px;
+  font-size: var(--text-caption);
   color: var(--ds-ink-soft);
   letter-spacing: 0.02em;
 }
@@ -295,7 +299,7 @@
 .libLevelLabel {
   margin: 0;
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: var(--ds-ink-faint);
   letter-spacing: 0.04em;
   line-height: 1.5;
@@ -314,7 +318,7 @@
      4 张卡 button 位置完全一致(底部 y + 右 x) */
   margin-top: auto;
   align-self: flex-end;
-  font-size: 12px !important;
+  font-size: var(--text-caption) !important;
   padding: 6px 14px !important;
   /* min-width 让 4 张卡的"开始读 →" 按钮视觉对齐(宽度一致),
      即使有 featured/非 featured 状态区分(颜色/边框),宽度统一 */

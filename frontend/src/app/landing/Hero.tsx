@@ -32,9 +32,9 @@ import { useEffect, useRef, useState } from 'react';
 import { VocabularyLib, TranslationProgress } from '../api';
 import { useAuth } from '../lib/auth';
 import ShinyText from '@/components/ShinyText';
-import SpecularButton from '@/components/SpecularButton';
 import AnimatedContent from '@/components/AnimatedContent';
 import TypefallDemo from './TypefallDemo';
+import LazySpecularButton from '@/components/LazySpecularButton';
 import styles from './Hero.module.css';
 
 interface HeroProps {
@@ -49,13 +49,12 @@ const HERO_TITLE = '读完一句，写出来就是你的。';
 // 详细数字已经在下方 stats + mock 卡 footnote,避免重复。
 const HERO_SUBTITLE = '4 本词库 · 从入门到雅思,读完一句,写出来。';
 
-// 信任承诺条 —— 原 hero 的 stats 行(免登/录即用、1 键/即开始、错自动/入错题本)
-// 已合并进这里,统一为一条承诺。注意:现已无游客模式,"不需注册"类承诺作废,
-// 改为强调注册价值(免费 + 进度云端同步)。
+// 信任承诺条 — 偏产品价值而不是营销口号,跟 hero 主题 "读完写出来" 呼应。
+// "1 键开始" 太笼统,"30 秒上手" 难量化,改成具体可感的价值点。
 const TRUST_BADGES: ReadonlyArray<{ icon: string; text: string }> = [
-  { icon: '✓', text: '注册免费 · 进度云端同步' },
-  { icon: '✓', text: '1 键开始 · 30 秒上手' },
-  { icon: '✓', text: '错自动入错题本' },
+  { icon: '✓', text: '1 句 / 1 分钟' },
+  { icon: '✓', text: '错词本自动攒' },
+  { icon: '✓', text: '进度云端同步' },
 ];
 
 export default function Hero({ libs, onStartGeneric }: HeroProps) {
@@ -68,16 +67,18 @@ export default function Hero({ libs, onStartGeneric }: HeroProps) {
     onStartGeneric();
   };
 
-  // 通用转化 CTA:走 onStartGeneric,不带具体词库,落地主页。
-  // 文案不引用首个词库名(避免「没选词库却显示某词库」的歧义),
-  // 已登录给「开始学习」、未登录给「开始」,点击后直接进入主页。
-  const startLabel = user ? '开始学习' : '开始';
+  /* CTA 文案:未登录 "开始读第一句 →" (漏斗最顶,直接告诉产品用法),
+     已登录 "继续读第一句 →" (有数据,鼓励立刻继续)。
+     都用具体动词 + 名词,比单纯 "开始" / "开始学习" 更聚焦产品。 */
+  const startLabel = user ? '继续读第一句' : '开始读第一句';
 
   return (
     <section id="hero" className={styles.bento} aria-label="产品介绍">
 
       {/* TITLE 区:主标题 + 副标,垂直居中,无 CTA。
-         T2 决策(2026-08):title 上移到 demo 上方,作为第一眼门面。 */}
+         T2 决策(2026-08):title 上移到 demo 上方,作为第一眼门面。
+         delay 0ms 紧接 AppHeader 的 200ms 入场,整段 hero ~620ms 就绪
+         (之前 1.1s 偏慢,landing 第一屏要"快" — 错峰 0/100/200 缩到 ~0.62s)。 */}
       <AnimatedContent
         distance={16}
         delay={0 / 1000}
@@ -85,19 +86,36 @@ export default function Hero({ libs, onStartGeneric }: HeroProps) {
         className={styles.titleBlock}
       >
         <h1 className={styles.title}>
-          <ShinyText text={HERO_TITLE} speed={4} delay={0.5} />
+          <ShinyText
+          text={HERO_TITLE}
+          speed={4}
+          delay={0.5}
+          /* 主题色从 --shiny-base/--shiny-shine 读,避免 hardcoded
+             #b5b5b5/#ffffff 在 light theme 浅底上对比度只有 1.92:1 的问题。
+             ShinyText 内部用 WebkitTextFillColor: transparent + gradient,
+             <h1> 上的 color: var(--ds-ink) 不会被应用,
+             所以必须把主题色直接喂给 ShinyText。
+             亮底 -> --shiny-base=#0C447C / --shiny-shine=#5BB3F0 (9.20:1)
+             暗底 -> --shiny-base=#E8F4FC / --shiny-shine=#1F3A5F (15:1) */
+          color="var(--shiny-base)"
+          shineColor="var(--shiny-shine)"
+        />
         </h1>
         <p className={styles.subtitle}>{HERO_SUBTITLE}</p>
       </AnimatedContent>
 
       <AnimatedContent
         distance={14}
-        delay={160 / 1000}
+        delay={100 / 1000}
         scale={0.94}
         direction="vertical"
         className={styles.demoBlock}
       >
-        <div className={styles.mock}>
+        <div
+          className={styles.mock}
+          role="region"
+          aria-label="产品演示 — 跟打练习微观动作"
+        >
           <div className={styles.mockTopbar}>
             <span className={styles.mockDot} />
             <span className={styles.mockDot} />
@@ -128,14 +146,17 @@ export default function Hero({ libs, onStartGeneric }: HeroProps) {
 
       {/* 底部 CTA:从原来"贴在 title 旁"挪到 hero 最底,作为整个 hero
           的转化锚点。单独 AnimatedContent 让它最后入场,变成
-          「前 3 块铺陈 → CTA 就绪」的阅读闭环。 */}
+          「前 3 块铺陈 → CTA 就绪」的阅读闭环。
+          delay 200ms (从原 320ms 缩) 跟 demoBlock 错峰 ~100ms,
+          整段 ~620ms 就位。 */}
       <AnimatedContent
         distance={12}
-        delay={320 / 1000}
+        delay={200 / 1000}
         direction="vertical"
         className={styles.heroBottomCta}
       >
-        <SpecularButton
+        <LazySpecularButton
+          placeholder={<span className={styles.bottomCtaBtn} aria-hidden="true" />}
           size="lg"
           onClick={handleStart}
           disabled={!canStart}
@@ -158,7 +179,7 @@ export default function Hero({ libs, onStartGeneric }: HeroProps) {
           aria-label={startLabel}
         >
           {startLabel} →
-        </SpecularButton>
+        </LazySpecularButton>
       </AnimatedContent>
     </section>
   );

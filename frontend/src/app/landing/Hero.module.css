@@ -62,7 +62,7 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--ds-action) 24%, transparent);
   color: var(--ds-action-deep);
-  font-size: 11px;
+  font-size: var(--text-caption);
   font-weight: 700;
   font-family: var(--font-mono), monospace;
 }
@@ -72,13 +72,14 @@
 }
 
 [data-theme="dark"] .trustBadgeItem {
-  /* 暗主题 trust badge 用 --ds-action-deep 文字级(亮紫蓝),
-     跟冷蓝主调统一 —— 原 #BFE0F5 散落字面量已收口为 token */
-  color: var(--ds-action-deep);
+  /* 暗主题 trust badge 用 --ds-action-tint (浅婴儿蓝 #CDEBFB),
+     在深底 #0A1E33 上对比度 ~9:1 (亮底上用 --ds-action-deep 更稳)。
+     原 --ds-action-deep (#2F80C0) 在深底对比度偏低,现在统一 token 调亮。 */
+  color: var(--ds-action-tint);
 }
 [data-theme="dark"] .trustBadgeIcon {
-  background: color-mix(in srgb, var(--ds-action-tint) 22%, transparent);
-  color: var(--ds-action-deep);
+  background: color-mix(in srgb, var(--ds-action-tint) 24%, transparent);
+  color: var(--ds-action-tint);
 }
 
 /* ---------- bento section root ---------- */
@@ -152,7 +153,9 @@
   font-weight: var(--weight-semibold, 600);
   letter-spacing: -0.025em;
   line-height: 1.18;
-  color: var(--ds-ink);
+  /* 文字色由 ShinyText 的 color / shineColor prop 决定(见 Hero.tsx)
+     —— ShinyText 用 WebkitTextFillColor: transparent + gradient 覆盖了
+     文字色,<h1> 上的 color 永远到不了用户眼前。 */
   /* 居中下 flex column 让 ShinyText 居中;align-self center
      防止 flex 父容器的 align-items: center 干扰。 */
   display: flex;
@@ -180,17 +183,22 @@
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  /* gap 12→16:topbar 跟 demo 之间多 4px 呼吸 */
-  gap: var(--space-4);
-  /* padding 上下 20→24:给整卡更多上下边距,适配两行英文 + 底部进度条的
-     整体高度(见 .demoRoot min-height 200px 注释),卡看起来更稳 */
-  padding: var(--space-6) var(--space-5);
+  /* gap 16→0:topbar 跟 demo 紧贴(2026-08 polish),让 demoRoot 顶部
+     progress 紧贴 topbar 视觉成"chrome 状态条",整 mock 视觉重心上移 */
+  gap: 0;
+  /* padding 上下 24→16:hero mock 整体偏大,top 到 zh 文字中心 ~84px 偏空,
+     缩到 16 让 mock 视觉跟 hero 主标题视觉权重更平衡。
+     桌面 16,移动端 12 (继续缩 4px 适应窄屏)。 */
+  padding: var(--space-4) var(--space-4);
+  /* 桌面 88% surface + dark 主题 92% — dark 下 surface 偏暗,
+     稍微提亮让卡片在深底能看清。 */
   background: color-mix(in srgb, var(--ds-surface) 88%, transparent);
-  border-color: color-mix(in srgb, var(--ds-border-strong) 30%, transparent);
   border: 1px solid color-mix(in srgb, var(--ds-border) 70%, transparent);
   border-radius: var(--radius-xl);
+  /* desktop 双 box-shadow;dark 主题 inset 改深色(浅色 inset 在
+     深底上看起来"漏白"反视觉),第一层 outer 略加深。 */
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
     0 4px 16px rgba(14, 26, 46, 0.06),
     0 12px 32px rgba(14, 26, 46, 0.05);
   /* position: relative 给 .mockBeat absolute 锚点(已移除),保留以备未来内部浮层使用。
@@ -199,13 +207,32 @@
   isolation: isolate;
 }
 
+[data-theme="dark"] .mock {
+  /* dark 主题提亮 surface mix (92%),
+     让卡片在深空蓝 #0A1E33 上更可读。 */
+  background: color-mix(in srgb, var(--ds-surface) 92%, transparent);
+  /* dark 主题 inset 改深色微光(蓝 ambient 感),
+     浅色 inset 在深底反视觉。 */
+  box-shadow:
+    inset 0 1px 0 rgba(143, 203, 240, 0.10),
+    0 4px 16px rgba(0, 0, 0, 0.30),
+    0 12px 32px rgba(0, 0, 0, 0.40);
+}
+
+@media (max-width: 720px) {
+  .mock {
+    /* mobile:padding 缩到 12,避免 mock 卡挤占 hero 高度。 */
+    padding: var(--space-3) var(--space-3);
+  }
+}
+
 /* ---------- mock topbar / dots / lib name ---------- */
 .mockTopbar {
   display: flex;
   align-items: center;
   gap: 6px;
   font-family: var(--font-mono), monospace;
-  font-size: 12px;
+  font-size: var(--text-caption);
   color: var(--ds-ink-soft);
   letter-spacing: 0.04em;
 }
@@ -216,36 +243,42 @@
   background: var(--ds-ink-faint);
   display: inline-block;
 }
-.mockDot:nth-child(1) { background: #FF6B6B; opacity: 0.7; }
-.mockDot:nth-child(2) { background: #FFD93D; opacity: 0.7; }
-.mockDot:nth-child(3) { background: #6BCF7F; opacity: 0.7; }
-.mockLib {
-  margin-left: auto;
-  padding: 2px 8px;
-  background: color-mix(in srgb, var(--ds-action) 14%, transparent);
-  border-radius: 999px;
-  color: var(--ds-action-deep);
+/* macOS window controls 风格:三色对应关闭/最小化/最大化。
+   桌面用 0.65 opacity 跟卡玻璃面融合,字面 hex 收口。
+   dark 主题改用 ds 调色板 (red/coral/green) — 浅黄在深底偏淡,
+   调成 mint/coral 跟主调色一致。 */
+.mockDot:nth-child(1) {
+  background: #ff5f57;
+  opacity: 0.65;
+}
+.mockDot:nth-child(2) {
+  background: #febc2e;
+  opacity: 0.65;
+}
+.mockDot:nth-child(3) {
+  background: #28c840;
+  opacity: 0.65;
+}
+[data-theme="dark"] .mockDot:nth-child(1) {
+  /* coral — 跟 ds-error 暖系一致 */
+  background: var(--ds-error);
+  opacity: 0.7;
+}
+[data-theme="dark"] .mockDot:nth-child(2) {
+  /* amber — ds-cta 暖黄 */
+  background: var(--ds-cta);
+  opacity: 0.7;
+}
+[data-theme="dark"] .mockDot:nth-child(3) {
+  /* mint — ds-correct 绿色,深底亮 */
+  background: var(--ds-correct);
+  opacity: 0.7;
 }
 
-/* ---------- mock progress bar ---------- */
-/* ---------- TypefallDemo 内部样式 ---------- */
-.demoRoot {
-  display: flex;
-  flex-direction: column;
-  /* 稳定布局:
-     - align-items center:子项横向居中
-     - justify-content flex-start:子项从顶部贴齐(原 center 让内容
-       从中线散开,EnRow 长高时会把 zh/progress 向上推)
-     - min-height 200:zh(32) + gap(12) + EnRow 2行(96) + gap(12) +
-       progress(3) + 上下呼吸(45) ≈ 200。专门为 2 行英文(50+ 字符长句)
-       留出充分呼吸空间 —— 长句 wrap 后整卡不溢出,2 行之间不被裁剪。
-       配合 .mock padding 上下 24,整卡高度 ~290px,在 hero 里
-       "title(40px)-demo(290px)-CTA(48px)"形成稳固的"小-大-小"层次。 */
-  align-items: center;
-  justify-content: flex-start;
-  gap: var(--space-3);
-  min-height: 200px;
-}
+/* 进度条放回 demoRoot 内部(2026-08 polish:用户决定 demo 位置整体上移,
+   不把 progress 提到 topbar),但 mock gap 16→0 让 progress 跟 topbar
+   紧贴,加上 demoRoot gap 12→8 让 zh 跟 progress 紧一些,整个 demo
+   整体视觉"上移"了 24px,但 progress 仍在 demoRoot 内部。 */
 .demoProgress {
   /* 进度条要跨全宽(不是文字),覆盖父容器的 align-items: center */
   align-self: stretch;
@@ -261,6 +294,47 @@
   background: var(--ds-action);
   border-radius: 999px;
   transition: width 200ms linear;
+}
+.mockLib {
+  margin-left: auto;
+  background: color-mix(in srgb, var(--ds-action) 14%, transparent);
+  border-radius: 999px;
+  color: var(--ds-action-deep);
+  /* 之前漏了 padding,文字直接贴胶囊边缘(对比 .libLevel 同样
+     婴儿蓝 tint 胶囊却 padding 2px 8px)—— 补上对齐 */
+  padding: 2px 8px;
+}
+
+/* ---------- mock progress bar ---------- */
+/* ---------- TypefallDemo 内部样式 ---------- */
+.demoRoot {
+  display: flex;
+  flex-direction: column;
+  /* 稳定布局:
+     - align-items center:子项横向居中
+     - justify-content flex-start:子项顶部贴齐(2026-08 polish:
+       之前 min-height 200 + center 让 73px 留白堆底部,卡看起来"装不满"。
+       现在删 min-height 让卡高 = 内容自然高 (短句 ~164 / 长句 ~201),
+       flex-start 内容顶部贴齐,无居中浪费。
+     - 之前 zh(32) + gap(12) + EnRow 2行(96) + gap(12) +
+       progress(3) + 上下呼吸(45) ≈ 200 是过度估算;实际内容
+       短句 76px / 长句 127px,min-height 200 浪费 73px / 124px。
+     - 配合 .mock padding 上下 16,整卡高度 短句 ~196 / 长句 ~233。
+       短句不"装不满",长句也不"压" — 内容填卡,卡跟内容同步。 */
+  align-items: center;
+  justify-content: flex-start;
+  /* gap 12→8:zh 跟 progress / progress 跟 zh 紧一些,
+     整个 demo 看起来"上移"4-8px (跟 mock gap 0 配合)。 */
+  gap: var(--space-2);
+}
+.demoProgress {
+  /* 进度条要跨全宽(不是文字),覆盖父容器的 align-items: center */
+  align-self: stretch;
+  position: relative;
+  height: 3px;
+  background: color-mix(in srgb, var(--ds-border) 50%, transparent);
+  border-radius: 999px;
+  overflow: hidden;
 }
 .demoZh {
   margin: 0;

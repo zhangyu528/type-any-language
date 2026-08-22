@@ -31,16 +31,21 @@ const MAX_DOTS = 14;
 interface StreakMomentumProps {
   streak: StreakInfo;
   calendar: CalendarDay[];
-  /** e.g. "2026-08" — prefixes the calendar dates we count as "this month". */
-  yearMonth: string;
 }
 
 export default function StreakMomentum({
   streak,
   calendar,
-  yearMonth,
 }: StreakMomentumProps) {
   const atRisk = streak.current > 0 && !streak.today_done;
+
+  // "This month" prefix is derived from the calendar itself rather than
+  // from any monthly_goal field, so the count stays correct after we
+  // dropped the monthly_goal concept from the snapshot.
+  const yearMonth = useMemo(() => {
+    const anchor = calendar.find((d) => !d.is_future) ?? calendar[0];
+    return anchor ? anchor.date.slice(0, 7) : '';
+  }, [calendar]);
 
   const { dotCount, milestone, monthHit } = useMemo(() => {
     const dotCount = Math.min(streak.current, MAX_DOTS);

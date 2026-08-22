@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, type ReactElement } from 'react';
+import dynamic from 'next/dynamic';
 import { useReducedMotion } from 'motion/react';
 import { VocabularyLib, TranslationProgress } from '../api';
-import Galaxy from '@/components/Galaxy';
-import GradientWaves from '@/components/GradientWaves';
 import { useTheme } from '../components/ThemeProvider';
 import Hero from './Hero';
 import HowItWorks from './HowItWorks';
@@ -13,6 +12,14 @@ import DataBento from './DataBento';
 import FinalCTA from './FinalCTA';
 import AnimatedContent from '@/components/AnimatedContent';
 import styles from './index.module.css';
+
+/* WebGL backgrounds are decorative — a CSS fallback (.landingBg)
+   always renders behind them, and only ONE mounts per theme (dark→Galaxy,
+   light→GradientWaves). Lazy-load both so `ogl` + the ~760 lines of shader
+   code stay out of the landing's first-paint chunk. The CSS fallback covers
+   the brief load, so no placeholder component is needed. */
+const Galaxy = dynamic(() => import('@/components/Galaxy'), { ssr: false });
+const DotField = dynamic(() => import('@/components/DotField'), { ssr: false });
 
 /* Landing 路由专属:html 标 data-route="landing" 让 globals.css 把 body bg
    设为 transparent,GradientWaves / Galaxy 的 transparent canvas 区域不再被
@@ -31,7 +38,9 @@ const LANDING_ROUTE_VALUE = 'landing';
  *
  * 都进 CSS fallback(.landingBg)当:
  *   - reduced-motion 系统偏好打开
- *   - 视口不可见(IntersectionObserver,长 landing 页节省 GPU)
+ *   - (无 — bg 在路由生命周期内常驻,2026-08 移除 IO unmount 修复
+ *     resize 时 bg 消失的 bug;若要省 GPU,dark Galaxy 后续可单独按
+ *     hero 观察再优化)
  *   - 屏幕 < 720px(WebGL 在小屏性价比差且费电)
  *
  * 详见 useLandingBackground hook 的 gating matrix。
@@ -40,24 +49,40 @@ const GALAXY_BY_THEME = {
   dark: { density: 1.2, hueShift: 210, speed: 0.5, glowIntensity: 0.5 },
 };
 
-/* Light theme GradientWaves 配置 —— 3 色按"sky / water / wave foam"语义拆分,
-   全部硬对接 babyblue + coral 调色板 */
-const GRADIENT_WAVES_BY_THEME = {
+/* Light theme DotField 配置 —— Canvas 2D 点阵 + hover bulge 互动,
+   不用 WebGL (跟 Galaxy 的 ogl 解耦),Canvas 2D 在 light 主题 + 长时间
+   动画时性能更稳。
+   **配色层级**(从浅到深 → 视觉权重):
+     - Hero bg:        --ds-bg           #F2F8FE    ← 浅 babyblue (基础底)
+     - DotField bg:    gradient #5DA9D8 → #2F80C0  ← 中等 babyblue (点阵层)
+     - DotField glow:  rgba(143,203,240,0.5)       ← ds-action 主蓝 (hover 高亮)
+   DotField 用 gradient 当画布底色,所有点 fill = gradient,所以点
+   颜色 = bg 颜色。比起 hero bg (#F2F8FE) 深 2-3 档,视觉"点阵浮在
+   bg 之上"明显。鼠标 hover 时 bulge 偏亮 + glow 偏主蓝,跟 hero 文字
+   层级清晰 (dot < 文字 < 主 CTA)。
+   bulgeStrength 偏弱 (30) 不抢 hero 焦点,但 cursorRadius 220 让
+   影响范围足够大,鼠标移动时 bulge 跟手明确。 */
+const DOTFIELD_BY_THEME = {
   light: {
-    horizonColor: '#CDEBFB',   /* 天空 —— 浅婴儿蓝(--ds-action-tint) */
-    waveColor:    '#8FCBF0',   /* 水波 —— 婴儿蓝主调(--ds-action) */
-    crestColor:    '#F4A6B0',   /* 浪尖 —— 软珊瑚高光(--ds-cta) */
-    /* tilt 默认 1.11 波浪视角偏俯视,改 0.6 让波浪更"侧" ——
-       模拟从远处看水面的扁平感,不抢 hero 焦点 */
-    tilt: 0.6,
-    speed: 0.3,              /* 慢速波浪,跟 hero 慢节奏打字对齐 */
-    amplitude: 1.2,          /* 波幅压低 —— 默认 2.5 太"汹涌" */
-    opacity: 0.7,            /* 整体不透明度,波浪形视觉重量 > 极光色带,必须压 */
-    grain: false,            /* 关掉 grain,light 主题下噪点太重 */
-    mouseInteraction: false, /* 关闭鼠标交互,跟 Galaxy 一致 */
+    gradientFrom: '#5DA9D8',
+    gradientTo: '#2F80C0',
+    dotRadius: 1.8,
+    dotSpacing: 18,
+    cursorRadius: 220,
+    cursorForce: 0.15,
+    bulgeStrength: 30,
+    glowRadius: 60,
+    glowColor: 'transparent',
+    sparkle: true,
   },
 };
 
+type LandingBgTuning =
+  | { kind: 'galaxy'; density: number; hueShift: number; speed: number; glowIntensity: number }
+  | { kind: 'dotfield'; gradientFrom: string; gradientTo: string;
+      dotRadius: number; dotSpacing: number; cursorRadius: number;
+      cursorForce: number; bulgeStrength: number; glowRadius: number;
+      glowColor: string; sparkle: boolean };
 
 interface LandingPageProps {
   libs: VocabularyLib[];
@@ -69,72 +94,48 @@ interface LandingPageProps {
 }
 
 /**
- * Decide whether to mount the heavy Galaxy WebGL canvas, and unmount
- * it when the hero scrolls out of view (saves GPU on long landing
- * pages with several sections). Returns:
- *   - `null`         → render the CSS fallback only
- *   - Galaxy tuning  → render <Galaxy /> (mounted = true means it's
- *                       currently in viewport, so safe to draw)
+ * Decide what background to mount for the current theme. Returns:
+ *   - `null`         → render the CSS fallback only (reduced-motion)
+ *   - Galaxy tuning  → render <Galaxy />  (dark theme)
+ *   - DotField tuning → render <DotField /> (light theme, Canvas 2D)
  *
- * Gating matrix:
- *   theme   │ reducedMotion │ viewport   │ mount?
- *   ─────────┼───────────────┼────────────┼─────────
- *   light   │ any           │ any        │ no  (CSS only)
- *   dark    │ yes           │ any        │ no  (CSS only)
- *   dark    │ no            │ not visible│ no  (lazy)
- *   dark    │ no            │ visible    │ yes (WebGL)
+ * 2026-08 简化:不再做 IO unmount,bg 在 LandingPage 路由生命周期内
+ * 常驻 —— 之前 IO 观察整个 [data-landing-root] + resize 触发 reflow
+ * 重算 intersection 导致 mounted 翻 false → bg 消失(用户报告
+ * "resize 时 bg 没了")。light DotField (Canvas 2D) 不需要 GPU 节省,
+ * dark Galaxy 跟随保留(真要省 GPU 可后续单独按 [hero] 优化)。
+ *
+ * Gating matrix (simplified):
+ *   theme │ reducedMotion │ mount?
+ *   ──────┼───────────────┼───────
+ *   any   │ yes           │ no   (CSS only)
+ *   light │ no            │ yes  (DotField, Canvas 2D)
+ *   dark  │ no            │ yes  (Galaxy, WebGL)
  *
  * Plus a coarse small-screen gate (`< 720px`) — phones get the CSS
  * background regardless, since WebGL is overkill for a 360px-wide
  * screen and burns battery.
  */
-type LandingBgTuning =
-  | { kind: 'galaxy'; density: number; hueShift: number; speed: number; glowIntensity: number }
-  | { kind: 'gradientwaves'; horizonColor: string; waveColor: string; crestColor: string;
-      tilt: number; speed: number; amplitude: number; opacity: number;
-      grain: boolean; mouseInteraction: boolean };
-
 function useLandingBackground(theme: 'light' | 'dark'): null | LandingBgTuning {
   const reduce = useReducedMotion();
-  const [mounted, setMounted] = useState(true);
-  const [smallScreen, setSmallScreen] = useState(false);
-  const rootRef = useRef<HTMLElement | null>(null);
 
-  // Track viewport size (coarse gate).
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const mql = window.matchMedia('(max-width: 720px)');
-    const sync = () => setSmallScreen(mql.matches);
-    sync();
-    mql.addEventListener('change', sync);
-    return () => mql.removeEventListener('change', sync);
-  }, []);
-
-  // Find the landing root once; IntersectionObserver watches it.
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const el = document.querySelector(`[data-landing-root]`) as HTMLElement | null;
-    if (!el) return;
-    rootRef.current = el;
-    setMounted(true); // assume visible on first paint
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        setMounted(entry.isIntersecting);
-      },
-      { rootMargin: '120px 0px' },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
+  /* 2026-08 改:不再用 IntersectionObserver unmount。
+     - light 用 Canvas 2D DotField,unmount 省不出多少 GPU,反而在
+       resize 时因为 IO 观察整个 [data-landing-root] 重算 intersection
+       把 mounted 翻成 false → DotField 整个消失 → "bg 没了"
+     - dark Galaxy (WebGL) 理论上省 GPU 有意义,但 resize 同问题 +
+       hook 删干净逻辑更直接;真要省可以后续按 [hero] 观察,目前
+       不优化
+     现在 bg 在 LandingPage 路由上常驻,靠 React unmount 整组件离开
+     时才卸载。 */
 
   if (reduce) return null;
-  if (smallScreen) return null;
-  if (!mounted) return null;
   if (theme === 'dark') {
     return { kind: 'galaxy', ...GALAXY_BY_THEME.dark };
   }
-  /* light → GradientWaves,3 色按 sky / water / foam 语义对接调色板 */
-  return { kind: 'gradientwaves', ...GRADIENT_WAVES_BY_THEME.light };
+  /* light → Canvas 2D DotField dot grid + hover bulge(全页 hover
+     跟手,与之前修过的 scroll offset 修复一起保留) */
+  return { kind: 'dotfield', ...DOTFIELD_BY_THEME.light };
 }
 
 export default function LandingPage({
@@ -163,13 +164,7 @@ export default function LandingPage({
          The CSS fallback is always present in the DOM; Galaxy is mounted
          on top when the hook returns a tuning. This keeps the visual
          continuous across theme switches and IO toggle boundaries. */}
-      <div
-        className={`${styles.landingBg} ${landingBg ? styles.landingBgHasWebGL : ''}`}
-        aria-hidden="true"
-      >
-        {/* 6 个 1px 星点独立 twinkle —— 必须跟 nebula 分开 layer 才能各自动画 */}
-        <div className={styles.stars} aria-hidden="true" />
-      </div>
+      <div className={styles.landingBg} aria-hidden="true" />
       {landingBg?.kind === 'galaxy' ? (
         <div className={styles.landingBgGalaxy} aria-hidden="true">
           <Galaxy
@@ -185,18 +180,19 @@ export default function LandingPage({
           />
         </div>
       ) : null}
-      {landingBg?.kind === 'gradientwaves' ? (
+      {landingBg?.kind === 'dotfield' ? (
         <div className={styles.landingBgGradientWaves} aria-hidden="true">
-          <GradientWaves
-            horizonColor={landingBg.horizonColor}
-            waveColor={landingBg.waveColor}
-            crestColor={landingBg.crestColor}
-            tilt={landingBg.tilt}
-            speed={landingBg.speed}
-            amplitude={landingBg.amplitude}
-            opacity={landingBg.opacity}
-            grain={landingBg.grain}
-            mouseInteraction={landingBg.mouseInteraction}
+          <DotField
+            gradientFrom={landingBg.gradientFrom}
+            gradientTo={landingBg.gradientTo}
+            dotRadius={landingBg.dotRadius}
+            dotSpacing={landingBg.dotSpacing}
+            cursorRadius={landingBg.cursorRadius}
+            cursorForce={landingBg.cursorForce}
+            bulgeStrength={landingBg.bulgeStrength}
+            glowRadius={landingBg.glowRadius}
+            glowColor={landingBg.glowColor}
+            sparkle={landingBg.sparkle}
           />
         </div>
       ) : null}
@@ -214,42 +210,54 @@ export default function LandingPage({
         {/* SECTION 2: 词库选择 — 真实 VocabularyLib[] 卡(DecryptedText + SpecularButton) */}
         <LibStrip libs={libs} onPickLib={onPickLib} />
 
-        {/* SECTION 3: 数据 — 4 横排无装饰 AnimatedCounter */}
+        {/* SECTION 3: 数据 — 4 横排细竖线分隔(≥721px),数字进视口滚动计数 */}
         <DataBento libs={libs} />
 
-        {/* SECTION 4: 收尾 CTA bar — DecryptedText 标题 + 单金属 SpecularButton「开始读」 */}
+        {/* SECTION 4: 收尾 CTA — DecryptedText 标题 + 单金属 SpecularButton「开始读第一句 →」 */}
         <FinalCTA onStart={onStartGeneric} />
 
         <AnimatedContent distance={16} delay={0 / 1000} direction="vertical" className={styles.footerWrap}>
           <footer className={styles.footer} aria-label="页脚">
             <div className={styles.footerBrand}>
-              <span className={styles.footerBrandName}>Type Any Language</span>
+              <a href="/" className={styles.footerBrandLink} aria-label="Type Any Language · 首页">
+                <svg
+                  className={styles.footerMark}
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  aria-hidden="true"
+                >
+                  <rect x="2" y="2" width="20" height="20" rx="6" fill="var(--ds-action-deep)" />
+                  <g fill="#fff">
+                    {[8, 12, 16].flatMap((cy) =>
+                      [8, 12, 16].map((cx) => (
+                        <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="1.5" />
+                      ))
+                    )}
+                  </g>
+                </svg>
+                <span className={styles.footerBrandName}>Type Any Language</span>
+              </a>
+              <p className={styles.footerTagline}>
+                语言学习者 · 每天读完一句,就是你的。
+              </p>
+            </div>
+
+            <div className={styles.footerCol}>
+              <span className={styles.footerColLabel}>探索</span>
               <ul className={styles.footerLinks}>
-                <li>
-                  <a href="mailto:hi@type-any-language.dev">联系</a>
-                </li>
+                <li><a href="#how-it-works">怎么用</a></li>
+                <li><a href="#lib-strip">词库</a></li>
+                <li><a href="#data-bento">数据</a></li>
               </ul>
             </div>
 
-            <div className={styles.footerMeta}>
-              <div className={styles.metaBlock}>
-                <span className={styles.metaLabel}>适用场景</span>
-                <p className={styles.metaText}>
-                  语言学习者 · 每天读完一句,就是你的。
-                </p>
-              </div>
-              <div className={styles.metaBlock}>
-                <span className={styles.metaLabel}>转化路径</span>
-                <p className={styles.metaPath}>
-                  <span className={styles.metaPathStep}>读一句</span>
-                  <span className={styles.metaPathArrow}>→</span>
-                  <span className={styles.metaPathStep}>写出来</span>
-                  <span className={styles.metaPathArrow}>→</span>
-                  <span className={styles.metaPathStep}>错改对</span>
-                  <span className={styles.metaPathArrow}>→</span>
-                  <span className={styles.metaPathStep}>记住</span>
-                </p>
-              </div>
+            <div className={styles.footerCol}>
+              <span className={styles.footerColLabel}>支持</span>
+              <ul className={styles.footerLinks}>
+                <li><a href="mailto:hi@type-any-language.dev">联系</a></li>
+                <li><a href="mailto:hi@type-any-language.dev?subject=反馈">反馈</a></li>
+              </ul>
             </div>
 
             <span className={styles.footerYear}>© 2026</span>

@@ -2,6 +2,10 @@
    DataSection — analytics partition
    ============================================================ */
 
+/* ============================================================
+   DataSection — analytics partition (analytics cockpit layout)
+   ============================================================ */
+
 .root {
   display: flex;
   flex-direction: column;
@@ -12,3 +16,48 @@
   padding: var(--space-4);
   box-sizing: border-box;
 }
+
+/* 8/4 双列主网格：左侧 TrendChart 大块（2fr = 8col 等比），右侧 HeatmapPanel + GoalRings
+   堆叠（1fr = 4col）。1023px 以下退化为单列堆叠 —— 多块并排在窄屏反而难看。
+   2026-08 修:这些 class 自 156117f 重构以来在 JSX 用、但 CSS 没定义,
+   导致驾驶舱 8/4 布局塌成纯垂直堆,补上。 */
+.grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.col8 { /* grid item marker,grid-column 跟 .col4 一对,默认 auto */ }
+.col4 { /* grid item marker */ }
+
+/* 右侧 4 列里多个组件垂直堆叠(HeatmapPanel + GoalRings) */
+.col4stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* KPI 加载占位行:卡片大小未定前先简单居中 */
+.loadingRow {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 88px;
+}
+
+/* TrendChart 加载占位(在 .col8 网格单元内的卡片形) */
+.loadingCard {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 280px;
+}
+
+@media (max-width: 1023px) {
+  /* 1023px 以下双列退单列：右侧 Heatmap/GoalRings 也要退到 .grid 之外堆 */
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+

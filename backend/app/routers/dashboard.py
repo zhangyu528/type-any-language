@@ -1,9 +1,8 @@
 """
 Dashboard router — /api/dashboard/*.
 
-Single-page payload (GET /) plus a few sub-resources for the day
-drawer and monthly-goal mutation. Every endpoint requires auth via
-Depends(get_current_user).
+Single-page payload (GET /) plus a sub-resource for the day drawer.
+Every endpoint requires auth via Depends(get_current_user).
 
 GET /api/dashboard is the dashboard's one round-trip; the frontend
 never stitches it together. The other endpoints exist for the day
@@ -26,9 +25,6 @@ from app.schemas.dashboard import (
     DailyGoalUpdate,
     DashboardResponse,
     DayDetailResponse,
-    MonthlyGoalInfo,
-    MonthlyGoalResponse,
-    MonthlyGoalUpdate,
 )
 from app.services import activity_service
 from app.routers.review import count_review_due
@@ -69,7 +65,6 @@ def get_dashboard(
         daily_goal=activity_service.compute_daily_goal(db, current_user.id, today),
         streak=activity_service.compute_streak(db, current_user.id, today),
         calendar=activity_service.compute_calendar(db, current_user.id, today),
-        monthly_goal=activity_service.compute_monthly_goal(db, current_user.id, today),
         progress=activity_service.compute_kpis(db, current_user.id, today),
         preferred_hour=activity_service.compute_preferred_hour(db, current_user.id),
         has_any_activity=activity_service.has_any_activity(db, current_user.id),
@@ -127,28 +122,6 @@ def get_day_detail(
             sessions=[],
         )
     return activity_service.compute_day_detail(db, current_user.id, day_date)
-
-
-@router.post("/monthly-goal", response_model=MonthlyGoalResponse)
-def update_monthly_goal(
-    payload: MonthlyGoalUpdate,
-    current_user: User = Depends(get_current_user),
-    db: DbSession = Depends(get_db),
-) -> MonthlyGoalResponse:
-    """Set users.monthly_goal. Returns the post-update MonthlyGoalInfo."""
-    current_user.monthly_goal = payload.target
-    db.commit()
-    db.refresh(current_user)
-
-    today = date_cls.today()
-    info = activity_service.compute_monthly_goal(db, current_user.id, today)
-    return MonthlyGoalResponse(
-        target=info.target,
-        current=info.current,
-        year_month=info.year_month,
-        achieved=info.achieved,
-        on_track=info.on_track,
-    )
 
 
 @router.post("/daily-goal", response_model=DailyGoalState)

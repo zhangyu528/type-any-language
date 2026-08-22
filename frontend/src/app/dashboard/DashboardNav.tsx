@@ -1,27 +1,27 @@
 'use client';
 
 /**
- * DashboardNav — fixed left sidebar for the learning console.
+ * DashboardNav — 固定左侧 248px 玻璃侧栏 for the learning console.
  *
- * 六个分区，按语义分四组渲染（见 NAV_GROUPS）：
- *   主页（独立） · 学习「发现 / 复习」 · 回顾「数据 / 成就」 · 设置（沉底）
- * URL `?section=` 是单一真相源（可深链 + 浏览器前进/后退），与 /me 的
- * `?tab=` 同构。本组件是展示层：从 page.tsx 接收当前 `section` 与
- * `onSelect`，history.pushState 的接线由 page.tsx 负责。
+ * 6 个分区扁平渲染（NAV_ITEMS,见下）。item 少,不做分组;
+ * 折叠 rail 也已取消 — 单一展开态,简单清晰。等 item 扩到 8+ 或
+ * 用户要求更紧凑视图时再考虑分组 / 折叠。
  *
- * 布局：248px 玻璃侧栏，桌面可折叠为 76px 图标 rail，移动端变成
- * off-canvas 抽屉（由 `mobileOpen` / `onCloseMobile` 控制）。
+ * URL `?section=` 是单一真相源(可深链 + 浏览器前进/后退),与 /me
+ * 的 `?tab=` 同构。本组件是展示层:从 page.tsx 接收当前 `section` 与
+ * `onSelect`,history.pushState 的接线由 page.tsx 负责。
  *
- * 键盘：↑↓ / Home / End 在分区间移动焦点（roving tabindex，整组只占
- * 一个 Tab 位）；Alt+1..6 直达对应分区；Esc 关闭账号名片，移动端抽屉
+ * 移动端是 off-canvas 抽屉(由 `mobileOpen` / `onCloseMobile` 控制),
+ * 桌面始终展开。
+ *
+ * 键盘:↑↓ / Home / End 在分区间移动焦点(roving tabindex,整组只占
+ * 一个 Tab 位);Alt+1..6 直达对应分区;Esc 关闭账号名片,移动端抽屉
  * 打开时 Esc 关抽屉且 Tab 焦点锁在抽屉内。
  */
 
 import Link from 'next/link';
 import {
   BarChart3,
-  ChevronsLeft,
-  ChevronsRight,
   GraduationCap,
   LayoutDashboard,
   LogOut,
@@ -43,33 +43,31 @@ export type DashboardSection =
   | 'review'
   | 'settings';
 
-interface NavGroup {
-  key: string;
-  /** 组标题；不传则该组无标题（主页 / 设置这类单项组）。 */
-  label?: string;
-  items: DashboardSection[];
+interface NavItem {
+  section: DashboardSection;
 }
 
-/**
- * 分区分组 = 侧边栏视觉层次的单一真相源。
- * 「学习」是动作（去练 / 去复习），「回顾」是看结果（数据 / 成就），
- * 主页置顶、设置沉底。折叠 rail 态标题隐藏，改用组间细分隔线。
- */
-const NAV_GROUPS: NavGroup[] = [
-  { key: 'home', items: ['overview'] },
-  { key: 'learn', label: '学习', items: ['practice', 'review'] },
-  { key: 'recap', label: '回顾', items: ['data', 'achievements'] },
-  { key: 'system', items: ['settings'] },
+/** 扁平顺序,供 URL 校验、键盘上下移动与 Alt+N 共用。 */
+export const DASHBOARD_SECTIONS: DashboardSection[] = [
+  'overview',
+  'practice',
+  'review',
+  'data',
+  'achievements',
+  'settings',
 ];
 
-/** 扁平顺序（= 分组渲染顺序），供 URL 校验、键盘上下移动与 Alt+N 共用。 */
-export const DASHBOARD_SECTIONS: DashboardSection[] = NAV_GROUPS.flatMap((g) => g.items);
+/**
+ * 渲染顺序(扁平)。item 少,不做分组;等 item 扩到 8+ 或用户要求更
+ * 紧凑视图时再考虑折叠 rail。
+ */
+const NAV_ITEMS: NavItem[] = DASHBOARD_SECTIONS.map((s) => ({ section: s }));
 
 export const DASHBOARD_SECTION_LABEL: Record<DashboardSection, string> = {
   overview: '主页',
   practice: '发现',
   data: '数据',
-  achievements: '成就',
+  achievements: '等级和成就',
   review: '复习',
   settings: '设置',
 };
@@ -97,12 +95,6 @@ interface DashboardNavProps {
   user?: DashboardUserLite;
   /** 退出登录；不传则名片不显示登出项。 */
   onLogout?: () => void;
-  /** Desktop effective collapse-to-rail state (collapsed unless pinned). */
-  collapsed: boolean;
-  /** When true the rail is locked open (pinned). */
-  pinned: boolean;
-  /** Toggle the pinned (locked-open) state. */
-  onTogglePin: () => void;
   /** Mobile off-canvas drawer open state. */
   mobileOpen: boolean;
   onCloseMobile: () => void;
@@ -117,9 +109,6 @@ export default function DashboardNav({
   reviewDue = 0,
   user,
   onLogout,
-  collapsed,
-  pinned,
-  onTogglePin,
   mobileOpen,
   onCloseMobile,
 }: DashboardNavProps) {
@@ -248,8 +237,6 @@ export default function DashboardNav({
         data-active={active ? 'true' : 'false'}
         onClick={() => onSelect(s)}
         aria-current={active ? 'page' : undefined}
-        // 折叠 rail 态 label 不可见，靠 aria-label 提供可访问名；
-        // 不用 title —— 原生 tooltip 会与自绘的 .tip 叠成两层。
         aria-label={count > 0 ? `${label}（${count} 句待复习）` : label}
         tabIndex={active ? 0 : -1}
       >
@@ -262,10 +249,6 @@ export default function DashboardNav({
             {count > 99 ? '99+' : count}
           </span>
         ) : null}
-        {/* 折叠 rail 态的自定义 tooltip（见 .tip） */}
-        <span className={styles.tip} aria-hidden>
-          {label}
-        </span>
       </button>
     );
   };
@@ -274,22 +257,9 @@ export default function DashboardNav({
     <aside
       ref={asideRef}
       className={styles.sidebar}
-      data-collapsed={collapsed ? 'true' : 'false'}
       data-mobile-open={mobileOpen ? 'true' : 'false'}
       aria-label="学习控制台导航"
     >
-      {/* 伸缩(pin)控件：悬浮在侧边栏右边缘、与品牌区同高的圆形按钮。
-         桌面 / 折叠 rail 通用；与导航项不同高，避免压住列表与内容中部。 */}
-      <button
-        type="button"
-        className={styles.pinBtn}
-        onClick={onTogglePin}
-        aria-pressed={pinned}
-        aria-label={pinned ? '收起侧边栏' : '展开侧边栏'}
-      >
-        {pinned ? <ChevronsLeft size={18} /> : <ChevronsRight size={18} />}
-      </button>
-
       <div className={styles.brand}>
         <button
           type="button"
@@ -324,14 +294,9 @@ export default function DashboardNav({
 
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
       <nav className={styles.nav} aria-label="分区导航" onKeyDown={onNavKeyDown}>
-        {NAV_GROUPS.map((g) => (
-          <div key={g.key} className={styles.group}>
-            {g.label ? (
-              <span className={styles.groupLabel} aria-hidden>
-                {g.label}
-              </span>
-            ) : null}
-            {g.items.map(renderItem)}
+        {NAV_ITEMS.map(({ section }) => (
+          <div key={section} className={styles.group}>
+            {renderItem(section)}
           </div>
         ))}
       </nav>

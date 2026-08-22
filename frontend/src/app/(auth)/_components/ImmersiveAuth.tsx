@@ -30,6 +30,7 @@ import BorderGlow from '@/components/BorderGlow';
 import CurvedInput from '@/components/CurvedInput';
 import AnimatedContent from '@/components/AnimatedContent';
 import { DriftWall } from './DriftWall';
+import { useTheme } from '../../components/ThemeProvider';
 import { apiForgotPassword } from '../../api';
 import styles from './ImmersiveAuth.module.css';
 
@@ -187,6 +188,14 @@ export default function ImmersiveAuth({
     password: '',
   });
   const [error, setError] = useState<string | null>(null);
+  /* 2026-08 modal 主题感知 —— 不再写死 theme='light',让 CurvedInput / 卡片 / 文字 /
+     button 颜色都跟系统主题走。按钮色在两主题下用不同色:
+       light = #2F80C0 (--ds-action-deep 深婴儿蓝) + 白字
+       dark  = #5BA8F0 (--ds-action 中等婴儿蓝)   + #0E1A2E 深字(白字 on #5BA8F0 仅 2.5:1 fail)
+     textColor 同样随主题切 —— 深字在浅按钮 / 浅字在深按钮。 */
+  const { theme } = useTheme();
+  const ctaBtn = theme === 'dark' ? '#5BA8F0' : '#2F80C0';
+  const ctaText = theme === 'dark' ? '#0E1A2E' : '#FFFFFF';
 
   // 忘记密码子流程:view 在 auth / forgot(填邮箱) / forgot-sent(已发送) 间切换。
   // 复用 modeShell 容器,不额外开路由;重置页本身是独立路由 /reset-password。
@@ -534,15 +543,25 @@ export default function ImmersiveAuth({
                       fontSize={17}
                       cornerRadius={20}
                       borderWidth={1.5}
-                      shadowSize="lg"
-                      theme="light"
+                      /* 2026-08:输入框阴影关掉 —— 之前 lg 在 light 下 #0E1A2E @52%
+                         显得输入框被压在阴影里,跟浅蓝 page 视觉糊;
+                         dark 下 #000 @52% 直接黑阴影也过重。改 'none' 之后
+                         输入框紧贴 card 表面,不再自带深度假象,跟
+                         改过的 card 96% bg + 22% 阴影形成正确"卡浮"
+                         视觉。 */
+                      shadowSize="none"
+                      theme={theme}
                       showButton
                       showIcon
-                      /* 继续按钮颜色对齐 landing 页"注册"CTA:都用品牌蓝
-                         --ds-action-deep(浅色主题 = #2F80C0)。这里不能用
-                         var(--ds-action-deep) 直接传,因为 SVG 的 fill 呈现
-                         属性对 CSS 变量解析不稳定,用其解析后的 hex 等价。 */
-                      buttonColor="#2F80C0"
+                      /* 继续按钮主题感知(2026-08):light #2F80C0 (--ds-action-deep) + 白字;
+                         dark  #5BA8F0 (--ds-action)        + #0E1A2E 深字
+                         (白字 on #5BA8F0 仅 2.5:1 fail → 主题感知必须换 buttonTextColor)
+                         注意:不传 textColor —— CurvedInput 已有 textColor prop 是给
+                         输入框文字用的,palette (light / dark 已对齐 ds token)
+                         已经在两主题下走对(深字 on 白 / 浅字 on 深海军),
+                         caller 只需要管 buttonTextColor。 */
+                      buttonColor={ctaBtn}
+                      buttonTextColor={ctaText}
                       /* 整卡随 mode 重挂时,自动把光标落回输入框
                          (登录↔注册切换、email→password 步进都受益)。 */
                       autoFocus
@@ -664,11 +683,13 @@ export default function ImmersiveAuth({
                           fontSize={17}
                           cornerRadius={20}
                           borderWidth={1.5}
-                          shadowSize="lg"
-                          theme="light"
+                          shadowSize="none"
+                          theme={theme}
                           showButton
                           showIcon
-                          buttonColor="#2F80C0"
+                          /* 重置密码 CTA 同样主题感知(同 main auth 注释) */
+                          buttonColor={ctaBtn}
+                          buttonTextColor={ctaText}
                           autoFocus
                           disabled={forgotLoading}
                           loading={forgotLoading}

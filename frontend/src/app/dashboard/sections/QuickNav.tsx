@@ -100,12 +100,12 @@ export default function QuickNav({
     },
     {
       key: 'achievements',
-      label: '成就',
+      label: '等级和成就',
       icon: Trophy,
       tone: 'cta',
       count: ach.earnedCount,
-      total: ach.badges.length,
-      progress: ach.badges.length ? ach.earnedCount / ach.badges.length : 0,
+      total: ach.totalCount,
+      progress: ach.pct,
       sub:
         ach.earnedCount > 0
           ? ach.next

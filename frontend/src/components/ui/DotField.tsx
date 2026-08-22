@@ -51,7 +51,18 @@ const DotField = memo(({
   const svgRef = useRef<SVGSVGElement>(null);
   const glowRef = useRef<SVGCircleElement>(null);
   const dotsRef = useRef<Dot[]>([]);
-  const mouseRef = useRef({ x: -9999, y: -9999, prevX: -9999, prevY: -9999, speed: 0 });
+  // mouseRef 初始 -9999 是为了"鼠标没在画面里"时 bulge 看不见;
+  // 但 mount 后用户第一次移动鼠标之前这个 -9999 仍然存在,
+  // bulge 仍在 (-9999, -9999) 看不到。修法:lazy init (第 1 次挂载时)
+  // 立即把 mouseRef 设到 viewport 中心,这样 mount 后 bulge 立刻出现在中央,
+  // 用户第一次移动时 mousemove 直接覆盖为真实位置。
+  const mouseRef = useRef({
+    x: typeof window === 'undefined' ? 0 : window.innerWidth / 2,
+    y: typeof window === 'undefined' ? 0 : window.innerHeight / 2,
+    prevX: 0,
+    prevY: 0,
+    speed: 0,
+  });
   const rafRef = useRef<number | null>(null);
   const sizeRef = useRef({ w: 0, h: 0, offsetX: 0, offsetY: 0 });
   const glowOpacity = useRef(0);
@@ -234,6 +245,20 @@ const DotField = memo(({
       rafRef.current = requestAnimationFrame(tick);
     }
 
+    /* offset 实时同步 —— 之前只在 doResize (resize 时)更新,
+       scroll 后变 stale:fixed 容器 rect.top 始终 0 但 scrollY 在变,
+       offsetY 锁在 mount 时的 0 → bulge 跟着 scroll 漂走(light 下
+       滚过 hero 后 bulge 掉 viewport 底,看起来"hover 失效")。
+       现在 scroll 每次触发 updateOffset 重算 offsetX/Y (rect.left +
+       window.scrollX 在 fixed / absolute / relative 容器下都对),
+       滚动只赋两个数字无 debounce 必要。 */
+    function updateOffset() {
+      const rect = canvas!.parentElement!.getBoundingClientRect();
+      sizeRef.current.offsetX = rect.left + window.scrollX;
+      sizeRef.current.offsetY = rect.top + window.scrollY;
+    }
+    window.addEventListener('scroll', updateOffset, { passive: true });
+
     doResize();
     window.addEventListener('resize', resize);
     window.addEventListener('mousemove', onMouseMove, { passive: true });
@@ -250,6 +275,7 @@ const DotField = memo(({
       clearTimeout(resizeTimer);
       window.removeEventListener('resize', resize);
       window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('scroll', updateOffset);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

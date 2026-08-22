@@ -38,8 +38,12 @@
 }
 
 .specular-button:disabled {
+  /* opacity 0.55 + grayscale 让 WebGL 高光消失 + 灰度化,
+     视觉强烈传达"不可点"。只用 opacity 在 hero 大 CTA 上不够明显
+     (背后还在跑 WebGL 高光),加 grayscale 立即显出"关闭"状态。 */
   opacity: 0.55;
   cursor: default;
+  filter: grayscale(0.7) brightness(0.95);
 }
 
 .specular-button:disabled:active {
@@ -83,10 +87,14 @@
 /* ---------- Landing-page CTA hover ----------
    Scoped to the landing root so modals / practice controls keep their
    own behaviour. Adds an inviting "nudge to act" feel on hover:
-   the button lifts, scales up slightly, and gains a soft purple glow
-   (the landing conversion accent). Spring easing makes it feel alive
-   rather than mechanical. Falls back to a sane curve if the design
-   tokens aren't in scope. */
+   the button lifts, scales up slightly, and gains a soft glow in
+   the SAME color as the button fill (shadow 从 --sb-tint 取色 + 45%
+  透明 = 软 halo)。Spring easing makes it feel alive rather than
+   mechanical. Falls back to a sane curve if the design tokens
+   aren't in scope.
+   (2026-08 改:之前固定硬编码 rgba(139,92,246,0.45) 紫色阴影
+   作为"conversion accent"统一语义,但按钮按主题/类型拆色后
+   紫阴影跟紫/琥珀/蓝 3 种 fill 中只有 1 种巧合对上 → 改) */
 [data-landing-root] .specular-button {
   transition:
     transform 0.3s var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1)),
@@ -96,8 +104,13 @@
 
 [data-landing-root] .specular-button:not(:disabled):hover {
   transform: translateY(-4px) scale(1.04);
+  /* shadow 跟 fill 同色:从 --sb-tint(由 SpecularButton 按 caller 的
+     tint prop inline 设置) 取色 + 45% 透明 = 软 halo。
+     之前硬编码 rgba(139,92,246,0.45) 紫色是"conversion accent"
+     统一语义,2026-08 起按钮按主题/类型拆色(紫 CTA / 琥珀 CTA /
+     蓝 CTA 三种 fill),固定紫阴影跟其中 2 种 fill 不一致 → 改 */
   box-shadow:
-    0 16px 40px rgba(139, 92, 246, 0.45),
+    0 16px 40px color-mix(in srgb, var(--sb-tint) 45%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
@@ -109,10 +122,12 @@
 /* ---------- AppHeader "注册" CTA hover ----------
    The header's 注册 button is the top-of-funnel conversion CTA — the same
    role as the landing CTAs — so it gets the same inviting "nudge to act"
-   hover (lift + scale + soft purple glow, the project's conversion accent).
+   hover (lift + scale + soft glow that follows the button fill color).
    Scoped to .app-header so in-page practice / modal SpecularButtons keep
-   their own behaviour. The button's own tint stays --ds-action; only the
-   hover glow borrows purple to echo the landing conversion semantic. */
+   their own behaviour. The button's tint stays --ds-action(--sb-tint
+   自动传递),shadow 通过 --sb-tint 跟 fill 同色 → 蓝按钮蓝阴影。
+   (2026-08 改:之前固定 rgba(139,92,246,0.45) 紫色,跟
+   --ds-action 蓝按钮不一致 → 改) */
 .app-header .specular-button {
   transition:
     transform 0.3s var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1)),
@@ -122,8 +137,9 @@
 
 .app-header .specular-button:not(:disabled):hover {
   transform: translateY(-4px) scale(1.04);
+  /* 同 landing 块:hover shadow 从 --sb-tint 取色,跟按钮 fill 同步 */
   box-shadow:
-    0 16px 40px rgba(139, 92, 246, 0.45),
+    0 16px 40px color-mix(in srgb, var(--sb-tint) 45%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 

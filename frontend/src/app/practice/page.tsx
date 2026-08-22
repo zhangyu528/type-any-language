@@ -6,13 +6,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingMark from '../components/LoadingMark';
 import TranslationSession from '../TranslationSession';
 import { useAuth } from '../lib/auth';
-import Aurora from '@/components/Aurora';
 import styles from './Practice.module.css';
 
 /**
  * Standalone practice route. Dashboard chooses the library, but the drill
  * owns the full page so its layout is not constrained by dashboard cards.
- * Aurora background is added as a subtle layer behind the practice content.
  */
 export default function PracticeRoute() {
   return (
@@ -54,7 +52,9 @@ function PracticeRouteInner() {
     }
   }, [libId]);
 
-  const returnTo = params.get('from') === 'dashboard' ? '/dashboard' : '/';
+  // 练习入口统一从 /dashboard 进入；landing 选词直接跳到本路由(`/practice`)，
+  // 与 dashboard 走同一路径，所以 returnTo 固定为 /dashboard。
+  const returnTo = '/dashboard';
 
   if (authLoading || !user) return <PracticeLoading />;
   if (!libId) {
@@ -64,14 +64,6 @@ function PracticeRouteInner() {
 
   return (
     <main className={styles.root} data-babyblue>
-      {/* Aurora background - subtle layer behind content. Baby-blue
-          color stops so the animated backdrop matches the data-babyblue
-          palette (the default purple/green clashes with the new theme). */}
-      <Aurora
-        className="fixed inset-0 z-0"
-        colorStops={['#8FCBF0', '#5BA8F0', '#8FCBF0']}
-      />
-
       <div className={styles.content}>
         <TranslationSession
           libId={libId}

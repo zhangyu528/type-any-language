@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import {
   getLib,
   loadTranslationProgress,
@@ -15,14 +16,11 @@ import {
   LessonDetail,
 } from './api';
 import { useAuth } from './lib/auth';
-import { useAuthModal } from './lib/authModal';
 import TranslationStage from './TranslationStage';
-import PracticeHintCard, {
-  type PracticeHintCardKind,
-} from './practice/PracticeHintCard';
 import LoadingMark from './components/LoadingMark';
 import Stat from './ds/components/Stat';
 import Button from './ds/components/Button';
+import IconButton from './ds/components/IconButton';
 import SpecularButton from '@/components/SpecularButton';
 import styles from './practice/TranslationStage.module.css';
 
@@ -36,12 +34,6 @@ type SessionState = 'loading' | 'running' | 'empty-lib' | 'error' | 'finished';
 interface PickedStep {
   word: WordInLesson;
   sentence: LessonSentence;
-}
-
-interface HintCardState {
-  improvedCardShown: boolean;
-  rateCardShown: boolean;
-  dismissedThisSession: boolean;
 }
 
 /**
@@ -139,7 +131,6 @@ export default function TranslationSession({
   onBack,
 }: TranslationSessionProps) {
   const { user } = useAuth();
-  const { open: openAuthModal } = useAuthModal();
   // Anonymous users share one bucket (ANONYMOUS_USER_ID); signed-in
   // users get a per-userId bucket. The localStorage key prefix is
   // derived from this in api.ts helpers.
@@ -151,7 +142,6 @@ export default function TranslationSession({
   const [progress, setProgress] = useState<TranslationProgress>({});
   const [currentStep, setCurrentStep] = useState<PickedStep | null>(null);
 
-  // Guest-only trigger state. Reset on libId change (new session).
   const [sessionStats, setSessionStats] = useState({
     total: 0,
     correct: 0,
@@ -159,17 +149,6 @@ export default function TranslationSession({
     maxStreak: 0,
     startTime: Date.now(),
   });
-  const [lastResult, setLastResult] = useState<
-    'correct' | 'wrong' | 'skipped' | null
-  >(null);
-  const [cardState, setCardState] = useState<HintCardState>({
-    improvedCardShown: false,
-    rateCardShown: false,
-    dismissedThisSession: false,
-  });
-  const [activeHint, setActiveHint] = useState<PracticeHintCardKind | null>(
-    null
-  );
 
   // Live study-timer — ticks every second while the drill is running.
   // sessionStats.startTime is the single source of truth (reset on mount
@@ -241,15 +220,8 @@ export default function TranslationSession({
         window.history.replaceState({}, '', next);
       }
     };
-    // Reset guest trigger state on libId change (new session).
+    // Reset run stats on libId change (new session).
     setSessionStats({ total: 0, correct: 0, streak: 0, maxStreak: 0, startTime: Date.now() });
-    setLastResult(null);
-    setCardState({
-      improvedCardShown: false,
-      rateCardShown: false,
-      dismissedThisSession: false,
-    });
-    setActiveHint(null);
     (async () => {
       try {
         const [l, p] = await Promise.all([
@@ -422,70 +394,24 @@ export default function TranslationSession({
         return { ...prev, total: attempted, correct: correctN, streak, maxStreak };
       });
 
-      // Guest-only: evaluate hint triggers. Use the *current* lastResult
-      // (closure) + the closure sessionStats for the rate threshold so we
-      // see this answer. Signed-in users skip the nudges.
-      if (isGuest) {
-        const previousResult = lastResult;
-        const newTotal = sessionStats.total + 1;
-        const newCorrect =
-          sessionStats.correct + (correct ? 1 : 0);
-        setLastResult(correct ? 'correct' : 'wrong');
-
-        // Skip API: skipped counts as wrong, never triggers improved.
-        // (TranslationStage already routes skip through onComplete(false))
-        const cardAvailable =
-          !cardState.improvedCardShown &&
-          !cardState.rateCardShown &&
-          !cardState.dismissedThisSession;
-
-        // "改进" card only fires when there IS a previous result and
-        // it was not correct. The very first answer of a session has
-        // previousResult=null; that's not "improvement", that's just
-        // a first answer.
-        if (
-          cardAvailable &&
-          previousResult != null &&
-          previousResult !== 'correct' &&
-          correct
-        ) {
-          setActiveHint('improved');
-          setCardState((prev) => ({ ...prev, improvedCardShown: true }));
-        } else if (
-          cardAvailable &&
-          newTotal >= 5 &&
-          newCorrect / newTotal >= 0.8
-        ) {
-          setActiveHint('rate');
-          setCardState((prev) => ({ ...prev, rateCardShown: true }));
-        }
-      }
-
       // Draw the next step using the freshly-written progress so a
       // self-corrected step doesn't immediately re-surface.
       const next = pickNextStep(lesson, nextProgress, libId);
       setCurrentStep(next);
+      // The end-of-session summary is surfaced by the HUD "结束练习"
+      // arrow (setSessionState('finished')), not by exhaustion — the
+      // weighted drill repeats indefinitely, so `!next` only happens for
+      // a lib that genuinely contains zero sentences on load.
       if (!next) setSessionState('empty-lib');
     },
-    [progress, libId, lesson, currentStep, isGuest, lastResult, sessionStats, cardState, userId]
+    [progress, libId, lesson, currentStep, userId]
   );
-
-  const handleHintLogin = useCallback(() => {
-    const from = `${window.location.pathname}${window.location.search}`;
-    openAuthModal('login', { from });
-  }, [openAuthModal]);
-
-  const handleHintDismiss = useCallback(() => {
-    setActiveHint(null);
-    setCardState((prev) => ({ ...prev, dismissedThisSession: true }));
-  }, []);
 
   // Restart the drill in place — fresh run stats, re-draw the first step
   // from the current progress. The backend session keeps rolling (no
   // end call) so the cumulative tally is preserved until unmount.
   const handleRestart = () => {
     setSessionStats({ total: 0, correct: 0, streak: 0, maxStreak: 0, startTime: Date.now() });
-    setLastResult(null);
     const first = lesson ? pickNextStep(lesson, progress, libId) : null;
     setCurrentStep(first);
     setSessionState(first ? 'running' : 'empty-lib');
@@ -602,7 +528,7 @@ export default function TranslationSession({
         </div>
         <div className={styles.actions}>
           <Button variant="primary" size="md" onClick={handleRestart}>
-            再来一组
+            继续
           </Button>
           <Button variant="ghost" size="md" onClick={onBack}>
             返回主页
@@ -625,6 +551,15 @@ export default function TranslationSession({
         </div>
       )}
       <div className={styles.hud}>
+        <IconButton
+          variant="ghost"
+          size="md"
+          shape="circle"
+          aria-label="终止练习"
+          onClick={() => setSessionState('finished')}
+        >
+          <ArrowLeft size={18} />
+        </IconButton>
         <div className={styles.hudStats}>
           <Stat value={sessionStats.total} label="已练" />
           <Stat
@@ -643,13 +578,6 @@ export default function TranslationSession({
           <Stat value={sessionStats.streak} label="连击" tone="mint" />
           <Stat value={formatDuration(elapsedSecs)} label="用时" />
         </div>
-        <button
-          type="button"
-          className={styles.endBtn}
-          onClick={() => setSessionState('finished')}
-        >
-          结束练习
-        </button>
       </div>
       <TranslationStage
         sentence={currentStep.sentence}
@@ -667,13 +595,6 @@ export default function TranslationSession({
           {' · '}
           本词 {currentWordAnswered} 句
         </p>
-      )}
-      {activeHint && (
-        <PracticeHintCard
-          kind={activeHint}
-          onLogin={handleHintLogin}
-          onDismiss={handleHintDismiss}
-        />
       )}
     </>
   );

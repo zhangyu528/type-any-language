@@ -1,0 +1,143 @@
+/* BadgeEmblem — 13 枚成就徽章 SVG 灯牌(SVG,主题感知)
+   6 种 shape × 8 种 accent × 2 种 state(locked / earned)。
+   形状 / 主色 / 状态统一通过 CSS 变量切换,组件只挂 className。
+   每个 accent 暴露 6 个变量(供外部 module 复用):
+   --badge-fill-from / --badge-fill-to  : 中心渐变
+   --badge-stroke-color                : 描边色
+   --badge-glow-color                  : earned 状态外环光晕
+   --badge-icon-color                  : 中央图标主色(vivid 鲜艳版)
+   --badge-icon-shadow                 : 图标 drop-shadow 色
+   --badge-color                       : 主色摘要(供 card/progress bar 复用)
+   */
+
+.wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  isolation: isolate;
+}
+
+.svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.icon {
+  position: relative;
+  z-index: 2;
+  color: var(--badge-icon-color, #fff);
+  filter: drop-shadow(0 1.5px 2px var(--badge-icon-shadow, rgba(0, 0, 0, 0.3)));
+}
+
+.state_locked .svg {
+  /* 锁定态:保留主色,只轻微降饱和 + 整体降透明度(锁定不是脱色)。
+     通过降低 opacity 而不是 grayscale,确保渐变 fill 仍可见但视觉上退场。 */
+  filter: saturate(0.75) brightness(1.04);
+  opacity: 0.78;
+  transition: filter 240ms var(--ease-out), opacity 240ms var(--ease-out);
+}
+
+.state_locked .icon {
+  /* 图标保留 accent 浅色 + 彩色投影,不退化为灰色(--ds-ink-faint)。 */
+  color: var(--badge-icon-color, var(--ds-ink-faint));
+  opacity: 0.7;
+  filter: drop-shadow(0 1px 1.5px var(--badge-icon-shadow, rgba(0, 0, 0, 0.18)));
+}
+
+.state_earned {
+  animation: badge-pulse 3.6s var(--ease-out) infinite;
+}
+
+@keyframes badge-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  50% {
+    filter: drop-shadow(0 0 6px var(--badge-glow-color, var(--ds-action)));
+  }
+}
+
+@keyframes badge-glow {
+  0%, 100% { opacity: 0.2;  transform: scale(1); }
+  50%      { opacity: 0.5;  transform: scale(1.06); }
+}
+
+/* (legacy .outerRing / .outerGlow 已删除 — 外环/光晕 stroke 现在由 BadgeEmblem.tsx
+   通过 ACCENT_PALETTE.hex 直传,不走 CSS var。) */
+
+/* ════════════════════════════════════════════════════════════════
+   accent 变体 — 每个主色 6 个变量。
+   图标颜色 = 鲜亮版本(白偏 accent 浅色,带彩色 drop-shadow 增强色彩感)
+   背景渐变 = accent 主色梯度
+   ════════════════════════════════════════════════════════════════ */
+
+.accent_slate    {
+  --badge-fill-from: #cbd5e1; --badge-fill-to: #94a3b8;
+  --badge-stroke-color: #64748b;
+  --badge-glow-color: #94a3b8;
+  --badge-color: #94a3b8;
+  --badge-icon-color: #f8fafc;
+  --badge-icon-shadow: rgba(30, 41, 59, 0.45);
+}
+.accent_mint     {
+  --badge-fill-from: #6ee7b7; --badge-fill-to: #10b981;
+  --badge-stroke-color: #059669;
+  --badge-glow-color: #10b981;
+  --badge-color: #10b981;
+  --badge-icon-color: #ecfdf5;
+  --badge-icon-shadow: rgba(6, 78, 59, 0.55);
+}
+.accent_amber    {
+  --badge-fill-from: #fcd34d; --badge-fill-to: #f59e0b;
+  --badge-stroke-color: #d97706;
+  --badge-glow-color: #f59e0b;
+  --badge-color: #f59e0b;
+  --badge-icon-color: #fffbeb;
+  --badge-icon-shadow: rgba(120, 53, 15, 0.55);
+}
+.accent_coral    {
+  --badge-fill-from: #fda4af; --badge-fill-to: #fb7185;
+  --badge-stroke-color: #e11d48;
+  --badge-glow-color: #fb7185;
+  --badge-color: #fb7185;
+  --badge-icon-color: #fff1f2;
+  --badge-icon-shadow: rgba(136, 19, 55, 0.55);
+}
+.accent_lavender {
+  --badge-fill-from: #c4b5fd; --badge-fill-to: #8b5cf6;
+  --badge-stroke-color: #7c3aed;
+  --badge-glow-color: #8b5cf6;
+  --badge-color: #8b5cf6;
+  --badge-icon-color: #f5f3ff;
+  --badge-icon-shadow: rgba(76, 29, 149, 0.55);
+}
+.accent_rose     {
+  --badge-fill-from: #fbcfe8; --badge-fill-to: #ec4899;
+  --badge-stroke-color: #be185d;
+  --badge-glow-color: #ec4899;
+  --badge-color: #ec4899;
+  --badge-icon-color: #fdf2f8;
+  --badge-icon-shadow: rgba(131, 24, 67, 0.55);
+}
+.accent_teal     {
+  --badge-fill-from: #5eead4; --badge-fill-to: #14b8a6;
+  --badge-stroke-color: #0f766e;
+  --badge-glow-color: #14b8a6;
+  --badge-color: #14b8a6;
+  --badge-icon-color: #f0fdfa;
+  --badge-icon-shadow: rgba(17, 94, 89, 0.55);
+}
+.accent_indigo   {
+  --badge-fill-from: #818cf8; --badge-fill-to: #4f46e5;
+  --badge-stroke-color: #3730a3;
+  --badge-glow-color: #4f46e5;
+  --badge-color: #4f46e5;
+  --badge-icon-color: #eef2ff;
+  --badge-icon-shadow: rgba(55, 48, 163, 0.55);
+}

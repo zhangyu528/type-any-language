@@ -120,8 +120,8 @@
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--ds-correct, #1D9E75);
-  background: color-mix(in srgb, var(--ds-correct, #1D9E75) 14%, transparent);
+  color: var(--ds-correct);
+  background: color-mix(in srgb, var(--ds-correct) 14%, transparent);
   border-radius: 999px;
   padding: 2px 8px;
 }

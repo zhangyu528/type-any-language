@@ -105,8 +105,21 @@ export default function TypefallDemo({ libId }: TypefallDemoProps) {
   );
   const [now, setNow] = useState(0);
 
-
-
+  /* 滚出视口时停跑 rAF 轮播 (省 GPU);滚回视口时自动恢复。
+     IntersectionObserver + 100px rootMargin 给快速滚动留缓冲,不至于
+     一过头就停 demo。 */
+  const demoRef = useRef<HTMLDivElement | null>(null);
+  const [inView, setInView] = useState(true);
+  useEffect(() => {
+    const el = demoRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(
+      ([entry]) => setInView(entry.isIntersecting),
+      { rootMargin: '100px 0px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   /* 用 ref 跟踪句长,避免轮播时 useEffect deps 频繁变化导致动画重启抖动。 */
   const sentencesLenRef = useRef(sentences.length);
@@ -118,6 +131,11 @@ export default function TypefallDemo({ libId }: TypefallDemoProps) {
        需要重新赋值来开始新一轮。 */
     let start = performance.now();
     let raf = 0;
+    /* 滚出视口时停跑:不进入 tick,但 deps 变化时 effect 重新跑,会重启。 */
+    if (!inView) {
+      cancelAnimationFrame(raf);
+      return;
+    }
     const tick = () => {
       const elapsed = performance.now() - start;
       // 循环:整句打完 + 停留后重置进入下一句
@@ -138,17 +156,17 @@ export default function TypefallDemo({ libId }: TypefallDemoProps) {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [cells, words, fullDone]);
+  }, [cells, words, fullDone, inView]);
 
   const total = cells.length;
   const visibleCount = cells.filter((c) => now >= c.start).length;
   const progressPct = total === 0 ? 0 : Math.round((visibleCount / total) * 100);
 
   return (
-    <div className={styles.demoRoot}>
-      {/* 进度条:放 demoRoot 顶部 —— 跟 mockTopbar 紧贴,作为 "chrome 状态条"。
-         跟顶部 nav bar(浏览器三个点 + lib 名)视觉同类 —— 都是
-         "当前状态指示器",进度条管 demo 状态,topbar 管 lib 上下文。 */}
+    <div ref={demoRef} className={styles.demoRoot}>
+      {/* 进度条:放 demoRoot 顶部 —— 跟 mockTopbar 紧贴(gap 0),作为
+         "chrome 状态条"。Hero.tsx 已缩 mock gap 0,demo 整体上移,
+         progress 现在紧贴 topbar 看起来是同一组 chrome。 */}
       <div className={styles.demoProgress}>
         <span className={styles.demoProgressFill} style={{ width: `${progressPct}%` }} />
       </div>

@@ -985,14 +985,6 @@ export interface CalendarDay {
   is_streak_node: boolean;
 }
 
-export interface MonthlyGoalInfo {
-  target: number;
-  current: number;
-  year_month: string; // "2026-07"
-  achieved: boolean;
-  on_track: boolean;
-}
-
 export interface KpiStat {
   value: number;
   delta: number;
@@ -1008,7 +1000,6 @@ export interface DashboardSnapshot {
   daily_goal: DailyGoalState;
   streak: StreakInfo;
   calendar: CalendarDay[];
-  monthly_goal: MonthlyGoalInfo;
   progress: Record<string, KpiStat>;
   /** Most common hour-of-day (0–23) the user starts practice, or null
    *  if no sessions yet. Drives the GreetingBar's "通常 21:00 练习"
@@ -1036,6 +1027,17 @@ export interface DashboardSnapshot {
   } | null;
   generated_at: string;
 }
+
+/**
+ * Frontend-computed learning level — see `dashboard/level.ts` for the
+ * tier table and derivation. Lives next to the snapshot so views can
+ * pre-compute once and pass the result down without re-deriving.
+ */
+export type LevelTier = {
+  level: number;
+  label: string;
+  accent: 'slate' | 'mint' | 'amber' | 'coral' | 'slate-deep' | 'mint-deep' | 'amber-deep';
+};
 
 /**
  * fetch with a hard timeout. Without this, a backend that accepts the TCP
@@ -1116,20 +1118,6 @@ export async function getDayDetail(date: string): Promise<DayDetail> {
   });
   if (!res.ok) {
     throw new Error(`获取当天详情失败 (HTTP ${res.status})`);
-  }
-  return res.json();
-}
-
-/** POST /api/dashboard/monthly-goal — set the user's monthly target. */
-export async function updateMonthlyGoal(target: number): Promise<MonthlyGoalInfo> {
-  const res = await fetch(`${API_BASE_URL}/api/dashboard/monthly-goal`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ target }),
-  });
-  if (!res.ok) {
-    throw new Error(`更新月度目标失败 (HTTP ${res.status})`);
   }
   return res.json();
 }

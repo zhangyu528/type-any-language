@@ -24,6 +24,7 @@
 
 import { Catalog, ContinueState } from '../api';
 import SpecularButton from '@/components/SpecularButton';
+import { useTheme } from '../components/ThemeProvider';
 import styles from './ContinueCard.module.css';
 
 export interface ContinueCardProps {
@@ -85,6 +86,23 @@ export default function ContinueCard({
   // 主 CTA 行为：当前课有未完成 session → 续练该 session；否则开/继续当前课；
   // 无当前课(空态) → 跳发现页添加课程(onAddCourse)。卡片锚定当前课程，
   // 故切换 我的课程 后 CTA 也跟着当前课走。
+  // 主 CTA 全模式统一走产品主色 = slate 冷蓝(--ds-action 系):
+  //   · light: tint #378ADD / base #185FA5   (= --ds-action / --slate-600)
+  //   · dark : tint #5BA8F0 / base #7DC0FF  (= --ds-action / --ds-action-deep)
+  // 不再像 landing FinalCTA / LibStrip featured 那样走"light 紫 / dark 琥珀"
+  // 反相:
+  //   · light 用 --ds-convert 紫色会跟冷蓝玻璃底反差成"推荐/弱转化"语义,
+  //     抢戏且与主页 kicker 圆点(--ds-action)/课程 pill 等系统色分家。
+  //   · dark 用 --ds-cta 琥珀会吃掉全站"全页至多一处 CTA 琥珀"的稀缺焦点
+  //     位,跟 PracticeSection / 别的 section 共用同一只琥珀就贬值了。
+  // 主页是用户的"主行动入口",应当跟背景玻璃壳 + accent 系统一并对齐到主色
+  // (--ds-action),琥珀留给真正稀缺的转化锚(升级/付费/发现页推荐)。
+  // SpecularButton 内部 ogl shader 只接受 hex 字面值(line 51-59 守卫),
+  // 所以用 useTheme 手动切。
+  const { theme: ctaTheme } = useTheme();
+  const ctaTint = ctaTheme === 'dark' ? '#5BA8F0' : '#378ADD';
+  const ctaBase = ctaTheme === 'dark' ? '#7DC0FF' : '#185FA5';
+
   const handleClick = () => {
     if (hasSession && lastId && selId && lastId === selId && onResume) {
       onResume();
@@ -185,11 +203,11 @@ export default function ContinueCard({
         size="md"
         onClick={handleClick}
         radius={14}
-        tint="#BA7517"
+        tint={ctaTint}
         tintOpacity={1}
         textColor="#FFFFFF"
         lineColor="#FFFFFF"
-        baseColor="#854F0B"
+        baseColor={ctaBase}
         blur={8}
         intensity={1.5}
         shineSize={14}
@@ -197,6 +215,7 @@ export default function ContinueCard({
         followMouse
         proximity={480}
         className={styles.cta}
+        style={{ '--cta-tint': ctaTint, '--cta-base': ctaBase } as React.CSSProperties}
       >
         {cta} →
       </SpecularButton>

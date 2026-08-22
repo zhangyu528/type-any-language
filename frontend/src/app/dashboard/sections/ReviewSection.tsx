@@ -29,6 +29,7 @@ import styles from '../../me/me-page.module.css';
 import { riseIn, staggerParent } from '../../ds/motion';
 import Particles from '@/components/Particles';
 import SpecularButton from '@/components/SpecularButton';
+import { useTheme } from '../../components/ThemeProvider';
 
 interface ReviewSectionProps {
   catalog: Catalog | null;
@@ -38,6 +39,13 @@ interface ReviewSectionProps {
 
 export default function ReviewSection({ catalog, catalogError, userId }: ReviewSectionProps) {
   const router = useRouter();
+  // 主 CTA 主题感知(2026-08):SpecularButton 内部 ogl shader 只接受 hex 字面值,
+  // 用 useTheme() 切两套 hex。
+  //   light = #8FCBF0 / #2F80C0  (--ds-action light / --ds-action-deep light)
+  //   dark  = #5BA8F0 / #7DC0FF  (--ds-action dark  / --ds-action-deep dark)
+  const { theme } = useTheme();
+  const ctaTint = theme === 'dark' ? '#5BA8F0' : '#8FCBF0';
+  const ctaBase = theme === 'dark' ? '#7DC0FF' : '#2F80C0';
   const [candidates, setCandidates] = useState<ReviewCandidate[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [audioRate, setAudioRate] = useState(1);
@@ -97,11 +105,11 @@ export default function ReviewSection({ catalog, catalogError, userId }: ReviewS
           size="md"
           onClick={() => router.push('/dashboard?section=practice')}
           radius={14}
-          tint="#8FCBF0"
+          tint={ctaTint}
           tintOpacity={1}
           textColor="#FFFFFF"
           lineColor="#FFFFFF"
-          baseColor="#2F80C0"
+          baseColor={ctaBase}
           blur={8}
           followMouse
           proximity={400}
