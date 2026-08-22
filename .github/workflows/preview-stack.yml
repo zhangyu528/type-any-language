@@ -91,7 +91,10 @@ jobs:
 
       - name: Install frontend deps
         working-directory: frontend
-        run: npm ci
+        # 用 `npm install` 不用 `npm ci`:CI 默认用 npm ci 但 preview 场景下
+        # 更宽容(自动同步 lockfile)。master 上有时 package.json 加了依赖
+        # 但没跑 `npm install` 同步 lockfile,导致 npm ci 直接 401 失败。
+        run: npm install --no-audit --no-fund --loglevel=warn
 
       - name: Build frontend
         working-directory: frontend
