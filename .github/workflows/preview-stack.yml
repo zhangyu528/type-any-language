@@ -29,7 +29,7 @@ jobs:
     environment:
       name: preview
       url: ${{ steps.tunnel.outputs.url }}
-    timeout-minutes: 45
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:15-alpine
@@ -262,10 +262,10 @@ jobs:
       - name: Keep tunnel alive
         run: |
           URL="${{ steps.tunnel.outputs.url }}"
-          echo "Holding tunnel alive for ~40 minutes: $URL"
-          END=$((SECONDS + 2400))
+          echo "Holding tunnel alive for ~10 minutes: $URL"
+          END=$((SECONDS + 600))
           while [ $SECONDS -lt $END ]; do
             echo "[$(date +%H:%M:%S)] tunnel alive: $URL"
             sleep 60
           done
-          echo "Keep alive window ended (40 min)."
+          echo "Keep alive window ended (10 min)."
