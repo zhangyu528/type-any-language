@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# devcli/setup.sh — first-time (or post-reset) bootstrap for dev.
+# dev/cli/setup.sh — first-time (or post-reset) bootstrap for dev.
 #
 # Walks the operator through the steps a fresh dev clone needs before
-# `bash dev start` succeeds. The dev loop is host-native
+# `bash dev/dev run` succeeds. The dev loop is host-native
 # (uvicorn + `next dev` on host) — no dev docker images — so setup is
 # just:
 #
@@ -22,7 +22,7 @@
 set -e
 
 COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$COMMON_DIR" && cd .. && pwd)"
+PROJECT_DIR="$(cd "$COMMON_DIR" && cd .. && cd .. && pwd)"
 # shellcheck source=_common.sh
 source "$COMMON_DIR/_common.sh"
 
@@ -91,14 +91,14 @@ cmd_setup() {
 
     ok "=== setup 完成 ==="
     info "  dev loop (host-native,db 还在 docker):"
-    info "    bash dev start            # python venv + npm run dev"
-    info "    bash dev stop             # 停掉两个进程"
+    info "    bash dev/dev run            # python venv + npm run dev"
+    info "    Ctrl+C                       # 干净停掉两个进程"
     info ""
     info "  内容更新:"
-    info "    bash dev import           # UPSERT cms/content/,会自动起 db"
+    info "    bash dev/dev import           # UPSERT cms/content/,会自动起 db"
     info ""
     info "  schema 变更:"
-    info "    bash dev migrate          # 跑 pending schema migrations"
+    info "    bash dev/dev migrate          # 跑 pending schema migrations"
 }
 
 # ─── native_setup_python / native_setup_node ─────────────────────────────────
@@ -138,9 +138,9 @@ usage() {
                       (idempotent — re-runs short-circuit work that's already done)
 
 典型工作流(全新机器):
-  ./devcli/setup.sh              # 装 venv + node_modules + 起 db
-  bash dev start                  # native: uvicorn + next dev on host
-  bash dev import                 # 把 cms/content/ UPSERT 到 dev db
+  bash dev/dev setup              # 装 venv + node_modules + 起 db
+  bash dev/dev run                  # native: uvicorn + next dev on host
+  bash dev/dev import                 # 把 cms/content/ UPSERT 到 dev db
 EOF
 }
 

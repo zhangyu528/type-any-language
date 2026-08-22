@@ -13,7 +13,7 @@ This project intentionally separates **content production** from **content servi
 | Host / Service | Role | What lives here | What runs here |
 |---|---|---|---|
 | **CMS host** | Content production (writes staging files) | `cms/` (env, scripts, source, tools) | Python + Docker |
-| **Target host** (dev or prod) | Content serving (3 services in one compose file) | devcli/ + ops/cvm/ (compose files at the repo root; see Layout rule below) | Docker (backend + frontend + db) |
+| **Target host** (dev or prod) | Content serving (3 services in one compose file) | dev/ + ops/cvm/ (compose files at the repo root; see Layout rule below) | Docker (backend + frontend + db) |
 | **DB layer** (each target host's compose) | Runtime database | `docker-compose{,.dev}.yml` `db` service → `postgres:15-alpine` | Docker container, data on host volume |
 
 The CMS host produces **staging files** (vocabulary JSON + sentences JSONL) via the
@@ -33,7 +33,7 @@ service's `DATABASE_URL`). Backend reads it via pydantic-settings.
 ### Dev db lifecycle (single instance, host-local)
 
 The dev db is a `postgres:15-alpine` container managed by docker-compose
-(defined in `docker-compose.dev.yml`'s `db` service). Data is
+(defined in `dev/cli/docker-compose.dev.yml`'s `db` service). Data is
 bind-mounted to `./.docker-postgres-data/` (gitignored). One db per
 dev host — there is no per-branch, per-user isolation at the db
 level. The dev db's lifetime matches the compose project; deleting
@@ -59,11 +59,11 @@ postgres**, the cost/benefit flips:
 
 If you genuinely need a clean db for a feature branch:
 ```bash
-docker compose -f docker-compose.dev.yml down   # stop services
+docker compose -f dev/cli/docker-compose.dev.yml down   # stop services
 rm -rf ./.docker-postgres-data                    # nuke the bind-mount target
-docker compose -f docker-compose.dev.yml up -d # restart with empty db
-./devcli/migrate.sh                              # apply all migrations from scratch
-bash dev import-content                        # re-import cms/content/
+docker compose -f dev/cli/docker-compose.dev.yml up -d # restart with empty db
+bash dev/dev migrate                              # apply all migrations from scratch
+bash dev/dev import                        # re-import cms/content/
 ```
 
 ### Why local (vs cloud)
@@ -83,7 +83,7 @@ bash dev import-content                        # re-import cms/content/
 
 The "target hosts are a pure read-layer" rule above has two dev-only opt-ins:
 
-- **`devcli/migrate.sh`** — apply pending schema migrations to the live cloud
+- **`bash dev/dev migrate`** — apply pending schema migrations to the live cloud
   db (host-side runner, no sidecar container). Use after editing
   `backend/migrations/versions/*.py`.
 - **`db/scripts/import_staging.sh`** — UPSERT `cms/content/` into the docker postgres.
@@ -187,16 +187,17 @@ in its environment via `$(cat /run/secrets/db_password)`.
 │       ├── smoke.sh
 │       └── e2e.sh
 │
-├── devcli/                # dev workstation scripts (host-native uvicorn + next dev; not an ops env)
-│   ├── _common.sh           # shared setup (docker postgres contract, staging-files helpers)
-│   ├── native.sh            # host-native dev driver (uvicorn + next dev on host; db in docker)
-│   ├── setup.sh             # first-time: preflight + install native deps + start docker db
-│   ├── doctor.sh            # preflight (docker, host python/node, db mount target, ports)
-│   ├── migrate.sh           # apply schema migrations to live docker postgres (host-side runner)
-│   ├── import_content.sh    # UPSERT cms/content/ to docker postgres (host-side runner)
-│   ├── logs.sh              # tail native process logs
-│   ├── restart_backend.sh   # Windows-specific :8000 sweep helper
-│   └── docker-compose.dev.yml  # dev stack (the `db` service only)
+├── dev/                  # dev subsystem: wrapper + implementation (host-native uvicorn + next dev; not an ops env)
+│   ├── dev              # bash wrapper — `bash dev/dev <subcmd>` (run / setup / doctor / migrate / import / cms-*)
+│   └── cli/
+│       ├── _common.sh       # shared setup (docker postgres contract, port helpers, staging-files check)
+│       ├── run.sh           # thin shim — exec node cli/run.js
+│       ├── run.js           # Node multiplexer: spawn backend + frontend, prefix output, forward SIGINT
+│       ├── setup.sh         # first-time: preflight + install native deps + start docker db
+│       ├── doctor.sh        # preflight (docker, host python/node, db mount target, ports)
+│       ├── migrate.sh       # apply schema migrations to live docker postgres (host-side runner)
+│       ├── import.sh        # UPSERT cms/content/ to docker postgres (host-side runner; was import_content.sh)
+│       └── docker-compose.dev.yml  # dev stack (the `db` service only)
 ```
 
 The runtime `docker-compose.yml` mounts the host-side `.dbcreds/db_password`
@@ -274,22 +275,22 @@ artifact until you decide to import.
 The dev host is **host-native** for the app stack: backend + frontend run as
 host processes (uvicorn + `next dev`), talking to a docker postgres on
 `localhost:5432`. The only docker artifact on a dev host is the `db` service
-in `docker-compose.dev.yml`. There is no dev image, no `compose watch`, no
+in `dev/cli/docker-compose.dev.yml`. There is no dev image, no `compose watch`, no
 `Dockerfile.dev` — iteration is pure host processes with hot reload.
 
 ```bash
 # Host-native dev — host Python venv + host Node + host ports 8000/3000
-bash dev setup                       # preflight + venv + node_modules + start docker db
-bash dev start                       # = ./devcli/native.sh start (uvicorn + next dev on host)
-bash dev stop
-bash dev status                      # pid + uptime + port + db health
-bash dev logs [backend|frontend|both]  # tail host-native process logs
-bash dev migrate                     # apply pending schema migrations to docker postgres
-bash dev import-content              # UPSERT latest cms/content/ into docker postgres
-bash dev doctor                      # preflight (docker + host-native deps + db)
+bash dev/dev setup                  # preflight + venv + node_modules + start docker db
+bash dev/dev run                    # foreground: uvicorn + next dev on host; Ctrl+C to stop
+bash dev/dev run backend            # only backend
+bash dev/dev run frontend           # only frontend
+bash dev/dev migrate                # apply pending schema migrations to docker postgres
+bash dev/dev import                 # UPSERT latest cms/content/ into docker postgres
+bash dev/dev doctor                 # preflight (docker + host-native deps + db)
+bash dev/dev cms-run                # full CMS pipeline (vocab + sentences + audio)
 ```
 
-No `.env` file is needed. `native.sh` exports the same env defaults that
+No `.env` file is needed. `run.js` exports the same env defaults that
 compose used:
 
 - `ALLOWED_ORIGINS=http://localhost,http://localhost:3000,http://localhost:54102,http://localhost:55407,http://localhost:55500`
@@ -298,7 +299,7 @@ compose used:
 - `NEXT_PUBLIC_API_URL=http://localhost:8000` (Next bakes `NEXT_PUBLIC_*`
   at first render in dev mode)
 
-`docker-compose.dev.yml` is now a single-service file (just `db`). Native
+`dev/cli/docker-compose.dev.yml` is now a single-service file (just `db`). Native
 mode auto-starts the `db` service via `ensure_dev_db_up`
 (`$DOCKER_COMPOSE_CMD up -d --no-deps db`); the backend + frontend services
 that used to live in this compose file are gone.
@@ -590,10 +591,10 @@ When you add or change a migration in `backend/migrations/versions/`:
 # Live docker postgres (the one your backend is actually querying): in-place
 # upgrade via the host-side runner. No sidecar container, no image
 # bake, no registry push.
-./devcli/migrate.sh        # source db/scripts/lib.sh; db_assemble_url; exec db/scripts/migrate.sh
+bash dev/dev migrate        # source db/scripts/lib.sh; db_assemble_url; exec db/scripts/migrate.sh
 ```
 
-`devcli/migrate.sh` requires `python3` + `psycopg2-binary` + `sqlalchemy`
+`bash dev/dev migrate` requires `python3` + `psycopg2-binary` + `sqlalchemy`
 on the host (the same deps `db/scripts/init_schema.sh` and
 `import_staging.sh` need). Idempotent — re-runs are no-ops. The backend
 picks up the new schema on the next request (no restart needed; uvicorn
@@ -646,7 +647,7 @@ git commit -m "experiment: phonetic-lookup btree (branch-local, will not merge)"
 ```
 
 **Merge rules**:
-- Shared migrations (`0001`-`8999`) merge into master and stay. They are applied to every dev's db on next `./devcli/migrate.sh` (or equivalent).
+- Shared migrations (`0001`-`8999`) merge into master and stay. They are applied to every dev's db on next `bash dev/dev migrate` (or equivalent).
 - Branch-local migrations (`9000`-`9999`):
   - If the experiment succeeds, **promote it to shared**: rename to the next shared prefix, drop the `<branch-slug>` slug, merge.
   - If the experiment is abandoned, do **not** merge the branch at all, or `git rm` the migration file in the merge commit.

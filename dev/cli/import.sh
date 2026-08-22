@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# devcli/import_content.sh — import cms/content/ into the dev db.
+# dev/cli/import.sh — import cms/content/ into the dev db.
 #
 # Equivalent to ./db/scripts/import_staging.sh all, but routes through
 # the dev docker-compose db (postgres:15-alpine running on the dev
@@ -13,8 +13,8 @@
 #   ./db/scripts/import_staging.sh all                     # UPSERT to db
 #
 # A dev host that just wants the L step (import) can do:
-#   ./devcli/import_content.sh          # or
-#   bash dev import
+#   bash dev/dev import          # or
+#   bash dev/dev import
 #
 # Equivalently, from inside the running container:
 #   docker compose exec backend python -m importer all
@@ -32,7 +32,7 @@
 set -e
 
 COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$COMMON_DIR" && cd .. && pwd)"
+PROJECT_DIR="$(cd "$COMMON_DIR" && cd .. && cd .. && pwd)"
 # shellcheck source=_common.sh
 source "$COMMON_DIR/_common.sh"
 setup_dev_host_env
@@ -47,7 +47,7 @@ cmd_import() {
     fi
 
     # Self-healing: bring up only the db service if it's not running.
-    # This lets `./devcli/import_content.sh` work standalone (e.g. on
+    # This lets `bash dev/dev import` work standalone (e.g. on
     # a fresh checkout right after setup, or after pulling new
     # cms/content/ from the CMS host) without forcing the operator to
     # also start backend/frontend.
@@ -105,7 +105,7 @@ cmd_import() {
     #
     # We use the host-side runner (db/scripts/migrate.sh → runner.py)
     # rather than waiting for the next backend reload, because in the
-    # common flow `bash dev start` already brought up uvicorn — its
+    # common flow `bash dev/dev run` already brought up uvicorn — its
     # initial connect saw an empty db, and any backfill migrations
     # won't re-run until the next request triggers a fresh connect.
     # Triggering them here makes the data → migration ordering correct
