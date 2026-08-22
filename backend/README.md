@@ -47,10 +47,10 @@ backend/
 
 | 变量 | 来源 | 说明 |
 |---|---|---|
-| `DATABASE_URL` | shell env(native 由 `ops/dev/native.sh` 自动 export;docker 由 compose `environment:` 注入) | `postgresql://...` 连接串 |
+| `DATABASE_URL` | shell env(dev-cli/run.js 默认 export;docker 由 compose `environment:` 注入) | `postgresql://...` 连接串 |
 | `ALLOWED_ORIGINS` | shell env | 逗号分隔的 CORS 白名单,例如 `https://my.domain`。Native + dev 默认 `http://localhost,http://localhost:3000,http://localhost:54102,http://localhost:55407,http://localhost:55500` |
 
-目标机不需要 `.env` 文件 —— native 路径由 `ops/dev/native.sh` 自动 export;docker 路径由 compose `environment:` block 注入。**`DATABASE_URL_FILE` 已被废弃** —— 那是 cloud-db 时代的旧间接方式,当前所有路径都不再使用它。
+目标机不需要 `.env` 文件 —— dev 路径由 `dev-cli/run.js` 默认 export;docker 路径由 compose `environment:` block 注入。**`DATABASE_URL_FILE` 已被废弃** —— 那是 cloud-db 时代的旧间接方式,当前所有路径都不再使用它。
 
 ## 本地开发(默认 — host-native)
 
@@ -58,39 +58,36 @@ backend/
 默认路径,比 backend 容器快很多。完整流程:
 
 ```bash
-# 一次性 bootstrap:venv + node_modules + 起 db 容器
-bash dev setup                  # = ./ops/dev/setup.sh
-
-# 起 native 进程 (uvicorn + next dev 都在宿主机上)
-bash dev start                  # = ./ops/dev/native.sh start
+# 一次性:起 native 进程 (uvicorn + next dev 都在宿主机上)
+# backend dev.py 自带子系统 preflight:ensure-db → install → migrate → smart-import → uvicorn。
+# frontend dev.mjs 自带 install + spawn next dev。Fresh clone 第一次会装 deps(~30s),
+# 之后 hash 不变即 ~50ms skip。
+dev run
 
 # 改 backend/ 下任何 .py → uvicorn 自动 --reload
-# 改 requirements.txt → bash dev restart(venv 会感知 hash 变化重 pip install)
-# 想看进程 / 日志:
-bash dev status
-bash dev logs
-# 想停:
-bash dev stop
+# 改 requirements.txt → Ctrl+C 退出后 dev run(install.py 感知 hash 变化重 pip install)
+# 想停:Ctrl+C —— run 是前台 multiplexer,Ctrl+C 干净停两个服务
 ```
 
-默认环境变量(`native.sh` 自动 export,你不用手动):
+默认环境变量(`dev-cli/run.js` 自动 export,你不用手动):
 
 | 变量 | 默认值 |
 |---|---|
 | `DATABASE_URL` | `postgresql://english_dev:devpw@localhost:5432/english_dev` |
 | `ALLOWED_ORIGINS` | `http://localhost,http://localhost:3000,http://localhost:54102,http://localhost:55407,http://localhost:55500` |
 
-要换就 `ALLOWED_ORIGINS=... bash dev start`。
+要换就 `ALLOWED_ORIGINS=... dev run`。
 
 ## 热重载(dev — host-native)
 
 uvicorn 以 `--reload` 跑。改任意 `app/**/*.py` → FastAPI 自动重启,无需手
-动操作。改 `requirements.txt` → host 上 `setup.sh` 感知 hash 变化会重跑
-`pip install`(需要 `bash dev setup` 重新触发,然后 `bash dev restart` 重
-起 uvicorn 进程)。
+动操作。改 `requirements.txt` → 下次 `dev run` 时 `install.py`
+感知 hash 变化会重跑 `pip install`(install.py 在 preflight 第 2 步自动
+调用,无需手动 setup)。
 
-Schema 改动后:`bash dev migrate`(宿主机直接打 docker postgres,不会重
-起 backend)。
+Schema 改动后:`backend/migrations/versions/*.py` 改动也会在下次 run
+的 preflight 第 5 步 `auto-migrate` 自动应用(host-side runner 直接打
+docker postgres,不会重起 backend)。
 
 ## 测试
 

@@ -15,40 +15,6 @@
 # ignore entry is belt-and-suspenders against a crash mid-fetch.
 /.fetch-*
 
-# Dev-only per-host state. Machine-local data that's never committed.
-# The .local/ tree has multiple subdirs, one per stack, each owning its
-# own runtime state (PID + log files). The `.docker-postgres-data/`
-# sibling is the docker postgres container's bind-mount target; it
-# lives at root (not under .local/) because it's managed by docker, not
-# by any script in dev-tools/.
-#
-#   - .docker-postgres-data/  — bind-mounted postgres data dir (created
-#                             on first `docker compose up` of the db
-#                             service). Persistent across container
-#                             restarts. Operator-backup-friendly
-#                             (it's just a directory).
-#   - .local/native/pids/     — backend/frontend PID files written by
-#                             dev-tools/native.sh (main dev stack;
-#                             empty when no service is running).
-#   - .local/native/logs/     — backend/frontend stdout+stderr tail
-#                             files written by dev-tools/native.sh.
-#   - .local/monitor/pids/    — monitor server + vite PIDs written by
-#                             monitor/dev.sh (monitor stack only).
-#   - .local/monitor/logs/    — monitor server.log + vite.log written
-#                             by monitor/dev.sh.
-#   - .dev-db-name           — written by bootstrap_tencent.sh in the
-#                             mode-2 (per-branch) era; no longer
-#                             written. Kept here in case it's still
-#                             present on legacy hosts.
-.local/
-.docker-postgres-data/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Agent / scratch — local temp folders written by automation
-# (Playwright screenshot runs, click-recording scripts, etc.).
 # These live INSIDE the repo so they ARE visible to git;
 # without this entry they show up as untracked every time.
 # Matches the repo-internal path "tmp/" — does NOT affect OS
@@ -106,4 +72,5 @@ logs/
 # helper writes alongside the working tree; never part of the app source.
 .workbuddy/
 
-.env.db
+# Dev-only per-host state lives under dev-cli/ and is ignored by
+# dev-cli/.gitignore (see that file).

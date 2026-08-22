@@ -47,6 +47,23 @@ fi
 # per-lib summaries) don't blow up on Windows GBK consoles.
 export PYTHONIOENCODING="${PYTHONIOENCODING:-utf-8}"
 
-# PYTHONPATH=db — the importer lives at db/.
-PYTHONPATH="${PROJECT_DIR}/db${PYTHONPATH:+:$PYTHONPATH}" \
-    python3 -m importer "$@"
+# PYTHONPATH=db — the importer lives at db/. Convert PROJECT_DIR to a
+# Windows path (mixed slashes are fine) so Windows Python can find the
+# module: pure POSIX paths in PYTHONPATH don't resolve on Windows-native
+# Python (it sees `/d/work/...` as a root-relative path).
+#
+# We OVERRIDE PYTHONPATH (don't append to it) because the inherited
+# PYTHONPATH may use `:` separators (Unix-style, set by some tooling)
+# which Python on Windows would misinterpret as part of one path. Setting
+# just what we need is robust and predictable.
+PROJECT_DIR_WIN="$PROJECT_DIR"
+if command -v cygpath >/dev/null 2>&1; then
+    PROJECT_DIR_WIN="$(cygpath -w "$PROJECT_DIR")"
+fi
+# PYTHON_BIN is set by backend/scripts/dev.py to the absolute path of
+# the venv python (sys.executable). Defaulting to `python3` keeps the
+# script usable standalone (e.g. `docker compose exec backend ./db/scripts/import_staging.sh`
+# — there the venv python IS the container's python3 and PATH lookup works).
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+PYTHONPATH="${PROJECT_DIR_WIN}/db" \
+    "$PYTHON_BIN" -m importer "$@"

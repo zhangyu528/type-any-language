@@ -17,8 +17,8 @@ This directory has nothing to do with the application backend (FastAPI / SQLAlch
 ```
 db/
 ├── scripts/                  shell entry points (the user-facing surface)
-│   ├── lib.sh                docker postgres helpers (resolve_dev/prod_db_url, render_db_name, ...)
-│   ├── bootstrap_tencent.sh  one-time ROLE/DB/GRANT + write DATABASE_URL
+│   ├── lib.sh                db helpers (logging, db_assemble_url)
+│   ├── dev_db.sh             ensure dev docker db is up (called from backend/scripts/dev.py)
 │   ├── init_schema.sh        apply base schema (wraps backend/init_schema.py)
 │   ├── migrate.sh            apply pending migrations (wraps backend/migrations/runner.py)
 │   ├── import_staging.sh     staging files → db UPSERT  (L 步)
@@ -58,7 +58,8 @@ via `docker compose up -d db`. The first-time bootstrap is:
 
 ```bash
 # dev:
-./ops/dev/setup.sh                     # 装 venv + node_modules + 起 db
+dev run                       # multiplexer — backend/scripts/dev.py 自带
+                                       # db/scripts/dev_db.sh → install → migrate → smart-import → uvicorn
 # prod (RUN 端):
 ./ops/cvm/bootstrap.sh                  # 生成 .dbcreds/db_password + sudo chown /var/lib/.../postgres
 ./ops/cvm/lifecycle.sh start            # 起 db + import content + start full stack (migrations 由 backend entrypoint 在 boot 时完成)
