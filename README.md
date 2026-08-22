@@ -38,14 +38,7 @@ dev / prod 目标机只跑 backend + frontend（dev 走 host-native：uvicorn + 
 
 ```bash
 bash dev help              # 列出全部子命令 + 一句话用途
-bash dev setup             # 首次 bootstrap(等价 ./devcli/setup.sh)
-bash dev start             # 启 host-native backend+frontend + docker db
-bash dev stop
-bash dev restart
-bash dev doctor            # 只读诊断
-bash dev logs              # 跟踪日志
-bash dev migrate           # 应用 schema migrations
-bash dev import            # UPSERT cms/content/ 到 docker postgres
+bash dev run               # 启 host-native backend+frontend + docker db(含子系统 preflight)
 bash dev cms-run           # 完整 CMS 流水线(词库→AI句子→TTS)
 # ... 还有 cms-vocab / cms-sentences / cms-audio / cms-staging-doctor
 ```
@@ -61,33 +54,26 @@ bash dev cms-run           # 完整 CMS 流水线(词库→AI句子→TTS)
 dev 主机自己跑 docker postgres（`postgres:15-alpine`，数据在 `./.docker-postgres-data/`，gitignored）—— 没有外部云 db，没有 `.dbcreds/` 间接层，`DATABASE_URL` 由 compose 的 `environment:` 直接注入 backend 容器。
 
 ```bash
-# 一次性: 装 host-native deps + 起 docker db
-bash dev setup                     # preflight + 装 backend/.venv + frontend/node_modules + 起 db
-bash dev doctor                    # 前置检查 (docker + compose + host python/node + ports + db 可达性)
-
-# 起 host-native 进程 (uvicorn :8000 + next dev :3000,都连 docker postgres :5432)
-bash dev start
+# 一次性: 起 host-native 进程 (uvicorn :8000 + next dev :3000,都连 docker postgres :5432)
+# run 只是 multiplexer — backend/scripts/dev.py 自带 ensure-db → install → migrate →
+# smart-import → uvicorn,frontend/scripts/dev.mjs 自带 install → next dev。
+# Fresh clone 第一次会装 deps(~30s),之后 hash 不变即 ~50ms skip。
+bash dev run
 # 起完会立即看: 「db 是空的 (vocabulary_libs = 0 行)」→ 提示跑 import_content
 
 # 灌入内容 (CMS 主机: ./cms/run.sh 产出 cms/content/,rsync 到本机)
-bash dev import-content            # 自动起 db(如需) → UPSERT → migrations/backfills
+# 后端启动时会 smart-import(cms/content/* 比 marker 新就 UPSERT)
+bash dev cms-staging-import        # 显式触发(给 CI / 测试用)
 # 无需 restart;下一次 API 请求立即读到新内容
 
 # 改了代码后
-bash dev restart                   # 重起 backend + frontend 进程 (uvicorn/next 自动重载一般不需要)
-
-# 改了 backend/migrations/versions/*.py 后
-bash dev migrate                   # host-side runner,直接打 docker postgres
-
-# 日常
-bash dev logs [backend|frontend]   # tail native 进程日志
-bash dev stop                      # 停两个 native 进程(db 留着)
+# uvicorn/next 已 --reload,改完自动热更;若需手动重起:Ctrl+C 再 bash dev run
 ```
 
-需要换 CORS 白名单: `ALLOWED_ORIGINS=https://my.domain bash dev start`
+需要换 CORS 白名单: `ALLOWED_ORIGINS=https://my.domain bash dev run`
 
-> 没装 docker / daemon 没起,`bash dev doctor` 会直接报错,先装 docker。
-> dev db 是 docker postgres,不需要任何 bootstrap 命令 —— dev-setup 只装 host-native deps 和起 db,所有 db 操作都在 start 时按需发生。
+> 没装 docker / daemon 没起,`bash dev run` 会在 backend dev.py 第 1 步直接报错,先装 docker。
+> dev db 是 docker postgres,不需要任何 bootstrap 命令 —— 所有 db 操作都在 backend dev.py 启动时按需发生。
 
 访问:
 - 前端: <http://localhost:3000>

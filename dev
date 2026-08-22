@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+#
+# dev — dev subsystem entry point (Win/macOS/Linux).
+#
+# Project-root entry for the dev loop. Spawns backend (uvicorn --reload) +
+# frontend (next dev) as host processes, with the dev db in docker
+# (postgres:15-alpine). `dev run` is a multiplexer — it merges the two
+# services' output into one prefixed terminal. Ctrl+C cleanly stops both.
+#
+# One functional subcommand:
+#   run     start the dev loop (every session)
+#
+# All preflight is owned by the spawned dev orchestrators, not by
+# run.js. Each subsystem self-bootstraps on its own entry point:
+#
+#   backend/scripts/dev.py     ensure-db → install → migrate → smart-import → uvicorn
+#   frontend/scripts/dev.mjs  install → next dev
+#
+# dev-cli/run.js (this script's multiplexer) does no orchestration. It just
+# spawns them and pipes their output. Idempotency lives in each
+# orchestrator's install step (hash-aware, ~50ms when healthy). First
+# run after a fresh clone is the only run that pays the full cost.
+#
+# The old daemonized model (start/stop/restart/status/logs + .pid/.log
+# files), `doctor`, `migrate`, `import`, and `setup` are gone. Migrate +
+# content import are now owned by backend/scripts/dev.py (auto-runs
+# before uvicorn). preflight failures surface directly in the terminal
+# from the failing orchestrator. If you need background mode later, use
+# a terminal multiplexer (tmux / Windows Terminal tabs) — do not add a
+# daemonized mode back to this script.
+#
+# Invocation:
+#   bash dev run                # project root, full path
+#   ./dev run                   # if cwd is project root and `./` resolves
+#   dev run                     # if the project root (or a containing dir
+#                              # that holds a `dev` symlink/wrapper) is on PATH
+#
+# Three-platform zero-install prereqs:
+#   - macOS / Linux         : bash ships with the OS
+#   - Windows (Git Bash)    : bash.exe ships with Git for Windows
+#   - Windows (PowerShell)  : open Git Bash first; raw `bash` is the
+#                             WSL launcher and may fail.
+
+set -e
+
+# ─── Locate project root (this dev script lives at repo root) ─────────────
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR" && pwd)"
+cd "$PROJECT_DIR"
+
+CLI_DIR="$SCRIPT_DIR/dev-cli"
+
+# Hand this shell's bash (Windows-style path) to spawned subsystems so
+# they don't accidentally pick up WSL's `bash.exe` shim from PATH.
+# Without this, Python's subprocess.run(["bash", ...]) on Windows
+# resolves to C:\Windows\System32\bash.exe (WSL launcher) and fails
+# with "execvpe(/bin/bash) failed" when WSL bash isn't installed.
+if command -v cygpath >/dev/null 2>&1; then
+    export DEV_BASH="$(cygpath -w "$BASH")"
+else
+    export DEV_BASH="$BASH"
+fi
+
+SUBCMD="${1:-help}"
+[ $# -gt 0 ] && shift
+
+case "$SUBCMD" in
+  run)
+    bash "$CLI_DIR/run.sh" "$@"
+    ;;
+
+  help|--help|-h)
+    cat <<'USAGE'
+Usage: dev <command> [args]
+
+Commands:
+  run     Start the dev loop in the foreground. Spawns:
+            backend/scripts/dev.py     ensure-db → install → migrate → smart-import → uvicorn
+            frontend/scripts/dev.mjs  install → next dev
+          Each orchestrator owns its own preflight — run.js does no
+          orchestration, it just streams both into one prefixed terminal.
+          Ctrl+C cleanly stops both; stack traces / reload events
+          stream to this terminal.
+
+Flags (on `run`):
+  backend, frontend   Spawn only that service
+  --no-color          Disable ANSI prefix coloring
+  --kill-others=false Don't kill the sibling when one service exits
+
+Backend/frontend flags (forwarded to both spawned orchestrators):
+  --skip-import       Skip content import (backend/scripts/dev.py)
+  --skip-migrate      Skip migrations (backend/scripts/dev.py)
+  Anything else is passed through to uvicorn / next dev respectively.
+
+Examples:
+  dev run                    # both services
+  dev run backend            # only backend
+  dev run --skip-migrate     # don't apply pending migrations
+  dev help
+
+Invocation (project root is the cwd):
+  bash dev run               # explicit
+  ./dev run                  # bash resolves `./dev` as the script
+  dev run                    # if the directory holding this `dev` script
+                             # is on PATH (e.g. `~/bin/dev` wrapper, or
+                             # project root exported into PATH)
+
+Cross-platform:
+  macOS  / Linux        bash dev run
+  Windows (Git Bash)    bash dev run
+  Windows (PowerShell)  Open a Git Bash terminal first
+USAGE
+    ;;
+
+  *)
+    echo "Unknown command: $1" >&2
+    echo "Run 'dev help' for usage." >&2
+    exit 2
+    ;;
+esac

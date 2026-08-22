@@ -161,7 +161,6 @@ in its environment via `$(cat /run/secrets/db_password)`.
 │   │   ├── _common.sh       # shared setup (docker postgres contract, staging-files helpers)
 │   │   ├── native.sh        # host-native dev driver (uvicorn + next dev on host; db in docker)
 │   │   ├── doctor.sh        # preflight (docker, host python/node, db mount target, ports)
-│   │   ├── setup.sh         # first-time: preflight + install native deps + start docker db
 │   │   ├── logs.sh          # tail native process logs
 │   │   ├── migrate.sh       # apply schema migrations to live docker postgres (host-side runner)
 │   │   ├── import_content.sh   # UPSERT cms/content/ to docker postgres (host-side runner)

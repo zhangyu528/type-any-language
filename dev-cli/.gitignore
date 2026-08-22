@@ -1,0 +1,17 @@
+# dev-cli/ — runtime data + scratch.
+# Lives alongside the dev entry script (project-root `dev`).
+# The docker postgres bind-mount target and the smart-import marker
+# file both live here.
+#
+# Patterns are relative to dev-cli/.
+
+# Bind-mounted postgres data dir. Created on first
+# `docker compose -f dev-cli/docker-compose.dev.yml up db`; persistent
+# across container restarts; operator-backup-friendly (it's just a
+# directory on the host).
+/.docker-postgres-data/
+
+# Dev scratch dir. Currently holds only `import_marker` (touched
+# by `dev run` after a successful smart-import step); the directory
+# is created on first import.
+/.local/
