@@ -100,26 +100,30 @@ jobs:
           NEXT_PUBLIC_API_URL: ''
         run: npm run build:pages
 
+      - name: Get current month (cache key rotation)
+        id: month
+        # 用月份做 cache key 的一部分 → 每月自动 re-download 一次,保证 binary 新鲜
+        # 同一月内 cache hit 跳过 30MB 下载
+        run: echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+
       - name: Cache cloudflared binary
         id: cache-cf
         uses: actions/cache@v4
         with:
-          # 固定版本 key + restore-keys fallback:
-          # - key 完全匹配(version + OS) → 立刻用 cache,跳过 30MB 下载
-          # - 任何旧 cloudflared-* key 命中 → 用旧版本(冷启动不会卡死)
-          # - 都不命中 → Install cloudflared step 重新下
-          # 所有 branch 共享同一 cache(不带 branch 信息)
           path: /tmp/cloudflared
-          key: cloudflared-v2024.10.2-${{ runner.os }}-amd64
+          # key 固定 → 同月内所有 run 共享 cache
+          # 不带 branch 信息 → feat/master 都用同一份
+          # restore-keys prefix → 新月份 cache miss 时,fallback 用上月 cache(冷启动不会卡死)
+          key: cloudflared-${{ runner.os }}-${{ steps.month.outputs.month }}
           restore-keys: |
-            cloudflared-v
+            cloudflared-${{ runner.os }}-
 
       - name: Install cloudflared
         if: steps.cache-cf.outputs.cache-hit != 'true'
         run: |
-          # 缓存未命中 → 下载。锁版本避免 'latest' 漂移。
+          # 缓存未命中 → 从 latest 下载。月份会自动切换,不用锁版本。
           curl -fsSL -o /tmp/cloudflared \
-            https://github.com/cloudflare/cloudflared/releases/download/2024.10.2/cloudflared-linux-amd64
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
           chmod +x /tmp/cloudflared
 
       - name: Verify cloudflared
